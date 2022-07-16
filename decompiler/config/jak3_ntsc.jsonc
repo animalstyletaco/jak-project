@@ -1,6 +1,121 @@
 {
-    "game_version":3,
-    "dgo_names":["CGO/ART.CGO",
+  "game_version":3,
+  "text_version": 11, // patched to 11
+  "game_name": "jak3",
+  "expected_elf_name": "SCUS_973.30",
+
+  // if you want to filter to only some object names.
+  // it will make the decompiler much faster.
+  "allowed_objects": [],
+  "banned_objects": [],
+
+  ////////////////////////////
+  // CODE ANALYSIS OPTIONS
+  ////////////////////////////
+
+  // set to true to generate plain .asm files with MIPS disassembly, with no fancy decompilation.
+  // this is fast and should succeed 100% of the time.
+  "disassemble_code": false,
+
+  // Run the decompiler
+  "decompile_code": false,
+
+  // run the first pass of the decompiler
+  "find_functions": true,
+
+  ////////////////////////////
+  // DATA ANALYSIS OPTIONS
+  ////////////////////////////
+
+  // set to true to generate plain .asm files for data files.
+  // this will display most data as hex, but will add labels/references/type pointers/strings
+  // this generates a huge amount of output if you run it on the entire game.
+  "disassemble_data": false,
+
+  // unpack textures to assets folder
+  "process_tpages": true,
+  // unpack game text to assets folder
+  "process_game_text": true,
+  // unpack game count to assets folder
+  "process_game_count": true,
+  // write goal imports for art groups
+  "process_art_groups": true,
+
+  ///////////////////////////
+  // WEIRD OPTIONS
+  ///////////////////////////
+
+  // these options are used rarely and should usually be left at false
+
+  // generate the symbol_map.json file.
+  // this is a guess at where each symbol is first defined/used.
+  "generate_symbol_definition_map": false,
+
+  // genreate the all-types file
+  "generate_all_types" : false,
+
+  // debug option for instruction decoder
+  "write_hex_near_instructions": false,
+
+  // experimental tool to extract linked lists used for region scripting in Jak 2 and Jak 3.
+  "write_scripts": false,
+
+  // hex dump of code/data files.
+  "hexdump_code": false,
+  "hexdump_data": false,
+  // dump raw obj files
+  "dump_objs": true,
+  // print control flow graph
+  "print_cfgs": false,
+
+  // set to true for PAL versions. this will forcefully skip files that have some data missing at the end.
+  "is_pal": false,
+
+  ////////////////////////////
+  // CONFIG FILES
+  ////////////////////////////
+
+  "type_casts_file": "decompiler/config/jak3/type_casts.jsonc",
+  "anonymous_function_types_file": "decompiler/config/jak3/anonymous_function_types.jsonc",
+  "var_names_file": "decompiler/config/jak3/var_names.jsonc",
+  "label_types_file": "decompiler/config/jak3/label_types.jsonc",
+  "stack_structures_file": "decompiler/config/jak3/stack_structures.jsonc",
+  "hacks_file": "decompiler/config/jak3/hacks.jsonc",
+  "inputs_file": "decompiler/config/jak3/inputs.jsonc",
+  "art_info_file": "decompiler/config/jak3/art_info.jsonc",
+  "import_deps_file": "decompiler/config/jak3/import_deps.jsonc",
+  "all_types_file": "decompiler/config/all-types.gc",
+
+  // optional: a predetermined object file name map from a file.
+  // this will make decompilation naming consistent even if you only run on some objects.
+  "obj_file_name_map_file": "",
+
+  ////////////////////////////
+  // LEVEL EXTRACTION
+  ////////////////////////////
+
+  // turn this on to extract level background graphics data
+  "levels_extract": true,
+  // turn this on if you want extracted levels to be saved out as .obj files
+  "levels_convert_to_obj": false,
+  // should we extract collision meshes?
+  // these can be displayed in game, but makes the .fr3 files slightly larger
+  "extract_collision": true,
+
+  ////////////////////////////
+  // PATCHING OPTIONS
+  ////////////////////////////
+
+  // these are options related to xdelta3 patches on specific objects
+  // this allows us to get a more consistent input
+
+  // set to true to write new patch files
+  "write_patches": false,
+  // set to true to apply patch files
+  "apply_patches": false,
+  "object_patches": {},
+ 
+  "dgo_names":["CGO/ART.CGO",
 "CGO/KERNEL.CGO",
 "CGO/ENGINE.CGO",
 "CGO/GAME.CGO",
@@ -276,51 +391,5 @@
 "DGO/LDAX.DGO",
 "DGO/LCTYPROT.DGO",
 "DGO/DESHOVER.DGO",
-"DGO/DESBOSS2.DGO"],
-
-    "object_file_names":[],
-
-    "type_hints_file":"decompiler/config/jak2/type_hints.jsonc",
-    "anonymous_function_types_file":"decompiler/config/jak2/anonymous_function_types.jsonc",
-    "var_names_file":"decompiler/config/jak2/var_names.jsonc",
-    "label_types_file":"decompiler/config/jak2/label_types.jsonc",
-
-    "str_file_names":[],
-
-    "str_file_names_":[],
-    "allowed_objects":[],
-
-    "analyze_functions":false,
-    "analyze_expressions":false,
-    "function_type_prop":false,
-    "write_disassembly":true,
-    "write_hex_near_instructions":false,
-    "insert_lets":false,
-
-    "run_ir2":false,
-
-    // if false, skips printing disassembly of object with functions, as these are usually large (~1 GB) and not interesting yet.
-    "disassemble_objects_without_functions":false,
-
-    "process_tpages":false,
-    "process_game_text":false,
-    "process_game_count":false,
-    "dump_objs":true,
-    "write_func_json":false,
-
-    // to write out data of each object file
-    "write_hexdump":false,
-    // to write out hexdump on the v3 only, to avoid the huge level data files. Only if write_hexdump is true.
-    "write_hexdump_on_v3_only":true,
-
-    // to write out "scripts", which are currently just all the linked lists found. mostly a jak 2/3 thing
-    "write_scripts":true,
-
-    // Experimental Stuff
-    "find_basic_blocks":true,
-
-    "types_with_bad_inspect_methods":[],
-    "no_type_analysis_functions_by_name":[],
-    "asm_functions_by_name":[],
-    "pair_functions_by_name":[]
+"DGO/DESBOSS2.DGO"]
 }

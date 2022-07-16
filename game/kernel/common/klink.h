@@ -69,13 +69,17 @@ struct link_control {
   // was originally "work"
   uint32_t jak1_work();
   uint32_t jak2_work();
+  uint32_t jak3_work();
 
   uint32_t jak1_work_v3();
   uint32_t jak1_work_v2();
   uint32_t jak2_work_v3();
   uint32_t jak2_work_v2();
+  uint32_t jak3_work_v3();
+  uint32_t jak3_work_v2();
   void jak1_finish(bool jump_from_c_to_goal);
   void jak2_finish(bool jump_from_c_to_goal);
+  void jak3_finish(bool jump_from_c_to_goal);
 
   void reset() {
     m_object_data.offset = 0;

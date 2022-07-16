@@ -987,6 +987,10 @@ void TypeSystem::add_builtin_types(GameVersion version) {
       symbol_type = add_builtin_structure("object", "symbol", true);
       symbol_type->override_offset(1);
       break;
+    case GameVersion::Jak3:
+      symbol_type = add_builtin_structure("object", "symbol", true);
+      symbol_type->override_offset(1);
+      break;
     default:
       ASSERT(false);
   }

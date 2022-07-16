@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
                "Attempt to automatically connect to the debugger on startup");
   app.add_flag("--user-auto", auto_find_user,
                "Attempt to automatically deduce the user, overrides '-user'");
-  app.add_option("-g,--game", game, "The game name: 'jak1' or 'jak2'");
+  app.add_option("-g,--game", game, "The game name: 'jak1', 'jak2' or 'jak3'");
   app.validate_positionals();
   CLI11_PARSE(app, argc, argv);
 

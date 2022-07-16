@@ -38,7 +38,7 @@ Config read_config_file(const std::string& path_to_config_file,
   }
 
   int version_int = cfg.at("game_version").get<int>();
-  ASSERT(version_int == 1 || version_int == 2);
+  ASSERT(version_int == 1 || version_int == 2 || version_int == 3);
   config.game_version = (GameVersion)version_int;
   config.text_version = cfg.at("text_version").get<GameTextVersion>();
   config.game_name = cfg.at("game_name").get<std::string>();

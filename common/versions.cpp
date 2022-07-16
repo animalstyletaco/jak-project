@@ -9,6 +9,8 @@ GameVersion game_name_to_version(const std::string& name) {
     return GameVersion::Jak1;
   } else if (name == "jak2") {
     return GameVersion::Jak2;
+  } else if (name == "jak3") {
+    return GameVersion::Jak3;
   } else {
     ASSERT_MSG(false, fmt::format("invalid game name: {}", name));
   }

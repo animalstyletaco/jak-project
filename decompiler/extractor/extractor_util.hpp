@@ -35,7 +35,7 @@ static const std::unordered_map<std::string, GameIsoFlags> sGameIsoFlagNames = {
     {"jak1-black-label", FLAG_JAK1_BLACK_LABEL}};
 
 // used for - decompiler_out/<jak1> and iso_data/<jak1>
-std::unordered_map<std::string, std::string> data_subfolders = {{"jak1", "jak1"}};
+std::unordered_map<std::string, std::string> data_subfolders = {{"jak1", "jak1"},{"jak2","jak2"},{"jak3", "jak3"}};
 
 struct ISOMetadata {
   std::string canonical_name;
@@ -87,6 +87,24 @@ static const ISOMetadata jak1_ntsc_black_label_info = {
     "jak1",
     {"jak1-black-label"}};
 
+static const ISOMetadata jak2_ntsc = {
+    "Jak II™",
+    "NTSC-U",
+    593,
+    5223305410190549348U,
+    "jak2_ntsc_v1",
+    "jak2",
+    {"jak2-black-label"}};
+
+static const ISOMetadata jak3_ntsc = {
+    "Jak 3™",
+    "NTSC-U",
+    749,
+    1197801364027358161U,
+    "jak3_ntsc",
+    "jak3",
+    {"jak3-black-label"}};
+
 // { SERIAL : { ELF_HASH : ISOMetadataDatabase } }
 static const std::unordered_map<std::string, std::unordered_map<xxh::hash64_t, ISOMetadata>>
     isoDatabase{{"SCUS-97124",
@@ -116,6 +134,26 @@ static const std::unordered_map<std::string, std::unordered_map<xxh::hash64_t, I
                     1262350561338887717,
                     "jak1_jp",
                     "jak1",
+                    {}}}}},
+                {"SCUS-97265",
+                 {{18445016742498932084U, jak2_ntsc},
+                  {5223305410190549348,
+                   {"Jak II™",
+                    "NTSC-U",
+                    593,
+                    8538304367812415885U,
+                    "jak2_jp",
+                    "jak2",
+                    {}}}}},
+                {"SCUS-97330",
+                 {{4975852519304227343U, jak3_ntsc},
+                  {744661860962747854,
+                   {"Jak 3™",
+                    "NTSC-U",
+                    749,
+                    8538304367812415885U,
+                    "jak3_jp",
+                    "jak3",
                     {}}}}}};
 
 std::optional<ISOMetadata> get_version_info_from_build_info(const BuildInfo& build_info) {

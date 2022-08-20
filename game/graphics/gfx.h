@@ -20,7 +20,7 @@ struct GfxSettings;
 class GfxDisplay;
 
 // enum for rendering pipeline
-enum class GfxPipeline { Invalid = 0, OpenGL };
+enum class GfxPipeline { Invalid = 0, OpenGL, Vulkan };
 enum GfxDisplayMode { Windowed = 0, Fullscreen = 1, Borderless = 2 };
 
 // module for the different rendering pipelines

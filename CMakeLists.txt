@@ -165,6 +165,10 @@ add_subdirectory(third-party/zstd EXCLUDE_FROM_ALL)
 
 # build imgui
 include_directories(third-party/glad/include)
+
+#if(USE_VULKAN)
+include_directories(third-party/vulkan-headers/include)
+#endif()
 include_directories(third-party/glfw/include)
 add_subdirectory(third-party/imgui EXCLUDE_FROM_ALL)
 string(REPLACE " ${THIRDPARTY_IGNORED_WARNINGS} " "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")

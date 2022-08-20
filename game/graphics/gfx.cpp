@@ -20,6 +20,7 @@
 #include "game/runtime.h"
 #include "game/system/newpad.h"
 #include "pipelines/opengl.h"
+#include "pipelines/vulkan.h"
 
 namespace {
 // initializes a gfx settings.

@@ -101,7 +101,7 @@ set(RUNTIME_SOURCE
         graphics/sceGraphicsInterface.cpp
         graphics/texture/jak1_tpage_dir.cpp
         graphics/texture/TextureConverter.cpp
-        graphics/texture/TexturePool.cpp
+
         system/vm/dmac.cpp
         system/vm/vm.cpp
         tools/subtitles/subtitle_editor.h
@@ -109,6 +109,8 @@ set(RUNTIME_SOURCE
 
 if(WIN32)
   list(APPEND RUNTIME_SOURCE
+        graphics/pipelines/vulkan.cpp
+        graphics/vulkan_renderer/VulkanRenderer.cpp
         graphics/vulkan_renderer/background/background_common.cpp
         graphics/vulkan_renderer/background/Shrub.cpp
         graphics/vulkan_renderer/background/Tfrag3.cpp
@@ -137,7 +139,6 @@ if(WIN32)
         graphics/vulkan_renderer/EyeRenderer.cpp
         graphics/vulkan_renderer/dma_helpers.cpp
         graphics/vulkan_renderer/vulkan_utils.cpp
-        graphics/vulkan_renderer/VulkanRenderer.cpp
         graphics/vulkan_renderer/Profiler.cpp
         graphics/vulkan_renderer/Shader.cpp
         graphics/vulkan_renderer/Shadow_PS2.cpp
@@ -149,7 +150,8 @@ if(WIN32)
         graphics/vulkan_renderer/SpriteRenderer.cpp
         graphics/vulkan_renderer/TextureUploadHandler.cpp
         graphics/vulkan_renderer/DepthCue.cpp
-        graphics/pipelines/vulkan.cpp)
+        graphics/texture/TexturePoolVulkan.cpp
+        ../third-party/glad/src/vulkan.c)
 else()
    list(APPEND RUNTIME_SOURCE
         graphics/opengl_renderer/background/background_common.cpp
@@ -192,7 +194,9 @@ else()
         graphics/opengl_renderer/SpriteRenderer.cpp
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/DepthCue.cpp
-        graphics/pipelines/opengl.cpp)
+        graphics/texture/TexturePool.cpp
+        graphics/pipelines/opengl.cpp
+        ../third-party/glad/src/glad.c)
 endif()
 
 find_package(Git)
@@ -229,7 +233,7 @@ write_svnrev_h()
 add_subdirectory(sound)
 
 # we build the runtime as a static library.
-add_library(runtime STATIC ${RUNTIME_SOURCE} "../third-party/glad/src/glad.c")
+add_library(runtime STATIC ${RUNTIME_SOURCE})
 
 target_link_libraries(runtime common fmt glfw imgui discord-rpc sound stb_image libco)
 if(WIN32)
@@ -237,8 +241,6 @@ if(WIN32)
 else()
     target_link_libraries(runtime pthread dl)
 endif()
-
-target_link_libraries(runtime vulkan)
 
 add_executable(gk main.cpp)
 target_link_libraries(gk runtime)

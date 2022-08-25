@@ -21,7 +21,7 @@ class GfxDisplay;
 
 // enum for rendering pipeline
 enum class GfxPipeline { Invalid = 0, OpenGL, Vulkan };
-enum GfxDisplayMode { Windowed = 0, Fullscreen = 1, Borderless = 2 };
+enum GfxDisplayMode { ForceUpdate = -1, Windowed = 0, Fullscreen = 1, Borderless = 2 };
 
 // module for the different rendering pipelines
 struct GfxRendererModule {
@@ -90,10 +90,6 @@ struct GfxGlobalSettings {
   int lod_tfrag = 0;
   int lod_tie = 0;
 
-  // collision renderer settings
-  bool collision_enable = false;
-  bool collision_wireframe = true;
-
   // vsync enable
   bool vsync = true;
   bool old_vsync = false;
@@ -102,8 +98,16 @@ struct GfxGlobalSettings {
   // use custom frame limiter
   bool framelimiter = true;
 
+  // frame timing things
   bool experimental_accurate_lag = false;
   bool sleep_in_frame_limiter = true;
+
+  // fancy effect things
+  bool hack_no_tex = false;
+
+  // collision renderer settings
+  bool collision_enable = false;
+  bool collision_wireframe = true;
 
   // matching enum in kernel-defs.gc !!
   enum CollisionRendererMode { None, Mode, Event, Material, Skip } collision_mode = Mode;

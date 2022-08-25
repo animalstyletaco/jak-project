@@ -3,6 +3,7 @@
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
 #include "third-party/imgui/imgui.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 Merc2::Merc2(const std::string& name, BucketId my_id) : BucketRenderer(name, my_id) {
   glGenVertexArrays(1, &m_vao);
@@ -66,13 +67,13 @@ void Merc2::init_for_frame(SharedRenderState* render_state) {
   m_current_model = std::nullopt;
   m_stats = {};
 
-  // activate the merc shader used for all draws
-  render_state->shaders[ShaderId::MERC2].activate();
-
   // set uniforms that we know from render_state
-  glUniform4f(m_uniforms.fog_color, render_state->fog_color[0] / 255.f,
-              render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
-              render_state->fog_intensity / 255);
+  math::Vector4f fog_color_vector;
+  fog_color_vector.x() = render_state->fog_color[0] / 255.f;
+  fog_color_vector.y() = render_state->fog_color[1] / 255.f;
+  fog_color_vector.z() = render_state->fog_color[2] / 255.f;
+  fog_color_vector.w() = render_state->fog_intensity / 255;
+  set_uniform(m_uniforms.fog_color, fog_color_vector);
 }
 
 void Merc2::draw_debug_window() {
@@ -86,28 +87,27 @@ void Merc2::draw_debug_window() {
 }
 
 void Merc2::init_shaders(ShaderLibrary& shaders) {
-  shaders[ShaderId::MERC2].activate();
-  m_uniforms.light_direction[0] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "light_dir0");
-  m_uniforms.light_direction[1] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "light_dir1");
-  m_uniforms.light_direction[2] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "light_dir2");
-  m_uniforms.light_color[0] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "light_col0");
-  m_uniforms.light_color[1] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "light_col1");
-  m_uniforms.light_color[2] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "light_col2");
-  m_uniforms.light_ambient = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "light_ambient");
+  m_uniforms.light_direction[0] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_dir0");
+  m_uniforms.light_direction[1] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_dir1");
+  m_uniforms.light_direction[2] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_dir2");
+  m_uniforms.light_color[0] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_col0");
+  m_uniforms.light_color[1] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_col1");
+  m_uniforms.light_color[2] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_col2");
+  m_uniforms.light_ambient = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_ambient");
 
-  m_uniforms.hvdf_offset = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "hvdf_offset");
-  m_uniforms.perspective[0] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "perspective0");
-  m_uniforms.perspective[1] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "perspective1");
-  m_uniforms.perspective[2] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "perspective2");
-  m_uniforms.perspective[3] = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "perspective3");
+  m_uniforms.hvdf_offset = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("hvdf_offset");
+  m_uniforms.perspective[0] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective0");
+  m_uniforms.perspective[1] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective1");
+  m_uniforms.perspective[2] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective2");
+  m_uniforms.perspective[3] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective3");
 
-  m_uniforms.fog = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "fog_constants");
-  m_uniforms.decal = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "decal_enable");
+  m_uniforms.fog = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("fog_constants");
+  m_uniforms.decal = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("decal_enable");
 
-  m_uniforms.fog_color = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "fog_color");
+  m_uniforms.fog_color = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("fog_color");
   m_uniforms.perspective_matrix =
-      glGetUniformLocation(shaders[ShaderId::MERC2].id(), "perspective_matrix");
-  m_uniforms.ignore_alpha = glGetUniformLocation(shaders[ShaderId::MERC2].id(), "ignore_alpha");
+      shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective_matrix");
+  m_uniforms.ignore_alpha = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("ignore_alpha");
 }
 
 /*!
@@ -190,11 +190,17 @@ void Merc2::handle_all_dma(DmaFollower& dma,
 }
 
 namespace {
-void set_uniform(GLuint uniform, const math::Vector3f& val) {
-  glUniform3f(uniform, val.x(), val.y(), val.z());
+void set_uniform(uint32_t offset, const math::Vector3f& val) {
+  void* data = NULL;
+  vkMapMemory(device, device_buffer, offset, sizeof(val), 0, &data);  // FIXME: flags needed?
+  ::memcpy(data, &val, sizeof(val));
+  vkUnmapMemory(device, device_buffer);
 }
-void set_uniform(GLuint uniform, const math::Vector4f& val) {
-  glUniform4f(uniform, val.x(), val.y(), val.z(), val.w());
+void set_uniform(uint32_t offset, const math::Vector4f& val) {
+  void* data = NULL;
+  vkMapMemory(device, device_buffer, offset, sizeof(val), 0, &data);  // FIXME: flags needed?
+  ::memcpy(data, &val, sizeof(val));
+  vkUnmapMemory(device, device_buffer);
 }
 }  // namespace
 
@@ -247,7 +253,7 @@ void Merc2::handle_setup_dma(DmaFollower& dma) {
     set_uniform(m_uniforms.perspective[i], m_low_memory.perspective[i]);
   }
   // todo rm.
-  glUniformMatrix4fv(m_uniforms.perspective_matrix, 1, GL_FALSE, &m_low_memory.perspective[0].x());
+  Set4x4MatrixDataInVkDeviceMemory(m_uniforms.perspective_matrix, 1, GL_FALSE, &m_low_memory.perspective[0].x());
 
   // 1 qw with another 4 vifcodes.
   u32 vifcode_final_data[4];
@@ -384,7 +390,7 @@ void Merc2::handle_merc_chain(DmaFollower& dma,
  * Queue up some bones to be included in the bone buffer.
  * Returns the index of the first bone vector.
  */
-u32 Merc2::alloc_bones(int count, float scale) {
+u32 Merc2::alloc_bones(int count) {
   u32 first_bone_vector = m_next_free_bone_vector;
   ASSERT(count * 8 + first_bone_vector <= MAX_SHADER_BONE_VECTORS);
 
@@ -397,12 +403,10 @@ u32 Merc2::alloc_bones(int count, float scale) {
     auto* shader_mat = &m_shader_bone_vector_buffer[m_next_free_bone_vector];
     int bv = 0;
 
-    // scale the transformation matrix (todo: can we move this to the extraction)
     // and copy to the large bone buffer.
-    for (int j = 0; j < 3; j++) {
-      shader_mat[bv++] = skel_mat.tmat[j] * scale;
+    for (int j = 0; j < 4; j++) {
+      shader_mat[bv++] = skel_mat.tmat[j];
     }
-    shader_mat[bv++] = skel_mat.tmat[3];
 
     for (int j = 0; j < 3; j++) {
       shader_mat[bv++] = skel_mat.nmat[j];
@@ -487,7 +491,7 @@ void Merc2::flush_pending_model(SharedRenderState* render_state, ScopedProfilerN
     return;
   }
 
-  u32 first_bone = alloc_bones(bone_count, model->scale_xyz);
+  u32 first_bone = alloc_bones(bone_count);
 
   // allocate lights
   u32 lights = alloc_lights(m_current_lights);
@@ -518,6 +522,8 @@ void Merc2::flush_pending_model(SharedRenderState* render_state, ScopedProfilerN
 void Merc2::flush_draw_buckets(SharedRenderState* /*render_state*/, ScopedProfilerNode& prof) {
   m_stats.num_draw_flush++;
 
+  InitializeVertexBuffer(SharedRenderState * render_state);
+
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
     const auto& lev_bucket = m_level_draw_buckets[li];
     const auto* lev = lev_bucket.level;
@@ -527,61 +533,9 @@ void Merc2::flush_draw_buckets(SharedRenderState* /*render_state*/, ScopedProfil
 
     glEnable(GL_PRIMITIVE_RESTART);
     glPrimitiveRestartIndex(UINT32_MAX);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-    glEnableVertexAttribArray(3);
-    glEnableVertexAttribArray(4);
-    glEnableVertexAttribArray(5);
+
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_GEQUAL);
-
-    glVertexAttribPointer(0,                                        // location 0 in the shader
-                          3,                                        // 3 values per vert
-                          GL_FLOAT,                                 // floats
-                          GL_FALSE,                                 // normalized
-                          sizeof(tfrag3::MercVertex),               // stride
-                          (void*)offsetof(tfrag3::MercVertex, pos)  // offset (0)
-    );
-
-    glVertexAttribPointer(1,                                              // location 1 in the
-                          3,                                              // 3 values per vert
-                          GL_FLOAT,                                       // floats
-                          GL_FALSE,                                       // normalized
-                          sizeof(tfrag3::MercVertex),                     // stride
-                          (void*)offsetof(tfrag3::MercVertex, normal[0])  // offset (0)
-    );
-
-    glVertexAttribPointer(2,                                               // location 1 in the
-                          3,                                               // 3 values per vert
-                          GL_FLOAT,                                        // floats
-                          GL_FALSE,                                        // normalized
-                          sizeof(tfrag3::MercVertex),                      // stride
-                          (void*)offsetof(tfrag3::MercVertex, weights[0])  // offset (0)
-    );
-
-    glVertexAttribPointer(3,                                          // location 1 in the shader
-                          2,                                          // 3 values per vert
-                          GL_FLOAT,                                   // floats
-                          GL_FALSE,                                   // normalized
-                          sizeof(tfrag3::MercVertex),                 // stride
-                          (void*)offsetof(tfrag3::MercVertex, st[0])  // offset (0)
-    );
-
-    glVertexAttribPointer(4,                                            // location 1 in the shader
-                          3,                                            // 3 values per vert
-                          GL_UNSIGNED_BYTE,                             // floats
-                          GL_TRUE,                                      // normalized
-                          sizeof(tfrag3::MercVertex),                   // stride
-                          (void*)offsetof(tfrag3::MercVertex, rgba[0])  // offset (0)
-    );
-
-    glVertexAttribIPointer(5,                                            // location 0 in the
-                           3,                                            // 3 floats per vert
-                           GL_UNSIGNED_BYTE,                             // u8's
-                           sizeof(tfrag3::MercVertex),                   //
-                           (void*)offsetof(tfrag3::MercVertex, mats[0])  // offset in array
-    );
 
     int last_tex = -1;
     int last_light = -1;
@@ -610,7 +564,7 @@ void Merc2::flush_draw_buckets(SharedRenderState* /*render_state*/, ScopedProfil
         set_uniform(m_uniforms.light_ambient, m_lights_buffer[draw.light_idx].ambient);
         last_light = draw.light_idx;
       }
-      setup_opengl_from_draw_mode(draw.mode, GL_TEXTURE0, true);
+      setup_vulkan_from_draw_mode(draw.mode, GL_TEXTURE0, true);
 
       glUniform1i(m_uniforms.decal, draw.mode.get_decal());
 
@@ -626,4 +580,82 @@ void Merc2::flush_draw_buckets(SharedRenderState* /*render_state*/, ScopedProfil
   m_next_free_light = 0;
   m_next_free_bone_vector = 0;
   m_next_free_level_bucket = 0;
+}
+
+void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
+  auto& shader = render_state->shaders[ShaderId::MERC2];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Merc2 Vertex";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Merc2 Fragment";
+
+  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(tfrag3::MercVertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(tfrag3::MercVertex, pos);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(tfrag3::MercVertex, normal[0]);
+
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[2].offset = offsetof(tfrag3::MercVertex, weights[0]);
+
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 3;
+  attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[3].offset = offsetof(tfrag3::MercVertex, st[0]);
+
+  // FIXME: Make sure format for byte and shorts are correct
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 4;
+  attributeDescriptions[2].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[2].offset = offsetof(tfrag3::MercVertex, rgba[0]);
+
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 5;
+  attributeDescriptions[3].format = VK_FORMAT_R4G4B4A4_UNORM_PACK8;
+  attributeDescriptions[3].offset = offsetof(tfrag3::MercVertex, mats[0]);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+  // FIXME: Added necessary configuration back to shrub pipeline
+  VkGraphicsPipelineCreateInfo pipelineInfo{};
+  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipelineInfo.stageCount = 2;
+  pipelineInfo.pStages = shaderStages;
+  pipelineInfo.pVertexInputState = &vertexInputInfo;
+
+  if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                &graphicsPipeline) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create graphics pipeline!");
+  }
+
+  // TODO: Should shaders be deleted now?
 }

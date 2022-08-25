@@ -84,15 +84,15 @@ void FrameTimeRecorder::draw_window(const DmaStats& /*dma_stats*/) {
   ImGui::End();
 }
 
-void OpenGlDebugGui::start_frame() {
+void VulkanDebugGui::start_frame() {
   m_frame_timer.start_frame();
 }
 
-void OpenGlDebugGui::finish_frame() {
+void VulkanDebugGui::finish_frame() {
   m_frame_timer.finish_frame();
 }
 
-void OpenGlDebugGui::draw(const DmaStats& dma_stats) {
+void VulkanDebugGui::draw(const DmaStats& dma_stats) {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Windows")) {
       ImGui::MenuItem("Frame Time Plot", nullptr, &m_draw_frame_time);

@@ -46,14 +46,14 @@ class Generic2 : public BucketRenderer {
   void final_vertex_update();
   bool handle_bucket_setup_dma(DmaFollower& dma, u32 next_bucket);
 
-  void opengl_setup();
-  void opengl_cleanup();
-  void opengl_bind_and_setup_proj(SharedRenderState* render_state);
-  void setup_opengl_for_draw_mode(const DrawMode& draw_mode,
+  void vulkan_setup();
+  void vulkan_cleanup();
+  void vulkan_bind_and_setup_proj(SharedRenderState* render_state);
+  void setup_vulkan_for_draw_mode(const DrawMode& draw_mode,
                                   u8 fix,
                                   SharedRenderState* render_state);
 
-  void setup_opengl_tex(u16 unit,
+  void setup_vulkan_tex(u16 unit,
                         u16 tbp,
                         bool filter,
                         bool clamp_s,

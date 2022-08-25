@@ -1,6 +1,6 @@
 /*!
- * @file opengl.cpp
- * Lower-level OpenGL interface. No actual rendering is performed here!
+ * @file vulkan.cpp
+ * Lower-level vulkan interface. No actual rendering is performed here!
  */
 
 #include "vulkan.h"
@@ -20,8 +20,8 @@
 
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
-#include "game/graphics/gfx_renderer/common/debug_gui.h"
-#include "game/graphics/gfx_renderer/vulkan_renderer/VulkanRenderer.h"
+#include "game/graphics/vulkan_renderer/debug_gui.h"
+#include "game/graphics/vulkan_renderer/VulkanRenderer.h"
 #include "game/graphics/texture/TexturePool.h"
 #include "game/runtime.h"
 #include "game/system/newpad.h"
@@ -57,12 +57,15 @@ struct VulkanGraphicsData {
   // temporary opengl renderer
   VulkanRenderer vulkan_renderer;
 
-  OpenGlDebugGui debug_gui;
+  VulkanDebugGui debug_gui;
 
   FrameLimiter frame_limiter;
   Timer engine_timer;
   double last_engine_time = 1. / 60.;
   float pmode_alp = 0.f;
+
+  VkRenderPass render_pass;
+  VkCommandBuffer command_buffer;
 
   std::string imgui_log_filename, imgui_filename;
   GameVersion version;
@@ -138,10 +141,8 @@ static int vk_init(GfxSettings& settings) {
     return 1;
   }
 
-  // request an Vulkan 4.3 Core context
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);  // 4.3
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-  glfwWindowHint(GLFW_OPENvk_PROFILE, GLFW_OPENvk_CORE_PROFILE);  // core profile, not compat
+  // Vulkan doesn't require a context according to the glfw documentation: https://www.glfw.org/docs/3.3/vulkan_guide.html#vulkan_window
+  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
   glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);  // Should we have an option for triple buffered?
 
@@ -171,12 +172,12 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
 
   glfwMakeContextCurrent(window);
   if (!vk_inited) {
-    gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-    if (!gladLoadGL()) {
+    if (!gladLoadVulkan(g_gfx_data->vulkan_renderer.GetPhysicalDevice(),
+                        (GLADloadfunc)glfwGetProcAddress)) {
       lg::error("GL init fail");
       return NULL;
     }
-    g_gfx_data = std::make_unique<GraphicsData>(game_version);
+    g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version);
 
     vk_inited = true;
   }
@@ -192,7 +193,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
     glfwSetWindowIcon(window, 1, images);
     stbi_image_free(images[0].pixels);
   } else {
-    lg::error("Could not load icon for OpenGL window");
+    lg::error("Could not load icon for Vulkan window");
   }
 
   SetGlobalGLFWCallbacks();
@@ -222,7 +223,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   io.LogFilename = g_gfx_data->imgui_log_filename.c_str();
 
   // set up to get inputs for this window
-  ImGui_ImplGlfw_InitForOpenGL(window, true);
+  ImGui_ImplGlfw_InitForVulkan(window, true);
 
   // NOTE: imgui's setup calls functions that may fail intentionally, and attempts to disable error
   // reporting so these errors are invisible. But it does not work, and some weird X11 default
@@ -230,7 +231,22 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   glfwGetError(NULL);
 
   // set up the renderer
-  ImGui_ImplOpenGL3_Init("#version 430");
+  ImGui_ImplVulkan_InitInfo imgui_vulkan_info = {};
+  imgui_vulkan_info.Instance = g_gfx_data->vulkan_renderer.GetInstance();
+  imgui_vulkan_info.PhysicalDevice = g_gfx_data->vulkan_renderer.GetPhysicalDevice();
+  imgui_vulkan_info.Device = g_gfx_data->vulkan_renderer.GetLogicalDevice();
+  imgui_vulkan_info.QueueFamily = g_gfx_data->vulkan_renderer.GetQueueFamily();
+  imgui_vulkan_info.Queue = g_gfx_data->vulkan_renderer.GetPresentQueue();
+  imgui_vulkan_info.PipelineCache = NULL;
+  imgui_vulkan_info.DescriptorPool = g_gfx_data->vulkan_renderer.GetDescriptorPool();
+  imgui_vulkan_info.Subpass = 0;
+  imgui_vulkan_info.MinImageCount = 2; //Minimum image count need for initialization
+  imgui_vulkan_info.ImageCount = 2;
+  imgui_vulkan_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+  imgui_vulkan_info.Allocator = NULL;
+  imgui_vulkan_info.CheckVkResultFn = NULL;
+
+  ImGui_ImplVulkan_Init(&imgui_vulkan_info, g_gfx_data->vulkan_renderer.GetRendererPass());
 
   return std::static_pointer_cast<GfxDisplay>(display);
 }
@@ -275,7 +291,7 @@ VkDisplay::~VkDisplay() {
   glfwSetWindowSizeCallback(m_window, NULL);
   glfwSetWindowIconifyCallback(m_window, NULL);
   glfwSetWindowUserPointer(m_window, nullptr);
-  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
   glfwDestroyWindow(m_window);
@@ -374,8 +390,7 @@ void render_game_frame(int game_width,
     options.draw_small_profiler_window = g_gfx_data->debug_gui.small_profiler;
     options.pmode_alp_register = g_gfx_data->pmode_alp;
 
-    GLint msaa_max;
-    glGetIntegerv(vk_MAX_SAMPLES, &msaa_max);
+    auto msaa_max = g_gfx_data->vulkan_renderer.GetMaxUsableSampleCount();
     if (options.msaa_samples > msaa_max) {
       options.msaa_samples = msaa_max;
     }
@@ -390,10 +405,10 @@ void render_game_frame(int game_width,
     }
     if constexpr (run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
-      g_gfx_data->ovk_renderer.render(DmaFollower(chain.data.data(), chain.start_offset), options);
+      g_gfx_data->vulkan_renderer.render(DmaFollower(chain.data.data(), chain.start_offset), options);
     } else {
       auto p = scoped_prof("ogl-render");
-      g_gfx_data->ovk_renderer.render(DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
+      g_gfx_data->vulkan_renderer.render(DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
                                                   g_gfx_data->dma_copier.get_last_input_offset()),
                                       options);
     }
@@ -597,13 +612,15 @@ void VkDisplay::render() {
     auto p = scoped_prof("poll-gamepads");
     glfwPollEvents();
     glfwMakeContextCurrent(m_window);
-    Pad::update_gamepads();
+
+    auto& mapping_info = Gfx::get_button_mapping();
+    Pad::update_gamepads(mapping_info);
   }
 
   // imgui start of frame
   {
     auto p = scoped_prof("imgui-init");
-    ImGui_ImplOpenGL3_NewFrame();
+    //ImGui_ImplVulkan_NewFrame(); Not used?
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
   }
@@ -642,7 +659,7 @@ void VkDisplay::render() {
   {
     auto p = scoped_prof("imgui-render");
     ImGui::Render();
-    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), g_gfx_data->command_buffer, NULL);
   }
 
   // actual vsync

@@ -5,12 +5,25 @@
  * Vulkan includes.
  */
 
-#define GLFW_INCLUDE_VULKAN
+
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
 
-#include "third-party/glad/include/glad/glad.h"
+#include "third-party/glad/include/vulkan/vulkan.h"
+
+#define GLFW_INCLUDE_VULKAN
 #include "third-party/glfw/include/GLFW/glfw3.h"
+
+enum GlfwKeyAction {
+  Release = GLFW_RELEASE,  // falling edge of key press
+  Press = GLFW_PRESS,      // rising edge of key press
+  Repeat = GLFW_REPEAT     // repeated input on hold e.g. when typing something
+};
+
+enum GlfwKeyCustomAxis {
+  CURSOR_X_AXIS = GLFW_GAMEPAD_AXIS_LAST + 1,
+  CURSOR_Y_AXIS = GLFW_GAMEPAD_AXIS_LAST + 2
+};
 
 class VkDisplay : public GfxDisplay {
  public:
@@ -45,4 +58,3 @@ class VkDisplay : public GfxDisplay {
   GLFWmonitor* get_monitor(int index);
 };
 
-extern const GfxRendererModule gRendererVulkan;

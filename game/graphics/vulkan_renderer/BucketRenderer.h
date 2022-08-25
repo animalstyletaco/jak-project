@@ -25,6 +25,7 @@ struct SharedRenderState {
   explicit SharedRenderState(std::shared_ptr<TexturePool> _texture_pool,
                              std::shared_ptr<Loader> _loader)
       : texture_pool(_texture_pool), loader(_loader) {}
+
   ShaderLibrary shaders;
   std::shared_ptr<TexturePool> texture_pool;
   std::shared_ptr<Loader> loader;
@@ -43,6 +44,7 @@ struct SharedRenderState {
   float fog_intensity = 1.f;
   bool no_multidraw = false;
 
+  void ResetShaderLibrary(VkDevice device) { shaders = ShaderLibrary(device); }
   void reset();
   bool has_pc_data = false;
   LevelVis occlusion_vis[2];

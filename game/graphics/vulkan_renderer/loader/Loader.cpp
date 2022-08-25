@@ -4,7 +4,7 @@
 #include "common/util/Timer.h"
 #include "common/util/compress.h"
 
-#include "game/graphics/opengl_renderer/loader/LoaderStages.h"
+#include "game/graphics/vulkan_renderer/loader/LoaderStages.h"
 
 namespace {
 std::string uppercase_string(const std::string& s) {

@@ -3,6 +3,7 @@
 #include "common/math/Vector.h"
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 // data passed from game to PC renderers
 // the GOAL code assumes this memory layout.
@@ -37,7 +38,7 @@ struct DoubleDraw {
 };
 
 DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, ShaderId shader);
-DoubleDraw setup_opengl_from_draw_mode(DrawMode mode, u32 tex_unit, bool mipmap);
+DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, u32 tex_unit, bool mipmap);
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             SharedRenderState* render_state,
@@ -98,3 +99,4 @@ u32 make_all_visible_index_list(std::pair<int, int>* group_out,
                                 u32* idx_out,
                                 const std::vector<tfrag3::ShrubDraw>& draws,
                                 const u32* idx_in);
+

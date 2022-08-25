@@ -17,11 +17,11 @@ Generic2::Generic2(const std::string& name,
   m_buckets.resize(num_buckets);
   m_indices.resize(num_verts * 3);
 
-  opengl_setup();
+  vulkan_setup();
 }
 
 Generic2::~Generic2() {
-  opengl_cleanup();
+  vulkan_cleanup();
 }
 
 void Generic2::draw_debug_window() {

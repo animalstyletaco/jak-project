@@ -21,8 +21,16 @@
 #include "game/kernel/svnrev.h"
 #include "game/runtime.h"
 #include "game/system/newpad.h"
-#include "pipelines/opengl.h"
+
+#ifdef _WIN32
 #include "pipelines/vulkan.h"
+#else
+#include "pipelines/opengl.h"
+#endif
+
+
+extern const GfxRendererModule gRendererOpenGL;
+extern const GfxRendererModule gRendererVulkan;
 
 namespace {
 // initializes a gfx settings.

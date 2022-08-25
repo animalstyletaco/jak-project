@@ -1,6 +1,7 @@
 #include "Tfrag3.h"
 
 #include "third-party/imgui/imgui.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 Tfrag3::Tfrag3() {
   glGenVertexArrays(1, &m_debug_vao);
@@ -136,6 +137,7 @@ void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kind
   ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
 }
 
+
 bool Tfrag3::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                              const std::string& level,
                              SharedRenderState* render_state) {
@@ -255,10 +257,8 @@ void Tfrag3::render_tree(int geom,
         break;
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         prof.add_draw_call();
-        glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), "alpha_min"),
-                    -10.f);
-        glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), "alpha_max"),
-                    double_draw.aref_second);
+        render_state->shaders[ShaderId::TFRAG3].SetUniform1f("alpha_min", -10.f);
+        render_state->shaders[ShaderId::TFRAG3].SetUniform1f("alpha_max", double_draw.aref_second);
         glDepthMask(GL_FALSE);
         if (render_state->no_multidraw) {
           glDrawElements(tree.draw_mode, singledraw_indices.second, GL_UNSIGNED_INT,
@@ -444,26 +444,22 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
   debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
                  tree.vis->vis_nodes, m_debug_vert_data);
 
-  render_state->shaders[ShaderId::TFRAG3_NO_TEX].activate();
-  glUniformMatrix4fv(
-      glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "camera"), 1,
-      GL_FALSE, settings.math_camera.data());
-  glUniform4f(
-      glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "hvdf_offset"),
+   render_state->shaders[ShaderId::TFRAG3_NO_TEX].Set4x4MatrixDataInVkDeviceMemory("camera", 1,
+      GL_FALSE, (float*)settings.math_camera.data());
+   render_state->shaders[ShaderId::TFRAG3_NO_TEX].SetUniform4f("hvdf_offset",
       settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
       settings.hvdf_offset[3]);
-  glUniform1f(
-      glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "fog_constant"),
-      settings.fog.x());
-  // glDisable(GL_DEPTH_TEST);
-  glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_GEQUAL);
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  // ?
-  glDepthMask(GL_FALSE);
+   render_state->shaders[ShaderId::TFRAG3_NO_TEX].SetUniform1f("fog_constant", settings.fog.x());
 
-  glBindVertexArray(m_debug_vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_debug_verts);
+  //FIXME: Add depth test for vulkan
+  //glEnable(GL_DEPTH_TEST);
+  //glDepthFunc(GL_GEQUAL);
+  //glEnable(GL_BLEND);
+  //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  // ?
+  //glDepthMask(GL_FALSE);
+
+  //glBindVertexArray(m_debug_vao);
+  //glBindBuffer(GL_ARRAY_BUFFER, m_debug_verts);
 
   int remaining = m_debug_vert_data.size();
   int start = 0;
@@ -471,9 +467,14 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
   while (remaining > 0) {
     int to_do = std::min(DEBUG_TRI_COUNT * 3, remaining);
 
-    glBufferSubData(GL_ARRAY_BUFFER, 0, to_do * sizeof(DebugVertex),
-                    m_debug_vert_data.data() + start);
-    glDrawArrays(GL_TRIANGLES, 0, to_do);
+    render_state->shaders[ShaderId::TFRAG3_NO_TEX].
+    void* data;
+    vkMapMemory(device, device_memory, 0, to_do * sizeof(DebugVertex), 0, &data);
+    ::memcpy(data, m_debug_vert_data.data() + start, to_do * sizeof(DebugVertex));
+    vkUnmapMemory(device, device_memory);
+
+    //recordCommandBuffer(command_buffer, )
+    
     prof.add_draw_call();
     prof.add_tri(to_do / 3);
 

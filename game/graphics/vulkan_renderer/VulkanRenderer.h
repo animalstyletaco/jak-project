@@ -47,46 +47,11 @@ struct RenderOptions {
   bool gpu_sync = false;
 };
 
-struct Fbo {
-  bool valid = false;  // do we have an OpenGL fbo_id?
-  GLuint fbo_id = -1;
+struct QueueFamilyIndices {
+  std::optional<uint32_t> graphicsFamily;
+  std::optional<uint32_t> presentFamily;
 
-  // optional rgba/zbuffer/stencil data.
-  std::optional<GLuint> tex_id;
-  std::optional<GLuint> zbuf_stencil_id;
-
-  bool multisampled = false;
-  int multisample_count = 0;  // Should be 1 if multisampled is disabled
-
-  bool is_window = false;
-  int width = 640;
-  int height = 480;
-
-  // Does this fbo match the given format? MSAA = 1 will accept a normal buffer, or a multisample 1x
-  bool matches(int w, int h, int msaa) const {
-    int effective_msaa = multisampled ? multisample_count : 1;
-    return valid && width == w && height == h && effective_msaa == msaa;
-  }
-
-  // Free opengl resources, if we have any.
-  void clear() {
-    if (valid) {
-      glDeleteFramebuffers(1, &fbo_id);
-      fbo_id = -1;
-
-      if (tex_id) {
-        glDeleteTextures(1, &tex_id.value());
-        tex_id.reset();
-      }
-
-      if (zbuf_stencil_id) {
-        glDeleteRenderbuffers(1, &zbuf_stencil_id.value());
-        zbuf_stencil_id.reset();
-      }
-
-      valid = false;
-    }
-  }
+  bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
 };
 
 /*!
@@ -96,13 +61,25 @@ struct Fbo {
  *
  * It is simply a collection of bucket renderers, and a few special case ones.
  */
-class OpenGLRenderer {
+class VulkanRenderer {
  public:
-  OpenGLRenderer(std::shared_ptr<TexturePool> texture_pool, std::shared_ptr<Loader> loader);
+  VulkanRenderer(std::shared_ptr<TexturePool> texture_pool, std::shared_ptr<Loader> loader);
+  ~VulkanRenderer();
 
   // rendering interface: takes the dma chain from the game, and some size/debug settings from
   // the graphics system.
   void render(DmaFollower dma, const RenderOptions& settings);
+
+  VkSampleCountFlagBits GetMaxUsableSampleCount();
+
+  VkInstance GetInstance() const { return instance; };
+  VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice; };
+  VkRenderPass GetRendererPass() const { return renderPass; };
+
+  VkDevice GetLogicalDevice() const { return device; };
+  VkQueue GetPresentQueue() const { return presentQueue; };
+  VkDescriptorPool GetDescriptorPool() const { return descriptorPool; };
+  uint32_t GetQueueFamily() const { return 0; };
 
  private:
   void setup_frame(const RenderOptions& settings);
@@ -110,7 +87,7 @@ class OpenGLRenderer {
   void do_pcrtc_effects(float alp, SharedRenderState* render_state, ScopedProfilerNode& prof);
   void init_bucket_renderers();
   void draw_renderer_selection_window();
-  void finish_screenshot(const std::string& output_name, int px, int py, int x, int y, GLuint fbo);
+  void finish_screenshot(const std::string& output_name, int px, int py, int x, int y);
   template <typename T, class... Args>
   T* init_bucket_renderer(const std::string& name,
                           BucketCategory cat,
@@ -122,6 +99,102 @@ class OpenGLRenderer {
     m_bucket_categories.at((int)id) = cat;
     return ret;
   }
+
+  void createInstance();
+  void setupDebugMessenger();
+  void createSurface();
+  void pickPhysicalDevice();
+  void createLogicalDevice();
+  void createSwapChain();
+  void createImageViews();
+  void createRenderPass();
+  void createDescriptorSetLayout();
+  void createGraphicsPipeline();
+  void createCommandPool();
+  void createColorResources();
+  void createDepthResources();
+  void createFramebuffers();
+  void createTextureImage();
+  void createTextureImageView();
+  void createTextureSampler();
+  void loadModel();
+  void createVertexBuffer();
+  void createIndexBuffer();
+  void createUniformBuffers();
+  void createDescriptorPool();
+  void createDescriptorSets();
+  void createCommandBuffers();
+  void createSyncObjects();
+
+  void drawFrame();
+  void updateUniformBuffer(uint32_t currentImage);
+  void recreateSwapChain();
+  void cleanupSwapChain();
+  void cleanup();
+  void populateDebugMessengerCreateInfo(
+      VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+
+  VkInstance instance;
+  VkDebugUtilsMessengerEXT debugMessenger;
+  VkSurfaceKHR surface;
+
+  VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+  VkPhysicalDeviceMemoryProperties memoryProperties;
+  VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+  VkDevice device;
+
+  VkQueue graphicsQueue;
+  VkQueue presentQueue;
+
+  VkSwapchainKHR swapChain;
+  std::vector<VkImage> swapChainImages;
+  VkFormat swapChainImageFormat;
+  VkExtent2D swapChainExtent;
+  std::vector<VkImageView> swapChainImageViews;
+  std::vector<VkFramebuffer> swapChainFramebuffers;
+
+  VkRenderPass renderPass;
+  VkDescriptorSetLayout descriptorSetLayout;
+  VkPipelineLayout pipelineLayout;
+  VkPipeline graphicsPipeline;
+
+  VkCommandPool commandPool;
+
+  VkImage colorImage;
+  VkDeviceMemory colorImageMemory;
+  VkImageView colorImageView;
+
+  VkImage depthImage;
+  VkDeviceMemory depthImageMemory;
+  VkImageView depthImageView;
+
+  uint32_t mipLevels;
+  VkImage textureImage;
+  VkDeviceMemory textureImageMemory;
+  VkImageView textureImageView;
+  VkSampler textureSampler;
+
+//  std::vector<Vertex> vertices;
+  std::vector<uint32_t> indices;
+  VkBuffer vertexBuffer;
+  VkDeviceMemory vertexBufferMemory;
+  VkBuffer indexBuffer;
+  VkDeviceMemory indexBufferMemory;
+
+  std::vector<VkBuffer> uniformBuffers;
+  std::vector<VkDeviceMemory> uniformBuffersMemory;
+
+  VkDescriptorPool descriptorPool;
+  std::vector<VkDescriptorSet> descriptorSets;
+
+  std::vector<VkCommandBuffer> commandBuffers;
+
+  std::vector<VkSemaphore> imageAvailableSemaphores;
+  std::vector<VkSemaphore> renderFinishedSemaphores;
+  std::vector<VkFence> inFlightFences;
+  uint32_t currentFrame = 0;
+
+  bool framebufferResized = false;
 
   SharedRenderState m_render_state;
   Profiler m_profiler;
@@ -137,14 +210,4 @@ class OpenGLRenderer {
 
   float m_last_pmode_alp = 1.;
   bool m_enable_fast_blackout_loads = true;
-
-  struct FboState {
-    struct {
-      Fbo window;          // provided by glfw
-      Fbo render_buffer;   // temporary buffer to render to
-      Fbo resolve_buffer;  // temporary buffer to resolve to
-    } resources;
-
-    Fbo* render_fbo = nullptr;  // the selected fbo from the three above to use for rendering
-  } m_fbo_state;
 };

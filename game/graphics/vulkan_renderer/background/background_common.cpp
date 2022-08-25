@@ -9,84 +9,156 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/pipelines/vulkan.h"
 
-DoubleDraw setup_opengl_from_draw_mode(DrawMode mode, u32 tex_unit, bool mipmap) {
-  glActiveTexture(tex_unit);
+//FIXME: Get Vulkan structure into pipeline
+DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
 
+  //FIXME: Depth Testing is only available in Vulkan 1.3
   if (mode.get_zt_enable()) {
-    glEnable(GL_DEPTH_TEST);
     switch (mode.get_depth_test()) {
       case GsTest::ZTest::NEVER:
-        glDepthFunc(GL_NEVER);
+        //glDepthFunc(GL_NEVER);
         break;
       case GsTest::ZTest::ALWAYS:
-        glDepthFunc(GL_ALWAYS);
+        //glDepthFunc(GL_ALWAYS);
         break;
       case GsTest::ZTest::GEQUAL:
-        glDepthFunc(GL_GEQUAL);
+        //glDepthFunc(GL_GEQUAL);
         break;
       case GsTest::ZTest::GREATER:
-        glDepthFunc(GL_GREATER);
+        //glDepthFunc(GL_GREATER);
         break;
       default:
         ASSERT(false);
     }
-  } else {
-    glDisable(GL_DEPTH_TEST);
   }
 
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+
   if (mode.get_ab_enable() && mode.get_alpha_blend() != DrawMode::AlphaBlend::DISABLED) {
-    glEnable(GL_BLEND);
+    colorBlendAttachment.blendEnable = VK_TRUE;
     switch (mode.get_alpha_blend()) {
       case DrawMode::AlphaBlend::SRC_DST_SRC_DST:
-        glBlendEquation(GL_FUNC_ADD);
-        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
+        //glBlendEquation(GL_FUNC_ADD);
+        //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; 
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; 
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
         break;
       case DrawMode::AlphaBlend::SRC_0_SRC_DST:
-        glBlendEquation(GL_FUNC_ADD);
-        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
+        //glBlendEquation(GL_FUNC_ADD);
+        //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE; 
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; 
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
       case DrawMode::AlphaBlend::SRC_0_FIX_DST:
-        glBlendEquation(GL_FUNC_ADD);
-        glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ZERO);
+        //glBlendEquation(GL_FUNC_ADD);
+        //glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ZERO);
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; 
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; 
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
       case DrawMode::AlphaBlend::SRC_DST_FIX_DST:
         // Cv = (Cs - Cd) * FIX + Cd
         // Cs * FIX * 0.5
         // Cd * FIX * 0.5
-        glBlendEquation(GL_FUNC_ADD);
-        glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_CONSTANT_COLOR, GL_ONE, GL_ZERO);
-        glBlendColor(0.5, 0.5, 0.5, 0.5);
+        //glBlendEquation(GL_FUNC_ADD);
+        //glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_CONSTANT_COLOR, GL_ONE, GL_ZERO);
+        colorBlending.blendConstants[0] = 0.5f;
+        colorBlending.blendConstants[1] = 0.5f;
+        colorBlending.blendConstants[2] = 0.5f;
+        colorBlending.blendConstants[3] = 0.5f;
         break;
       case DrawMode::AlphaBlend::ZERO_SRC_SRC_DST:
-        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+        //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
+        //glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
       default:
         ASSERT(false);
     }
-  } else {
-    glDisable(GL_BLEND);
   }
 
-  if (mode.get_clamp_s_enable()) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  colorBlending.logicOpEnable = VK_FALSE;
+  colorBlending.attachmentCount = 1;
+  colorBlending.pAttachments = &colorBlendAttachment;
+
+  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterizer.rasterizerDiscardEnable = VK_FALSE;
+  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterizer.lineWidth = 1.0f;
+  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterizer.depthBiasEnable = VK_FALSE;
+  if (mode.get_clamp_s_enable() && mode.get_clamp_t_enable()) {
+    rasterizer.depthClampEnable = VK_TRUE;
   } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    rasterizer.depthClampEnable = VK_FALSE;
   }
 
-  if (mode.get_clamp_t_enable()) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-  }
+  //VkPhysicalDeviceProperties properties{};
+  //vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  //samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  //samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
 
   if (mode.get_filt_enable()) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                    mipmap ? GL_LINEAR_MIPMAP_LINEAR : GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    if (mipmap) {
+      samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    }
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
   } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
+
   }
 
   // for some reason, they set atest NEVER + FB_ONLY to disable depth writes
@@ -129,39 +201,45 @@ DoubleDraw setup_opengl_from_draw_mode(DrawMode mode, u32 tex_unit, bool mipmap)
     }
   }
 
+  //FIXME: Add render pass with depth buffering enabled here
   if (mode.get_depth_write_enable() && !alpha_hack_to_disable_z_write) {
-    glDepthMask(GL_TRUE);
+    //glDepthMask(GL_TRUE);
   } else {
-    glDepthMask(GL_FALSE);
+    //glDepthMask(GL_FALSE);
   }
   double_draw.aref_first = alpha_min;
   return double_draw;
 }
 
 DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, ShaderId shader) {
-  auto draw_settings = setup_opengl_from_draw_mode(mode, GL_TEXTURE0, true);
-  glUniform1f(glGetUniformLocation(render_state->shaders[shader].id(), "alpha_min"),
+  auto draw_settings = setup_vulkan_from_draw_mode(mode, true);
+  render_state->shaders[shader].SetUniform1f("alpha_min",
               draw_settings.aref_first);
-  glUniform1f(glGetUniformLocation(render_state->shaders[shader].id(), "alpha_max"), 10.f);
+  render_state->shaders[shader].SetUniform1f("alpha_max", 10.f);
   return draw_settings;
 }
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             SharedRenderState* render_state,
-                            ShaderId shader) {
-  render_state->shaders[shader].activate();
-  auto shid = render_state->shaders[shader].id();
-  glUniform1i(glGetUniformLocation(shid, "tex_T0"), 0);
-  glUniformMatrix4fv(glGetUniformLocation(shid, "camera"), 1, GL_FALSE,
-                     settings.math_camera.data());
-  glUniform4f(glGetUniformLocation(shid, "hvdf_offset"), settings.hvdf_offset[0],
-              settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
-  glUniform1f(glGetUniformLocation(shid, "fog_constant"), settings.fog.x());
-  glUniform1f(glGetUniformLocation(shid, "fog_min"), settings.fog.y());
-  glUniform1f(glGetUniformLocation(shid, "fog_max"), settings.fog.z());
-  glUniform4f(glGetUniformLocation(shid, "fog_color"), render_state->fog_color[0] / 255.f,
+                            ShaderId shaderId) {
+  auto& shader = render_state->shaders[shaderId];
+  shader.SetUniform1i("tex_T0", 0);
+  shader.Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
+                      (float*)settings.math_camera.data());
+  shader.SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
+                      settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
+  shader.SetUniform1f("fog_constant", settings.fog.x());
+  shader.SetUniform1f("fog_min", settings.fog.y());
+  shader.SetUniform1f("fog_max", settings.fog.z());
+  shader.SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
+}
+
+
+
+
+void SetUniform1i(uint32_t memory_offset, uint32_t value) {
 }
 
 void interp_time_of_day_slow(const float weights[8],

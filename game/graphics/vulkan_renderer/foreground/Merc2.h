@@ -54,7 +54,7 @@ class Merc2 : public BucketRenderer {
   void handle_matrix_dma(const DmaTransfer& dma);
   void flush_pending_model(SharedRenderState* render_state, ScopedProfilerNode& prof);
 
-  u32 alloc_bones(int count, float scale);
+  u32 alloc_bones(int count);
 
   std::optional<MercRef> m_current_model = std::nullopt;
   u16 m_current_effect_enable_bits = 0;
@@ -82,27 +82,27 @@ class Merc2 : public BucketRenderer {
   ShaderMercMat m_skel_matrix_buffer[MAX_SKEL_BONES];
 
   struct {
-    GLuint light_direction[3];
-    GLuint light_color[3];
-    GLuint light_ambient;
+    unsigned light_direction[3];
+    unsigned light_color[3];
+    unsigned light_ambient;
 
-    GLuint hvdf_offset;
-    GLuint perspective[4];
-    GLuint fog;
+    unsigned hvdf_offset;
+    unsigned perspective[4];
+    unsigned fog;
 
-    GLuint tbone;
-    GLuint nbone;
+    unsigned tbone;
+    unsigned nbone;
 
-    GLuint fog_color;
-    GLuint perspective_matrix;
+    unsigned fog_color;
+    unsigned perspective_matrix;
 
-    GLuint ignore_alpha;
-    GLuint decal;
+    unsigned ignore_alpha;
+    unsigned decal;
   } m_uniforms;
 
-  GLuint m_vao;
+  unsigned m_vao;
 
-  GLuint m_bones_buffer;
+  unsigned m_bones_buffer;
 
   struct Stats {
     int num_models = 0;

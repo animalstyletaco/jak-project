@@ -1,6 +1,7 @@
 #include "Tie3.h"
 
 #include "third-party/imgui/imgui.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 Tie3::Tie3(const std::string& name, BucketId my_id, int level_id)
     : BucketRenderer(name, my_id), m_level_id(level_id) {
@@ -464,8 +465,8 @@ void Tie3::render_tree_wind(int idx,
         continue;  // invisible, skip.
       }
 
-      glUniformMatrix4fv(
-          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), "camera"), 1, GL_FALSE,
+      Set4x4MatrixDataInVkDeviceMemory(
+          render_state->shaders[ShaderId::TFRAG3].GetDeviceMemoryOffset("camera"), 1, GL_FALSE,
           tree.wind_matrix_cache.at(grp.instance_idx)[0].data());
 
       prof.add_draw_call();
@@ -486,11 +487,11 @@ void Tie3::render_tree_wind(int idx,
           tree.perf.wind_draws++;
           prof.add_draw_call();
           prof.add_tri(grp.num);
-          glUniform1f(
-              glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), "alpha_min"),
+          SetUniform1f(
+              render_state->shaders[ShaderId::TFRAG3].GetDeviceMemoryOffset("alpha_min"),
               -10.f);
-          glUniform1f(
-              glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), "alpha_max"),
+          SetUniform1f(
+              render_state->shaders[ShaderId::TFRAG3].GetDeviceMemoryOffset("alpha_max"),
               double_draw.aref_second);
           glDepthMask(GL_FALSE);
           glDrawElements(GL_TRIANGLE_STRIP, draw.vertex_index_stream.size(), GL_UNSIGNED_INT,
@@ -662,16 +663,15 @@ void Tie3::render_tree(int idx,
     }
 
     if (m_debug_wireframe && !render_state->no_multidraw) {
-      render_state->shaders[ShaderId::TFRAG3_NO_TEX].activate();
-      glUniformMatrix4fv(
-          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "camera"), 1,
+      Set4x4MatrixDataInVkDeviceMemory(
+          render_state->shaders[ShaderId::TFRAG3_NO_TEX].GetDeviceMemoryOffset("camera"), 1,
           GL_FALSE, settings.math_camera.data());
-      glUniform4f(
-          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "hvdf_offset"),
+      SetUniform4f(
+          render_state->shaders[ShaderId::TFRAG3_NO_TEX].GetDeviceMemoryOffset("hvdf_offset"),
           settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
           settings.hvdf_offset[3]);
-      glUniform1f(
-          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "fog_constant"),
+      SetUniform1f(
+          render_state->shaders[ShaderId::TFRAG3_NO_TEX].GetDeviceMemoryOffset("fog_constant"),
           settings.fog.x());
       glDisable(GL_BLEND);
       glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -681,7 +681,6 @@ void Tie3::render_tree(int idx,
                           multidraw_indices.second);
       glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
       prof.add_draw_call();
-      render_state->shaders[ShaderId::TFRAG3].activate();
     }
   }
 

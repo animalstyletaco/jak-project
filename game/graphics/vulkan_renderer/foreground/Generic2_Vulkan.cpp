@@ -1,4 +1,5 @@
 #include "Generic2.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 void Generic2::opengl_setup() {
   // create OpenGL objects
@@ -63,36 +64,28 @@ void Generic2::opengl_cleanup() {
 }
 
 void Generic2::init_shaders(ShaderLibrary& shaders) {
-  shaders[ShaderId::GENERIC].activate();
-  m_ogl.alpha_reject = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "alpha_reject");
-  m_ogl.color_mult = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "color_mult");
-  m_ogl.fog_color = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "fog_color");
-
-  m_ogl.scale = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "scale");
-  m_ogl.mat_23 = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "mat_23");
-  m_ogl.mat_32 = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "mat_32");
-  m_ogl.mat_33 = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "mat_33");
-  m_ogl.fog_consts = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "fog_constants");
-  m_ogl.hvdf_offset = glGetUniformLocation(shaders[ShaderId::GENERIC].id(), "hvdf_offset");
 }
 
-void Generic2::opengl_bind_and_setup_proj(SharedRenderState* render_state) {
-  render_state->shaders[ShaderId::GENERIC].activate();
-  glUniform4f(m_ogl.fog_color, render_state->fog_color[0] / 255.f,
+void Generic2::vulkan_bind_and_setup_proj(SharedRenderState* render_state) {
+  render_state->shaders[ShaderId::GENERIC].SetUniform4f(
+              "fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
-  glUniform4f(m_ogl.scale, m_drawing_config.proj_scale[0], m_drawing_config.proj_scale[1],
+  render_state->shaders[ShaderId::GENERIC].SetUniform4f("scale", m_drawing_config.proj_scale[0],
+                                                        m_drawing_config.proj_scale[1],
               m_drawing_config.proj_scale[2], 0);
-  glUniform1f(m_ogl.mat_23, m_drawing_config.proj_mat_23);
-  glUniform1f(m_ogl.mat_32, m_drawing_config.proj_mat_32);
-  glUniform1f(m_ogl.mat_33, 0);
-  glUniform3f(m_ogl.fog_consts, m_drawing_config.pfog0, m_drawing_config.fog_min,
+  render_state->shaders[ShaderId::GENERIC].SetUniform1f("mat_23", m_drawing_config.proj_mat_23);
+  render_state->shaders[ShaderId::GENERIC].SetUniform1f("mat_32", m_drawing_config.proj_mat_32);
+  render_state->shaders[ShaderId::GENERIC].SetUniform1f("mat_33", 0);
+  render_state->shaders[ShaderId::GENERIC].SetUniform3f(
+              "fog_consts", m_drawing_config.pfog0, m_drawing_config.fog_min,
               m_drawing_config.fog_max);
-  glUniform4f(m_ogl.hvdf_offset, m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
+  render_state->shaders[ShaderId::GENERIC].SetUniform4f(
+              "hvdf_offset", m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
               m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]);
 }
 
-void Generic2::setup_opengl_for_draw_mode(const DrawMode& draw_mode,
+void Generic2::setup_vulkan_for_draw_mode(const DrawMode& draw_mode,
                                           u8 fix,
                                           SharedRenderState* render_state) {
   // compute alpha_reject:
@@ -191,9 +184,10 @@ void Generic2::setup_opengl_for_draw_mode(const DrawMode& draw_mode,
     glDepthMask(GL_FALSE);
   }
 
-  glUniform1f(m_ogl.alpha_reject, alpha_reject);
-  glUniform1f(m_ogl.color_mult, color_mult);
-  glUniform4f(m_ogl.fog_color, render_state->fog_color[0] / 255.f,
+  render_state->shaders[ShaderId::GENERIC].SetUniform1f("alpha_reject", alpha_reject);
+  render_state->shaders[ShaderId::GENERIC].SetUniform1f("color_mult", color_mult);
+  render_state->shaders[ShaderId::GENERIC].SetUniform4f(
+              "fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
 }
@@ -297,7 +291,7 @@ void Generic2::do_draws(SharedRenderState* render_state, ScopedProfilerNode& pro
   glEnable(GL_PRIMITIVE_RESTART);
   glPrimitiveRestartIndex(UINT32_MAX);
 
-  opengl_bind_and_setup_proj(render_state);
+  vulkan_bind_and_setup_proj(render_state);
   constexpr DrawMode::AlphaBlend alpha_order[ALPHA_MODE_COUNT] = {
       DrawMode::AlphaBlend::SRC_0_FIX_DST,    DrawMode::AlphaBlend::SRC_SRC_SRC_SRC,
       DrawMode::AlphaBlend::SRC_DST_SRC_DST,  DrawMode::AlphaBlend::SRC_0_SRC_DST,
@@ -312,11 +306,15 @@ void Generic2::do_draws(SharedRenderState* render_state, ScopedProfilerNode& pro
   }
 
   if (m_drawing_config.uses_hud) {
-    glUniform4f(m_ogl.scale, m_drawing_config.hud_scale[0], m_drawing_config.hud_scale[1],
+    render_state->shaders[ShaderId::GENERIC].SetUniform4f(
+        "scale", m_drawing_config.hud_scale[0], m_drawing_config.hud_scale[1],
                 m_drawing_config.hud_scale[2], 0);
-    glUniform1f(m_ogl.mat_23, m_drawing_config.hud_mat_23);
-    glUniform1f(m_ogl.mat_32, m_drawing_config.hud_mat_32);
-    glUniform1f(m_ogl.mat_33, m_drawing_config.hud_mat_33);
+    render_state->shaders[ShaderId::GENERIC].SetUniform1f("mat_23",
+                                                          m_drawing_config.hud_mat_23);
+    render_state->shaders[ShaderId::GENERIC].SetUniform1f("mat_32",
+                                                          m_drawing_config.hud_mat_32);
+    render_state->shaders[ShaderId::GENERIC].SetUniform1f("mat_33",
+                                                          m_drawing_config.hud_mat_33);
 
     do_hud_draws(render_state, prof);
   }

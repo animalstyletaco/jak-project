@@ -95,42 +95,7 @@ void Shrub::update_load(const LevelData* loader_data) {
     m_trees[l_tree].colors = &tree.time_of_day_colors;
     m_trees[l_tree].index_data = tree.indices.data();
     m_trees[l_tree].tod_cache = swizzle_time_of_day(tree.time_of_day_colors);
-    glBindBuffer(GL_ARRAY_BUFFER, m_trees[l_tree].vertex_buffer);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
-    glEnableVertexAttribArray(2);
-    glEnableVertexAttribArray(3);
 
-    glVertexAttribPointer(0,                                          // location 0 in the shader
-                          3,                                          // 3 values per vert
-                          GL_FLOAT,                                   // floats
-                          GL_FALSE,                                   // normalized
-                          sizeof(tfrag3::ShrubGpuVertex),             // stride
-                          (void*)offsetof(tfrag3::ShrubGpuVertex, x)  // offset (0)
-    );
-
-    glVertexAttribPointer(1,                                          // location 1 in the shader
-                          2,                                          // 3 values per vert
-                          GL_FLOAT,                                   // floats
-                          GL_FALSE,                                   // normalized
-                          sizeof(tfrag3::ShrubGpuVertex),             // stride
-                          (void*)offsetof(tfrag3::ShrubGpuVertex, s)  // offset (0)
-    );
-
-    glVertexAttribPointer(2,                               // location 1 in the shader
-                          3,                               // 4 color components
-                          GL_UNSIGNED_BYTE,                // u8
-                          GL_TRUE,                         // normalized (255 becomes 1)
-                          sizeof(tfrag3::ShrubGpuVertex),  //
-                          (void*)offsetof(tfrag3::ShrubGpuVertex, rgba_base)  //
-    );
-
-    glVertexAttribIPointer(3,                               // location 2 in the shader
-                           1,                               // 1 values per vert
-                           GL_UNSIGNED_SHORT,               // u16
-                           sizeof(tfrag3::ShrubGpuVertex),  // stride
-                           (void*)offsetof(tfrag3::ShrubGpuVertex, color_index)  // offset (0)
-    );
 
     glGenBuffers(1, &m_trees[l_tree].single_draw_index_buffer);
     glGenBuffers(1, &m_trees[l_tree].index_buffer);
@@ -155,6 +120,74 @@ void Shrub::update_load(const LevelData* loader_data) {
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
   ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
+}
+
+void Shrub::InitializeVertexBuffer(SharedRenderState* render_state) {
+  auto& shader = render_state->shaders[ShaderId::SHRUB];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Vertex Fragment";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Shrub Fragment";
+
+  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(tfrag3::ShrubGpuVertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(tfrag3::ShrubGpuVertex, x);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(tfrag3::ShrubGpuVertex, s);
+
+  //FIXME: Make sure format for byte and shorts are correct
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[2].offset = offsetof(tfrag3::ShrubGpuVertex, rgba_base);
+
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 3;
+  attributeDescriptions[3].format = VK_FORMAT_R4G4B4A4_UNORM_PACK16;
+  attributeDescriptions[3].offset = offsetof(tfrag3::ShrubGpuVertex, color_index);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+  //FIXME: Added necessary configuration back to shrub pipeline
+  VkGraphicsPipelineCreateInfo pipelineInfo{};
+  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipelineInfo.stageCount = 2;
+  pipelineInfo.pStages = shaderStages;
+  pipelineInfo.pVertexInputState = &vertexInputInfo;
+
+  if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                &graphicsPipeline) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create graphics pipeline!");
+  }
+
+  //TODO: Should shaders be deleted now?
 }
 
 bool Shrub::setup_for_level(const std::string& level, SharedRenderState* render_state) {
@@ -305,10 +338,8 @@ void Shrub::render_tree(int idx,
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         tree.perf.draws++;
         prof.add_draw_call();
-        glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::SHRUB].id(), "alpha_min"),
-                    -10.f);
-        glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::SHRUB].id(), "alpha_max"),
-                    double_draw.aref_second);
+        render_state->shaders[ShaderId::SHRUB].SetUniform1f("alpha_min", -10.f);
+        render_state->shaders[ShaderId::SHRUB].SetUniform1f("alpha_max", double_draw.aref_second);
         glDepthMask(GL_FALSE);
         if (render_state->no_multidraw) {
           glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,

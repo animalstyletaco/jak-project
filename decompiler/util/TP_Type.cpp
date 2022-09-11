@@ -44,6 +44,8 @@ std::string TP_Type::print() const {
       return fmt::format("<{} + (value x {})>", m_ts.print(), m_int);
     case Kind::OBJECT_NEW_METHOD:
       return fmt::format("<(object-new) for {}>", m_ts.print());
+    case Kind::NON_OBJECT_NEW_METHOD:
+      return fmt::format("<new {} {}>", m_method_from_type.print(), m_ts.print());
     case Kind::STRING_CONSTANT:
       return fmt::format("<string \"{}\">", m_str);
     case Kind::FORMAT_STRING:
@@ -78,6 +80,8 @@ std::string TP_Type::print() const {
       return "<set-to-run-func>";
     case Kind::RUN_FUNCTION_IN_PROCESS_FUNCTION:
       return "<run-function-in-process-func>";
+    case Kind::GET_ART_BY_NAME_METHOD:
+      return "<get-art-by-name-method>";
     case Kind::INVALID:
     default:
       ASSERT(false);
@@ -111,6 +115,8 @@ bool TP_Type::operator==(const TP_Type& other) const {
       return m_ts == other.m_ts && m_int == other.m_int;
     case Kind::OBJECT_NEW_METHOD:
       return m_ts == other.m_ts;
+    case Kind::NON_OBJECT_NEW_METHOD:
+      return m_ts == other.m_ts && m_method_from_type == other.m_method_from_type;
     case Kind::STRING_CONSTANT:
       return m_str == other.m_str;
     case Kind::INTEGER_CONSTANT:
@@ -134,6 +140,7 @@ bool TP_Type::operator==(const TP_Type& other) const {
     case Kind::ENTER_STATE_FUNCTION:
     case Kind::RUN_FUNCTION_IN_PROCESS_FUNCTION:
     case Kind::SET_TO_RUN_FUNCTION:
+    case Kind::GET_ART_BY_NAME_METHOD:
       return true;
     case Kind::INVALID:
     default:
@@ -172,6 +179,8 @@ TypeSpec TP_Type::typespec() const {
       // want to assume the return type incorrectly and you shouldn't try to do anything with
       // this as a typespec.
       return TypeSpec("function");
+    case Kind::NON_OBJECT_NEW_METHOD:
+      return m_ts;
     case Kind::STRING_CONSTANT:
       return TypeSpec("string");
     case Kind::INTEGER_CONSTANT:
@@ -200,6 +209,8 @@ TypeSpec TP_Type::typespec() const {
     case Kind::SET_TO_RUN_FUNCTION:
       // give a general function so we can't call it normally.
       return TypeSpec("function");
+    case Kind::GET_ART_BY_NAME_METHOD:
+      return m_ts;
     case Kind::INVALID:
     default:
       ASSERT(false);

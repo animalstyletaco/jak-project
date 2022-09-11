@@ -338,7 +338,7 @@
 
 ;; definition of type texture-link
 (deftype texture-link (structure)
-  ((next shader-ptr  :offset-assert   0)
+  ((next shader-ptr 1 :offset-assert   0)
    )
   :method-count-assert 9
   :size-assert         #x4
@@ -352,7 +352,7 @@
     (goto cfg-4)
     )
   (format #t "[~8x] ~A~%" obj 'texture-link)
-  (format #t "~1Tnext: #x~X~%" (-> obj next))
+  (format #t "~1Tnext: #x~X~%" (-> obj next 0))
   (label cfg-4)
   obj
   )
@@ -442,22 +442,24 @@
 
 ;; definition of type adgif-shader
 (deftype adgif-shader (structure)
-  ((quad       qword           5 :inline :offset-assert   0)
-   (prims      gs-reg64        10        :offset          0)
-   (reg-0      uint8                     :offset          8)
-   (reg-1      uint8                     :offset         24)
-   (reg-2      uint8                     :offset         40)
-   (reg-3      uint8                     :offset         56)
-   (reg-4      uint8                     :offset         72)
-   (tex0       gs-tex0                   :offset          0)
-   (tex1       gs-tex1                   :offset         16)
-   (miptbp1    gs-miptbp                 :offset         32)
-   (clamp      gs-clamp                  :offset         48)
-   (clamp-reg  gs-reg64                  :offset         56)
-   (alpha      gs-alpha                  :offset         64)
-   (link-test  link-test-flags           :offset          8)
-   (texture-id texture-id                :offset         24)
-   (next       shader-ptr                :offset         40)
+  ((quad            qword           5 :inline :offset-assert   0)
+   (prims           gs-reg64        10        :offset          0)
+   (reg-0           uint8                     :offset          8)
+   (reg-1           uint8                     :offset         24)
+   (reg-2           uint8                     :offset         40)
+   (reg-3           uint8                     :offset         56)
+   (reg-4-u32       gs-reg32                  :offset         72)
+   (reg-4           uint8                     :offset         72)
+   (tex0            gs-tex0                   :offset          0)
+   (tex1            gs-tex1                   :offset         16)
+   (miptbp1         gs-miptbp                 :offset         32)
+   (clamp           gs-clamp                  :offset         48)
+   (clamp-reg       gs-reg64                  :offset         56)
+   (alpha           gs-alpha                  :offset         64)
+   (alpha-as-miptb2 gs-miptbp                 :offset         64)
+   (link-test       link-test-flags           :offset          8)
+   (texture-id      texture-id                :offset         24)
+   (next            shader-ptr                :offset         40)
    )
   :method-count-assert 9
   :size-assert         #x50

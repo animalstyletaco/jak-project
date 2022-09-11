@@ -47,7 +47,7 @@
 
 ;; definition for method 9 of type sprite-glow-data
 ;; INFO: Used lq/sq
-;; INFO: Return type mismatch int vs none.
+;; WARN: Return type mismatch int vs none.
 (defmethod set-trans sprite-glow-data ((obj sprite-glow-data) (arg0 vector))
   (let ((f0-0 (-> obj position w)))
     (set! (-> obj position quad) (-> arg0 quad))
@@ -67,9 +67,9 @@
   :size-assert         #x8
   :flag-assert         #xc00000008
   (:methods
-    (simple-sprite-system-method-9 () none 9)
-    (simple-sprite-system-method-10 () none 10)
-    (simple-sprite-system-method-11 () none 11)
+    (add! () none 9)
+    (simple-sprite-system-method-10 (_type_ dma-buffer) none 10)
+    (clear! (_type_) none 11)
     )
   )
 
@@ -89,7 +89,3 @@
 
 ;; failed to figure out what this is:
 0
-
-
-
-

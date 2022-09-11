@@ -5,29 +5,13 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Merc2::Merc2(const std::string& name, BucketId my_id) : BucketRenderer(name, my_id) {
-  glGenVertexArrays(1, &m_vao);
-  glBindVertexArray(m_vao);
-
-  glGenBuffers(1, &m_bones_buffer);
-  glBindBuffer(GL_UNIFORM_BUFFER, m_bones_buffer);
+Merc2::Merc2(const std::string& name, BucketId my_id, VkDevice& device) : BucketRenderer(name, my_id, device) {
   std::vector<u8> temp(MAX_SHADER_BONE_VECTORS * sizeof(math::Vector4f));
-  glBufferData(GL_UNIFORM_BUFFER, MAX_SHADER_BONE_VECTORS * sizeof(math::Vector4f), temp.data(),
-               GL_DYNAMIC_DRAW);
-  glBindBuffer(GL_UNIFORM_BUFFER, 0);
+  //m_bones_buffer = CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, temp);
 
-  GLint val;
-  glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &val);
-  if (val <= 16) {
-    // somehow doubt this can happen, but just in case
-    m_opengl_buffer_alignment = 1;
-  } else {
-    m_opengl_buffer_alignment = val / 16;  // number of bone vectors
-    if (m_opengl_buffer_alignment * 16 != (u32)val) {
-      ASSERT_MSG(false,
-                 fmt::format("opengl uniform buffer alignment is {}, which is strange\n", val));
-    }
-  }
+  //TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
+  m_vulkan_buffer_alignment = 1;
+  m_uniform_buffer = UniformBuffer(device, sizeof(UniformData));
 
   for (int i = 0; i < MAX_LEVELS; i++) {
     auto& draws = m_level_draw_buckets.emplace_back();
@@ -73,7 +57,7 @@ void Merc2::init_for_frame(SharedRenderState* render_state) {
   fog_color_vector.y() = render_state->fog_color[1] / 255.f;
   fog_color_vector.z() = render_state->fog_color[2] / 255.f;
   fog_color_vector.w() = render_state->fog_intensity / 255;
-  set_uniform(m_uniforms.fog_color, fog_color_vector);
+  m_uniform_buffer.SetUniformMathVector4f("fog_color", fog_color_vector);
 }
 
 void Merc2::draw_debug_window() {
@@ -87,27 +71,7 @@ void Merc2::draw_debug_window() {
 }
 
 void Merc2::init_shaders(ShaderLibrary& shaders) {
-  m_uniforms.light_direction[0] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_dir0");
-  m_uniforms.light_direction[1] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_dir1");
-  m_uniforms.light_direction[2] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_dir2");
-  m_uniforms.light_color[0] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_col0");
-  m_uniforms.light_color[1] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_col1");
-  m_uniforms.light_color[2] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_col2");
-  m_uniforms.light_ambient = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("light_ambient");
 
-  m_uniforms.hvdf_offset = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("hvdf_offset");
-  m_uniforms.perspective[0] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective0");
-  m_uniforms.perspective[1] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective1");
-  m_uniforms.perspective[2] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective2");
-  m_uniforms.perspective[3] = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective3");
-
-  m_uniforms.fog = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("fog_constants");
-  m_uniforms.decal = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("decal_enable");
-
-  m_uniforms.fog_color = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("fog_color");
-  m_uniforms.perspective_matrix =
-      shaders[ShaderId::MERC2].GetDeviceMemoryOffset("perspective_matrix");
-  m_uniforms.ignore_alpha = shaders[ShaderId::MERC2].GetDeviceMemoryOffset("ignore_alpha");
 }
 
 /*!
@@ -180,7 +144,7 @@ void Merc2::handle_all_dma(DmaFollower& dma,
 
   // if we reach here, there's stuff to draw
   // this handles merc-specific setup DMA
-  handle_setup_dma(dma);
+  handle_setup_dma(dma, render_state);
 
   // handle each merc transfer
   while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -189,22 +153,7 @@ void Merc2::handle_all_dma(DmaFollower& dma,
   ASSERT(dma.current_tag_offset() == render_state->next_bucket);
 }
 
-namespace {
-void set_uniform(uint32_t offset, const math::Vector3f& val) {
-  void* data = NULL;
-  vkMapMemory(device, device_buffer, offset, sizeof(val), 0, &data);  // FIXME: flags needed?
-  ::memcpy(data, &val, sizeof(val));
-  vkUnmapMemory(device, device_buffer);
-}
-void set_uniform(uint32_t offset, const math::Vector4f& val) {
-  void* data = NULL;
-  vkMapMemory(device, device_buffer, offset, sizeof(val), 0, &data);  // FIXME: flags needed?
-  ::memcpy(data, &val, sizeof(val));
-  vkUnmapMemory(device, device_buffer);
-}
-}  // namespace
-
-void Merc2::handle_setup_dma(DmaFollower& dma) {
+void Merc2::handle_setup_dma(DmaFollower& dma, SharedRenderState* render_state) {
   auto first = dma.read_and_advance();
 
   // 10 quadword setup packet
@@ -247,13 +196,15 @@ void Merc2::handle_setup_dma(DmaFollower& dma) {
 
   // 8 qw's of low memory data
   memcpy(&m_low_memory, first.data + 16, sizeof(LowMemory));
-  set_uniform(m_uniforms.hvdf_offset, m_low_memory.hvdf_offset);
-  set_uniform(m_uniforms.fog, m_low_memory.fog);
+  m_uniform_buffer.SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
+  m_uniform_buffer.SetUniformMathVector4f("fog", m_low_memory.fog);
   for (int i = 0; i < 4; i++) {
-    set_uniform(m_uniforms.perspective[i], m_low_memory.perspective[i]);
+    m_uniform_buffer.SetUniformMathVector4f((std::string("perspective") + std::to_string(i)).c_str(), //Ugly declaration
+                                                                  m_low_memory.perspective[i]);
   }
   // todo rm.
-  Set4x4MatrixDataInVkDeviceMemory(m_uniforms.perspective_matrix, 1, GL_FALSE, &m_low_memory.perspective[0].x());
+  m_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
+      "perspective_matrix", 1, GL_FALSE, &m_low_memory.perspective[0].x());
 
   // 1 qw with another 4 vifcodes.
   u32 vifcode_final_data[4];
@@ -426,9 +377,9 @@ u32 Merc2::alloc_bones(int count) {
   }
 
   auto b0 = m_next_free_bone_vector;
-  m_next_free_bone_vector += m_opengl_buffer_alignment - 1;
-  m_next_free_bone_vector /= m_opengl_buffer_alignment;
-  m_next_free_bone_vector *= m_opengl_buffer_alignment;
+  m_next_free_bone_vector += m_vulkan_buffer_alignment - 1;
+  m_next_free_bone_vector /= m_vulkan_buffer_alignment;
+  m_next_free_bone_vector *= m_vulkan_buffer_alignment;
   ASSERT(b0 <= m_next_free_bone_vector);
   ASSERT(first_bone_vector + count * 8 <= m_next_free_bone_vector);
   return first_bone_vector;
@@ -451,7 +402,7 @@ void Merc2::flush_pending_model(SharedRenderState* render_state, ScopedProfilerN
     flush_draw_buckets(render_state, prof);
   }
 
-  if (m_next_free_bone_vector + m_opengl_buffer_alignment + bone_count * 8 >
+  if (m_next_free_bone_vector + m_vulkan_buffer_alignment + bone_count * 8 >
       MAX_SHADER_BONE_VECTORS) {
     fmt::print("MERC2 out of bones, consider increasing MAX_SHADER_BONE_VECTORS\n");
     flush_draw_buckets(render_state, prof);
@@ -519,61 +470,56 @@ void Merc2::flush_pending_model(SharedRenderState* render_state, ScopedProfilerN
   m_current_model = std::nullopt;
 }
 
-void Merc2::flush_draw_buckets(SharedRenderState* /*render_state*/, ScopedProfilerNode& prof) {
+void Merc2::flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_stats.num_draw_flush++;
 
-  InitializeVertexBuffer(SharedRenderState * render_state);
+  InitializeVertexBuffer(render_state);
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
     const auto& lev_bucket = m_level_draw_buckets[li];
     const auto* lev = lev_bucket.level;
-    glBindVertexArray(m_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, lev->merc_vertices);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, lev->merc_indices);
-
-    glEnable(GL_PRIMITIVE_RESTART);
-    glPrimitiveRestartIndex(UINT32_MAX);
-
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_GEQUAL);
 
     int last_tex = -1;
     int last_light = -1;
     m_stats.num_bones_uploaded += m_next_free_bone_vector;
 
-    glBindBuffer(GL_UNIFORM_BUFFER, m_bones_buffer);
-    glBufferSubData(GL_UNIFORM_BUFFER, 0, m_next_free_bone_vector * sizeof(math::Vector4f),
-                    m_shader_bone_vector_buffer);
-    glBindBuffer(GL_UNIFORM_BUFFER, 0);
+    //void* data = NULL;
+    //vkMapMemory(device, m_bones_buffer_memory, 0, m_next_free_bone_vector * sizeof(math::Vector4f), 0, &data);
+    //::memcpy(data, m_shader_bone_vector_buffer, m_next_free_bone_vector * sizeof(math::Vector4f));
+    //vkUnmapMemory(device, m_bones_buffer_memory, nullptr);
 
     for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
       auto& draw = lev_bucket.draws[di];
-      glUniform1i(m_uniforms.ignore_alpha, draw.ignore_alpha);
-      if ((int)draw.texture != last_tex) {
-        glBindTexture(GL_TEXTURE_2D, lev->textures.at(draw.texture));
-        last_tex = draw.texture;
-      }
+      auto& textureInfo = lev->textures[draw.texture];
+      m_uniform_buffer.SetUniform1i("ignore_alpha", draw.ignore_alpha);
 
       if ((int)draw.light_idx != last_light) {
-        set_uniform(m_uniforms.light_direction[0], m_lights_buffer[draw.light_idx].direction0);
-        set_uniform(m_uniforms.light_direction[1], m_lights_buffer[draw.light_idx].direction1);
-        set_uniform(m_uniforms.light_direction[2], m_lights_buffer[draw.light_idx].direction2);
-        set_uniform(m_uniforms.light_color[0], m_lights_buffer[draw.light_idx].color0);
-        set_uniform(m_uniforms.light_color[1], m_lights_buffer[draw.light_idx].color1);
-        set_uniform(m_uniforms.light_color[2], m_lights_buffer[draw.light_idx].color2);
-        set_uniform(m_uniforms.light_ambient, m_lights_buffer[draw.light_idx].ambient);
+        m_uniform_buffer.SetUniformMathVector3f("light_direction0", m_lights_buffer[draw.light_idx].direction0);
+        m_uniform_buffer.SetUniformMathVector3f("light_direction1", m_lights_buffer[draw.light_idx].direction1);
+        m_uniform_buffer.SetUniformMathVector3f("light_direction2", m_lights_buffer[draw.light_idx].direction2);
+        m_uniform_buffer.SetUniformMathVector3f("light_color0", m_lights_buffer[draw.light_idx].color0);
+        m_uniform_buffer.SetUniformMathVector3f("light_color1", m_lights_buffer[draw.light_idx].color1);
+        m_uniform_buffer.SetUniformMathVector3f("light_color2", m_lights_buffer[draw.light_idx].color2);
+        m_uniform_buffer.SetUniformMathVector3f("light_ambient", m_lights_buffer[draw.light_idx].ambient);
         last_light = draw.light_idx;
       }
-      setup_vulkan_from_draw_mode(draw.mode, GL_TEXTURE0, true);
+      setup_vulkan_from_draw_mode(draw.mode, textureInfo, true);
 
-      glUniform1i(m_uniforms.decal, draw.mode.get_decal());
+      m_uniform_buffer.SetUniform1i("decal", draw.mode.get_decal());
 
       prof.add_draw_call();
       prof.add_tri(draw.num_triangles);
-      glBindBufferRange(GL_UNIFORM_BUFFER, 1, m_bones_buffer,
-                        sizeof(math::Vector4f) * draw.first_bone, 128 * sizeof(ShaderMercMat));
-      glDrawElements(GL_TRIANGLE_STRIP, draw.index_count, GL_UNSIGNED_INT,
-                     (void*)(sizeof(u32) * draw.first_index));
+
+      //void* data = NULL;
+      //vkMapMemory(device, textureInfo.texture_memory, sizeof(math::Vector4f) * draw.first_bone,
+      //            128 * sizeof(ShaderMercMat), 0, &data);
+      //::memcpy(data, m_skel_matrix_buffer, 128 * sizeof(ShaderMercMat)); //TODO: Need to check that this is thread safe
+      //vkUnmapMemory(device, textureInfo.texture_memory, nullptr);
+
+      //Set up index buffer from draw object
+
+      //glDrawElements(GL_TRIANGLE_STRIP, draw.index_count, GL_UNSIGNED_INT,
+      //               (void*)(sizeof(u32) * draw.first_index));
     }
   }
 
@@ -599,10 +545,15 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
 
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
-  VkVertexInputBindingDescription bindingDescription{};
-  bindingDescription.binding = 0;
-  bindingDescription.stride = sizeof(tfrag3::MercVertex);
-  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  VkVertexInputBindingDescription mercVertexBindingDescription{};
+  mercVertexBindingDescription.binding = 0;
+  mercVertexBindingDescription.stride = sizeof(tfrag3::MercVertex);
+  mercVertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  VkVertexInputBindingDescription mercMatrixBindingDescription{};
+  mercMatrixBindingDescription.binding = 1;
+  mercMatrixBindingDescription.stride = 128 * sizeof(ShaderMercMat);
+  mercMatrixBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
   std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
@@ -626,24 +577,48 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
   attributeDescriptions[3].offset = offsetof(tfrag3::MercVertex, st[0]);
 
   // FIXME: Make sure format for byte and shorts are correct
-  attributeDescriptions[2].binding = 0;
-  attributeDescriptions[2].location = 4;
-  attributeDescriptions[2].format = VK_FORMAT_R4G4_UNORM_PACK8;
-  attributeDescriptions[2].offset = offsetof(tfrag3::MercVertex, rgba[0]);
+  attributeDescriptions[4].binding = 0;
+  attributeDescriptions[4].location = 4;
+  attributeDescriptions[4].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[4].offset = offsetof(tfrag3::MercVertex, rgba[0]);
 
-  attributeDescriptions[3].binding = 0;
-  attributeDescriptions[3].location = 5;
-  attributeDescriptions[3].format = VK_FORMAT_R4G4B4A4_UNORM_PACK8;
-  attributeDescriptions[3].offset = offsetof(tfrag3::MercVertex, mats[0]);
+  attributeDescriptions[5].binding = 0;
+  attributeDescriptions[5].location = 5;
+  attributeDescriptions[5].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[5].offset = offsetof(tfrag3::MercVertex, mats[0]);
+
+  std::array<VkVertexInputAttributeDescription, 2> matrixAttributeDescriptions{};
+  matrixAttributeDescriptions[0].binding = 1;
+  matrixAttributeDescriptions[0].location = 0;
+  matrixAttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  matrixAttributeDescriptions[0].offset = offsetof(ShaderMercMat, tmat[0]);
+
+  matrixAttributeDescriptions[1].binding = 1;
+  matrixAttributeDescriptions[1].location = 1;
+  matrixAttributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  matrixAttributeDescriptions[1].offset = offsetof(ShaderMercMat, nmat[0]);
+
+  std::array<VkVertexInputBindingDescription, 2> bindingDescriptions = {
+      mercVertexBindingDescription, mercMatrixBindingDescription};
 
   VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
   vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexBindingDescriptionCount = bindingDescriptions.size();
   vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+      static_cast<uint32_t>(attributeDescriptions.size() + matrixAttributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
   vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_TRUE;
+
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_TRUE;
+  depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
 
   // FIXME: Added necessary configuration back to shrub pipeline
   VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -652,10 +627,13 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
   pipelineInfo.pStages = shaderStages;
   pipelineInfo.pVertexInputState = &vertexInputInfo;
 
-  if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-                                &graphicsPipeline) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create graphics pipeline!");
-  }
+  //if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+  //                              &graphicsPipeline) != VK_SUCCESS) {
+  //  throw std::runtime_error("failed to create graphics pipeline!");
+  //}
 
   // TODO: Should shaders be deleted now?
+}
+
+Merc2::~Merc2() {
 }

@@ -20,55 +20,59 @@ math::Vector2f fixed_to_floating_point(const math::Vector<s32, 2>& fixed_vec) {
 // Total number of loops depth-cue performs to draw to the framebuffer
 constexpr int TOTAL_DRAW_SLICES = 16;
 
-DepthCue::DepthCue(const std::string& name, BucketId my_id) : BucketRenderer(name, my_id) {
-  opengl_setup();
+DepthCue::DepthCue(const std::string& name, BucketId my_id, VkDevice device) : BucketRenderer(name, my_id, device) {
+  vulkan_setup();
 
   m_draw_slices.resize(TOTAL_DRAW_SLICES);
 }
 
-void DepthCue::opengl_setup() {
+void DepthCue::vulkan_setup() {
   // Gen texture for sampling the framebuffer
-  glGenFramebuffers(1, &m_ogl.framebuffer_sample_fbo);
-  glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.framebuffer_sample_fbo);
+  VkImage sampling_texture;
+  VkDeviceMemory sampling_texture_memory;
 
-  glGenTextures(1, &m_ogl.framebuffer_sample_tex);
-  glBindTexture(GL_TEXTURE_2D, m_ogl.framebuffer_sample_tex);
+  vulkan_utils::CreateImage(
+      m_device, 1, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, sampling_texture,
+      sampling_texture_memory);
 
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+  VkImageView sampling_texture_view = vulkan_utils::CreateImageView(m_device, sampling_texture, VK_FORMAT_R8G8B8_USCALED,
+                                                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  VkImage depth_texture;
+  VkDeviceMemory depth_texture_memory;
 
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         m_ogl.framebuffer_sample_tex, 0);
+  vulkan_utils::CreateImage(
+      m_device, 1, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, depth_texture,
+      depth_texture_memory);
 
-  ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+  VkImageView depth_texture_view = vulkan_utils::CreateImageView(
+      m_device, depth_texture, VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
-  glBindTexture(GL_TEXTURE_2D, 0);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
 
   // Gen framebuffer for depth-cue-base-page
-  glGenFramebuffers(1, &m_ogl.fbo);
-  glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.fbo);
-
-  glGenTextures(1, &m_ogl.fbo_texture);
-  glBindTexture(GL_TEXTURE_2D, m_ogl.fbo_texture);
-
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ogl.fbo_texture, 0);
-
-  ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-
-  glBindTexture(GL_TEXTURE_2D, 0);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
   // Gen vertex array for drawing to depth-cue-base-page
   glGenVertexArrays(1, &m_ogl.depth_cue_page_vao);
@@ -119,10 +123,6 @@ void DepthCue::opengl_setup() {
                         sizeof(SpriteVertex),              //
                         (void*)offsetof(SpriteVertex, st)  // offset in array
   );
-
-  // Done
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
 }
 
 void DepthCue::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) {
@@ -460,10 +460,7 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
     );
   }
 
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.depth_cue_page_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, depth_cue_page_vertices.size() * sizeof(SpriteVertex),
-               depth_cue_page_vertices.data(), GL_STATIC_DRAW);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  VkBuffer vertex_page_buffer = CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, depth_cue_page_vertices);
 
   // ON SCREEN VERTEX DATA
   // --------------------------
@@ -516,10 +513,8 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
     );
   }
 
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.on_screen_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, on_screen_vertices.size() * sizeof(SpriteVertex),
-               on_screen_vertices.data(), GL_STATIC_DRAW);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  VkBuffer vertex_on_screen_buffer =
+      CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, on_screen_vertices);
 }
 
 void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
@@ -529,9 +524,7 @@ void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
 
   // Activate shader
   auto shader = &render_state->shaders[ShaderId::DEPTH_CUE];
-  shader->activate();
-
-  glUniform1i(glGetUniformLocation(shader->id(), "tex"), 0);
+  m_uniform_buffer.SetUniform1f("tex", 0);
 
   // First, we need to copy the framebuffer into the framebuffer sample texture
   glBindFramebuffer(GL_READ_FRAMEBUFFER, render_state->render_fb);
@@ -620,8 +613,6 @@ void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
 
   // Done
   glDepthMask(GL_TRUE);
-  glBindTexture(GL_TEXTURE_2D, 0);
-  glBindVertexArray(0);
 }
 
 void DepthCue::build_sprite(std::vector<SpriteVertex>& vertices,

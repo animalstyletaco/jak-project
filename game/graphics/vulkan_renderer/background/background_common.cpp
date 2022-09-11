@@ -10,22 +10,26 @@
 #include "game/graphics/pipelines/vulkan.h"
 
 //FIXME: Get Vulkan structure into pipeline
-DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
-
-  //FIXME: Depth Testing is only available in Vulkan 1.3
+DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, bool mipmap) {
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_FALSE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
   if (mode.get_zt_enable()) {
+    depthStencil.depthTestEnable = VK_TRUE;
     switch (mode.get_depth_test()) {
       case GsTest::ZTest::NEVER:
-        //glDepthFunc(GL_NEVER);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_NEVER;
         break;
       case GsTest::ZTest::ALWAYS:
-        //glDepthFunc(GL_ALWAYS);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        //glDepthFunc(GL_GEQUAL);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
-        //glDepthFunc(GL_GREATER);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
         break;
       default:
         ASSERT(false);
@@ -48,8 +52,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
     colorBlendAttachment.blendEnable = VK_TRUE;
     switch (mode.get_alpha_blend()) {
       case DrawMode::AlphaBlend::SRC_DST_SRC_DST:
-        //glBlendEquation(GL_FUNC_ADD);
-        //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
+
         colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
@@ -61,8 +64,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
 
         break;
       case DrawMode::AlphaBlend::SRC_0_SRC_DST:
-        //glBlendEquation(GL_FUNC_ADD);
-        //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
+
         colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
@@ -73,8 +75,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
         colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
       case DrawMode::AlphaBlend::SRC_0_FIX_DST:
-        //glBlendEquation(GL_FUNC_ADD);
-        //glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ZERO);
+
         colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; 
         colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; 
 
@@ -88,8 +89,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
         // Cv = (Cs - Cd) * FIX + Cd
         // Cs * FIX * 0.5
         // Cd * FIX * 0.5
-        //glBlendEquation(GL_FUNC_ADD);
-        //glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_CONSTANT_COLOR, GL_ONE, GL_ZERO);
+
         colorBlending.blendConstants[0] = 0.5f;
         colorBlending.blendConstants[1] = 0.5f;
         colorBlending.blendConstants[2] = 0.5f;
@@ -124,7 +124,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
   rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
   rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
   rasterizer.depthBiasEnable = VK_FALSE;
-  if (mode.get_clamp_s_enable() && mode.get_clamp_t_enable()) {
+  if (mode.get_clamp_s_enable() || mode.get_clamp_t_enable()) {
     rasterizer.depthClampEnable = VK_TRUE;
   } else {
     rasterizer.depthClampEnable = VK_FALSE;
@@ -149,6 +149,14 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
   //samplerInfo.maxLod = static_cast<float>(mipLevels);
   samplerInfo.mipLodBias = 0.0f;
 
+  //ST was used in OpenGL, UV is used in Vulkan
+  if (mode.get_clamp_s_enable() ) {
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  }
+  if (mode.get_clamp_t_enable()) {
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  }
+
   if (mode.get_filt_enable()) {
     if (mipmap) {
       samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -158,7 +166,6 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
   } else {
     samplerInfo.minFilter = VK_FILTER_NEAREST;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
-
   }
 
   // for some reason, they set atest NEVER + FB_ONLY to disable depth writes
@@ -203,35 +210,35 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, bool mipmap) {
 
   //FIXME: Add render pass with depth buffering enabled here
   if (mode.get_depth_write_enable() && !alpha_hack_to_disable_z_write) {
-    //glDepthMask(GL_TRUE);
+    depthStencil.depthWriteEnable = VK_TRUE;
   } else {
-    //glDepthMask(GL_FALSE);
+    depthStencil.depthWriteEnable = VK_FALSE;
   }
   double_draw.aref_first = alpha_min;
   return double_draw;
 }
 
-DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, ShaderId shader) {
-  auto draw_settings = setup_vulkan_from_draw_mode(mode, true);
-  render_state->shaders[shader].SetUniform1f("alpha_min",
+DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& textureInfo, UniformBuffer& uniform_buffer) {
+  auto draw_settings = setup_vulkan_from_draw_mode(mode, textureInfo, true);
+  uniform_buffer.SetUniform1f("alpha_min",
               draw_settings.aref_first);
-  render_state->shaders[shader].SetUniform1f("alpha_max", 10.f);
+  uniform_buffer.SetUniform1f("alpha_max", 10.f);
   return draw_settings;
 }
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             SharedRenderState* render_state,
-                            ShaderId shaderId) {
-  auto& shader = render_state->shaders[shaderId];
-  shader.SetUniform1i("tex_T0", 0);
-  shader.Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
-                      (float*)settings.math_camera.data());
-  shader.SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
-                      settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
-  shader.SetUniform1f("fog_constant", settings.fog.x());
-  shader.SetUniform1f("fog_min", settings.fog.y());
-  shader.SetUniform1f("fog_max", settings.fog.z());
-  shader.SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
+                            const TextureInfo& textureInfo,
+                            UniformBuffer& uniform_buffer) {
+  uniform_buffer.SetUniform1i("tex_T0", 0);
+  uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
+                (float*)settings.math_camera.data());
+  uniform_buffer.SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
+                settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
+  uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
+  uniform_buffer.SetUniform1f("fog_min", settings.fog.y());
+  uniform_buffer.SetUniform1f("fog_max", settings.fog.z());
+  uniform_buffer.SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
 }

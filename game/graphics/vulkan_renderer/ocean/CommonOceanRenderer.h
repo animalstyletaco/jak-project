@@ -8,11 +8,15 @@ class CommonOceanRenderer {
 
   void init_for_near();
   void kick_from_near(const u8* data);
-  void flush_near(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void flush_near(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
 
   void init_for_mid();
   void kick_from_mid(const u8* data);
-  void flush_mid(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void flush_mid(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
+
+protected:
+  void SetShaders(SharedRenderState* render_state);
+  void InitializeVertexInputAttributes();
 
  private:
   void handle_near_vertex_gif_data_fan(const u8* data, u32 offset, u32 loop);

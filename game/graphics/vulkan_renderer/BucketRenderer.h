@@ -9,7 +9,7 @@
 #include "game/graphics/vulkan_renderer/Shader.h"
 #include "game/graphics/vulkan_renderer/buckets.h"
 #include "game/graphics/vulkan_renderer/loader/Loader.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
 
 struct LevelVis {
   bool valid = false;
@@ -83,7 +83,8 @@ struct SharedRenderState {
  */
 class BucketRenderer {
  public:
-  BucketRenderer(const std::string& name, BucketId my_id) : m_name(name), m_my_id(my_id) {}
+  BucketRenderer(const std::string& name, BucketId my_id, VkDevice device)
+      : m_name(name), m_my_id(my_id), m_device(device) {}
   virtual void render(DmaFollower& dma,
                       SharedRenderState* render_state,
                       ScopedProfilerNode& prof) = 0;
@@ -96,9 +97,39 @@ class BucketRenderer {
   virtual void init_textures(TexturePool&) {}
 
  protected:
+  VkDevice m_device;
+  UniformBuffer m_uniform_buffer;
   std::string m_name;
   BucketId m_my_id;
   bool m_enabled = true;
+
+  void CreateImage(uint32_t width,
+                   uint32_t height,
+                   VkImageType imageType,
+                   uint32_t mipLevels,
+                   VkSampleCountFlagBits numSamples,
+                   VkFormat format,
+                   VkImageTiling tiling,
+                   VkImageUsageFlags usage,
+                   VkMemoryPropertyFlags properties,
+                   VkImage& image,
+                   VkDeviceMemory& imageMemory,
+                   VkDeviceSize& deviceSize);
+
+  VkImageView CreateImageView(VkImage image,
+                              VkFormat format,
+                              VkImageViewType viewType,
+                              VkImageAspectFlags aspectFlags,
+                              uint32_t mipLevels);
+
+  void CreateTextureSampler(VkFilter mag_filter, VkFilter min_filter, uint32_t mips_level);
+
+  template <class T>
+  VkBuffer CreateBuffer(VkBufferUsageFlags usage_flag, const T* input_data, uint64_t element_count);
+
+  template <class T>
+  VkBuffer CreateBuffer(VkBufferUsageFlags usage_flag, std::vector<T>& input_data);
+  uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 };
 
 class RenderMux : public BucketRenderer {
@@ -128,6 +159,7 @@ class EmptyBucketRenderer : public BucketRenderer {
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   bool empty() const override { return true; }
   void draw_debug_window() override {}
+
 };
 
 class SkipRenderer : public BucketRenderer {

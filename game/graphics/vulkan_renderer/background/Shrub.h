@@ -11,7 +11,7 @@
 
 class Shrub : public BucketRenderer {
  public:
-  Shrub(const std::string& name, BucketId my_id);
+  Shrub(const std::string& name, BucketId my_id, VkDevice& device);
   ~Shrub();
   bool setup_for_level(const std::string& level, SharedRenderState* render_state);
   void render_all_trees(const TfragRenderSettings& settings,
@@ -23,6 +23,9 @@ class Shrub : public BucketRenderer {
                    ScopedProfilerNode& prof);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
+
+protected:
+  void InitializeVertexBuffer(SharedRenderState* render_state);
 
  private:
   void update_load(const LevelData* loader_data);
@@ -55,7 +58,7 @@ class Shrub : public BucketRenderer {
 
   std::vector<Tree> m_trees;
   std::string m_level_name;
-  const std::vector<GLuint>* m_textures;
+  const std::vector<TextureInfo>* m_textures;
   u64 m_load_id = -1;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
@@ -71,4 +74,5 @@ class Shrub : public BucketRenderer {
     std::vector<void*> multidraw_index_offset_buffer;
   } m_cache;
   TfragPcPortData m_pc_port_data;
+  UniformBuffer time_of_day_color_buffer;
 };

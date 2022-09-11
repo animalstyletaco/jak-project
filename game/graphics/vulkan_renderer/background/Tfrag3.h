@@ -16,18 +16,21 @@ class Tfrag3 {
   void render_all_trees(int geom,
                         const TfragRenderSettings& settings,
                         SharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
+                        ScopedProfilerNode& prof,
+                        UniformBuffer& uniform_buffer);
 
   void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,
                              SharedRenderState* render_state,
-                             ScopedProfilerNode& prof);
+                             ScopedProfilerNode& prof,
+                             UniformBuffer& uniform_buffer);
 
   void render_tree(int geom,
                    const TfragRenderSettings& settings,
                    SharedRenderState* render_state,
-                   ScopedProfilerNode& prof);
+                   ScopedProfilerNode& prof,
+                   UniformBuffer& uniform_buffer);
 
   bool setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                        const std::string& level,
@@ -36,7 +39,8 @@ class Tfrag3 {
 
   void render_tree_cull_debug(const TfragRenderSettings& settings,
                               SharedRenderState* render_state,
-                              ScopedProfilerNode& prof);
+                              ScopedProfilerNode& prof,
+                              UniformBuffer& uniform_buffer);
 
   void draw_debug_window();
   struct DebugVertex {
@@ -50,6 +54,9 @@ class Tfrag3 {
   int lod() const { return Gfx::g_global_settings.lod_tfrag; }
 
  private:
+  void InitializeInputVertexAttribute();
+  void InitializeDebugInputVertexAttribute();
+
   static constexpr int GEOM_MAX = 3;
 
   struct TreeCache {
@@ -91,7 +98,7 @@ class Tfrag3 {
 
   std::string m_level_name;
 
-  const std::vector<GLuint>* m_textures = nullptr;
+  const std::vector<TextureInfo>* m_textures = nullptr;
   std::array<std::vector<TreeCache>, GEOM_MAX> m_cached_trees;
 
   std::vector<math::Vector<u8, 4>> m_color_result;

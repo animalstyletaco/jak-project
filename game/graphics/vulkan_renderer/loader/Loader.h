@@ -10,7 +10,7 @@
 
 #include "game/graphics/vulkan_renderer/loader/common.h"
 #include "game/graphics/pipelines/vulkan.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
 
 class Loader {
  public:

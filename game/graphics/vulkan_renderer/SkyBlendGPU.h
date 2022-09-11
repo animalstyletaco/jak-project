@@ -7,7 +7,7 @@
 
 class SkyBlendGPU {
  public:
-  SkyBlendGPU();
+  SkyBlendGPU(VkDevice device);
   ~SkyBlendGPU();
   void init_textures(TexturePool& tex_pool);
   SkyBlendStats do_sky_blends(DmaFollower& dma,
@@ -15,10 +15,17 @@ class SkyBlendGPU {
                               ScopedProfilerNode& prof);
 
  private:
-  GLuint m_framebuffers[2];  // sky, clouds
-  GLuint m_textures[2];      // sky, clouds
+  VkBuffer m_vertex_buffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_vertex_memory = VK_NULL_HANDLE;
+  VkDeviceSize m_vertex_device_size = 0;
+
+  VkImage m_textures[2] = {VK_NULL_HANDLE};
+  VkImageView m_texture_views[2] = {VK_NULL_HANDLE};
+  VkDeviceMemory m_texture_memories[2] = {VK_NULL_HANDLE};
+  VkDeviceSize m_texture_size[2] = {0};
+  VkDevice m_device = VK_NULL_HANDLE;
+
   int m_sizes[2] = {32, 64};
-  GLuint m_gl_vertex_buffer;
 
   struct Vertex {
     float x = 0;

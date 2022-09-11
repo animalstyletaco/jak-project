@@ -4,35 +4,52 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendGPU::SkyBlendGPU() {
+SkyBlendGPU::SkyBlendGPU(VkDevice device) : m_device(device) {
   // generate textures for sky blending
-  glGenFramebuffers(2, m_framebuffers);
-  glGenTextures(2, m_textures);
-
-  GLint old_framebuffer;
-  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &old_framebuffer);
 
   // setup the framebuffers
   for (int i = 0; i < 2; i++) {
-    glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffers[i]);
-    glBindTexture(GL_TEXTURE_2D, m_textures[i]);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_sizes[i], m_sizes[i], 0, GL_RGBA,
-                 GL_UNSIGNED_INT_8_8_8_8_REV, 0);
+    vulkan_utils::CreateImage(
+        m_device, m_sizes[i], m_sizes[i], 1,
+        VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SNORM_PACK32, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_textures[i], m_texture_memories[i]);
+
+    //TODO: Set Image View
+    //TODO: Copy Image to buffer here
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[i], 0);
-    GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
-    glDrawBuffers(1, draw_buffers);
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-      lg::error("SkyTextureHandler setup failed.");
-    }
+    //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[i], 0);
+    //GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
+    //glDrawBuffers(1, draw_buffers);
   }
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-  glGenBuffers(1, &m_gl_vertex_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 6, nullptr, GL_DYNAMIC_DRAW);
-  glBindBuffer(GL_ARRAY_BUFFER, old_framebuffer);
+  //glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 6, nullptr, GL_DYNAMIC_DRAW);
+
+  m_vertex_device_size = sizeof(Vertex) * 6;
+  m_vertex_buffer = vulkan_utils::CreateBuffer(m_device, m_vertex_memory, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vertex_device_size);
+
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = 0;
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
   // we only draw squares
   m_vertex_data[0].x = 0;
@@ -55,15 +72,21 @@ SkyBlendGPU::SkyBlendGPU() {
 }
 
 SkyBlendGPU::~SkyBlendGPU() {
-  glDeleteFramebuffers(2, m_framebuffers);
-  glDeleteBuffers(1, &m_gl_vertex_buffer);
-  glDeleteTextures(2, m_textures);
+  for (uint32_t i = 0; i < 2; i++) {
+    vkDestroyImage(m_device, m_textures[i], nullptr);
+    vkDestroyImageView(m_device, m_texture_views[i], nullptr);
+    vkFreeMemory(m_device, m_texture_memories[i], nullptr);
+  }
+
+  vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
+  vkFreeMemory(m_device, m_vertex_memory, nullptr);
 }
 
 void SkyBlendGPU::init_textures(TexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
     TextureInput in;
     in.gpu_texture = m_textures[i];
+    in.gpu_texture_memory = m_texture_memories[i];
     in.w = m_sizes[i];
     in.h = in.w;
     in.debug_name = fmt::format("PC-SKY-GPU-{}", i);
@@ -77,15 +100,54 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
                                          SharedRenderState* render_state,
                                          ScopedProfilerNode& prof) {
   SkyBlendStats stats;
-  GLuint vao;
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
 
-  GLint old_viewport[4];
-  glGetIntegerv(GL_VIEWPORT, old_viewport);
+  //GLint old_viewport[4];
+  //glGetIntegerv(GL_VIEWPORT, old_viewport);
 
-  GLint old_framebuffer;
-  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &old_framebuffer);
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  // ST was used in OpenGL, UV is used in Vulkan
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+
+  colorBlendAttachment.blendEnable = VK_TRUE;
+  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
   while (dma.current_tag().qwc == 6) {
     // assuming that the vif and gif-tag is correct
@@ -128,16 +190,15 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     ASSERT(tex);
 
     // setup for rendering!
-    glBindFramebuffer(GL_FRAMEBUFFER, m_framebuffers[buffer_idx]);
-    glViewport(0, 0, m_sizes[buffer_idx], m_sizes[buffer_idx]);
-    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[buffer_idx], 0);
-    render_state->shaders[ShaderId::SKY_BLEND].activate();
+    //glViewport(0, 0, m_sizes[buffer_idx], m_sizes[buffer_idx]);
+    //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[buffer_idx], 0);
+    //render_state->shaders[ShaderId::SKY_BLEND].activate();
 
     // if the first is set, it disables alpha. we can just clear here, so it's easier to find
     // in renderdoc.
     if (is_first_draw) {
       float clear[4] = {0, 0, 0, 0};
-      glClearBufferfv(GL_COLOR, 0, clear);
+      //glClearBufferfv(GL_COLOR, 0, clear);
     }
 
     // intensities should be 0-128 (maybe higher is okay, but I don't see how this could be
@@ -150,33 +211,15 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
       vert.intensity = intensity_float;
     }
 
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-
-    // will add.
-    glBlendFunc(GL_ONE, GL_ONE);
+    //glDisable(GL_DEPTH_TEST);
 
     // setup draw data
-    glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 6, m_vertex_data, GL_STREAM_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0,         // location 0 in the shader
-                          3,         // 3 floats per vert
-                          GL_FLOAT,  // floats
-                          GL_TRUE,   // normalized, ignored,
-                          0,         // tightly packed
-                          0
-
-    );
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, *tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    vulkan_utils::SetDataInVkDeviceMemory(m_device, m_vertex_memory,
+                                          m_vertex_device_size, 0,
+                                          m_vertex_data, m_vertex_device_size, 0);
 
     // Draw a sqaure
-    glDrawArrays(GL_TRIANGLES, 0, 6);
+    //glDrawArrays(GL_TRIANGLES, 0, 6);
 
     // 1 draw, 2 triangles
     prof.add_draw_call(1);
@@ -200,10 +243,7 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     }
   }
 
-  glViewport(old_viewport[0], old_viewport[1], old_viewport[2], old_viewport[3]);
-  glBindFramebuffer(GL_FRAMEBUFFER, old_framebuffer);
-  glBindVertexArray(0);
-  glDeleteVertexArrays(1, &vao);
+  //glViewport(old_viewport[0], old_viewport[1], old_viewport[2], old_viewport[3]);
 
   return stats;
 }

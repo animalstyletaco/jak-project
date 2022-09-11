@@ -6,8 +6,8 @@
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-TextureUploadHandler::TextureUploadHandler(const std::string& name, BucketId my_id)
-    : BucketRenderer(name, my_id) {}
+TextureUploadHandler::TextureUploadHandler(const std::string& name, BucketId my_id, VkDevice device)
+    : BucketRenderer(name, my_id, device) {}
 
 void TextureUploadHandler::render(DmaFollower& dma,
                                   SharedRenderState* render_state,

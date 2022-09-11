@@ -16,12 +16,13 @@ bool looks_like_tfrag_init(const DmaFollower& follow) {
 }
 }  // namespace
 
-TFragment::TFragment(const std::string& name,
+TFragment::TFragment(VkDevice& device,
+                     const std::string& name,
                      BucketId my_id,
                      const std::vector<tfrag3::TFragmentTreeKind>& trees,
                      bool child_mode,
                      int level_id)
-    : BucketRenderer(name, my_id),
+    : BucketRenderer(name, my_id, device),
       m_child_mode(child_mode),
       m_tree_kinds(trees),
       m_level_id(level_id) {
@@ -140,7 +141,7 @@ void TFragment::render(DmaFollower& dma,
     }
 
     auto t3prof = prof.make_scoped_child("t3");
-    m_tfrag3.render_matching_trees(m_tfrag3.lod(), m_tree_kinds, settings, render_state, t3prof);
+    m_tfrag3.render_matching_trees(m_tfrag3.lod(), m_tree_kinds, settings, render_state, t3prof, m_uniform_buffer);
   }
 
   while (dma.current_tag_offset() != render_state->next_bucket) {

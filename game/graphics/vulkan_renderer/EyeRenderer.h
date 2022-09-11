@@ -12,7 +12,7 @@ constexpr int SINGLE_EYE_SIZE = 32;
 
 class EyeRenderer : public BucketRenderer {
  public:
-  EyeRenderer(const std::string& name, BucketId id);
+  EyeRenderer(const std::string& name, BucketId id, VkDevice device);
   ~EyeRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
@@ -43,6 +43,7 @@ class EyeRenderer : public BucketRenderer {
   };
 
  private:
+  void InitializeInputVertexAttribute();
   std::string m_debug;
   float m_average_time_ms = 0;
 
@@ -53,20 +54,14 @@ class EyeRenderer : public BucketRenderer {
 
   bool m_use_gpu = true;
 
-  struct CpuEyeTex {
-    u64 gl_tex;
-    GpuTexture* gpu_tex;
-    u32 tbp;
-  };
-  CpuEyeTex m_cpu_eye_textures[NUM_EYE_PAIRS * 2];
+  TextureInfo m_cpu_eye_textures[NUM_EYE_PAIRS * 2];
 
   struct GpuEyeTex {
     GpuTexture* gpu_tex;
     u32 tbp;
     FramebufferTexturePair fb;
 
-    // note: eye texture increased to 128x128 (originally 32x32) here.
-    GpuEyeTex() : fb(128, 128, GL_UNSIGNED_INT_8_8_8_8_REV) {}
+    GpuEyeTex(VkDevice device);
   } m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
 
   // xyst per vertex, 4 vertices per square, 3 draws per eye, 11 pairs of eyes, 2 eyes per pair.

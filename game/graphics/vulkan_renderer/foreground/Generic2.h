@@ -4,7 +4,8 @@
 
 class Generic2 : public BucketRenderer {
  public:
-  Generic2(const std::string& name,
+  Generic2(VkDevice& device,
+           const std::string& name,
            BucketId my_id,
            u32 num_verts = 200000,
            u32 num_frags = 2000,
@@ -26,6 +27,9 @@ class Generic2 : public BucketRenderer {
     u32 pad1;
   };
   static_assert(sizeof(Vertex) == 32);
+
+protected:
+  void InitializeVertexBuffer(SharedRenderState* render_state);
 
  private:
   void determine_draw_modes();

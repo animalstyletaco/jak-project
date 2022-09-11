@@ -54,8 +54,14 @@ struct QueueFamilyIndices {
   bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
 };
 
+struct SwapChainSupportDetails {
+  VkSurfaceCapabilitiesKHR capabilities;
+  std::vector<VkSurfaceFormatKHR> formats;
+  std::vector<VkPresentModeKHR> presentModes;
+};
+
 /*!
- * Main OpenGL renderer.
+ * Main Vulkan renderer.
  * This handles the glClear and all game rendering, but not actual setup, synchronization or imgui
  * stuff.
  *
@@ -131,8 +137,15 @@ class VulkanRenderer {
   void recreateSwapChain();
   void cleanupSwapChain();
   void cleanup();
+  SwapChainSupportDetails QuerySwapChainSupport();
   void populateDebugMessengerCreateInfo(
       VkDebugUtilsMessengerCreateInfoEXT& createInfo);
+  void CopyBufferToImage(VkBuffer buffer,
+                         VkImage image,
+                         uint32_t width,
+                         uint32_t height,
+                         uint32_t x_offset = 0,
+                         uint32_t y_offset = 0);
 
   VkInstance instance;
   VkDebugUtilsMessengerEXT debugMessenger;

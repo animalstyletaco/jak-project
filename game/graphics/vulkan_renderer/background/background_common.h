@@ -37,12 +37,12 @@ struct DoubleDraw {
   float aref_second = 0.;
 };
 
-DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, ShaderId shader);
-DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, u32 tex_unit, bool mipmap);
+DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& texture, UniformBuffer& uniform_buffer);
+DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, bool mipmap);
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             SharedRenderState* render_state,
-                            ShaderId shader);
+                            UniformBuffer& uniform_buffer);
 void interp_time_of_day_slow(const float weights[8],
                              const std::vector<tfrag3::TimeOfDayColor>& in,
                              math::Vector<u8, 4>* out);

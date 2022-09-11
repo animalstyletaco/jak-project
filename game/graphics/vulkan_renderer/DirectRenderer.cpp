@@ -9,58 +9,60 @@
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-DirectRenderer::DirectRenderer(const std::string& name, BucketId my_id, int batch_size)
-    : BucketRenderer(name, my_id), m_prim_buffer(batch_size) {
-  glGenBuffers(1, &m_ogl.vertex_buffer);
-  glGenVertexArrays(1, &m_ogl.vao);
-  glBindVertexArray(m_ogl.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
+DirectRenderer::DirectRenderer(const std::string& name, BucketId my_id, VkDevice device, int batch_size)
+    : BucketRenderer(name, my_id, device), m_prim_buffer(batch_size) {
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
-  m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(Vertex);
-  glBufferData(GL_ARRAY_BUFFER, m_ogl.vertex_buffer_bytes, nullptr,
-               GL_STREAM_DRAW);  // todo stream?
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0,                             // location 0 in the shader
-                        4,                             // 4 floats per vert (w unused)
-                        GL_FLOAT,                      // floats
-                        GL_TRUE,                       // normalized, ignored,
-                        sizeof(Vertex),                //
-                        (void*)offsetof(Vertex, xyzf)  // offset in array (why is this a pointer...)
-  );
+  m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(DirectRenderer::Vertex);
 
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1,                             // location 0 in the shader
-                        4,                             // 4 color components
-                        GL_UNSIGNED_BYTE,              // floats
-                        GL_TRUE,                       // normalized, ignored,
-                        sizeof(Vertex),                //
-                        (void*)offsetof(Vertex, rgba)  // offset in array (why is this a pointer...)
-  );
+  InitializeInputVertexAttribute();
+}
 
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2,                            // location 0 in the shader
-                        3,                            // 3 floats per vert
-                        GL_FLOAT,                     // floats
-                        GL_FALSE,                     // normalized, ignored,
-                        sizeof(Vertex),               //
-                        (void*)offsetof(Vertex, stq)  // offset in array (why is this a pointer...)
-  );
+void DirectRenderer::SetShaderModule(Shader& shader) {
 
-  glEnableVertexAttribArray(3);
-  glVertexAttribIPointer(
-      3,                                 // location 0 in the shader
-      4,                                 // 3 floats per vert
-      GL_UNSIGNED_BYTE,                  // floats
-      sizeof(Vertex),                    //
-      (void*)offsetof(Vertex, tex_unit)  // offset in array (why is this a pointer...)
-  );
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+}
+
+void DirectRenderer::InitializeInputVertexAttribute() {
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(DirectRenderer::Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(DirectRenderer::Vertex, xyzf);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
+  attributeDescriptions[1].offset = offsetof(DirectRenderer::Vertex, rgba);
+
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[2].offset = offsetof(DirectRenderer::Vertex, stq);
+
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 3;
+  attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
+  attributeDescriptions[3].offset = offsetof(DirectRenderer::Vertex, tex_unit);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }
 
 DirectRenderer::~DirectRenderer() {
-  glDeleteBuffers(1, &m_ogl.vertex_buffer);
-  glDeleteVertexArrays(1, &m_ogl.vao);
+   //TODO: Delete allocated vulkan objects here
+  // DeleteVertexBuffer();
+  // DeleteIndexBuffer();
 }
 
 /*!
@@ -69,6 +71,10 @@ DirectRenderer::~DirectRenderer() {
 void DirectRenderer::render(DmaFollower& dma,
                             SharedRenderState* render_state,
                             ScopedProfilerNode& prof) {
+
+  //Create Buffer here if one isn't available
+  //glBufferData(GL_ARRAY_BUFFER, m_ogl.vertex_buffer_bytes, nullptr, GL_STREAM_DRAW);
+  
   // if we're rendering from a bucket, we should start off we a totally reset state:
   reset_state();
   setup_common_state(render_state);
@@ -158,25 +164,30 @@ float u32_to_sc(u32 in) {
 
 void DirectRenderer::flush_pending(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   // update opengl state
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
   if (m_blend_state_needs_gl_update) {
-    update_gl_blend();
+    update_vulkan_blend();
     m_blend_state_needs_gl_update = false;
   }
 
   if (m_prim_gl_state_needs_gl_update) {
-    update_gl_prim(render_state);
+    update_vulkan_prim(render_state);
     m_prim_gl_state_needs_gl_update = false;
   }
 
   if (m_test_state_needs_gl_update) {
-    update_gl_test();
+    update_vulkan_test();
     m_test_state_needs_gl_update = false;
   }
 
   for (int i = 0; i < TEXTURE_STATE_COUNT; i++) {
     auto& tex_state = m_buffered_tex_state[i];
     if (tex_state.used) {
-      update_gl_texture(render_state, i);
+      update_vulkan_texture(render_state, i);
       tex_state.used = false;
     }
   }
@@ -191,48 +202,54 @@ void DirectRenderer::flush_pending(SharedRenderState* render_state, ScopedProfil
 
   if (m_debug_state.disable_texture) {
     // a bit of a hack, this forces the non-textured shader always.
-    render_state->shaders[ShaderId::DIRECT_BASIC].activate();
+    SetShaderModule(render_state->shaders[ShaderId::DIRECT_BASIC]);
     m_blend_state_needs_gl_update = true;
     m_prim_gl_state_needs_gl_update = true;
   }
 
   if (m_debug_state.red) {
-    render_state->shaders[ShaderId::DEBUG_RED].activate();
-    glDisable(GL_BLEND);
+    SetShaderModule(render_state->shaders[ShaderId::DEBUG_RED]);
+    colorBlendAttachment.blendEnable = VK_FALSE;
     m_prim_gl_state_needs_gl_update = true;
     m_blend_state_needs_gl_update = true;
   }
 
   // hacks
   if (m_debug_state.always_draw) {
-    glDisable(GL_DEPTH_TEST);
-    glDepthFunc(GL_ALWAYS);
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
   }
 
-  glBindVertexArray(m_ogl.vao);
   // render!
   // update buffers:
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, m_prim_buffer.vert_count * sizeof(Vertex),
-               m_prim_buffer.vertices.data(), GL_STREAM_DRAW);
+  //CreateVertexBuffer(m_prim_buffer.vertices);
 
   int draw_count = 0;
-  glDrawArrays(GL_TRIANGLES, 0, m_prim_buffer.vert_count);
+  //glDrawArrays(GL_TRIANGLES, 0, m_prim_buffer.vert_count);
   draw_count++;
+  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
   if (m_debug_state.wireframe) {
-    render_state->shaders[ShaderId::DEBUG_RED].activate();
-    glDisable(GL_BLEND);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawArrays(GL_TRIANGLES, 0, m_prim_buffer.vert_count);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    SetShaderModule(render_state->shaders[ShaderId::DEBUG_RED]);
+    colorBlendAttachment.blendEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+
+    //glDrawArrays(GL_TRIANGLES, 0, m_prim_buffer.vert_count);
+
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     m_blend_state_needs_gl_update = true;
     m_prim_gl_state_needs_gl_update = true;
     draw_count++;
   }
 
-  glActiveTexture(GL_TEXTURE0);
-  glBindVertexArray(0);
+  //glActiveTexture(GL_TEXTURE0);
   int n_tris = draw_count * (m_prim_buffer.vert_count / 3);
   prof.add_tri(n_tris);
   prof.add_draw_call(draw_count);
@@ -241,7 +258,7 @@ void DirectRenderer::flush_pending(SharedRenderState* render_state, ScopedProfil
   m_prim_buffer.vert_count = 0;
 }
 
-void DirectRenderer::update_gl_prim(SharedRenderState* render_state) {
+void DirectRenderer::update_vulkan_prim(SharedRenderState* render_state) {
   // currently gouraud is handled in setup.
   const auto& state = m_prim_gl_state;
   if (state.texture_enable) {
@@ -260,23 +277,15 @@ void DirectRenderer::update_gl_prim(SharedRenderState* render_state) {
       }
     }
 
-    render_state->shaders[ShaderId::DIRECT_BASIC_TEXTURED].activate();
-    glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::DIRECT_BASIC_TEXTURED].id(),
-                                     "alpha_reject"),
-                alpha_reject);
-    glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::DIRECT_BASIC_TEXTURED].id(),
-                                     "color_mult"),
-                m_ogl.color_mult);
-    glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::DIRECT_BASIC_TEXTURED].id(),
-                                     "alpha_mult"),
-                m_ogl.alpha_mult);
-    glUniform4f(glGetUniformLocation(render_state->shaders[ShaderId::DIRECT_BASIC_TEXTURED].id(),
-                                     "fog_color"),
+    m_uniform_buffer.SetUniform1f("alpha_reject", alpha_reject);
+    m_uniform_buffer.SetUniform1f("color_mult", m_ogl.color_mult);
+    m_uniform_buffer.SetUniform1f("alpha_mult", m_ogl.alpha_mult);
+    m_uniform_buffer.SetUniform4f("fog_color",
                 render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
                 render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
 
   } else {
-    render_state->shaders[ShaderId::DIRECT_BASIC].activate();
+    SetShaderModule(render_state->shaders[ShaderId::DIRECT_BASIC]);
   }
   if (state.fogging_enable) {
     //    ASSERT(false);
@@ -295,8 +304,8 @@ void DirectRenderer::update_gl_prim(SharedRenderState* render_state) {
   }
 }
 
-void DirectRenderer::update_gl_texture(SharedRenderState* render_state, int unit) {
-  std::optional<u64> tex;
+void DirectRenderer::update_vulkan_texture(SharedRenderState* render_state, int unit) {
+  VkImage tex;
   auto& state = m_buffered_tex_state[unit];
   if (!state.used) {
     // nothing used this state, don't bother binding the texture.
@@ -321,50 +330,104 @@ void DirectRenderer::update_gl_texture(SharedRenderState* render_state, int unit
   }
   ASSERT(tex);
 
-  glActiveTexture(GL_TEXTURE20 + unit);
-  glBindTexture(GL_TEXTURE_2D, *tex);
-  // Note: CLAMP and CLAMP_TO_EDGE are different...
-  if (state.m_clamp_state.clamp_s) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterizer.rasterizerDiscardEnable = VK_FALSE;
+  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterizer.lineWidth = 1.0f;
+  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterizer.depthBiasEnable = VK_FALSE;
+  if (state.m_clamp_state.clamp_s || state.m_clamp_state.clamp_t) {
+    rasterizer.depthClampEnable = VK_TRUE;
   } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    rasterizer.depthClampEnable = VK_FALSE;
   }
 
+  // VkPhysicalDeviceProperties properties{};
+  // vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  // ST was used in OpenGL, UV is used in Vulkan
+  if (state.m_clamp_state.clamp_s) {
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  }
   if (state.m_clamp_state.clamp_t) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   }
 
   if (state.enable_tex_filt) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                    m_debug_state.disable_mipmap ? GL_LINEAR : GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    if (!m_debug_state.disable_mipmap) {
+      samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    }
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
   } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
 }
 
-void DirectRenderer::update_gl_blend() {
+void DirectRenderer::update_vulkan_blend() {
   const auto& state = m_blend_state;
   m_ogl.color_mult = 1.f;
   m_ogl.alpha_mult = 1.f;
   m_prim_gl_state_needs_gl_update = true;
-  if (!state.alpha_blend_enable) {
-    glDisable(GL_BLEND);
-  } else {
-    glEnable(GL_BLEND);
-    glBlendColor(1, 1, 1, 1);
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+
+
+  colorBlending.attachmentCount = 1;
+  colorBlending.pAttachments = &colorBlendAttachment;
+
+  if (state.alpha_blend_enable) {
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlending.logicOpEnable = VK_TRUE;
+    colorBlending.blendConstants[0] = 1.0f;
+    colorBlending.blendConstants[1] = 1.0f;
+    colorBlending.blendConstants[2] = 1.0f;
+    colorBlending.blendConstants[3] = 1.0f;
 
     if (state.a == GsAlpha::BlendMode::SOURCE && state.b == GsAlpha::BlendMode::DEST &&
         state.c == GsAlpha::BlendMode::SOURCE && state.d == GsAlpha::BlendMode::DEST) {
       // (Cs - Cd) * As + Cd
       // Cs * As  + (1 - As) * Cd
       // s, d
-      // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_ADD);
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
     } else if (state.a == GsAlpha::BlendMode::SOURCE &&
                state.b == GsAlpha::BlendMode::ZERO_OR_FIXED &&
                state.c == GsAlpha::BlendMode::SOURCE && state.d == GsAlpha::BlendMode::DEST) {
@@ -372,24 +435,52 @@ void DirectRenderer::update_gl_blend() {
       // Cs * As + (1) * Cd
       // s, d
       ASSERT(state.fix == 0);
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_ADD);
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
     } else if (state.a == GsAlpha::BlendMode::ZERO_OR_FIXED &&
                state.b == GsAlpha::BlendMode::SOURCE && state.c == GsAlpha::BlendMode::SOURCE &&
                state.d == GsAlpha::BlendMode::DEST) {
       // (0 - Cs) * As + Cd
       // Cd - Cs * As
       // s, d
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
     } else if (state.a == GsAlpha::BlendMode::SOURCE && state.b == GsAlpha::BlendMode::DEST &&
                state.c == GsAlpha::BlendMode::ZERO_OR_FIXED &&
                state.d == GsAlpha::BlendMode::DEST) {
       // (Cs - Cd) * fix + Cd
       // Cs * fix + (1 - fx) * Cd
-      glBlendFuncSeparate(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA, GL_ONE, GL_ZERO);
-      glBlendColor(0, 0, 0, state.fix / 127.f);
-      glBlendEquation(GL_FUNC_ADD);
+
+      colorBlending.blendConstants[0] = 0.0f;
+      colorBlending.blendConstants[1] = 0.0f;
+      colorBlending.blendConstants[2] = 0.0f;
+      colorBlending.blendConstants[3] = state.fix / 127.0f;
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
     } else if (state.a == GsAlpha::BlendMode::SOURCE && state.b == GsAlpha::BlendMode::SOURCE &&
                state.c == GsAlpha::BlendMode::SOURCE && state.d == GsAlpha::BlendMode::SOURCE) {
       // trick to disable alpha blending.
@@ -398,8 +489,14 @@ void DirectRenderer::update_gl_blend() {
                state.b == GsAlpha::BlendMode::ZERO_OR_FIXED &&
                state.c == GsAlpha::BlendMode::DEST && state.d == GsAlpha::BlendMode::DEST) {
       // (Cs - 0) * Ad + Cd
-      glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_ADD);
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
       m_ogl.color_mult = 0.5;
     } else {
       // unsupported blend: a 0 b 2 c 2 d 1
@@ -410,30 +507,33 @@ void DirectRenderer::update_gl_blend() {
   }
 }
 
-void DirectRenderer::update_gl_test() {
+void DirectRenderer::update_vulkan_test() {
   const auto& state = m_test_state;
 
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_FALSE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
+
   if (state.zte) {
-    glEnable(GL_DEPTH_TEST);
+    depthStencil.depthTestEnable = VK_TRUE;
     switch (state.ztst) {
       case GsTest::ZTest::NEVER:
-        glDepthFunc(GL_NEVER);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_NEVER;
         break;
       case GsTest::ZTest::ALWAYS:
-        glDepthFunc(GL_ALWAYS);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        glDepthFunc(GL_GEQUAL);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
-        glDepthFunc(GL_GREATER);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
         break;
       default:
         ASSERT(false);
     }
-  } else {
-    // you aren't supposed to turn off z test enable, the GS had some bugs
-    ASSERT(false);
   }
 
   if (state.date) {

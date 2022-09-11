@@ -5,12 +5,13 @@
 
 class ShadowRenderer : public BucketRenderer {
  public:
-  ShadowRenderer(const std::string& name, BucketId my_id);
+  ShadowRenderer(const std::string& name, BucketId my_id, VkDevice device);
   ~ShadowRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  private:
+  void InitializeInputVertexAttribute();
   void run_mscal_vu2c(u16 imm);
   void xgkick(u16 imm);
   void run_mscal10_vu2c();

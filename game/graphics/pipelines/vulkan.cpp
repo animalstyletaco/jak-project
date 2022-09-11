@@ -22,7 +22,7 @@
 #include "game/graphics/gfx.h"
 #include "game/graphics/vulkan_renderer/debug_gui.h"
 #include "game/graphics/vulkan_renderer/VulkanRenderer.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
 #include "game/runtime.h"
 #include "game/system/newpad.h"
 

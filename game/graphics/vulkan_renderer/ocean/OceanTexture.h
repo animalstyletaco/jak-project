@@ -7,7 +7,7 @@
 
 class OceanTexture {
  public:
-  OceanTexture(bool generate_mipmaps);
+  OceanTexture(bool generate_mipmaps, VkDevice& device);
   void handle_ocean_texture(DmaFollower& dma,
                             SharedRenderState* render_state,
                             ScopedProfilerNode& prof);
@@ -16,6 +16,9 @@ class OceanTexture {
   ~OceanTexture();
 
  private:
+  void InitializeVertexBuffer(SharedRenderState* render_state);
+  void InitializeVertexInputAttributes();
+  void InitializeMipmapVertexInputAttributes();
   void run_L1_PC();
   void run_L2_PC();
   void run_L3_PC();
@@ -31,6 +34,7 @@ class OceanTexture {
   void make_texture_with_mipmaps(SharedRenderState* render_state, ScopedProfilerNode& prof);
 
   bool m_generate_mipmaps;
+  UniformBuffer m_uniform_buffer;
 
   static constexpr int TEX0_SIZE = 128;
   static constexpr int NUM_MIPS = 8;

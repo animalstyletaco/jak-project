@@ -9,12 +9,13 @@
 
 class SpriteRenderer : public BucketRenderer {
  public:
-  SpriteRenderer(const std::string& name, BucketId my_id);
+  SpriteRenderer(const std::string& name, BucketId my_id, VkDevice device);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   static constexpr int SPRITES_PER_CHUNK = 48;
 
  private:
+  void InitializeInputVertexAttribute();
   void render_distorter(DmaFollower& dma,
                         SharedRenderState* render_state,
                         ScopedProfilerNode& prof);
@@ -40,8 +41,8 @@ class SpriteRenderer : public BucketRenderer {
   void handle_clamp(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_alpha(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
 
-  void update_gl_prim(SharedRenderState* render_state);
-  void update_gl_texture(SharedRenderState* render_state, int unit);
+  void update_vulkan_prim(SharedRenderState* render_state);
+  void update_vulkan_texture(SharedRenderState* render_state, int unit);
   void flush_sprites(SharedRenderState* render_state, ScopedProfilerNode& prof);
 
   u8 m_sprite_distorter_setup[7 * 16];  // direct data
@@ -108,7 +109,7 @@ class SpriteRenderer : public BucketRenderer {
     bool use_uv = false;  // todo: might not require a gl state change
     bool ctxt = false;    // do they ever use ctxt2?
     bool fix = false;     // what does this even do?
-  } m_prim_gl_state;
+  } m_prim_vulkan_state;
 
   static constexpr int ADGIF_STATE_COUNT = 10;
 
@@ -159,5 +160,5 @@ class SpriteRenderer : public BucketRenderer {
 
   int m_adgif_index = 0;
 
-  void update_gl_blend(AdGifState& state);
+  void update_vulkan_blend(AdGifState& state);
 };

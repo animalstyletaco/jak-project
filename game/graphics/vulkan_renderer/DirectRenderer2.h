@@ -16,17 +16,20 @@ class DirectRenderer2 {
                   bool use_ftoi_mod);
   void init_shaders(ShaderLibrary& shaders);
   void reset_state();
-  void render_gif_data(const u8* data, SharedRenderState* render_state, ScopedProfilerNode& prof);
-  void flush_pending(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void render_gif_data(const u8* data, SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
+  void flush_pending(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
   void draw_debug_window();
   ~DirectRenderer2();
 
  private:
+  void InitializeInputVertexAttribute();
+  void SetShaderModule(Shader& shader);
+
   static constexpr u8 TEX_UNITS = 10;
   void reset_buffers();
 
-  void draw_call_loop_simple(SharedRenderState* render_state, ScopedProfilerNode& prof);
-  void draw_call_loop_grouped(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void draw_call_loop_simple(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
+  void draw_call_loop_grouped(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
 
   // the GsState is the state of all Gs Registers.
   struct GsState {
@@ -116,8 +119,8 @@ class DirectRenderer2 {
   } m_debug;
 
   std::string m_name;
-  void setup_opengl_for_draw_mode(const Draw& draw, SharedRenderState* render_state);
-  void setup_opengl_tex(u16 unit,
+  void setup_vulkan_for_draw_mode(const Draw& draw, SharedRenderState* render_state, UniformBuffer& uniform_buffer);
+  void setup_vulkan_tex(u16 unit,
                         u16 tbp,
                         bool filter,
                         bool clamp_s,
@@ -141,10 +144,12 @@ class DirectRenderer2 {
 
   void handle_xyzf2_packed(const u8* data,
                            SharedRenderState* render_state,
-                           ScopedProfilerNode& prof);
+                           ScopedProfilerNode& prof,
+                           UniformBuffer& uniform_buffer);
 
   bool m_use_ftoi_mod = false;
   void handle_xyzf2_mod_packed(const u8* data,
                                SharedRenderState* render_state,
-                               ScopedProfilerNode& prof);
+                               ScopedProfilerNode& prof,
+                               UniformBuffer& uniform_buffer);
 };

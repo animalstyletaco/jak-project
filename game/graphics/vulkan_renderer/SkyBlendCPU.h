@@ -4,6 +4,7 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/SkyBlendCommon.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/pipelines/vulkan.h"
 
 class SkyBlendCPU {
@@ -25,4 +26,6 @@ class SkyBlendCPU {
     u32 tbp;
     GpuTexture* tex;
   } m_textures[2];
+
+  TextureInfo textures[2];
 };

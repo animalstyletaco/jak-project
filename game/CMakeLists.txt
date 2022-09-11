@@ -150,7 +150,7 @@ if(WIN32)
         graphics/vulkan_renderer/SpriteRenderer.cpp
         graphics/vulkan_renderer/TextureUploadHandler.cpp
         graphics/vulkan_renderer/DepthCue.cpp
-        graphics/texture/TexturePoolVulkan.cpp
+        graphics/vulkan_renderer/TexturePoolVulkan.cpp
         ../third-party/glad/src/vulkan.c)
 else()
    list(APPEND RUNTIME_SOURCE

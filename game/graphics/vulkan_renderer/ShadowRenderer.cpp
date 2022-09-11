@@ -4,35 +4,41 @@
 
 #include "third-party/imgui/imgui.h"
 
-ShadowRenderer::ShadowRenderer(const std::string& name, BucketId my_id)
-    : BucketRenderer(name, my_id) {
-  // create OpenGL objects
-  glGenBuffers(1, &m_ogl.vertex_buffer);
-
-  glGenBuffers(2, m_ogl.index_buffer);
-  glGenVertexArrays(1, &m_ogl.vao);
-
+ShadowRenderer::ShadowRenderer(const std::string& name, BucketId my_id, VkDevice device)
+    : BucketRenderer(name, my_id, device) {
   // set up the vertex array
-  glBindVertexArray(m_ogl.vao);
+  u32 index_buffer[MAX_INDICES] = {0};
+  Vertex vertex_buffer[MAX_VERTICES];
   for (int i = 0; i < 2; i++) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer[i]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, MAX_INDICES * sizeof(u32), nullptr, GL_STREAM_DRAW);
+    //m_index_buffers[i] = CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, index_buffer, MAX_INDICES);
   }
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, MAX_VERTICES * sizeof(Vertex), nullptr, GL_STREAM_DRAW);
 
+  // m_vertex_buffer = CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, index_buffer, MAX_VERTEX);
   // xyz
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0,                            // location 0 in the shader
-                        3,                            // 3 floats per vert
-                        GL_FLOAT,                     // floats
-                        GL_TRUE,                      // normalized, ignored,
-                        sizeof(Vertex),               //
-                        (void*)offsetof(Vertex, xyz)  // offset in array
-  );
+  InitializeInputVertexAttribute();
+}
 
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+void ShadowRenderer::InitializeInputVertexAttribute() {
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(Vertex, xyz);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }
 
 void ShadowRenderer::draw_debug_window() {
@@ -42,9 +48,9 @@ void ShadowRenderer::draw_debug_window() {
 }
 
 ShadowRenderer::~ShadowRenderer() {
-  glDeleteBuffers(1, &m_ogl.vertex_buffer);
-  glDeleteBuffers(2, m_ogl.index_buffer);
-  glDeleteVertexArrays(1, &m_ogl.vao);
+  //glDeleteBuffers(1, &m_ogl.vertex_buffer);
+  //glDeleteBuffers(2, m_ogl.index_buffer);
+  //glDeleteVertexArrays(1, &m_ogl.vao);
 }
 
 void ShadowRenderer::xgkick(u16 imm) {
@@ -323,7 +329,6 @@ void ShadowRenderer::render(DmaFollower& dma,
 
 void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   // enable stencil!
-  glEnable(GL_STENCIL_TEST);
   glStencilMask(0xFF);
 
   u32 clear_vertices = m_next_vertex;
@@ -338,73 +343,116 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   m_front_indices[m_next_front_index++] = clear_vertices + 2;
   m_front_indices[m_next_front_index++] = clear_vertices + 1;
 
-  glBindVertexArray(m_ogl.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, m_next_vertex * sizeof(Vertex), m_vertices, GL_STREAM_DRAW);
+  //SetVertexBuffer(0, m_vertices, m_next_vertex); glBufferData(GL_ARRAY_BUFFER, m_next_vertex * sizeof(Vertex), m_vertices, GL_STREAM_DRAW);
 
-  glEnable(GL_DEPTH_TEST);
-  glDisable(GL_BLEND);
-  glDepthFunc(GL_GEQUAL);
+  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterizer.rasterizerDiscardEnable = VK_FALSE;
+  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterizer.lineWidth = 1.0f;
+  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterizer.depthBiasEnable = VK_FALSE;
 
-  render_state->shaders.at(ShaderId::SHADOW).activate();
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_TRUE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_TRUE;
+  depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
 
   glDepthMask(GL_FALSE);  // no depth writes.
   if (m_debug_draw_volume) {
-    glEnable(GL_BLEND);
-    glBlendEquation(GL_FUNC_ADD);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+    colorBlendAttachment.blendEnable = VK_TRUE;
+
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
   } else {
-    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);  // no color writes.
+    colorBlendAttachment.colorWriteMask = 0;
   }
+
+  depthStencil.front.failOp = VK_STENCIL_OP_KEEP;
+  depthStencil.front.writeMask = 0xFF;
+
+  depthStencil.back.failOp = VK_STENCIL_OP_KEEP;
+  depthStencil.back.writeMask = 0xFF;
+
 
   // First pass.
   // here, we don't write depth or color.
   // but we increment stencil on depth fail.
 
   {
-    glUniform4f(glGetUniformLocation(render_state->shaders[ShaderId::SHADOW].id(), "color_uniform"),
+    m_uniform_buffer.SetUniform4f("color_uniform",
                 0., 0.4, 0., 0.5);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer[0]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_next_front_index * sizeof(u32), m_front_indices,
-                 GL_STREAM_DRAW);
-    glStencilFunc(GL_ALWAYS, 0, 0);          // always pass stencil
-    glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);  // increment on depth pass.
+    // SetIndexBuffer(0, m_back_indices, m_next_front_index * sizeof(u32));
+
+    depthStencil.front.compareMask = 0;
+    depthStencil.front.compareOp = VK_COMPARE_OP_ALWAYS;
+
+    depthStencil.back.compareMask = 0;
+    depthStencil.back.compareOp = VK_COMPARE_OP_ALWAYS;
+
+    depthStencil.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+    depthStencil.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+
     glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
 
     if (m_debug_draw_volume) {
-      glDisable(GL_BLEND);
-      glUniform4f(
-          glGetUniformLocation(render_state->shaders[ShaderId::SHADOW].id(), "color_uniform"), 0.,
+      colorBlendAttachment.blendEnable = VK_FALSE;
+      m_uniform_buffer.SetUniform4f("color_uniform", 0.,
           0.0, 0., 0.5);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-      glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      glEnable(GL_BLEND);
+      rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+      //glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
+      rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+      colorBlendAttachment.blendEnable = VK_TRUE;
     }
     prof.add_draw_call();
     prof.add_tri(m_next_back_index / 3);
   }
 
   {
-    glUniform4f(glGetUniformLocation(render_state->shaders[ShaderId::SHADOW].id(), "color_uniform"),
+    m_uniform_buffer.SetUniform4f("color_uniform",
                 0.4, 0.0, 0., 0.5);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_next_back_index * sizeof(u32), m_back_indices,
-                 GL_STREAM_DRAW);
+
+    //SetIndexBuffer(0, m_back_indices, m_next_back_index * sizeof(u32));
+
     // Second pass.
-    // same settings, but decrement.
-    glStencilFunc(GL_ALWAYS, 0, 0);
-    glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);  // decrement on depth pass.
-    glDrawElements(GL_TRIANGLES, m_next_back_index, GL_UNSIGNED_INT, nullptr);
+
+    depthStencil.front.compareMask = 0;
+    depthStencil.front.compareOp = VK_COMPARE_OP_ALWAYS;
+
+    depthStencil.back.compareMask = 0;
+    depthStencil.back.compareOp = VK_COMPARE_OP_ALWAYS;
+
+    depthStencil.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+    depthStencil.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+    //glDrawElements(GL_TRIANGLES, m_next_back_index, GL_UNSIGNED_INT, nullptr);
     if (m_debug_draw_volume) {
-      glDisable(GL_BLEND);
-      glUniform4f(
-          glGetUniformLocation(render_state->shaders[ShaderId::SHADOW].id(), "color_uniform"), 0.,
-          0.0, 0., 0.5);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-      glDrawElements(GL_TRIANGLES, (m_next_back_index - 0), GL_UNSIGNED_INT, nullptr);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-      glEnable(GL_BLEND);
+      colorBlendAttachment.blendEnable = VK_FALSE;
+      m_uniform_buffer.SetUniform4f("color_uniform", 0., 0.0, 0., 0.5);
+      rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+      //glDrawElements(GL_TRIANGLES, (m_next_back_index - 0), GL_UNSIGNED_INT, nullptr);
+      rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+      colorBlendAttachment.blendEnable = VK_TRUE;
     }
 
     prof.add_draw_call();
@@ -412,23 +460,37 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   }
 
   // finally, draw shadow.
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer[0]);
-  glUniform4f(glGetUniformLocation(render_state->shaders[ShaderId::SHADOW].id(), "color_uniform"),
-              0.13, 0.13, 0.13, 0.5);
-  glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-  // glStencilFunc(GL_GREATER, 0, 0);
-  glStencilFunc(GL_NOTEQUAL, 0, 0xFF);
-  glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-  glDepthFunc(GL_ALWAYS);
+  m_uniform_buffer.SetUniform4f("color_uniform", 0.13, 0.13, 0.13, 0.5);
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-  glEnable(GL_BLEND);
-  glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-  glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ZERO);
-  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(sizeof(u32) * (m_next_front_index - 6)));
+  depthStencil.front.compareMask = 0xFF;
+  depthStencil.front.compareOp = VK_COMPARE_OP_NOT_EQUAL;
+
+  depthStencil.back.compareMask = 0xFF;
+  depthStencil.back.compareOp = VK_COMPARE_OP_NOT_EQUAL;
+
+  depthStencil.front.passOp = VK_STENCIL_OP_KEEP;
+  depthStencil.back.passOp = VK_STENCIL_OP_KEEP;
+
+  colorBlendAttachment.blendEnable = VK_TRUE;
+
+  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+
+  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+  //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(sizeof(u32) * (m_next_front_index - 6)));
   prof.add_draw_call();
   prof.add_tri(2);
-  glBlendEquation(GL_FUNC_ADD);
+
+  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
   glDepthMask(GL_TRUE);
 
-  glDisable(GL_STENCIL_TEST);
+  depthStencil.stencilTestEnable = VK_FALSE;
 }

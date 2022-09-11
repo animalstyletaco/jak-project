@@ -8,11 +8,9 @@
 
 SkyBlendCPU::SkyBlendCPU() {
   for (int i = 0; i < 2; i++) {
-    glGenTextures(1, &m_textures[i].gl);
-    glBindTexture(GL_TEXTURE_2D, m_textures[i].gl);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_sizes[i], m_sizes[i], 0, GL_RGBA,
-                 GL_UNSIGNED_INT_8_8_8_8_REV, 0);
     m_texture_data[i].resize(4 * m_sizes[i] * m_sizes[i]);
+    textures[i].CreateImage(m_sizes[i], m_sizes[i], 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+                            VK_FORMAT_A8B8G8R8_SINT_PACK32);
   }
 }
 
@@ -176,9 +174,8 @@ SkyBlendStats SkyBlendCPU::do_sky_blends(DmaFollower& dma,
           stats.cloud_blends++;
         }
       }
-      glBindTexture(GL_TEXTURE_2D, m_textures[buffer_idx].gl);
-      glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_sizes[buffer_idx], m_sizes[buffer_idx], 0, GL_RGBA,
-                   GL_UNSIGNED_INT_8_8_8_8_REV, m_texture_data[buffer_idx].data());
+      textures[buffer_idx].UpdateTexture(0, m_texture_data[buffer_idx].data(),
+                                         m_texture_data[buffer_idx].size());
 
       render_state->texture_pool->move_existing_to_vram(m_textures[buffer_idx].tex,
                                                         m_textures[buffer_idx].tbp);
@@ -190,13 +187,11 @@ SkyBlendStats SkyBlendCPU::do_sky_blends(DmaFollower& dma,
 
 void SkyBlendCPU::init_textures(TexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
-    // update it
-    glBindTexture(GL_TEXTURE_2D, m_textures[i].gl);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_sizes[i], m_sizes[i], 0, GL_RGBA,
-                 GL_UNSIGNED_INT_8_8_8_8_REV, m_texture_data[i].data());
-    TextureInput in;
+    textures[i].UpdateTexture(0, m_texture_data[i].data(), m_texture_data[i].size());
 
-    in.gpu_texture = m_textures[i].gl;
+    TextureInput in;
+    in.gpu_texture = textures[i].texture;
+    in.gpu_texture_memory = textures[i].texture_device_memory;
     in.w = m_sizes[i];
     in.h = m_sizes[i];
     in.debug_name = fmt::format("PC-SKY-CPU-{}", i);

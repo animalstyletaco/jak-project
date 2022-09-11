@@ -5,48 +5,25 @@
 #include "third-party/imgui/imgui.h"
 
 constexpr int OCEAN_TEX_TBP = 8160;  // todo
-OceanTexture::OceanTexture(bool generate_mipmaps)
+OceanTexture::OceanTexture(bool generate_mipmaps, VkDevice& device)
     : m_generate_mipmaps(generate_mipmaps),
       m_result_texture(TEX0_SIZE,
                        TEX0_SIZE,
-                       GL_UNSIGNED_INT_8_8_8_8_REV,
+                       VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                       device,
                        m_generate_mipmaps ? NUM_MIPS : 1),
-      m_temp_texture(TEX0_SIZE, TEX0_SIZE, GL_UNSIGNED_INT_8_8_8_8_REV) {
+      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SINT_PACK32, device) {
   m_dbuf_x = m_dbuf_a;
   m_dbuf_y = m_dbuf_b;
 
   m_tbuf_x = m_tbuf_a;
   m_tbuf_y = m_tbuf_b;
 
+  m_uniform_buffer = UniformBuffer(device, sizeof(int));
+
   init_pc();
 
   // initialize the mipmap drawing
-  glGenVertexArrays(1, &m_mipmap.vao);
-  glBindVertexArray(m_mipmap.vao);
-  glGenBuffers(1, &m_mipmap.vtx_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_mipmap.vtx_buffer);
-  std::vector<MipMap::Vertex> vertices = {
-      {-1, -1, 0, 0}, {-1, 1, 0, 1}, {1, -1, 1, 0}, {1, 1, 1, 1}};
-  glBufferData(GL_ARRAY_BUFFER, sizeof(MipMap::Vertex) * 4, vertices.data(), GL_STATIC_DRAW);
-  glEnableVertexAttribArray(0);
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(
-      0,                                  // location 0 in the shader
-      2,                                  // 4 color components
-      GL_FLOAT,                           // floats
-      GL_FALSE,                           // normalized, ignored,
-      sizeof(MipMap::Vertex),             //
-      (void*)offsetof(MipMap::Vertex, x)  // offset in array (why is this a pointer...)
-  );
-  glVertexAttribPointer(
-      1,                                  // location 0 in the shader
-      2,                                  // 4 color components
-      GL_FLOAT,                           // floats
-      GL_FALSE,                           // normalized, ignored,
-      sizeof(MipMap::Vertex),             //
-      (void*)offsetof(MipMap::Vertex, s)  // offset in array (why is this a pointer...)
-  );
-  glBindVertexArray(0);
 }
 
 OceanTexture::~OceanTexture() {
@@ -56,6 +33,7 @@ OceanTexture::~OceanTexture() {
 void OceanTexture::init_textures(TexturePool& pool) {
   TextureInput in;
   in.gpu_texture = m_result_texture.texture();
+  in.gpu_texture_memory = m_result_texture.texture_memory();
   in.w = TEX0_SIZE;
   in.h = TEX0_SIZE;
   in.debug_page_name = "PC-OCEAN";
@@ -66,13 +44,15 @@ void OceanTexture::init_textures(TexturePool& pool) {
 
 void OceanTexture::draw_debug_window() {
   if (m_tex0_gpu) {
-    ImGui::Image((void*)m_tex0_gpu->gpu_textures.at(0).gl, ImVec2(m_tex0_gpu->w, m_tex0_gpu->h));
+    ImGui::Image((void*)m_tex0_gpu->gpu_textures.at(0).image, ImVec2(m_tex0_gpu->w, m_tex0_gpu->h));
   }
 }
 
 void OceanTexture::handle_ocean_texture(DmaFollower& dma,
                                         SharedRenderState* render_state,
                                         ScopedProfilerNode& prof) {
+
+  InitializeVertexBuffer(render_state);
   // if we're doing mipmaps, render to temp.
   // otherwise, render directly to target.
   FramebufferTexturePairContext ctxt(m_generate_mipmaps ? m_temp_texture : m_result_texture);
@@ -234,33 +214,119 @@ void OceanTexture::handle_ocean_texture(DmaFollower& dma,
  */
 void OceanTexture::make_texture_with_mipmaps(SharedRenderState* render_state,
                                              ScopedProfilerNode& prof) {
-  glBindVertexArray(m_mipmap.vao);
-  render_state->shaders[ShaderId::OCEAN_TEXTURE_MIPMAP].activate();
-  glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_TEXTURE_MIPMAP].id(),
-                                   "alpha_intensity"),
-              1.0);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, m_temp_texture.texture());
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glDisable(GL_DEPTH_TEST);
-  glDisable(GL_BLEND);
-  glUniform1i(
-      glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_TEXTURE_MIPMAP].id(), "tex_T0"),
-      0);
-  glBindBuffer(GL_ARRAY_BUFFER, m_mipmap.vtx_buffer);
+  m_uniform_buffer.SetUniform1f("alpha_intensity", 1.0);
+  m_uniform_buffer.SetUniform1f("tex_T0", 0);
 
   for (int i = 0; i < NUM_MIPS; i++) {
     FramebufferTexturePairContext ctxt(m_result_texture, i);
-    glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_TEXTURE_MIPMAP].id(),
-                                     "alpha_intensity"),
-                std::max(0.f, 1.f - 0.51f * i));
-    glUniform1f(
-        glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_TEXTURE_MIPMAP].id(), "scale"),
-        1.f / (1 << i));
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    m_uniform_buffer.SetUniform1f("alpha_intensity", std::max(0.f, 1.f - 0.51f * i));
+    m_uniform_buffer.SetUniform1f("scale", 1.f / (1 << i));
+    //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     prof.add_draw_call();
     prof.add_tri(2);
   }
-  glBindVertexArray(0);
+
+  //FIXME: Draw here
+}
+
+void OceanTexture::InitializeMipmapVertexInputAttributes() {
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(MipMap::Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(MipMap::Vertex, x);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(MipMap::Vertex, s);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+}
+
+void OceanTexture::InitializeVertexBuffer(SharedRenderState* render_state) {
+  auto& shader = render_state->shaders[ShaderId::OCEAN_TEXTURE_MIPMAP];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Ocean Texture Vertex";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Ocean Texture Fragment";
+
+  std::vector<MipMap::Vertex> vertices = {
+      {-1, -1, 0, 0}, {-1, 1, 0, 1}, {1, -1, 1, 0}, {1, 1, 1, 1}};
+
+  //void* data = nullptr;
+  //vkMapMemory(device, device_memory, 0, sizeof(MipMap::Vertex) * 4, 0, &data);
+  //::memcpy(data, vertices.data(), sizeof(MipMap::Vertex) * 4);
+  //vkUnmapMemory(device, device_memory, nullptr);
+
+  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_FALSE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
+  depthStencil.depthCompareOp = VK_COMPARE_OP_NEVER;
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+  // FIXME: Added necessary configuration back to shrub pipeline
+  VkGraphicsPipelineCreateInfo pipelineInfo{};
+  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipelineInfo.stageCount = 2;
+  pipelineInfo.pStages = shaderStages;
+
+  // if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+  //                              &graphicsPipeline) != VK_SUCCESS) {
+  //  throw std::runtime_error("failed to create graphics pipeline!");
+  //}
+
+  // TODO: Should shaders be deleted now?
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
 
 /*!
  * The TextureUploadHandler receives textures uploads in the DMA chain and updates the TexturePool.
@@ -10,7 +10,7 @@
  */
 class TextureUploadHandler : public BucketRenderer {
  public:
-  TextureUploadHandler(const std::string& name, BucketId my_id);
+  TextureUploadHandler(const std::string& name, BucketId my_id, VkDevice device);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 

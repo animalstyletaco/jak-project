@@ -12,7 +12,7 @@ OceanMid::OceanMid() {
   vu.vf25 = Vf(1, 1, 1, 1);
 }
 
-void OceanMid::run(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void OceanMid::run(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer) {
   m_common_ocean_renderer.init_for_mid();
   // first is setting base and offset
   {
@@ -128,7 +128,7 @@ void OceanMid::run(DmaFollower& dma, SharedRenderState* render_state, ScopedProf
       ASSERT_MSG(false, fmt::format("{} {}", data.vifcode0().print(), data.vifcode1().print()));
     }
   }
-  m_common_ocean_renderer.flush_mid(render_state, prof);
+  m_common_ocean_renderer.flush_mid(render_state, prof, uniform_buffer);
 }
 
 void OceanMid::run_call0() {

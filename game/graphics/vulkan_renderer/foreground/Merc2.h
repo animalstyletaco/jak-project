@@ -3,13 +3,17 @@
 
 class Merc2 : public BucketRenderer {
  public:
-  Merc2(const std::string& name, BucketId my_id);
+  Merc2(const std::string& name, BucketId my_id, VkDevice& device);
+  ~Merc2();
   void draw_debug_window() override;
   void init_shaders(ShaderLibrary& shaders) override;
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void handle_merc_chain(DmaFollower& dma,
                          SharedRenderState* render_state,
                          ScopedProfilerNode& prof);
+
+ protected:
+  void InitializeVertexBuffer(SharedRenderState* render_state);
 
  private:
   enum MercDataMemory {
@@ -48,7 +52,7 @@ class Merc2 : public BucketRenderer {
   void init_for_frame(SharedRenderState* render_state);
   void init_pc_model(const DmaTransfer& setup, SharedRenderState* render_state);
   void handle_all_dma(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_setup_dma(DmaFollower& dma);
+  void handle_setup_dma(DmaFollower& dma, SharedRenderState* render_state);
   u32 alloc_lights(const VuLights& lights);
   void set_lights(const DmaTransfer& dma);
   void handle_matrix_dma(const DmaTransfer& dma);
@@ -81,24 +85,16 @@ class Merc2 : public BucketRenderer {
   math::Vector4f m_shader_bone_vector_buffer[MAX_SHADER_BONE_VECTORS];
   ShaderMercMat m_skel_matrix_buffer[MAX_SKEL_BONES];
 
-  struct {
-    unsigned light_direction[3];
-    unsigned light_color[3];
-    unsigned light_ambient;
-
-    unsigned hvdf_offset;
-    unsigned perspective[4];
-    unsigned fog;
-
-    unsigned tbone;
-    unsigned nbone;
-
-    unsigned fog_color;
-    unsigned perspective_matrix;
-
-    unsigned ignore_alpha;
-    unsigned decal;
-  } m_uniforms;
+  struct UniformData {
+    VuLights light_control;
+    math::Vector4f hvdf_offset;
+    math::Vector4f perspective[4];
+    math::Vector4f fog;
+    math::Matrix4f perspective_matrix;
+    math::Vector4f fog_color;
+    s32 ignore_alpha;
+    s32 pad[3]; //TODO: Verify that this padding is necessary
+  };
 
   unsigned m_vao;
 
@@ -145,7 +141,8 @@ class Merc2 : public BucketRenderer {
   std::vector<LevelDrawBucket> m_level_draw_buckets;
   u32 m_next_free_level_bucket = 0;
   u32 m_next_free_bone_vector = 0;
-  size_t m_opengl_buffer_alignment = 0;
+  size_t m_vulkan_buffer_alignment = 0;
 
   void flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNode& prof);
 };
+

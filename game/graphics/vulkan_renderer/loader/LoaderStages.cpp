@@ -7,19 +7,28 @@ constexpr float LOAD_BUDGET = 2.5f;
 /*!
  * Upload a texture to the GPU, and give it to the pool.
  */
-u64 add_texture(TexturePool& pool, const tfrag3::Texture& tex, bool is_common) {
-  GLuint gl_tex;
-  glGenTextures(1, &gl_tex);
-  glBindTexture(GL_TEXTURE_2D, gl_tex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, tex.w, tex.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
-               tex.data.data());
-  glBindTexture(GL_TEXTURE_2D, 0);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, gl_tex);
-  glGenerateMipmap(GL_TEXTURE_2D);
-  float aniso = 0.0f;
-  glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &aniso);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, aniso);
+TextureInfo add_texture(TexturePool& pool, const tfrag3::Texture& tex, bool is_common) {
+  TextureInfo textureInfo;
+  textureInfo.device_size = tex.w * tex.h * 4;
+
+  //textureInfo.CreateImage(tex.w, tex.h, VK_IMAGE_TYPE_1D, 1, VK_SAMPLE_COUNT_1_BIT,
+  //                        VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+  //                        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+  //                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureInfo.texture,
+  //                        textureInfo.texture_memory, textureInfo.texture_memory_size);
+
+  void* data = NULL;
+  vkMapMemory(textureInfo.device, textureInfo.texture_device_memory, 0, textureInfo.device_size, 0, &data);
+  ::memcpy(data, tex.data.data(), textureInfo.device_size);
+  vkUnmapMemory(textureInfo.device, textureInfo.texture_device_memory);
+
+  //TODO: Get Mipmap Level here
+
+  unsigned mipLevels = 1;
+  //textureInfo.texture_image_view = CreateImageView(texture, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+  //                                                 VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+  // Max Anisotropy is set in vulkan renderer sampler info;
+
   if (tex.load_to_pool) {
     TextureInput in;
     in.debug_page_name = tex.debug_tpage_name;
@@ -33,7 +42,7 @@ u64 add_texture(TexturePool& pool, const tfrag3::Texture& tex, bool is_common) {
     pool.give_texture(in);
   }
 
-  return gl_tex;
+  return textureInfo;
 }
 
 class TextureLoaderStage : public LoaderStage {
@@ -77,7 +86,7 @@ class TfragLoadStage : public LoaderStage {
       return true;
     }
 
-    if (!m_opengl_created) {
+    if (!m_vulkan_created) {
       for (int geo = 0; geo < tfrag3::TFRAG_GEOS; geo++) {
         auto& in_trees = data.lev_data->level->tfrag_trees[geo];
         for (auto& in_tree : in_trees) {
@@ -90,7 +99,7 @@ class TfragLoadStage : public LoaderStage {
                        GL_STATIC_DRAW);
         }
       }
-      m_opengl_created = true;
+      m_vulkan_created = true;
       return false;
     }
 
@@ -161,7 +170,7 @@ class TfragLoadStage : public LoaderStage {
 
   void reset() override {
     m_done = false;
-    m_opengl_created = false;
+    m_vulkan_created = false;
     m_next_geo = 0;
     m_next_tree = 0;
     m_next_vert = 0;
@@ -169,7 +178,7 @@ class TfragLoadStage : public LoaderStage {
 
  private:
   bool m_done = false;
-  bool m_opengl_created = false;
+  bool m_vulkan_created = false;
   u32 m_next_geo = 0;
   u32 m_next_tree = 0;
   u32 m_next_vert = 0;
@@ -188,16 +197,11 @@ class ShrubLoadStage : public LoaderStage {
       return true;
     }
 
-    if (!m_opengl_created) {
+    if (!m_vulkan_created) {
       for (auto& in_tree : data.lev_data->level->shrub_trees) {
-        GLuint& tree_out = data.lev_data->shrub_vertex_data.emplace_back();
-        glGenBuffers(1, &tree_out);
-        glBindBuffer(GL_ARRAY_BUFFER, tree_out);
-        glBufferData(GL_ARRAY_BUFFER,
-                     in_tree.unpacked.vertices.size() * sizeof(tfrag3::ShrubGpuVertex), nullptr,
-                     GL_STATIC_DRAW);
+        //CreateVertexBuffer(in_tree.unpacked.vertices);
       }
-      m_opengl_created = true;
+      m_vulkan_created = true;
       return false;
     }
 
@@ -227,12 +231,11 @@ class ShrubLoadStage : public LoaderStage {
         complete_tree = true;
       }
 
-      glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->shrub_vertex_data[m_next_tree]);
-      u32 upload_size =
-          (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
-      glBufferSubData(GL_ARRAY_BUFFER, start_vert_for_chunk * sizeof(tfrag3::ShrubGpuVertex),
-                      upload_size, tree.unpacked.vertices.data() + start_vert_for_chunk);
-      uploaded_bytes += upload_size;
+      //u32 upload_size =
+      //    (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
+      //glBufferSubData(GL_ARRAY_BUFFER, start_vert_for_chunk * sizeof(tfrag3::ShrubGpuVertex),
+      //                upload_size, tree.unpacked.vertices.data() + start_vert_for_chunk);
+      //uploaded_bytes += upload_size;
 
       if (complete_tree) {
         // and move on to next tree
@@ -252,14 +255,14 @@ class ShrubLoadStage : public LoaderStage {
 
   void reset() override {
     m_done = false;
-    m_opengl_created = false;
+    m_vulkan_created = false;
     m_next_tree = 0;
     m_next_vert = 0;
   }
 
  private:
   bool m_done = false;
-  bool m_opengl_created = false;
+  bool m_vulkan_created = false;
   u32 m_next_tree = 0;
   u32 m_next_vert = 0;
 };
@@ -277,7 +280,7 @@ class TieLoadStage : public LoaderStage {
       return true;
     }
 
-    if (!m_opengl_created) {
+    if (!m_vulkan_created) {
       for (int geo = 0; geo < tfrag3::TIE_GEOS; geo++) {
         auto& in_trees = data.lev_data->level->tie_trees[geo];
         for (auto& in_tree : in_trees) {
@@ -289,7 +292,7 @@ class TieLoadStage : public LoaderStage {
                        GL_STATIC_DRAW);
         }
       }
-      m_opengl_created = true;
+      m_vulkan_created = true;
       return false;
     }
 
@@ -396,7 +399,7 @@ class TieLoadStage : public LoaderStage {
 
   void reset() override {
     m_done = false;
-    m_opengl_created = false;
+    m_vulkan_created = false;
     m_next_geo = 0;
     m_next_tree = 0;
     m_next_vert = 0;
@@ -407,7 +410,7 @@ class TieLoadStage : public LoaderStage {
 
  private:
   bool m_done = false;
-  bool m_opengl_created = false;
+  bool m_vulkan_created = false;
   bool m_verts_done = false;
   bool m_indices_done = false;
   bool m_wind_indices_done = false;
@@ -423,14 +426,14 @@ class CollideLoaderStage : public LoaderStage {
     if (m_done) {
       return true;
     }
-    if (!m_opengl_created) {
+    if (!m_vulkan_created) {
       glGenBuffers(1, &data.lev_data->collide_vertices);
       glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->collide_vertices);
       glBufferData(
           GL_ARRAY_BUFFER,
           data.lev_data->level->collision.vertices.size() * sizeof(tfrag3::CollisionMesh::Vertex),
           nullptr, GL_STATIC_DRAW);
-      m_opengl_created = true;
+      m_vulkan_created = true;
       return false;
     }
 
@@ -450,13 +453,13 @@ class CollideLoaderStage : public LoaderStage {
     }
   }
   void reset() override {
-    m_opengl_created = false;
+    m_vulkan_created = false;
     m_vtx = 0;
     m_done = false;
   }
 
  private:
-  bool m_opengl_created = false;
+  bool m_vulkan_created = false;
   u32 m_vtx = 0;
   bool m_done = false;
 };
@@ -464,7 +467,7 @@ class CollideLoaderStage : public LoaderStage {
 MercLoaderStage::MercLoaderStage() : LoaderStage("merc") {}
 void MercLoaderStage::reset() {
   m_done = false;
-  m_opengl = false;
+  m_vulkan = false;
   m_vtx_uploaded = false;
   m_idx = 0;
 }
@@ -474,7 +477,7 @@ bool MercLoaderStage::run(Timer& /*timer*/, LoaderInput& data) {
     return true;
   }
 
-  if (!m_opengl) {
+  if (!m_vulkan) {
     glGenBuffers(1, &data.lev_data->merc_indices);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.lev_data->merc_indices);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
@@ -486,7 +489,7 @@ bool MercLoaderStage::run(Timer& /*timer*/, LoaderInput& data) {
     glBufferData(GL_ARRAY_BUFFER,
                  data.lev_data->level->merc_data.vertices.size() * sizeof(tfrag3::MercVertex),
                  nullptr, GL_STATIC_DRAW);
-    m_opengl = true;
+    m_vulkan = true;
   }
 
   if (!m_vtx_uploaded) {

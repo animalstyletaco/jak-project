@@ -13,15 +13,16 @@
 
 class Sprite3 : public BucketRenderer {
  public:
-  Sprite3(const std::string& name, BucketId my_id);
+  Sprite3(const std::string& name, BucketId my_id, VkDevice device);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   static constexpr int SPRITES_PER_CHUNK = 48;
 
  private:
-  void opengl_setup();
-  void opengl_setup_normal();
-  void opengl_setup_distort();
+  void InitializeInputVertexAttribute();
+  void vulkan_setup();
+  void vulkan_setup_normal();
+  void vulkan_setup_distort();
 
   void render_distorter(DmaFollower& dma,
                         SharedRenderState* render_state,

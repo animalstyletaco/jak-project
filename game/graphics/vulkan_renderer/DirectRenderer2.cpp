@@ -17,72 +17,64 @@ DirectRenderer2::DirectRenderer2(u32 max_verts,
   m_vertices.indices.resize(max_inds);
   m_draw_buffer.resize(max_draws);
 
-  // create OpenGL objects
-  glGenBuffers(1, &m_ogl.vertex_buffer);
-  glGenBuffers(1, &m_ogl.index_buffer);
-  glGenVertexArrays(1, &m_ogl.vao);
-
   // set up the vertex array
-  glBindVertexArray(m_ogl.vao);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, max_inds * sizeof(u32), nullptr, GL_STREAM_DRAW);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, max_verts * sizeof(Vertex), nullptr, GL_STREAM_DRAW);
+  //CreateVertexBuffer(m_vertices.vertices);
+  //CreateIndexBuffer(m_vertices.indices);
+}
 
-  // xyz
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0,                            // location 0 in the shader
-                        3,                            // 3 floats per vert
-                        GL_FLOAT,                     // floats
-                        GL_TRUE,                      // normalized, ignored,
-                        sizeof(Vertex),               //
-                        (void*)offsetof(Vertex, xyz)  // offset in array
-  );
+void DirectRenderer2::InitializeInputVertexAttribute() {
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_TRUE;
 
-  // rgba
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1,                             // location 1 in the shader
-                        4,                             // 4 color components
-                        GL_UNSIGNED_BYTE,              // u8
-                        GL_TRUE,                       // normalized (255 becomes 1)
-                        sizeof(Vertex),                //
-                        (void*)offsetof(Vertex, rgba)  //
-  );
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(DirectRenderer2::Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  // stq
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2,                            // location 2 in the shader
-                        3,                            // 3 floats per vert
-                        GL_FLOAT,                     // floats
-                        GL_FALSE,                     // normalized, ignored
-                        sizeof(Vertex),               //
-                        (void*)offsetof(Vertex, stq)  // offset in array
-  );
+  std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(DirectRenderer2::Vertex, xyz);
 
-  // byte data
-  glEnableVertexAttribArray(3);
-  glVertexAttribIPointer(3,                                 // location 0 in the shader
-                         4,                                 // 3 floats per vert
-                         GL_UNSIGNED_BYTE,                  // u8's
-                         sizeof(Vertex),                    //
-                         (void*)offsetof(Vertex, tex_unit)  // offset in array
-  );
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
+  attributeDescriptions[1].offset = offsetof(DirectRenderer2::Vertex, rgba);
 
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[2].offset = offsetof(DirectRenderer2::Vertex, stq);
+
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 3;
+  attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
+  attributeDescriptions[3].offset = offsetof(DirectRenderer2::Vertex, tex_unit);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+}
+
+void DirectRenderer2::SetShaderModule(Shader& shader) {
 }
 
 DirectRenderer2::~DirectRenderer2() {
-  glDeleteBuffers(1, &m_ogl.vertex_buffer);
-  glDeleteBuffers(1, &m_ogl.index_buffer);
-  glDeleteVertexArrays(1, &m_ogl.vao);
+   //DeleteVertexBuffer();
+  // DeleteIndexBuffer();
 }
 
 void DirectRenderer2::init_shaders(ShaderLibrary& shaders) {
-  shaders[ShaderId::DIRECT2].activate();
-  m_ogl.alpha_reject = glGetUniformLocation(shaders[ShaderId::DIRECT2].id(), "alpha_reject");
-  m_ogl.color_mult = glGetUniformLocation(shaders[ShaderId::DIRECT2].id(), "color_mult");
-  m_ogl.fog_color = glGetUniformLocation(shaders[ShaderId::DIRECT2].id(), "fog_color");
+  SetShaderModule(shaders[ShaderId::DIRECT2]);
 }
 
 void DirectRenderer2::reset_buffers() {
@@ -118,7 +110,7 @@ std::string DirectRenderer2::Draw::to_single_line_string() const {
   return fmt::format("mode 0x{:8x} tbp 0x{:4x} fix 0x{:2x}\n", mode.as_int(), tbp, fix);
 }
 
-void DirectRenderer2::flush_pending(SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void DirectRenderer2::flush_pending(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer) {
   // skip, if we're empty.
   if (m_next_free_draw == 0) {
     reset_buffers();
@@ -127,41 +119,31 @@ void DirectRenderer2::flush_pending(SharedRenderState* render_state, ScopedProfi
 
   // first, upload:
   Timer upload_timer;
-  glBindVertexArray(m_ogl.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, m_vertices.next_vertex * sizeof(Vertex), m_vertices.vertices.data(),
-               GL_STREAM_DRAW);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_vertices.next_index * sizeof(u32),
-               m_vertices.indices.data(), GL_STREAM_DRAW);
+
+  //SetVertexBuffer(m_vertices.vertices);
+  //SetIndexBuffer(m_vertices.indices);
+
   m_stats.upload_wait += upload_timer.getSeconds();
   m_stats.num_uploads++;
   m_stats.upload_bytes +=
       (m_vertices.next_vertex * sizeof(Vertex)) + (m_vertices.next_index * sizeof(u32));
 
-  // initial OpenGL setup
-  glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(UINT32_MAX);
-  render_state->shaders[ShaderId::DIRECT2].activate();
-
   // draw call loop
   // draw_call_loop_simple(render_state, prof);
-  draw_call_loop_grouped(render_state, prof);
-
-  // done! reset.
-  glBindVertexArray(0);
+  draw_call_loop_grouped(render_state, prof, uniform_buffer);
 
   reset_buffers();
 }
 
 void DirectRenderer2::draw_call_loop_simple(SharedRenderState* render_state,
-                                            ScopedProfilerNode& prof) {
+                                            ScopedProfilerNode& prof,
+                                            UniformBuffer& uniform_buffer) {
   fmt::print("------------------------\n");
   for (u32 draw_idx = 0; draw_idx < m_next_free_draw; draw_idx++) {
     const auto& draw = m_draw_buffer[draw_idx];
     fmt::print("{}", draw.to_single_line_string());
-    setup_opengl_for_draw_mode(draw, render_state);
-    setup_opengl_tex(0, draw.tbp, draw.mode.get_filt_enable(), draw.mode.get_clamp_s_enable(),
+    setup_vulkan_for_draw_mode(draw, render_state, uniform_buffer);
+    setup_vulkan_tex(0, draw.tbp, draw.mode.get_filt_enable(), draw.mode.get_clamp_s_enable(),
                      draw.mode.get_clamp_t_enable(), render_state);
     void* offset = (void*)(draw.start_index * sizeof(u32));
     int end_idx;
@@ -177,15 +159,15 @@ void DirectRenderer2::draw_call_loop_simple(SharedRenderState* render_state,
 }
 
 void DirectRenderer2::draw_call_loop_grouped(SharedRenderState* render_state,
-                                             ScopedProfilerNode& prof) {
-  glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(UINT32_MAX);
+                                             ScopedProfilerNode& prof,
+                                             UniformBuffer& uniform_buffer) {
+
   u32 draw_idx = 0;
   while (draw_idx < m_next_free_draw) {
     const auto& draw = m_draw_buffer[draw_idx];
     u32 end_of_draw_group = draw_idx;  // this is inclusive
-    setup_opengl_for_draw_mode(draw, render_state);
-    setup_opengl_tex(draw.tex_unit, draw.tbp, draw.mode.get_filt_enable(),
+    setup_vulkan_for_draw_mode(draw, render_state, uniform_buffer);
+    setup_vulkan_tex(draw.tex_unit, draw.tbp, draw.mode.get_filt_enable(),
                      draw.mode.get_clamp_s_enable(), draw.mode.get_clamp_t_enable(), render_state);
 
     for (u32 draw_to_consider = draw_idx + 1; draw_to_consider < draw_idx + TEX_UNITS;
@@ -202,7 +184,7 @@ void DirectRenderer2::draw_call_loop_grouped(SharedRenderState* render_state,
       }
       m_stats.saved_draws++;
       end_of_draw_group++;
-      setup_opengl_tex(next_draw.tex_unit, next_draw.tbp, next_draw.mode.get_filt_enable(),
+      setup_vulkan_tex(next_draw.tex_unit, next_draw.tbp, next_draw.mode.get_filt_enable(),
                        next_draw.mode.get_clamp_s_enable(), next_draw.mode.get_clamp_t_enable(),
                        render_state);
     }
@@ -224,8 +206,9 @@ void DirectRenderer2::draw_call_loop_grouped(SharedRenderState* render_state,
   }
 }
 
-void DirectRenderer2::setup_opengl_for_draw_mode(const Draw& draw,
-                                                 SharedRenderState* render_state) {
+void DirectRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
+                                                 SharedRenderState* render_state,
+                                                 UniformBuffer& uniform_buffer) {
   // compute alpha_reject:
   float alpha_reject = 0.f;
   if (draw.mode.get_at_enable()) {
@@ -242,75 +225,138 @@ void DirectRenderer2::setup_opengl_for_draw_mode(const Draw& draw,
     }
   }
 
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+  colorBlending.logicOpEnable = VK_FALSE;
+  colorBlending.attachmentCount = 1;
+  colorBlending.pAttachments = &colorBlendAttachment;
+
   // setup blending and color mult
   float color_mult = 1.f;
-  if (!draw.mode.get_ab_enable()) {
-    glDisable(GL_BLEND);
-  } else {
-    glEnable(GL_BLEND);
-    glBlendColor(1, 1, 1, 1);
+  if (draw.mode.get_ab_enable()) {
+    colorBlendAttachment.blendEnable = VK_FALSE;
+    colorBlending.blendConstants[0] = 1.0f;
+    colorBlending.blendConstants[1] = 1.0f;
+    colorBlending.blendConstants[2] = 1.0f;
+    colorBlending.blendConstants[3] = 1.0f;
+
     if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_DST_SRC_DST) {
       // (Cs - Cd) * As + Cd
       // Cs * As  + (1 - As) * Cd
       // s, d
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_ADD);
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_SRC_DST) {
       // (Cs - 0) * As + Cd
       // Cs * As + (1) * Cd
       // s, d
       ASSERT(draw.fix == 0);
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_ADD);
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::ZERO_SRC_SRC_DST) {
       // (0 - Cs) * As + Cd
       // Cd - Cs * As
       // s, d
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_DST_FIX_DST) {
       // (Cs - Cd) * fix + Cd
       // Cs * fix + (1 - fx) * Cd
-      glBlendFuncSeparate(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA, GL_ONE, GL_ZERO);
-      glBlendColor(0, 0, 0, draw.fix / 127.f);
-      glBlendEquation(GL_FUNC_ADD);
+
+      colorBlending.blendConstants[0] = 0.0f;
+      colorBlending.blendConstants[1] = 0.0f;
+      colorBlending.blendConstants[2] = 0.0f;
+      colorBlending.blendConstants[3] = draw.fix / 127.0f;
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_SRC_SRC_SRC) {
       // this is very weird...
       // Cs
-      glBlendFuncSeparate(GL_ONE, GL_ZERO, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_ADD);
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_DST_DST) {
       // (Cs - 0) * Ad + Cd
-      glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-      glBlendEquation(GL_FUNC_ADD);
+
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
       color_mult = 0.5;
     } else {
       ASSERT(false);
     }
   }
 
-  // setup ztest
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_FALSE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
   if (draw.mode.get_zt_enable()) {
-    glEnable(GL_DEPTH_TEST);
+    depthStencil.depthTestEnable = VK_TRUE;
     switch (draw.mode.get_depth_test()) {
       case GsTest::ZTest::NEVER:
-        glDepthFunc(GL_NEVER);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_NEVER;
         break;
       case GsTest::ZTest::ALWAYS:
-        glDepthFunc(GL_ALWAYS);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        glDepthFunc(GL_GEQUAL);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
-        glDepthFunc(GL_GREATER);
+        depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
         break;
       default:
         ASSERT(false);
     }
-  } else {
-    // you aren't supposed to turn off z test enable, the GS had some bugs
-    ASSERT(false);
   }
 
   if (draw.mode.get_depth_write_enable()) {
@@ -322,26 +368,24 @@ void DirectRenderer2::setup_opengl_for_draw_mode(const Draw& draw,
   if (draw.tbp == UINT16_MAX) {
     // not using a texture
     ASSERT(false);
-    render_state->shaders[ShaderId::DIRECT_BASIC].activate();
   } else {
     // yes using a texture
-    render_state->shaders[ShaderId::DIRECT2].activate();
-    glUniform1f(m_ogl.alpha_reject, alpha_reject);
-    glUniform1f(m_ogl.color_mult, color_mult);
-    glUniform4f(m_ogl.fog_color, render_state->fog_color[0] / 255.f,
+    uniform_buffer.SetUniform1f("alpha_reject", alpha_reject);
+    uniform_buffer.SetUniform1f("color_mult", color_mult);
+    uniform_buffer.SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
                 render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
                 render_state->fog_intensity / 255);
   }
 }
 
-void DirectRenderer2::setup_opengl_tex(u16 unit,
+void DirectRenderer2::setup_vulkan_tex(u16 unit,
                                        u16 tbp,
                                        bool filter,
                                        bool clamp_s,
                                        bool clamp_t,
                                        SharedRenderState* render_state) {
   // look up the texture
-  std::optional<u64> tex;
+  VkImage tex;
   u32 tbp_to_lookup = tbp & 0x7fff;
   bool use_mt4hh = tbp & 0x8000;
 
@@ -363,27 +407,56 @@ void DirectRenderer2::setup_opengl_tex(u16 unit,
     }
   }
 
-  glActiveTexture(GL_TEXTURE0 + unit);
-  glBindTexture(GL_TEXTURE_2D, *tex);
-  if (clamp_s) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  rasterizer.rasterizerDiscardEnable = VK_FALSE;
+  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+  rasterizer.lineWidth = 1.0f;
+  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  rasterizer.depthBiasEnable = VK_FALSE;
+  if (clamp_s || clamp_t) {
+    rasterizer.depthClampEnable = VK_TRUE;
   } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    rasterizer.depthClampEnable = VK_FALSE;
   }
 
+  // VkPhysicalDeviceProperties properties{};
+  // vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  // ST was used in OpenGL, UV is used in Vulkan
+  if (clamp_s) {
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  }
   if (clamp_t) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   }
 
   if (filter) {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
-                    m_debug.disable_mip ? GL_LINEAR : GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    if (!m_debug.disable_mip) {
+      samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    }
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
   } else {
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
 }
 
@@ -396,7 +469,8 @@ void DirectRenderer2::draw_debug_window() {
 
 void DirectRenderer2::render_gif_data(const u8* data,
                                       SharedRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
+                                      ScopedProfilerNode& prof,
+                                      UniformBuffer& uniform_buffer) {
   bool eop = false;
 
   u32 offset = 0;
@@ -432,9 +506,9 @@ void DirectRenderer2::render_gif_data(const u8* data,
               break;
             case GifTag::RegisterDescriptor::XYZF2:
               if (m_use_ftoi_mod) {
-                handle_xyzf2_mod_packed(data + offset, render_state, prof);
+                handle_xyzf2_mod_packed(data + offset, render_state, prof, uniform_buffer);
               } else {
-                handle_xyzf2_packed(data + offset, render_state, prof);
+                handle_xyzf2_packed(data + offset, render_state, prof, uniform_buffer);
               }
               break;
             case GifTag::RegisterDescriptor::PRIM:
@@ -664,10 +738,11 @@ void DirectRenderer2::handle_rgbaq_packed(const u8* data) {
 
 void DirectRenderer2::handle_xyzf2_packed(const u8* data,
                                           SharedRenderState* render_state,
-                                          ScopedProfilerNode& prof) {
+                                          ScopedProfilerNode& prof,
+                                          UniformBuffer& uniform_buffer) {
   if (m_vertices.close_to_full()) {
     m_stats.flush_due_to_full++;
-    flush_pending(render_state, prof);
+    flush_pending(render_state, prof, uniform_buffer);
   }
 
   u32 x, y;
@@ -729,10 +804,11 @@ void DirectRenderer2::handle_xyzf2_packed(const u8* data,
 
 void DirectRenderer2::handle_xyzf2_mod_packed(const u8* data,
                                               SharedRenderState* render_state,
-                                              ScopedProfilerNode& prof) {
+                                              ScopedProfilerNode& prof,
+                                              UniformBuffer& uniform_buffer) {
   if (m_vertices.close_to_full()) {
     m_stats.flush_due_to_full++;
-    flush_pending(render_state, prof);
+    flush_pending(render_state, prof, uniform_buffer);
   }
 
   float x;

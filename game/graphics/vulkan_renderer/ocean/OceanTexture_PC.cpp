@@ -400,13 +400,10 @@ void OceanTexture::setup_renderer() {
 
 void OceanTexture::flush(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   ASSERT(m_pc.vtx_idx == 2112);
-  glBindVertexArray(m_pc.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_pc.dynamic_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * NUM_VERTS, m_pc.vertex_dynamic.data(),
-               GL_DYNAMIC_DRAW);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_pc.gl_index_buffer);
 
-  render_state->shaders[ShaderId::OCEAN_TEXTURE].activate();
+  //CreateVertexBuffer(m_pc.vertex_dynamic);
+  //glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * NUM_VERTS, m_pc.vertex_dynamic.data(),
+  //             GL_DYNAMIC_DRAW);
 
   GsTex0 tex0(m_envmap_adgif.tex0_data);
   auto lookup = render_state->texture_pool->lookup(tex0.tbp0());
@@ -415,27 +412,54 @@ void OceanTexture::flush(SharedRenderState* render_state, ScopedProfilerNode& pr
   }
   // no decal
   // yes tcc
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, *lookup);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-  glUniform1i(glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_TEXTURE].id(), "tex_T0"),
-              0);
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
 
-  glDisable(GL_DEPTH_TEST);
-  glDisable(GL_BLEND);
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+
+  m_uniform_buffer.SetUniform1f("tex_T0", 0);
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_FALSE;
+
   // glDrawArrays(GL_TRIANGLE_STRIP, 0, NUM_VERTS);
-  glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(UINT32_MAX);
-  glDrawElements(GL_TRIANGLE_STRIP, m_pc.index_buffer.size(), GL_UNSIGNED_INT, (void*)0);
+
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_TRUE;
+
+  //glDrawElements(GL_TRIANGLE_STRIP, m_pc.index_buffer.size(), GL_UNSIGNED_INT, (void*)0);
   prof.add_draw_call();
   prof.add_tri(NUM_STRIPS * NUM_STRIPS * 2);
 
-  glBindVertexArray(0);
 }
 
 void OceanTexture::init_pc() {
+  InitializeVertexInputAttributes();
+
   int i = 0;
   m_pc.vertex_positions.resize(NUM_VERTS);
   m_pc.vertex_dynamic.resize(NUM_VERTS);
@@ -453,49 +477,45 @@ void OceanTexture::init_pc() {
     }
     m_pc.index_buffer.push_back(UINT32_MAX);
   }
+}
 
-  glGenVertexArrays(1, &m_pc.vao);
-  glBindVertexArray(m_pc.vao);
+void OceanTexture::InitializeVertexInputAttributes() {
+  //glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u32) * m_pc.index_buffer.size(),
+  //             m_pc.index_buffer.data(), GL_STATIC_DRAW);
+  //
+  //glBufferData(GL_ARRAY_BUFFER, sizeof(math::Vector2f) * NUM_VERTS, m_pc.vertex_positions.data(),
+  //             GL_STATIC_DRAW);
 
-  glGenBuffers(1, &m_pc.gl_index_buffer);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_pc.gl_index_buffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(u32) * m_pc.index_buffer.size(),
-               m_pc.index_buffer.data(), GL_STATIC_DRAW);
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  glGenBuffers(1, &m_pc.static_vertex_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_pc.static_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(math::Vector2f) * NUM_VERTS, m_pc.vertex_positions.data(),
-               GL_STATIC_DRAW);
-  glEnableVertexAttribArray(0);
-  glEnableVertexAttribArray(1);
-  glEnableVertexAttribArray(2);
+  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+  //TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[0].offset = 0;
 
-  glVertexAttribPointer(0,         // location 0 in the shader
-                        2,         // 3 floats per vert
-                        GL_FLOAT,  // floats
-                        GL_TRUE,   // normalized, ignored,
-                        0,         // tightly packed
-                        0
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
+  attributeDescriptions[1].offset = offsetof(Vertex, rgba);
 
-  );
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[2].offset = offsetof(MipMap::Vertex, s);
 
-  glGenBuffers(1, &m_pc.dynamic_vertex_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_pc.dynamic_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * NUM_VERTS, nullptr, GL_DYNAMIC_DRAW);
-  glVertexAttribPointer(1,                             // location 0 in the shader
-                        4,                             // 4 color components
-                        GL_UNSIGNED_BYTE,              // floats
-                        GL_TRUE,                       // normalized, ignored,
-                        sizeof(Vertex),                //
-                        (void*)offsetof(Vertex, rgba)  // offset in array (why is this a pointer...)
-  );
-  glVertexAttribPointer(2,                          // location 0 in the shader
-                        2,                          // 2 floats per vert
-                        GL_FLOAT,                   // floats
-                        GL_FALSE,                   // normalized, ignored,
-                        sizeof(Vertex),             //
-                        (void*)offsetof(Vertex, s)  // offset in array (why is this a pointer...)
-  );
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }
 
 void OceanTexture::destroy_pc() {}

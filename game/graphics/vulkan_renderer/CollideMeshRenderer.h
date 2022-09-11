@@ -4,9 +4,9 @@
 class CollideMeshRenderer {
  public:
   CollideMeshRenderer();
-  void render(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void render(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& buffer);
   ~CollideMeshRenderer();
 
  private:
-  GLuint m_vao;
+  void InitializeInputVertexAttribute();    
 };

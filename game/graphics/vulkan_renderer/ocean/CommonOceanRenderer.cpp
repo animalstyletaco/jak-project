@@ -6,68 +6,80 @@ CommonOceanRenderer::CommonOceanRenderer() {
     buf.resize(4096 * 10);
   }
 
-  // create OpenGL objects
-  glGenBuffers(1, &m_ogl.vertex_buffer);
-  glGenBuffers(NUM_BUCKETS, m_ogl.index_buffer);
-  glGenVertexArrays(1, &m_ogl.vao);
+  InitializeVertexInputAttributes();
+}
 
-  // set up the vertex array
-  glBindVertexArray(m_ogl.vao);
-  for (int i = 0; i < NUM_BUCKETS; i++) {
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer[i]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_indices[i].size() * sizeof(u32), nullptr,
-                 GL_STREAM_DRAW);
-  }
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, m_vertices.size() * sizeof(Vertex), nullptr, GL_STREAM_DRAW);
+void CommonOceanRenderer::InitializeVertexInputAttributes() {
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  // xyz
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0,                            // location 0 in the shader
-                        3,                            // 3 floats per vert
-                        GL_FLOAT,                     // floats
-                        GL_TRUE,                      // normalized, ignored,
-                        sizeof(Vertex),               //
-                        (void*)offsetof(Vertex, xyz)  // offset in array
-  );
+  std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(Vertex, xyz);
 
-  // rgba
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1,                             // location 1 in the shader
-                        4,                             // 4 color components
-                        GL_UNSIGNED_BYTE,              // u8
-                        GL_TRUE,                       // normalized (255 becomes 1)
-                        sizeof(Vertex),                //
-                        (void*)offsetof(Vertex, rgba)  //
-  );
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[1].offset = offsetof(Vertex, rgba);
 
-  // stq
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(2,                            // location 2 in the shader
-                        3,                            // 2 floats per vert
-                        GL_FLOAT,                     // floats
-                        GL_FALSE,                     // normalized, ignored
-                        sizeof(Vertex),               //
-                        (void*)offsetof(Vertex, stq)  // offset in array
-  );
+  // FIXME: Make sure format for byte and shorts are correct
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[2].offset = offsetof(Vertex, stq);
 
-  // byte data
-  glEnableVertexAttribArray(3);
-  glVertexAttribIPointer(3,                            // location 3 in the shader
-                         1,                            //
-                         GL_UNSIGNED_BYTE,             // u8's
-                         sizeof(Vertex),               //
-                         (void*)offsetof(Vertex, fog)  // offset in array
-  );
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 3;
+  attributeDescriptions[3].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[3].offset = offsetof(Vertex, fog);
 
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+}
+
+void CommonOceanRenderer::SetShaders(SharedRenderState* render_state) {
+  auto& shader = render_state->shaders[ShaderId::OCEAN_COMMON];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Vertex Fragment";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Shrub Fragment";
+
+  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+  // FIXME: Added necessary configuration back to shrub pipeline
+  VkGraphicsPipelineCreateInfo pipelineInfo{};
+  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+  pipelineInfo.stageCount = 2;
+  pipelineInfo.pStages = shaderStages;
+  //pipelineInfo.pVertexInputState = &vertexInputInfo;
+
+  // if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+  //                              &graphicsPipeline) != VK_SUCCESS) {
+  //  throw std::runtime_error("failed to create graphics pipeline!");
+  //}
+
+  // TODO: Should shaders be deleted now?
 }
 
 CommonOceanRenderer::~CommonOceanRenderer() {
-  glDeleteBuffers(1, &m_ogl.vertex_buffer);
-  glDeleteBuffers(3, m_ogl.index_buffer);
-  glDeleteVertexArrays(1, &m_ogl.vao);
 }
 
 void CommonOceanRenderer::init_for_near() {
@@ -266,71 +278,107 @@ void CommonOceanRenderer::handle_near_adgif(const u8* data, u32 offset, u32 coun
   }
 }
 
-void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  glBindVertexArray(m_ogl.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(UINT32_MAX);
-  glBufferData(GL_ARRAY_BUFFER, m_next_free_vertex * sizeof(Vertex), m_vertices.data(),
-               GL_STREAM_DRAW);
-  render_state->shaders[ShaderId::OCEAN_COMMON].activate();
-  glUniform4f(glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "fog_color"),
+void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer) {
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_TRUE;
+
+  //CreateVertexBuffer(m_vertices);
+  //glBufferData(GL_ARRAY_BUFFER, m_next_free_vertex * sizeof(Vertex), m_vertices.data(),
+  //             GL_STREAM_DRAW);
+  uniform_buffer.SetUniform4f("fog_color",
               render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
               render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
 
-  glDepthMask(GL_FALSE);
-  glEnable(GL_DEPTH_TEST);
-  glEnable(GL_BLEND);
-  glDepthFunc(GL_GEQUAL);
+  //glDepthMask(GL_FALSE);
+
+
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_TRUE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
+  depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+
+  colorBlendAttachment.blendEnable = VK_TRUE;
+
+  colorBlending.logicOpEnable = VK_TRUE;
+  colorBlending.attachmentCount = 1;
+  colorBlending.pAttachments = &colorBlendAttachment;
 
   for (int bucket = 0; bucket < 3; bucket++) {
     switch (bucket) {
       case 0: {
-        glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
-        glBlendEquation(GL_FUNC_ADD);
+        //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
+        //glBlendEquation(GL_FUNC_ADD);
+
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
         auto tex = render_state->texture_pool->lookup(8160);
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
         }
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, *tex);
+
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glUniform1i(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "tex_T0"), 0);
-        glUniform1i(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "bucket"), 0);
+        uniform_buffer.SetUniform1i("tex_T0", 0);
+        uniform_buffer.SetUniform1i("bucket", 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
       }
 
       break;
       case 1:
-        glBlendFuncSeparate(GL_ZERO, GL_ONE, GL_ONE, GL_ZERO);
-        glUniform1f(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "alpha_mult"),
-            1.f);
-        glUniform1i(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "bucket"), 1);
+        //glBlendFuncSeparate(GL_ZERO, GL_ONE, GL_ONE, GL_ZERO);
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+        uniform_buffer.SetUniform1f("alpha_mult", 1.f);
+        uniform_buffer.SetUniform1i("bucket", 1);
         break;
       case 2:
         auto tex = render_state->texture_pool->lookup(m_envmap_tex);
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
         }
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, *tex);
 
-        glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        glBlendEquation(GL_FUNC_ADD);
-        glUniform1i(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "bucket"), 2);
+        //glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
+        //glBlendEquation(GL_FUNC_ADD);
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        uniform_buffer.SetUniform1i("bucket", 2);
         break;
     }
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer[bucket]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_next_free_index[bucket] * sizeof(u32),
-                 m_indices[bucket].data(), GL_STREAM_DRAW);
-    glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
+    //CreateIndexBuffer(m_indices[bucket]);
+    //glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
     prof.add_draw_call();
     prof.add_tri(m_next_free_index[bucket]);
   }
@@ -441,22 +489,20 @@ void reverse_indices(u32* indices, u32 count) {
   }
 }
 
-void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  glBindVertexArray(m_ogl.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(UINT32_MAX);
-  glBufferData(GL_ARRAY_BUFFER, m_next_free_vertex * sizeof(Vertex), m_vertices.data(),
-               GL_STREAM_DRAW);
-  render_state->shaders[ShaderId::OCEAN_COMMON].activate();
-  glUniform4f(glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "fog_color"),
+void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer) {
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_TRUE;
+
+  //CreateVertexBuffer(m_vertices);
+
+  uniform_buffer.SetUniform4f("fog_color",
               render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
               render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
 
-  glDepthMask(GL_TRUE);
-  glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_ALWAYS);
-  glDisable(GL_BLEND);
+  //glDepthMask(GL_TRUE);
+  //TODO: Add depth mask attribute to Texture VkImage
 
   // note:
   // there are some places where the game draws the same section of ocean twice, in this order:
@@ -477,6 +523,31 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
   // draw it in reverse
   reverse_indices(m_indices[1].data(), m_next_free_index[1]);
 
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_TRUE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
+  depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+
+  colorBlendAttachment.blendEnable = VK_TRUE;
+
+  colorBlending.logicOpEnable = VK_TRUE;
+  colorBlending.attachmentCount = 1;
+  colorBlending.pAttachments = &colorBlendAttachment;
+
   for (int bucket = 0; bucket < 2; bucket++) {
     switch (bucket) {
       case 0: {
@@ -484,14 +555,10 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
         }
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, *tex);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glUniform1i(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "tex_T0"), 0);
-        glUniform1i(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "bucket"), 3);
+        uniform_buffer.SetUniform1i("tex_T0", 0);
+        uniform_buffer.SetUniform1i("bucket", 3);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
       }
@@ -503,22 +570,29 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
         }
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, *tex);
 
-        glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        glBlendEquation(GL_FUNC_ADD);
-        glUniform1i(
-            glGetUniformLocation(render_state->shaders[ShaderId::OCEAN_COMMON].id(), "bucket"), 4);
+        //glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
+        //glBlendEquation(GL_FUNC_ADD);
+        colorBlending.logicOpEnable = VK_TRUE;
+
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+        uniform_buffer.SetUniform1i("bucket", 4);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         break;
     }
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer[bucket]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_next_free_index[bucket] * sizeof(u32),
-                 m_indices[bucket].data(), GL_STREAM_DRAW);
-    glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
+    //CreateIndexBuffer(m_indices[bucket]);
+    //glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
     prof.add_draw_call();
     prof.add_tri(m_next_free_index[bucket]);
   }
 }
+

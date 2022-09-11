@@ -1,7 +1,10 @@
 #include "Shrub.h"
 
-Shrub::Shrub(const std::string& name, BucketId my_id) : BucketRenderer(name, my_id) {
+Shrub::Shrub(const std::string& name, BucketId my_id, VkDevice& device) : BucketRenderer(name, my_id, device) {
   m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
+
+  VkDeviceSize device_size = sizeof(m_color_result[0]) * TIME_OF_DAY_COLOR_COUNT;
+  time_of_day_color_buffer = UniformBuffer(device, device_size);
 }
 
 Shrub::~Shrub() {
@@ -72,6 +75,9 @@ void Shrub::update_load(const LevelData* loader_data) {
   size_t max_num_grps = 0;
   size_t max_inds = 0;
 
+  std::vector<tfrag3::ShrubGpuVertex> total_shrub_vertices;
+  std::vector<unsigned> total_shrub_indices;
+
   for (u32 l_tree = 0; l_tree < lev_data->shrub_trees.size(); l_tree++) {
     size_t num_grps = 0;
 
@@ -87,8 +93,7 @@ void Shrub::update_load(const LevelData* loader_data) {
     time_of_day_count = std::max(tree.time_of_day_colors.size(), time_of_day_count);
     max_inds = std::max(tree.indices.size(), max_inds);
     u32 verts = tree.unpacked.vertices.size();
-    glGenVertexArrays(1, &m_trees[l_tree].vao);
-    glBindVertexArray(m_trees[l_tree].vao);
+
     m_trees[l_tree].vertex_buffer = loader_data->shrub_vertex_data[l_tree];
     m_trees[l_tree].vert_count = verts;
     m_trees[l_tree].draws = &tree.static_draws;
@@ -96,23 +101,12 @@ void Shrub::update_load(const LevelData* loader_data) {
     m_trees[l_tree].index_data = tree.indices.data();
     m_trees[l_tree].tod_cache = swizzle_time_of_day(tree.time_of_day_colors);
 
-
-    glGenBuffers(1, &m_trees[l_tree].single_draw_index_buffer);
-    glGenBuffers(1, &m_trees[l_tree].index_buffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_trees[l_tree].index_buffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, tree.indices.size() * sizeof(u32), tree.indices.data(),
-                 GL_STATIC_DRAW);
-
-    glActiveTexture(GL_TEXTURE10);
-    glGenTextures(1, &m_trees[l_tree].time_of_day_texture);
-    glBindTexture(GL_TEXTURE_1D, m_trees[l_tree].time_of_day_texture);
-    glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 0, GL_RGBA,
-                 GL_UNSIGNED_INT_8_8_8_8, nullptr);
-    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    glBindVertexArray(0);
+    total_shrub_vertices.insert(total_shrub_vertices.end(), tree.unpacked.vertices.begin(),
+                                tree.unpacked.vertices.end());
+    total_shrub_indices.insert(total_shrub_indices.end(), tree.indices.begin(), tree.indices.end());
   }
+
+  //TODO: Set up index buffer and vertex buffer here
 
   m_cache.multidraw_offset_per_stripdraw.resize(max_draws);
   m_cache.multidraw_count_buffer.resize(max_num_grps);
@@ -182,10 +176,10 @@ void Shrub::InitializeVertexBuffer(SharedRenderState* render_state) {
   pipelineInfo.pStages = shaderStages;
   pipelineInfo.pVertexInputState = &vertexInputInfo;
 
-  if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-                                &graphicsPipeline) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create graphics pipeline!");
-  }
+  //if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+  //                              &graphicsPipeline) != VK_SUCCESS) {
+  //  throw std::runtime_error("failed to create graphics pipeline!");
+  //}
 
   //TODO: Should shaders be deleted now?
 }
@@ -221,11 +215,11 @@ bool Shrub::setup_for_level(const std::string& level, SharedRenderState* render_
 
 void Shrub::discard_tree_cache() {
   for (auto& tree : m_trees) {
-    glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-    glDeleteTextures(1, &tree.time_of_day_texture);
-    glDeleteBuffers(1, &tree.index_buffer);
-    glDeleteBuffers(1, &tree.single_draw_index_buffer);
-    glDeleteVertexArrays(1, &tree.vao);
+    //glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
+    //glDeleteTextures(1, &tree.time_of_day_texture);
+    //glDeleteBuffers(1, &tree.index_buffer);
+    //glDeleteBuffers(1, &tree.single_draw_index_buffer);
+    //glDeleteVertexArrays(1, &tree.vao);
   }
 
   m_trees.clear();
@@ -260,20 +254,34 @@ void Shrub::render_tree(int idx,
   tree.perf.tod_time.add(interp_timer.getSeconds());
 
   Timer setup_timer;
-  glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-  glTexSubImage1D(GL_TEXTURE_1D, 0, 0, tree.colors->size(), GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
-                  m_color_result.data());
 
-  first_tfrag_draw_setup(settings, render_state, ShaderId::SHRUB);
+  VkImage texture_image;
+  VkDeviceMemory texture_image_memory;
 
-  glBindVertexArray(tree.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, tree.vertex_buffer);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,
-               render_state->no_multidraw ? tree.single_draw_index_buffer : tree.index_buffer);
-  glActiveTexture(GL_TEXTURE0);
-  glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(UINT32_MAX);
+  //FIXME: Combine these APIs into one
+  //CreateTextureImage(m_color_result);
+  //CreateImage(_width, _height, 1, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM,
+  //            VK_IMAGE_TILING_OPTIMAL,
+  //            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+  //            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture_image,
+  //            texture_image_memory);
+
+  VkImageView texture_image_view =
+      CreateImageView(texture_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_1D, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+
+  //texture_image_views.push_back(texture_image_view);
+
+  //FIXME: Needs to be part of VkSampler
+  CreateTextureSampler(VK_FILTER_NEAREST, VK_FILTER_NEAREST, 1);
+
+  first_tfrag_draw_setup(settings, render_state, time_of_day_color_buffer);
+
+  //FIXME: Needs to be part of pipeline
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_TRUE;
+
   tree.perf.tod_time.add(setup_timer.getSeconds());
 
   int last_texture = -1;
@@ -281,10 +289,7 @@ void Shrub::render_tree(int idx,
   tree.perf.cull_time.add(0);
   Timer index_timer;
   if (render_state->no_multidraw) {
-    u32 idx_buffer_size = make_all_visible_index_list(
-        m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, tree.index_data);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx_buffer_size * sizeof(u32), m_cache.index_temp.data(),
-                 GL_STREAM_DRAW);
+    make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, tree.index_data);
   } else {
     make_all_visible_multidraws(m_cache.multidraw_offset_per_stripdraw.data(),
                                 m_cache.multidraw_count_buffer.data(),
@@ -310,27 +315,13 @@ void Shrub::render_tree(int idx,
       }
     }
 
-    if ((int)draw.tree_tex_id != last_texture) {
-      glBindTexture(GL_TEXTURE_2D, m_textures->at(draw.tree_tex_id));
-      last_texture = draw.tree_tex_id;
-    }
-
-    auto double_draw = setup_tfrag_shader(render_state, draw.mode, ShaderId::SHRUB);
+    auto double_draw = setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id),
+                                          time_of_day_color_buffer);
 
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);
 
     tree.perf.draws++;
-
-    if (render_state->no_multidraw) {
-      glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
-                     (void*)(singledraw_indices.first * sizeof(u32)));
-    } else {
-      glMultiDrawElements(GL_TRIANGLE_STRIP,
-                          &m_cache.multidraw_count_buffer[multidraw_indices.first], GL_UNSIGNED_INT,
-                          &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
-                          multidraw_indices.second);
-    }
 
     switch (double_draw.kind) {
       case DoubleDrawKind::NONE:
@@ -338,25 +329,28 @@ void Shrub::render_tree(int idx,
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         tree.perf.draws++;
         prof.add_draw_call();
-        render_state->shaders[ShaderId::SHRUB].SetUniform1f("alpha_min", -10.f);
-        render_state->shaders[ShaderId::SHRUB].SetUniform1f("alpha_max", double_draw.aref_second);
-        glDepthMask(GL_FALSE);
-        if (render_state->no_multidraw) {
-          glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
-                         (void*)(singledraw_indices.first * sizeof(u32)));
-        } else {
-          glMultiDrawElements(
-              GL_TRIANGLE_STRIP, &m_cache.multidraw_count_buffer[multidraw_indices.first],
-              GL_UNSIGNED_INT, &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
-              multidraw_indices.second);
-        }
+        m_uniform_buffer.SetUniform1f("alpha_min", -10.f);
+        m_uniform_buffer.SetUniform1f("alpha_max", double_draw.aref_second);
+        //TODO: Set real index buffers here
+        //glDepthMask(GL_FALSE);
+        //if (render_state->no_multidraw) {
+        //  glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
+        //                 (void*)(singledraw_indices.first * sizeof(u32)));
+        //} else {
+        //  glMultiDrawElements(
+        //      GL_TRIANGLE_STRIP, &m_cache.multidraw_count_buffer[multidraw_indices.first],
+        //      GL_UNSIGNED_INT, &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
+        //      multidraw_indices.second);
+        //}
         break;
       default:
         ASSERT(false);
     }
   }
 
-  glBindVertexArray(0);
+  //TODO: Double check that VK_EXT_multi_draw is in glad2
+  //TODO: Look up VkCmdDrawIndexed and vkCmdDrawMultiIndexedEXT
+
   tree.perf.draw_time.add(draw_timer.getSeconds());
   tree.perf.tree_time.add(tree_timer.getSeconds());
 }

@@ -48,85 +48,33 @@ constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
 constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
     256 * 10;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
 
-Sprite3::Sprite3(const std::string& name, BucketId my_id)
-    : BucketRenderer(name, my_id), m_direct(name, my_id, 1024) {
-  opengl_setup();
+Sprite3::Sprite3(const std::string& name, BucketId my_id, VkDevice device)
+    : BucketRenderer(name, my_id, device), m_direct(name, my_id, device, 1024) {
+  vulkan_setup();
 }
 
-void Sprite3::opengl_setup() {
+void Sprite3::vulkan_setup() {
   // Set up OpenGL for 'normal' sprites
-  opengl_setup_normal();
+  vulkan_setup_normal();
 
   // Set up OpenGL for distort sprites
-  opengl_setup_distort();
+  vulkan_setup_distort();
 }
 
-void Sprite3::opengl_setup_normal() {
-  glGenBuffers(1, &m_ogl.vertex_buffer);
-  glGenVertexArrays(1, &m_ogl.vao);
-  glBindVertexArray(m_ogl.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
+void Sprite3::vulkan_setup_normal() {
   auto verts = SPRITE_RENDERER_MAX_SPRITES * 4;
   auto bytes = verts * sizeof(SpriteVertex3D);
-  glBufferData(GL_ARRAY_BUFFER, bytes, nullptr, GL_STREAM_DRAW);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(
-      0,                                       // location 0 in the shader
-      4,                                       // 4 floats per vert (w unused)
-      GL_FLOAT,                                // floats
-      GL_TRUE,                                 // normalized, ignored,
-      sizeof(SpriteVertex3D),                  //
-      (void*)offsetof(SpriteVertex3D, xyz_sx)  // offset in array (why is this a pointer...)
-  );
-
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(
-      1,                                        // location 1 in the shader
-      4,                                        // 4 color components
-      GL_FLOAT,                                 // floats
-      GL_TRUE,                                  // normalized, ignored,
-      sizeof(SpriteVertex3D),                   //
-      (void*)offsetof(SpriteVertex3D, quat_sy)  // offset in array (why is this a pointer...)
-  );
-
-  glEnableVertexAttribArray(2);
-  glVertexAttribPointer(
-      2,                                     // location 2 in the shader
-      4,                                     // 4 color components
-      GL_FLOAT,                              // floats
-      GL_TRUE,                               // normalized, ignored,
-      sizeof(SpriteVertex3D),                //
-      (void*)offsetof(SpriteVertex3D, rgba)  // offset in array (why is this a pointer...)
-  );
-
-  glEnableVertexAttribArray(3);
-  glVertexAttribIPointer(
-      3,                                             // location 3 in the shader
-      2,                                             // 4 color components
-      GL_UNSIGNED_SHORT,                             // floats
-      sizeof(SpriteVertex3D),                        //
-      (void*)offsetof(SpriteVertex3D, flags_matrix)  // offset in array (why is this a pointer...)
-  );
-
-  glEnableVertexAttribArray(4);
-  glVertexAttribIPointer(
-      4,                                     // location 4 in the shader
-      4,                                     // 3 floats per vert
-      GL_UNSIGNED_SHORT,                     // floats
-      sizeof(SpriteVertex3D),                //
-      (void*)offsetof(SpriteVertex3D, info)  // offset in array (why is this a pointer...)
-  );
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
 
   u32 idx_buffer_len = SPRITE_RENDERER_MAX_SPRITES * 5;
-  glGenBuffers(1, &m_ogl.index_buffer);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx_buffer_len * sizeof(u32), nullptr, GL_STREAM_DRAW);
-
-  glBindVertexArray(0);
-
+  
   m_vertices_3d.resize(verts);
   m_index_buffer_data.resize(idx_buffer_len);
+
+  m_vertices_3d.resize(verts);
+  VkBuffer vertex_buffer =
+      CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vertices_3d);
+
+  VkBuffer index_buffer = CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, m_index_buffer_data);
 
   m_default_mode.disable_depth_write();
   m_default_mode.set_depth_test(GsTest::ZTest::GEQUAL);
@@ -141,38 +89,82 @@ void Sprite3::opengl_setup_normal() {
   m_current_mode = m_default_mode;
 }
 
-void Sprite3::opengl_setup_distort() {
+void Sprite3::InitializeInputVertexAttribute() {
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(SpriteVertex3D);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, xyz_sx);
+
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, quat_sy);
+
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, rgba);
+
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R16G16_UINT;
+  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, flags_matrix);
+
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R16G16B16A16_UINT;
+  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, info);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+}
+
+void Sprite3::vulkan_setup_distort() {
   // Create framebuffer to snapshot current render to a texture that can be bound for the distort
   // shader This will represent tex0 from the original GS data
-  glGenFramebuffers(1, &m_distort_ogl.fbo);
-  glBindFramebuffer(GL_FRAMEBUFFER, m_distort_ogl.fbo);
-
   glGenTextures(1, &m_distort_ogl.fbo_texture);
   glBindTexture(GL_TEXTURE_2D, m_distort_ogl.fbo_texture);
 
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, 0,
                GL_RGB, GL_UNSIGNED_BYTE, NULL);
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  // Texture clamping here matches the GS init data for distort
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         m_distort_ogl.fbo_texture, 0);
-
-  ASSERT(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
-
-  glBindTexture(GL_TEXTURE_2D, 0);
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
 
   // Non-instancing
   // ----------------------
-  glGenBuffers(1, &m_distort_ogl.vertex_buffer);
-  glGenVertexArrays(1, &m_distort_ogl.vao);
-  glBindVertexArray(m_distort_ogl.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_distort_ogl.vertex_buffer);
   // note: each sprite shares a single vertex per slice, account for that here
   int distort_vert_buffer_len =
       SPRITE_RENDERER_MAX_DISTORT_SPRITES *
@@ -203,10 +195,6 @@ void Sprite3::opengl_setup_distort() {
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_distort_ogl.index_buffer);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, distort_idx_buffer_len * sizeof(u32), nullptr,
                GL_DYNAMIC_DRAW);
-
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
 
   m_sprite_distorter_vertices.resize(distort_vert_buffer_len);
   m_sprite_distorter_indices.resize(distort_idx_buffer_len);
@@ -611,7 +599,7 @@ void Sprite3::distort_draw(SharedRenderState* render_state, ScopedProfilerNode& 
                              m_sprite_distorter_sine_tables.color.y() / 255.0f,
                              m_sprite_distorter_sine_tables.color.z() / 255.0f,
                              m_sprite_distorter_sine_tables.color.w() / 255.0f);
-  glUniform4fv(glGetUniformLocation(shader->id(), "u_color"), 1, colorf.data());
+  m_uniform_buffer.SetUniformVectorFourFloat("u_color", 1, colorf.data());
 
   // Bind vertex array
   glBindVertexArray(m_distort_ogl.vao);
@@ -634,12 +622,9 @@ void Sprite3::distort_draw(SharedRenderState* render_state, ScopedProfilerNode& 
   prof.add_draw_call();
   prof.add_tri(m_distort_stats.total_tris);
 
-  glDrawElements(GL_TRIANGLE_STRIP, m_sprite_distorter_indices.size(), GL_UNSIGNED_INT, (void*)0);
+  //glDrawElements(GL_TRIANGLE_STRIP, m_sprite_distorter_indices.size(), GL_UNSIGNED_INT, (void*)0);
 
   // Done
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
 }
 
 /*!
@@ -665,7 +650,7 @@ void Sprite3::distort_draw_instanced(SharedRenderState* render_state, ScopedProf
                              m_sprite_distorter_sine_tables.color.y() / 255.0f,
                              m_sprite_distorter_sine_tables.color.z() / 255.0f,
                              m_sprite_distorter_sine_tables.color.w() / 255.0f);
-  glUniform4fv(glGetUniformLocation(shader->id(), "u_color"), 1, colorf.data());
+  m_uniform_buffer.SetUniformVectorFourFloat("u_color", 1, colorf.data());
 
   // Bind vertex array
   glBindVertexArray(m_distort_instanced_ogl.vao);
@@ -702,10 +687,6 @@ void Sprite3::distort_draw_instanced(SharedRenderState* render_state, ScopedProf
 
     vert_offset += num_verts;
   }
-
-  // Done
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
 }
 
 void Sprite3::distort_draw_common(SharedRenderState* render_state, ScopedProfilerNode& /*prof*/) {
@@ -736,7 +717,7 @@ void Sprite3::distort_draw_common(SharedRenderState* render_state, ScopedProfile
   // note: clamp and miptbp are skipped since that is set up ahead of time with the distort
   // framebuffer texture
 
-  setup_opengl_from_draw_mode(m_current_mode, GL_TEXTURE0, false);
+  setup_vulkan_from_draw_mode(m_current_mode, GL_TEXTURE0, false);
 }
 
 void Sprite3::distort_setup_framebuffer_dims(SharedRenderState* render_state) {
@@ -905,14 +886,10 @@ void Sprite3::render_2d_group1(DmaFollower& dma,
   memcpy(&m_hud_matrix_data, mat_upload.data, sizeof(m_hud_matrix_data));
 
   // opengl sprite frame setup
-  glUniform4fv(
-      glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "hud_hvdf_offset"), 1,
-      m_hud_matrix_data.hvdf_offset.data());
-  glUniform4fv(glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "hud_hvdf_user"),
+  m_uniform_buffer.SetUniformVectorFourFloat("hud_hvdf_offset", 1, m_hud_matrix_data.hvdf_offset.data());
+  m_uniform_buffer.SetUniformVectorFourFloat("hud_hvdf_user",
                75, m_hud_matrix_data.user_hvdf[0].data());
-  glUniformMatrix4fv(
-      glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "hud_matrix"), 1,
-      GL_FALSE, m_hud_matrix_data.matrix.data());
+  m_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("hud_matrix", 1, GL_FALSE, m_hud_matrix_data.matrix.data());
 
   // loop through chunks.
   while (looks_like_2d_chunk_start(dma)) {
@@ -1077,19 +1054,17 @@ void Sprite3::flush_sprites(SharedRenderState* render_state,
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, *tex);
 
-    auto settings = setup_opengl_from_draw_mode(mode, GL_TEXTURE0, false);
+    auto settings = setup_vulkan_from_draw_mode(mode, GL_TEXTURE0, false);
 
-    glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "alpha_min"),
-                double_draw ? settings.aref_first : 0.016);
-    glUniform1f(glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "alpha_max"),
-                10.f);
-    glUniform1i(glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "tex_T0"), 0);
+    m_uniform_buffer.SetUniform1f("alpha_min", double_draw ? settings.aref_first : 0.016);
+    m_uniform_buffer.SetUniform1f("alpha_max", 10.f);
+    m_uniform_buffer.SetUniform1i("tex_T0", 0);
 
     prof.add_draw_call();
     prof.add_tri(2 * (bucket->ids.size() / 5));
 
-    glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
-                   (void*)(bucket->offset_in_idx_buffer * sizeof(u32)));
+    //glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
+    //               (void*)(bucket->offset_in_idx_buffer * sizeof(u32)));
 
     if (double_draw) {
       switch (settings.kind) {
@@ -1098,15 +1073,11 @@ void Sprite3::flush_sprites(SharedRenderState* render_state,
         case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
           prof.add_draw_call();
           prof.add_tri(2 * (bucket->ids.size() / 5));
-          glUniform1f(
-              glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "alpha_min"),
-              -10.f);
-          glUniform1f(
-              glGetUniformLocation(render_state->shaders[ShaderId::SPRITE3].id(), "alpha_max"),
-              settings.aref_second);
-          glDepthMask(GL_FALSE);
-          glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
-                         (void*)(bucket->offset_in_idx_buffer * sizeof(u32)));
+          m_uniform_buffer.SetUniform1f("alpha_min", -10.f);
+          m_uniform_buffer.SetUniform1f("alpha_max", settings.aref_second);
+          //glDepthMask(GL_FALSE);
+          //glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
+          //               (void*)(bucket->offset_in_idx_buffer * sizeof(u32)));
           break;
         default:
           ASSERT(false);

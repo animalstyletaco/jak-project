@@ -342,38 +342,37 @@ void Loader::update(TexturePool& texture_pool) {
           }
           lk.unlock();
           for (auto tex : lev.second->textures) {
-            if (EXTRA_TEX_DEBUG) {
-              for (auto& slot : texture_pool.all_textures()) {
-                if (slot.source) {
-                  ASSERT(slot.gpu_texture != tex);
-                } else {
-                  ASSERT(slot.gpu_texture != tex);
-                }
-              }
-            }
+            //if (EXTRA_TEX_DEBUG) {
+            //  for (auto& slot : texture_pool.all_textures()) {
+            //    if (slot.source) {
+            //      ASSERT(slot.gpu_texture != tex);
+            //    } else {
+            //      ASSERT(slot.gpu_texture != tex);
+            //    }
+            //  }
+            //}
 
-            glBindTexture(GL_TEXTURE_2D, tex);
-            glDeleteTextures(1, &tex);
+            tex.DestroyTexture();
           }
 
           for (auto& tie_geo : lev.second->tie_data) {
             for (auto& tie_tree : tie_geo) {
-              glDeleteBuffers(1, &tie_tree.vertex_buffer);
+              //glDeleteBuffers(1, &tie_tree.vertex_buffer);
               if (tie_tree.has_wind) {
-                glDeleteBuffers(1, &tie_tree.wind_indices);
+                //glDeleteBuffers(1, &tie_tree.wind_indices);
               }
             }
           }
 
           for (auto& tfrag_geo : lev.second->tfrag_vertex_data) {
             for (auto& tfrag_buff : tfrag_geo) {
-              glDeleteBuffers(1, &tfrag_buff);
+              //glDeleteBuffers(1, &tfrag_buff);
             }
           }
 
-          glDeleteBuffers(1, &lev.second->collide_vertices);
-          glDeleteBuffers(1, &lev.second->merc_vertices);
-          glDeleteBuffers(1, &lev.second->merc_indices);
+          //glDeleteBuffers(1, &lev.second->collide_vertices);
+          //glDeleteBuffers(1, &lev.second->merc_vertices);
+          //glDeleteBuffers(1, &lev.second->merc_indices);
 
           for (auto& model : lev.second->level->merc_data.models) {
             auto& mercs = m_all_merc_models.at(model.name);

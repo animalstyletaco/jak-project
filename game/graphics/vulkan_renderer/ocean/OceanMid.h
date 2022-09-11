@@ -8,7 +8,7 @@
 class OceanMid {
  public:
   OceanMid();
-  void run(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void run(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
 
  private:
   void run_call0();

@@ -1,4 +1,4 @@
-#include "TexturePool.h"
+#include "TexturePoolVulkan.h"
 
 #include <algorithm>
 #include <regex>
@@ -24,31 +24,117 @@ const char* goal_string(u32 ptr, const u8* memory_base) {
 
 }  // namespace
 
+void TextureInfo::DestroyTexture() {
+  if (!device) {
+    return;
+  }
+  if (texture_view) {
+    vkDestroyImageView(device, texture_view, nullptr);
+  }
+  if (texture) {
+    vkDestroyImage(device, texture, nullptr);
+  }
+  if (texture_device_memory) {
+    vkFreeMemory(device, texture_device_memory, nullptr);
+  }
+
+  device_size = 0;
+};
+
+uint32_t TextureInfo::FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+  VkPhysicalDeviceMemoryProperties memProperties;
+  vkGetPhysicalDeviceMemoryProperties(physical_device, &memProperties);
+
+  for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+    if ((typeFilter & (1 << i)) &&
+        (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+      return i;
+    }
+  }
+
+  throw std::runtime_error("failed to find suitable memory type!");
+}
+
+void TextureInfo::CreateImage(unsigned width,
+                              unsigned height,
+                              unsigned mipLevels,
+                              VkImageType image_type,
+                              VkSampleCountFlagBits sample_count,
+                              VkFormat format) {
+  VkImageCreateInfo imageInfo{};
+  imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  imageInfo.imageType = VK_IMAGE_TYPE_2D;
+  imageInfo.extent.width = width;
+  imageInfo.extent.height = height;
+  imageInfo.extent.depth = 1;
+  imageInfo.mipLevels = mipLevels;
+  imageInfo.arrayLayers = 1;
+  imageInfo.format = format;
+  imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+  imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  imageInfo.usage = VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+  imageInfo.samples = sample_count;
+  imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  if (vkCreateImage(device, &imageInfo, nullptr, &texture) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create image!");
+  }
+
+  VkMemoryRequirements memRequirements;
+  vkGetImageMemoryRequirements(device, texture, &memRequirements);
+
+  VkMemoryAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+  allocInfo.allocationSize = memRequirements.size;
+  allocInfo.memoryTypeIndex =
+      FindMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+  if (vkAllocateMemory(device, &allocInfo, nullptr, &texture_device_memory) != VK_SUCCESS) {
+    throw std::runtime_error("failed to allocate image memory!");
+  }
+
+  vkBindImageMemory(device, texture, texture_device_memory, 0);
+}
+
+template <class T>
+void TextureInfo::UpdateTexture(VkDeviceSize memory_offset, T* value, uint64_t element_count) {
+  uint64_t memory_size = element_count * sizeof(*value);
+
+  void* data = NULL;
+  vkMapMemory(device, texture_device_memory, 0, device_size, 0, &data);
+  ::memset(data, value, memory_size);
+  vkUnmapMemory(device, texture_device_memory, nullptr);
+}
+
 std::string GoalTexturePage::print() const {
   return fmt::format("Tpage id {} textures {} seg0 {} {} seg1 {} {} seg2 {} {}\n", id, length,
                      segment[0].size, segment[0].dest, segment[1].size, segment[1].dest,
                      segment[2].size, segment[2].dest);
 }
 
-u64 upload_to_gpu(const u8* data, u16 w, u16 h) {
-  GLuint tex_id;
-  glGenTextures(1, &tex_id);
-  GLint old_tex;
-  glGetIntegerv(GL_ACTIVE_TEXTURE, &old_tex);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, tex_id);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
-  glGenerateMipmap(GL_TEXTURE_2D);
-  float aniso = 0.0f;
-  glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &aniso);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, aniso);
+TextureInfo TexturePool::upload_to_gpu(const u8* data, u16 w, u16 h) {
+  TextureInfo textureInfo;
+  textureInfo.device_size = w * h * 4;
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glActiveTexture(old_tex);
-  return tex_id;
+  vulkan_utils::CreateImage(m_device, w, h, 1, VK_SAMPLE_COUNT_1_BIT,
+                            VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureInfo.texture,
+                            textureInfo.texture_device_memory);
+
+  void* mapped_data = NULL;
+  vkMapMemory(m_device, textureInfo.texture_device_memory, 0, textureInfo.device_size, 0, &mapped_data);
+  ::memcpy(mapped_data, data, textureInfo.device_size);
+  vkUnmapMemory(m_device, textureInfo.texture_device_memory);
+
+  // TODO: Get Mipmap Level here
+
+  unsigned mipLevels = 1;
+  textureInfo.texture_view = vulkan_utils::CreateImageView(m_device, textureInfo.texture, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                                                  VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+  // Max Anisotropy is set in vulkan renderer sampler info;
+
+  return textureInfo;
 }
 
 GpuTexture* TexturePool::give_texture(const TextureInput& in) {
@@ -101,17 +187,17 @@ void TexturePool::move_existing_to_vram(GpuTexture* tex, u32 slot_addr) {
     } else {
       slot.source->remove_slot(slot_addr);
       slot.source = tex;
-      slot.gpu_texture = tex->gpu_textures.front().gl;
+      slot.gpu_texture = tex->gpu_textures.front().image;
     }
   } else {
     slot.source = tex;
-    slot.gpu_texture = tex->gpu_textures.front().gl;
+    slot.gpu_texture = tex->gpu_textures.front().image;
   }
 }
 
 void TexturePool::refresh_links(GpuTexture& texture) {
-  u64 tex_to_use =
-      texture.is_placeholder ? m_placeholder_texture_id : texture.gpu_textures.front().gl;
+  VkImage tex_to_use =
+      texture.is_placeholder ? m_placeholder_texture_id : texture.gpu_textures.front().image;
 
   for (auto slot : texture.slots) {
     auto& t = m_textures[slot];
@@ -128,7 +214,7 @@ void TexturePool::refresh_links(GpuTexture& texture) {
   }
 }
 
-void TexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
+void TexturePool::unload_texture(PcTextureId tex_id, const TextureInfo& gpu_id) {
   auto* tex = m_loaded_textures.lookup_existing(tex_id);
   ASSERT(tex);
   if (tex->is_common) {
@@ -141,7 +227,7 @@ void TexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
   }
   ASSERT(!tex->is_placeholder);
   auto it = std::find_if(tex->gpu_textures.begin(), tex->gpu_textures.end(),
-                         [&](const auto& a) { return a.gl == gpu_id; });
+                         [&](const auto& a) { return a.image == gpu_id.texture; });
   ASSERT(it != tex->gpu_textures.end());
 
   tex->gpu_textures.erase(it);
@@ -221,11 +307,11 @@ void TexturePool::handle_upload_now(const u8* tpage, int mode, const u8* memory_
             } else {
               slot.source->remove_slot(tex.dest[mip_idx]);
               slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
-              ASSERT(slot.gpu_texture != (u64)-1);
+              ASSERT(slot.gpu_texture);
             }
           } else {
             slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
-            ASSERT(slot.gpu_texture != (u64)-1);
+            ASSERT(slot.gpu_texture);
           }
         }
       }
@@ -243,7 +329,7 @@ void TexturePool::relocate(u32 destination, u32 source, u32 format) {
     m_mt4hh_textures.emplace_back();
     m_mt4hh_textures.back().slot = destination;
     m_mt4hh_textures.back().ref.source = src;
-    m_mt4hh_textures.back().ref.gpu_texture = src->gpu_textures.at(0).gl;
+    m_mt4hh_textures.back().ref.gpu_texture = src->gpu_textures.at(0).image;
     src->mt4hh_slots.push_back(destination);
   } else {
     move_existing_to_vram(src, destination);
@@ -265,12 +351,12 @@ GpuTexture* TexturePool::get_gpu_texture_for_slot(PcTextureId id, u32 slot) {
     auto result = it.first;
     result->add_slot(slot);
     m_textures[slot].gpu_texture =
-        result->is_placeholder ? m_placeholder_texture_id : result->gpu_textures.at(0).gl;
+        result->is_placeholder ? m_placeholder_texture_id : result->gpu_textures.at(0).image;
     return result;
   }
 }
 
-std::optional<u64> TexturePool::lookup_mt4hh(u32 location) {
+VkImage TexturePool::lookup_mt4hh(u32 location) {
   for (auto& t : m_mt4hh_textures) {
     if (t.slot == location) {
       if (t.ref.source) {
@@ -278,12 +364,16 @@ std::optional<u64> TexturePool::lookup_mt4hh(u32 location) {
       }
     }
   }
-  return {};
+  return VK_NULL_HANDLE;
 }
 
 TexturePool::TexturePool()
     : m_loaded_textures(get_jak1_tpage_dir()), m_id_to_name(get_jak1_tpage_dir()) {
   m_placeholder_data.resize(16 * 16);
+}
+
+void TexturePool::Initialize(VkDevice device) {
+  m_device = device;
   u32 c0 = 0xa0303030;
   u32 c1 = 0xa0e0e0e0;
   for (int i = 0; i < 16; i++) {
@@ -291,7 +381,8 @@ TexturePool::TexturePool()
       m_placeholder_data[i * 16 + j] = (((i / 4) & 1) ^ ((j / 4) & 1)) ? c1 : c0;
     }
   }
-  m_placeholder_texture_id = upload_to_gpu((const u8*)(m_placeholder_data.data()), 16, 16);
+  m_texture_info = upload_to_gpu((const u8*)(m_placeholder_data.data()), 16, 16);
+  m_placeholder_texture_id = m_texture_info.texture;
 }
 
 void TexturePool::draw_debug_window() {
@@ -339,7 +430,7 @@ void TexturePool::draw_debug_for_tex(const std::string& name, GpuTexture* tex, u
   if (ImGui::TreeNode(fmt::format("{} {}", name, slot).c_str())) {
     ImGui::Text("P: %s sz: %d x %d", get_debug_texture_name(tex->tex_id).c_str(), tex->w, tex->h);
     if (!tex->is_placeholder) {
-      ImGui::Image((void*)tex->gpu_textures.at(0).gl, ImVec2(tex->w, tex->h));
+      ImGui::Image((void*)tex->gpu_textures.at(0).image, ImVec2(tex->w, tex->h));
     } else {
       ImGui::Text("PLACEHOLDER");
     }

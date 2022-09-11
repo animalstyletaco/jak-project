@@ -36,7 +36,8 @@ static_assert(sizeof(TFragBufferedData) == 328 * 16);
 
 class TFragment : public BucketRenderer {
  public:
-  TFragment(const std::string& name,
+  TFragment(VkDevice& device,
+            const std::string& name,
             BucketId my_id,
             const std::vector<tfrag3::TFragmentTreeKind>& trees,
             bool child_mode,

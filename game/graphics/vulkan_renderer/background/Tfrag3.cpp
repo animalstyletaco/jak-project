@@ -4,30 +4,28 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 Tfrag3::Tfrag3() {
-  glGenVertexArrays(1, &m_debug_vao);
-  glBindVertexArray(m_debug_vao);
-  glGenBuffers(1, &m_debug_verts);
-  glBindBuffer(GL_ARRAY_BUFFER, m_debug_verts);
-  glBufferData(GL_ARRAY_BUFFER, DEBUG_TRI_COUNT * 3 * sizeof(DebugVertex), nullptr,
-               GL_DYNAMIC_DRAW);
-  glEnableVertexAttribArray(0);
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(0,                                      // location 0 in the shader
-                        3,                                      // 3 values per vert
-                        GL_FLOAT,                               // floats
-                        GL_FALSE,                               // normalized
-                        sizeof(DebugVertex),                    // stride
-                        (void*)offsetof(DebugVertex, position)  // offset (0)
-  );
+  InitializeDebugInputVertexAttribute();
+  InitializeInputVertexAttribute();
 
-  glVertexAttribPointer(1,                                  // location 1 in the shader
-                        4,                                  // 4 values per vert
-                        GL_FLOAT,                           // floats
-                        GL_FALSE,                           // normalized
-                        sizeof(DebugVertex),                // stride
-                        (void*)offsetof(DebugVertex, rgba)  // offset (0)
-  );
-  glBindVertexArray(0);
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  samplerInfo.minFilter = VK_FILTER_NEAREST;
+  samplerInfo.magFilter = VK_FILTER_NEAREST;
+
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
@@ -36,7 +34,6 @@ Tfrag3::Tfrag3() {
 
 Tfrag3::~Tfrag3() {
   discard_tree_cache();
-  glDeleteVertexArrays(1, &m_debug_vao);
 }
 
 void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
@@ -52,6 +49,9 @@ void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kind
   size_t max_draws = 0;
   size_t max_num_grps = 0;
   size_t max_inds = 0;
+
+  std::vector<VkImage> textures[GEOM_MAX];
+  std::vector<VkDeviceMemory> texture_memories[GEOM_MAX];
 
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
     for (size_t tree_idx = 0; tree_idx < lev_data->tfrag_trees[geom].size(); tree_idx++) {
@@ -69,9 +69,7 @@ void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kind
         max_inds = std::max(tree.unpacked.indices.size(), max_inds);
         time_of_day_count = std::max(tree.colors.size(), time_of_day_count);
         u32 verts = tree.packed_vertices.vertices.size();
-        glGenVertexArrays(1, &tree_cache.vao);
-        glBindVertexArray(tree_cache.vao);
-        // glGenBuffers(1, &tree_cache.vertex_buffer);
+
         tree_cache.vertex_buffer = loader_data->tfrag_vertex_data[geom][tree_idx];
         tree_cache.vert_count = verts;
         tree_cache.draws = &tree.draws;  // todo - should we just copy this?
@@ -81,49 +79,12 @@ void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kind
         tree_cache.tod_cache = swizzle_time_of_day(tree.colors);
         tree_cache.draw_mode = tree.use_strips ? GL_TRIANGLE_STRIP : GL_TRIANGLES;
         vis_temp_len = std::max(vis_temp_len, tree.bvh.vis_nodes.size());
-        glBindBuffer(GL_ARRAY_BUFFER, tree_cache.vertex_buffer);
-        //            glBufferData(GL_ARRAY_BUFFER, verts * sizeof(tfrag3::PreloadedVertex),
-        //            nullptr,
-        //                         GL_STREAM_DRAW);
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-        glEnableVertexAttribArray(2);
 
-        glVertexAttribPointer(0,                                // location 0 in the shader
-                              3,                                // 3 values per vert
-                              GL_FLOAT,                         // floats
-                              GL_FALSE,                         // normalized
-                              sizeof(tfrag3::PreloadedVertex),  // stride
-                              (void*)offsetof(tfrag3::PreloadedVertex, x)  // offset (0)
-        );
-
-        glVertexAttribPointer(1,                                // location 1 in the shader
-                              3,                                // 3 values per vert
-                              GL_FLOAT,                         // floats
-                              GL_FALSE,                         // normalized
-                              sizeof(tfrag3::PreloadedVertex),  // stride
-                              (void*)offsetof(tfrag3::PreloadedVertex, s)  // offset (0)
-        );
-
-        glVertexAttribIPointer(2,                                // location 2 in the shader
-                               1,                                // 1 values per vert
-                               GL_UNSIGNED_SHORT,                // u16
-                               sizeof(tfrag3::PreloadedVertex),  // stride
-                               (void*)offsetof(tfrag3::PreloadedVertex, color_index)  // offset (0)
-        );
-        glGenBuffers(1, &tree_cache.single_draw_index_buffer);
-        glGenBuffers(1, &tree_cache.index_buffer);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tree_cache.index_buffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, tree.unpacked.indices.size() * sizeof(u32),
-                     tree.unpacked.indices.data(), GL_STREAM_DRAW);
-
-        glGenTextures(1, &tree_cache.time_of_day_texture);
-        glBindTexture(GL_TEXTURE_1D, tree_cache.time_of_day_texture);
-        glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, TIME_OF_DAY_COLOR_COUNT, 0, GL_RGBA,
-                     GL_UNSIGNED_INT_8_8_8_8, nullptr);
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        glBindVertexArray(0);
+        //CreateIndexBuffer(tree.unpacked.indices);
+        //CreateImage(0, 0, VK_IMAGE_TYPE_1D, 1, VK_SAMPLE_COUNT_1_BIT,
+        //            VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+        //            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        //            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textures[geom][tree_idx], texture_memories[geom][tree_idx]);
       }
     }
   }
@@ -172,7 +133,8 @@ bool Tfrag3::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_
 void Tfrag3::render_tree(int geom,
                          const TfragRenderSettings& settings,
                          SharedRenderState* render_state,
-                         ScopedProfilerNode& prof) {
+                         ScopedProfilerNode& prof,
+                         UniformBuffer& uniform_buffer) {
   if (!m_has_level) {
     return;
   }
@@ -187,20 +149,14 @@ void Tfrag3::render_tree(int geom,
   } else {
     interp_time_of_day_slow(settings.time_of_day_weights, *tree.colors, m_color_result.data());
   }
-  glActiveTexture(GL_TEXTURE10);
-  glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-  glTexSubImage1D(GL_TEXTURE_1D, 0, 0, tree.colors->size(), GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
-                  m_color_result.data());
 
-  first_tfrag_draw_setup(settings, render_state, ShaderId::TFRAG3);
+  // void* data = NULL;
+  // vkMapMemory(device, timeOfDayDeviceMemory, 0, tree.colors->size() * sizeof(tree.colors[0]), 0,
+  //            &data);
+  //::memcpy(data, m_color_result.data(), tree.colors->size() * sizeof(tree.colors[0]));
+  // vkUnmapMemory(device, timeOfDayDeviceMemory, nullptr);
 
-  glBindVertexArray(tree.vao);
-  glBindBuffer(GL_ARRAY_BUFFER, tree.vertex_buffer);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,
-               render_state->no_multidraw ? tree.single_draw_index_buffer : tree.index_buffer);
-  glActiveTexture(GL_TEXTURE0);
-  glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(UINT32_MAX);
+  first_tfrag_draw_setup(settings, render_state, uniform_buffer);
 
   cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
                       m_cache.vis_temp.data());
@@ -210,8 +166,9 @@ void Tfrag3::render_tree(int geom,
     u32 idx_buffer_size = make_index_list_from_vis_string(
         m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, m_cache.vis_temp,
         tree.index_data, &total_tris);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx_buffer_size * sizeof(u32), m_cache.index_temp.data(),
-                 GL_STREAM_DRAW);
+    //CreateIndexBuffer(m_cache.index_temp);
+    //glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx_buffer_size * sizeof(u32), m_cache.index_temp.data(),
+    //             GL_STREAM_DRAW);
   } else {
     total_tris = make_multidraws_from_vis_string(
         m_cache.multidraw_offset_per_stripdraw.data(), m_cache.multidraw_count_buffer.data(),
@@ -236,20 +193,20 @@ void Tfrag3::render_tree(int geom,
     }
 
     ASSERT(m_textures);
-    glBindTexture(GL_TEXTURE_2D, m_textures->at(draw.tree_tex_id));
-    auto double_draw = setup_tfrag_shader(render_state, draw.mode, ShaderId::TFRAG3);
+    auto double_draw = setup_tfrag_shader(render_state, draw.mode,
+                                          m_textures->at(draw.tree_tex_id), uniform_buffer);
     tree.tris_this_frame += draw.num_triangles;
     tree.draws_this_frame++;
 
     prof.add_draw_call();
     if (render_state->no_multidraw) {
-      glDrawElements(tree.draw_mode, singledraw_indices.second, GL_UNSIGNED_INT,
-                     (void*)(singledraw_indices.first * sizeof(u32)));
+      //glDrawElements(tree.draw_mode, singledraw_indices.second, GL_UNSIGNED_INT,
+      //               (void*)(singledraw_indices.first * sizeof(u32)));
     } else {
-      glMultiDrawElements(tree.draw_mode, &m_cache.multidraw_count_buffer[multidraw_indices.first],
-                          GL_UNSIGNED_INT,
-                          &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
-                          multidraw_indices.second);
+      //glMultiDrawElements(tree.draw_mode, &m_cache.multidraw_count_buffer[multidraw_indices.first],
+      //                    GL_UNSIGNED_INT,
+      //                    &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
+      //                    multidraw_indices.second);
     }
 
     switch (double_draw.kind) {
@@ -257,24 +214,23 @@ void Tfrag3::render_tree(int geom,
         break;
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         prof.add_draw_call();
-        render_state->shaders[ShaderId::TFRAG3].SetUniform1f("alpha_min", -10.f);
-        render_state->shaders[ShaderId::TFRAG3].SetUniform1f("alpha_max", double_draw.aref_second);
+        uniform_buffer.SetUniform1f("alpha_min", -10.f);
+        uniform_buffer.SetUniform1f("alpha_max", double_draw.aref_second);
         glDepthMask(GL_FALSE);
         if (render_state->no_multidraw) {
-          glDrawElements(tree.draw_mode, singledraw_indices.second, GL_UNSIGNED_INT,
-                         (void*)(singledraw_indices.first * sizeof(u32)));
+          //glDrawElements(tree.draw_mode, singledraw_indices.second, GL_UNSIGNED_INT,
+          //               (void*)(singledraw_indices.first * sizeof(u32)));
         } else {
-          glMultiDrawElements(
-              tree.draw_mode, &m_cache.multidraw_count_buffer[multidraw_indices.first],
-              GL_UNSIGNED_INT, &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
-              multidraw_indices.second);
+          //glMultiDrawElements(
+          //    tree.draw_mode, &m_cache.multidraw_count_buffer[multidraw_indices.first],
+          //    GL_UNSIGNED_INT, &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
+          //    multidraw_indices.second);
         }
         break;
       default:
         ASSERT(false);
     }
   }
-  glBindVertexArray(0);
 }
 
 /*!
@@ -285,12 +241,13 @@ void Tfrag3::render_tree(int geom,
 void Tfrag3::render_all_trees(int geom,
                               const TfragRenderSettings& settings,
                               SharedRenderState* render_state,
-                              ScopedProfilerNode& prof) {
+                              ScopedProfilerNode& prof,
+                              UniformBuffer& uniform_buffer) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
     if (m_cached_trees[geom][i].kind != tfrag3::TFragmentTreeKind::INVALID) {
       settings_copy.tree_idx = i;
-      render_tree(geom, settings_copy, render_state, prof);
+      render_tree(geom, settings_copy, render_state, prof, uniform_buffer);
     }
   }
 }
@@ -299,7 +256,8 @@ void Tfrag3::render_matching_trees(int geom,
                                    const std::vector<tfrag3::TFragmentTreeKind>& trees,
                                    const TfragRenderSettings& settings,
                                    SharedRenderState* render_state,
-                                   ScopedProfilerNode& prof) {
+                                   ScopedProfilerNode& prof,
+                                   UniformBuffer& uniform_buffer) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
     auto& tree = m_cached_trees[geom][i];
@@ -310,9 +268,9 @@ void Tfrag3::render_matching_trees(int geom,
     if (std::find(trees.begin(), trees.end(), tree.kind) != trees.end() || tree.forced) {
       tree.rendered_this_frame = true;
       settings_copy.tree_idx = i;
-      render_tree(geom, settings_copy, render_state, prof);
+      render_tree(geom, settings_copy, render_state, prof, uniform_buffer);
       if (tree.cull_debug) {
-        render_tree_cull_debug(settings_copy, render_state, prof);
+        render_tree_cull_debug(settings_copy, render_state, prof, uniform_buffer);
       }
     }
   }
@@ -344,11 +302,7 @@ void Tfrag3::discard_tree_cache() {
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
     for (auto& tree : m_cached_trees[geom]) {
       if (tree.kind != tfrag3::TFragmentTreeKind::INVALID) {
-        glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-        glDeleteTextures(1, &tree.time_of_day_texture);
-        glDeleteBuffers(1, &tree.single_draw_index_buffer);
-        glDeleteBuffers(1, &tree.index_buffer);
-        glDeleteVertexArrays(1, &tree.vao);
+        //glDeleteTextures(1, &tree.time_of_day_texture);
       }
     }
     m_cached_trees[geom].clear();
@@ -436,7 +390,8 @@ void debug_vis_draw(int first_root,
 
 void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
                                     SharedRenderState* render_state,
-                                    ScopedProfilerNode& prof) {
+                                    ScopedProfilerNode& prof,
+                                    UniformBuffer& uniform_buffer) {
   // generate debug verts:
   m_debug_vert_data.clear();
   auto& tree = m_cached_trees.at(settings.tree_idx).at(lod());
@@ -444,12 +399,12 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
   debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
                  tree.vis->vis_nodes, m_debug_vert_data);
 
-   render_state->shaders[ShaderId::TFRAG3_NO_TEX].Set4x4MatrixDataInVkDeviceMemory("camera", 1,
+   uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1,
       GL_FALSE, (float*)settings.math_camera.data());
-   render_state->shaders[ShaderId::TFRAG3_NO_TEX].SetUniform4f("hvdf_offset",
+   uniform_buffer.SetUniform4f("hvdf_offset",
       settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
       settings.hvdf_offset[3]);
-   render_state->shaders[ShaderId::TFRAG3_NO_TEX].SetUniform1f("fog_constant", settings.fog.x());
+   uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
 
   //FIXME: Add depth test for vulkan
   //glEnable(GL_DEPTH_TEST);
@@ -467,13 +422,13 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
   while (remaining > 0) {
     int to_do = std::min(DEBUG_TRI_COUNT * 3, remaining);
 
-    render_state->shaders[ShaderId::TFRAG3_NO_TEX].
-    void* data;
-    vkMapMemory(device, device_memory, 0, to_do * sizeof(DebugVertex), 0, &data);
-    ::memcpy(data, m_debug_vert_data.data() + start, to_do * sizeof(DebugVertex));
-    vkUnmapMemory(device, device_memory);
+    //SetShaderModule(render_state->shaders[ShaderId::TFRAG3_NO_TEX]);
+    //void* data;
+    //vkMapMemory(device, device_memory, 0, to_do * sizeof(DebugVertex), 0, &data);
+    //::memcpy(data, m_debug_vert_data.data() + start, to_do * sizeof(DebugVertex));
+    //vkUnmapMemory(device, device_memory, nullptr);
 
-    //recordCommandBuffer(command_buffer, )
+    //TODO: Add draw function here
     
     prof.add_draw_call();
     prof.add_tri(to_do / 3);
@@ -481,4 +436,70 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
     remaining -= to_do;
     start += to_do;
   }
+}
+
+void Tfrag3::InitializeDebugInputVertexAttribute() {
+ VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+ inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+ inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+ inputAssembly.primitiveRestartEnable = VK_TRUE;
+
+ VkVertexInputBindingDescription bindingDescription{};
+ bindingDescription.binding = 0; bindingDescription.stride = sizeof(DebugVertex);
+ bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+ std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+ attributeDescriptions[0].binding = 0;
+ attributeDescriptions[0].location = 0;
+ attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+ attributeDescriptions[0].offset = offsetof(DebugVertex, position);
+
+ attributeDescriptions[1].binding = 0;
+ attributeDescriptions[1].location = 1;
+ attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+ attributeDescriptions[1].offset = offsetof(DebugVertex, rgba);
+
+ VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+ vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+ vertexInputInfo.vertexBindingDescriptionCount = 1;
+ vertexInputInfo.vertexAttributeDescriptionCount =
+     static_cast<uint32_t>(attributeDescriptions.size());
+ vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+ vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+}
+
+void Tfrag3::InitializeInputVertexAttribute() {
+  //            glBufferData(GL_ARRAY_BUFFER, verts * sizeof(tfrag3::PreloadedVertex),
+  //            nullptr,
+  //                         GL_STREAM_DRAW);
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(tfrag3::PreloadedVertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(tfrag3::PreloadedVertex, x);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(tfrag3::PreloadedVertex, s);
+
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R16_UINT;
+  attributeDescriptions[2].offset = offsetof(tfrag3::PreloadedVertex, color_index);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }

@@ -21,7 +21,7 @@
  */
 class DirectRenderer : public BucketRenderer {
  public:
-  DirectRenderer(const std::string& name, BucketId my_id, int batch_size);
+  DirectRenderer(const std::string& name, BucketId my_id, VkDevice device, int batch_size);
   ~DirectRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
@@ -69,6 +69,8 @@ class DirectRenderer : public BucketRenderer {
   void set_mipmap(bool en) { m_debug_state.disable_mipmap = !en; }
 
  private:
+  void InitializeInputVertexAttribute();
+  void SetShaderModule(Shader& shader);
   void handle_ad(const u8* data, SharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_zbuf1(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_test1(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
@@ -99,10 +101,10 @@ class DirectRenderer : public BucketRenderer {
                            ScopedProfilerNode& prof,
                            bool advance);
 
-  void update_gl_prim(SharedRenderState* render_state);
-  void update_gl_blend();
-  void update_gl_test();
-  void update_gl_texture(SharedRenderState* render_state, int unit);
+  void update_vulkan_prim(SharedRenderState* render_state);
+  void update_vulkan_blend();
+  void update_vulkan_test();
+  void update_vulkan_texture(SharedRenderState* render_state, int unit);
 
   struct TestState {
     void from_register(GsTest reg);

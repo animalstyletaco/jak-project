@@ -7,7 +7,7 @@
 
 class DepthCue : public BucketRenderer {
  public:
-  DepthCue(const std::string& name, BucketId my_id);
+  DepthCue(const std::string& name, BucketId my_id, VkDevice device);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
@@ -167,7 +167,7 @@ class DepthCue : public BucketRenderer {
     float res_scale = 1.0f;
   } m_debug;
 
-  void opengl_setup();
+  void vulkan_setup();
   void read_dma(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof);
   void setup(SharedRenderState* render_state, ScopedProfilerNode& prof);
   void draw(SharedRenderState* render_state, ScopedProfilerNode& prof);

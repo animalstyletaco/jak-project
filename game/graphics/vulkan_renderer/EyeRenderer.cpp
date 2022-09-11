@@ -9,7 +9,11 @@
 /////////////////////////
 // Bucket Renderer
 /////////////////////////
-EyeRenderer::EyeRenderer(const std::string& name, BucketId id) : BucketRenderer(name, id) {}
+// note: eye texture increased to 128x128 (originally 32x32) here.
+EyeRenderer::GpuEyeTex::GpuEyeTex(VkDevice device) : fb(128, 128, VK_FORMAT_A8B8G8R8_UINT_PACK32, device) {
+}
+
+EyeRenderer::EyeRenderer(const std::string& name, BucketId id, VkDevice device) : BucketRenderer(name, id, device) {}
 
 void EyeRenderer::init_textures(TexturePool& texture_pool) {
   // set up eyes
@@ -19,8 +23,8 @@ void EyeRenderer::init_textures(TexturePool& texture_pool) {
 
       // CPU
       {
-        GLuint gl_tex;
-        glGenTextures(1, &gl_tex);
+        TextureInfo& texture_info = m_cpu_eye_textures[tidx];
+        //texture_info.CreateImage();
         u32 tbp = EYE_BASE_BLOCK + pair_idx * 2 + lr;
         TextureInput in;
         in.gpu_texture = gl_tex;
@@ -30,7 +34,7 @@ void EyeRenderer::init_textures(TexturePool& texture_pool) {
         in.debug_name = fmt::format("{}-eye-cpu-{}", lr ? "left" : "right", pair_idx);
         in.id = texture_pool.allocate_pc_port_texture();
         auto* gpu_tex = texture_pool.give_texture_and_load_to_vram(in, tbp);
-        m_cpu_eye_textures[tidx] = {gl_tex, gpu_tex, tbp};
+        //{gl_tex, gpu_tex, tbp};
       }
 
       // GPU
@@ -50,26 +54,36 @@ void EyeRenderer::init_textures(TexturePool& texture_pool) {
   }
 
   // set up vertices for GPU mode
-  glGenVertexArrays(1, &m_vao);
-  glBindVertexArray(m_vao);
-  glGenBuffers(1, &m_gl_vertex_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
-  glBufferData(GL_ARRAY_BUFFER, VTX_BUFFER_FLOATS * sizeof(float), nullptr, GL_STREAM_DRAW);
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0,                  // location 0 in the shader
-                        4,                  // 2 floats per vert
-                        GL_FLOAT,           // floats
-                        GL_TRUE,            // normalized, ignored,
-                        sizeof(float) * 4,  //
-                        (void*)0            // offset in array
-  );
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindVertexArray(0);
+
+  float vertexValue[VTX_BUFFER_FLOATS] = {0};
+  //CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexValue, VTX_BUFFER_FLOATS);
+}
+
+void EyeRenderer::InitializeInputVertexAttribute() {
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(float) * 4;
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+  std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[0].offset = 0;
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }
 
 EyeRenderer::~EyeRenderer() {
-  glDeleteVertexArrays(1, &m_vao);
-  glDeleteBuffers(1, &m_gl_vertex_buffer);
+
 }
 
 void EyeRenderer::render(DmaFollower& dma,
@@ -504,9 +518,7 @@ void EyeRenderer::run_cpu(const std::vector<SingleEyeDraws>& draws,
 
     // update GPU:
     auto& tex = m_cpu_eye_textures[draw.pair * 2 + draw.lr];
-    glBindTexture(GL_TEXTURE_2D, tex.gl_tex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 32, 32, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
-                 m_temp_tex);
+    tex.UpdateTexture(0, m_temp_tex, 32 * 32 * sizeof(m_temp_tex));
     // make sure they are still in vram
     render_state->texture_pool->move_existing_to_vram(tex.gpu_tex, tex.tbp);
   }
@@ -564,9 +576,7 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
 
   // set up common opengl state
   glDisable(GL_DEPTH_TEST);
-  render_state->shaders[ShaderId::EYE].activate();
-  glUniform1i(glGetUniformLocation(render_state->shaders[ShaderId::EYE].id(), "tex_T0"), 0);
-  glActiveTexture(GL_TEXTURE0);
+  render_state->shaders[ShaderId::EYE].SetUniform1f("tex_T0", 0);
 
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -621,9 +631,6 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
   }
 
   ASSERT(check == buffer_idx);
-
-  glBindVertexArray(0);
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 //////////////////////

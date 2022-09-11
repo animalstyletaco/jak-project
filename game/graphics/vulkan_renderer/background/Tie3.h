@@ -11,7 +11,7 @@
 
 class Tie3 : public BucketRenderer {
  public:
-  Tie3(const std::string& name, BucketId my_id, int level_id);
+  Tie3(const std::string& name, BucketId my_id, VkDevice& device, int level_id);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   ~Tie3();
@@ -41,6 +41,7 @@ class Tie3 : public BucketRenderer {
   int lod() const { return Gfx::g_global_settings.lod_tie; }
 
  private:
+  void InitializeVertexBuffer(SharedRenderState* render_state);
   void update_load(const LevelData* loader_data);
   void discard_tree_cache();
   void render_tree_wind(int idx,
@@ -84,7 +85,7 @@ class Tie3 : public BucketRenderer {
 
   std::array<std::vector<Tree>, 4> m_trees;  // includes 4 lods!
   std::string m_level_name;
-  const std::vector<GLuint>* m_textures;
+  const std::vector<TextureInfo>* m_textures;
   u64 m_load_id = -1;
 
   struct Cache {

@@ -10,10 +10,24 @@
 // Bucket Renderer
 /////////////////////////
 // note: eye texture increased to 128x128 (originally 32x32) here.
-EyeRenderer::GpuEyeTex::GpuEyeTex(VkDevice device) : fb(128, 128, VK_FORMAT_A8B8G8R8_UINT_PACK32, device) {
+EyeRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device) : fb(128, 128, VK_FORMAT_A8B8G8R8_UINT_PACK32, device) {
 }
 
-EyeRenderer::EyeRenderer(const std::string& name, BucketId id, VkDevice device) : BucketRenderer(name, id, device) {}
+EyeRenderer::EyeRenderer(const std::string& name, BucketId id, VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, id, vulkan_info) {
+  std::unique_ptr<UniformBuffer> m_uniform_buffer = std::make_unique<UniformBuffer>(
+      m_vulkan_info.device, sizeof(int), 1,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+  for (uint32_t i = 0; i < NUM_EYE_PAIRS * 2; i++) {
+    m_gpu_eye_textures[i] = std::make_unique<EyeRenderer::GpuEyeTex>(vulkan_info.device);
+    m_cpu_eye_textures[i].texture = std::make_unique<TextureInfo>(m_vulkan_info.device);
+  }
+
+  VkDeviceSize device_size = sizeof(float) * VTX_BUFFER_FLOATS;
+  m_gpu_vertex_buffer = std::make_unique<VertexBuffer>(
+      vulkan_info.device, device_size, 1,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+}
 
 void EyeRenderer::init_textures(TexturePool& texture_pool) {
   // set up eyes
@@ -23,32 +37,31 @@ void EyeRenderer::init_textures(TexturePool& texture_pool) {
 
       // CPU
       {
-        TextureInfo& texture_info = m_cpu_eye_textures[tidx];
-        //texture_info.CreateImage();
         u32 tbp = EYE_BASE_BLOCK + pair_idx * 2 + lr;
         TextureInput in;
-        in.gpu_texture = gl_tex;
+        in.gpu_texture = m_cpu_eye_textures[tidx].texture.get();
         in.w = 32;
         in.h = 32;
         in.debug_page_name = "PC-EYES";
         in.debug_name = fmt::format("{}-eye-cpu-{}", lr ? "left" : "right", pair_idx);
         in.id = texture_pool.allocate_pc_port_texture();
         auto* gpu_tex = texture_pool.give_texture_and_load_to_vram(in, tbp);
-        //{gl_tex, gpu_tex, tbp};
+        m_cpu_eye_textures[tidx].gpu_texture = gpu_tex;
+        m_cpu_eye_textures[tidx].tbp = tbp;
       }
 
       // GPU
       {
         u32 tbp = EYE_BASE_BLOCK + pair_idx * 2 + lr;
         TextureInput in;
-        in.gpu_texture = m_gpu_eye_textures[tidx].fb.texture();
+        in.gpu_texture = m_gpu_eye_textures[tidx]->fb.texture();
         in.w = 32;
         in.h = 32;
         in.debug_page_name = "PC-EYES";
         in.debug_name = fmt::format("{}-eye-gpu-{}", lr ? "left" : "right", pair_idx);
         in.id = texture_pool.allocate_pc_port_texture();
-        m_gpu_eye_textures[tidx].gpu_tex = texture_pool.give_texture_and_load_to_vram(in, tbp);
-        m_gpu_eye_textures[tidx].tbp = tbp;
+        m_gpu_eye_textures[tidx]->gpu_tex = texture_pool.give_texture_and_load_to_vram(in, tbp);
+        m_gpu_eye_textures[tidx]->tbp = tbp;
       }
     }
   }
@@ -282,7 +295,7 @@ std::vector<EyeRenderer::SingleEyeDraws> EyeRenderer::get_draws(DmaFollower& dma
       r_draw.iris = read_eye_draw(dma);
       l_draw.iris_tex = tex0;
       r_draw.iris_tex = tex0;
-      l_draw.iris_gl_tex = *render_state->texture_pool->lookup(adgif0.tex0().tbp0());
+      l_draw.iris_gl_tex = render_state->texture_pool->lookup(adgif0.tex0().tbp0());
       r_draw.iris_gl_tex = l_draw.iris_gl_tex;
     }
 
@@ -301,7 +314,7 @@ std::vector<EyeRenderer::SingleEyeDraws> EyeRenderer::get_draws(DmaFollower& dma
       r_draw.pupil = read_eye_draw(dma);
       l_draw.pupil_tex = tex1;
       r_draw.pupil_tex = tex1;
-      l_draw.pupil_gl_tex = *render_state->texture_pool->lookup(adgif1.tex0().tbp0());
+      l_draw.pupil_gl_tex = render_state->texture_pool->lookup(adgif1.tex0().tbp0());
       r_draw.pupil_gl_tex = l_draw.pupil_gl_tex;
     }
 
@@ -320,7 +333,7 @@ std::vector<EyeRenderer::SingleEyeDraws> EyeRenderer::get_draws(DmaFollower& dma
       r_draw.lid = read_eye_draw(dma);
       l_draw.lid_tex = tex2;
       r_draw.lid_tex = tex2;
-      l_draw.lid_gl_tex = *render_state->texture_pool->lookup(adgif2.tex0().tbp0());
+      l_draw.lid_gl_tex = render_state->texture_pool->lookup(adgif2.tex0().tbp0());
       r_draw.lid_gl_tex = l_draw.lid_gl_tex;
     }
 
@@ -517,10 +530,10 @@ void EyeRenderer::run_cpu(const std::vector<SingleEyeDraws>& draws,
     }
 
     // update GPU:
-    auto& tex = m_cpu_eye_textures[draw.pair * 2 + draw.lr];
-    tex.UpdateTexture(0, m_temp_tex, 32 * 32 * sizeof(m_temp_tex));
+    auto& cpu_eye_tex = m_cpu_eye_textures[draw.pair * 2 + draw.lr];
+    //cpu_eye_tex.texture->UpdateTexture(0, m_temp_tex, 32 * 32 * sizeof(m_temp_tex));
     // make sure they are still in vram
-    render_state->texture_pool->move_existing_to_vram(tex.gpu_tex, tex.tbp);
+    render_state->texture_pool->move_existing_to_vram(cpu_eye_tex.gpu_texture, cpu_eye_tex.tbp);
   }
 }
 
@@ -555,33 +568,77 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
     return;
   }
 
-  glBindVertexArray(m_vao);
-  glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
+  //glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_FALSE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+
+  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
 
   // the first thing we'll do is prepare the vertices
+  m_gpu_vertex_buffer->map();
+  float* vertex_data = reinterpret_cast<float*>(m_gpu_vertex_buffer->getMappedMemory());
+
   int buffer_idx = 0;
   for (const auto& draw : draws) {
-    buffer_idx = add_draw_to_buffer(buffer_idx, draw.iris, m_gpu_vertex_buffer, draw.pair, draw.lr);
+    buffer_idx = add_draw_to_buffer(buffer_idx, draw.iris, vertex_data, draw.pair, draw.lr);
     buffer_idx =
-        add_draw_to_buffer(buffer_idx, draw.pupil, m_gpu_vertex_buffer, draw.pair, draw.lr);
-    buffer_idx = add_draw_to_buffer(buffer_idx, draw.lid, m_gpu_vertex_buffer, draw.pair, draw.lr);
+        add_draw_to_buffer(buffer_idx, draw.pupil, vertex_data, draw.pair, draw.lr);
+    buffer_idx = add_draw_to_buffer(buffer_idx, draw.lid, vertex_data, draw.pair, draw.lr);
   }
   ASSERT(buffer_idx <= VTX_BUFFER_FLOATS);
   int check = buffer_idx;
 
-  // maybe buffer sub data.
-  glBufferData(GL_ARRAY_BUFFER, buffer_idx * sizeof(float), m_gpu_vertex_buffer, GL_STREAM_DRAW);
+  m_gpu_vertex_buffer->unmap();
 
-  FramebufferTexturePairContext ctxt(m_gpu_eye_textures[draws.front().tex_slot()].fb);
+  FramebufferTexturePairContext ctxt(m_gpu_eye_textures[draws.front().tex_slot()]->fb);
 
   // set up common opengl state
-  glDisable(GL_DEPTH_TEST);
-  render_state->shaders[ShaderId::EYE].SetUniform1f("tex_T0", 0);
+  m_uniform_buffer->SetUniform1f("tex_T0", 0);
 
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
 
   buffer_idx = 0;
   for (size_t draw_idx = 0; draw_idx < draws.size(); draw_idx++) {
@@ -592,41 +649,48 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
     float clear[4] = {0, 0, 0, 0};
     for (int i = 0; i < 4; i++) {
       clear[i] = ((draw.clear_color >> (8 * i)) & 0xff) / 255.f;
+      colorBlending.blendConstants[0] = clear[i];
     }
-    glClearBufferfv(GL_COLOR, 0, clear);
 
     // iris
     if (draw.iris_tex) {
       // set alpha
       // set Z
       // set texture
-      glDisable(GL_BLEND);
-      glBindTexture(GL_TEXTURE_2D, draw.iris_gl_tex);
-      glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
+      colorBlendAttachment.blendEnable = VK_FALSE;
+      //draw.iris_gl_tex;
+      //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
     if (draw.pupil_tex) {
-      glEnable(GL_BLEND);
-      glBlendEquation(GL_FUNC_ADD);
-      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-      glBindTexture(GL_TEXTURE_2D, draw.pupil_gl_tex);
-      glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
+      colorBlendAttachment.blendEnable = VK_TRUE;
+      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+
+      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+      //draw.pupil_gl_tex;
+      //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
     if (draw.lid_tex) {
-      glDisable(GL_BLEND);
-      glBindTexture(GL_TEXTURE_2D, draw.lid_gl_tex);
-      glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
+      colorBlendAttachment.blendEnable = VK_FALSE;
+      //draw.lid_gl_tex;
+      //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
     // finally, give to "vram"
-    render_state->texture_pool->move_existing_to_vram(out_tex.gpu_tex, out_tex.tbp);
+    render_state->texture_pool->move_existing_to_vram(out_tex->gpu_tex, out_tex->tbp);
 
     if (draw_idx != draws.size() - 1) {
-      ctxt.switch_to(m_gpu_eye_textures[draws[draw_idx + 1].tex_slot()].fb);
+      ctxt.switch_to(m_gpu_eye_textures[draws[draw_idx + 1].tex_slot()]->fb);
     }
   }
 

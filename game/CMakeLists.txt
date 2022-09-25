@@ -103,6 +103,7 @@ set(RUNTIME_SOURCE
         graphics/display.cpp
         graphics/sceGraphicsInterface.cpp
         graphics/texture/jak1_tpage_dir.cpp
+        graphics/texture/jak2_tpage_dir.cpp
         graphics/texture/TextureConverter.cpp
 
         system/vm/dmac.cpp
@@ -112,8 +113,13 @@ set(RUNTIME_SOURCE
 
 if(WIN32)
   list(APPEND RUNTIME_SOURCE
-        graphics/pipelines/vulkan.cpp
-        graphics/vulkan_renderer/VulkanRenderer.cpp
+        graphics/pipelines/vulkan_pipeline.cpp
+        graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.cpp
+        graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.cpp
+        graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.cpp
+        graphics/vulkan_renderer/vulkan_utils/Image.cpp
+        graphics/vulkan_renderer/vulkan_utils/Buffer.cpp
+        graphics/vulkan_renderer/vulkan_utils/SwapChain.cpp
         graphics/vulkan_renderer/background/background_common.cpp
         graphics/vulkan_renderer/background/Shrub.cpp
         graphics/vulkan_renderer/background/Tfrag3.cpp
@@ -154,6 +160,7 @@ if(WIN32)
         graphics/vulkan_renderer/TextureUploadHandler.cpp
         graphics/vulkan_renderer/DepthCue.cpp
         graphics/vulkan_renderer/TexturePoolVulkan.cpp
+        graphics/vulkan_renderer/VulkanRenderer.cpp
         ../third-party/glad/src/vulkan.c)
 else()
    list(APPEND RUNTIME_SOURCE
@@ -197,9 +204,6 @@ else()
         graphics/opengl_renderer/SpriteRenderer.cpp
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/DepthCue.cpp
-        graphics/texture/jak1_tpage_dir.cpp
-        graphics/texture/jak2_tpage_dir.cpp
-        graphics/texture/TextureConverter.cpp
         graphics/texture/TexturePool.cpp
         graphics/pipelines/opengl.cpp
         ../third-party/glad/src/glad.c)

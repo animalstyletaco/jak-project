@@ -5,21 +5,19 @@
 #include "third-party/imgui/imgui.h"
 
 constexpr int OCEAN_TEX_TBP = 8160;  // todo
-OceanTexture::OceanTexture(bool generate_mipmaps, VkDevice& device)
+OceanTexture::OceanTexture(bool generate_mipmaps, VulkanInitializationInfo& vulkan_info)
     : m_generate_mipmaps(generate_mipmaps),
       m_result_texture(TEX0_SIZE,
                        TEX0_SIZE,
                        VK_FORMAT_A8B8G8R8_SINT_PACK32,
-                       device,
+                       vulkan_info.device,
                        m_generate_mipmaps ? NUM_MIPS : 1),
-      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SINT_PACK32, device) {
+      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SINT_PACK32, vulkan_info.device) {
   m_dbuf_x = m_dbuf_a;
   m_dbuf_y = m_dbuf_b;
 
   m_tbuf_x = m_tbuf_a;
   m_tbuf_y = m_tbuf_b;
-
-  m_uniform_buffer = UniformBuffer(device, sizeof(int));
 
   init_pc();
 
@@ -33,7 +31,6 @@ OceanTexture::~OceanTexture() {
 void OceanTexture::init_textures(TexturePool& pool) {
   TextureInput in;
   in.gpu_texture = m_result_texture.texture();
-  in.gpu_texture_memory = m_result_texture.texture_memory();
   in.w = TEX0_SIZE;
   in.h = TEX0_SIZE;
   in.debug_page_name = "PC-OCEAN";
@@ -50,7 +47,9 @@ void OceanTexture::draw_debug_window() {
 
 void OceanTexture::handle_ocean_texture(DmaFollower& dma,
                                         SharedRenderState* render_state,
-                                        ScopedProfilerNode& prof) {
+                                        ScopedProfilerNode& prof,
+                                        std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
+                                        std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer) {
 
   InitializeVertexBuffer(render_state);
   // if we're doing mipmaps, render to temp.
@@ -196,11 +195,11 @@ void OceanTexture::handle_ocean_texture(DmaFollower& dma,
     // this program does nothing.
   }
 
-  flush(render_state, prof);
+  flush(render_state, prof, uniform_fragment_buffer);
   if (m_generate_mipmaps) {
     // if we did mipmaps, the above code rendered to temp, and now we need to generate mipmaps
     // in the real output
-    make_texture_with_mipmaps(render_state, prof);
+    make_texture_with_mipmaps(render_state, prof, uniform_fragment_buffer);
   }
 
   // give to gpu!
@@ -213,14 +212,15 @@ void OceanTexture::handle_ocean_texture(DmaFollower& dma,
  * filtering slowly fade the alpha value out to 0 with distance.
  */
 void OceanTexture::make_texture_with_mipmaps(SharedRenderState* render_state,
-                                             ScopedProfilerNode& prof) {
-  m_uniform_buffer.SetUniform1f("alpha_intensity", 1.0);
-  m_uniform_buffer.SetUniform1f("tex_T0", 0);
+                                             ScopedProfilerNode& prof,
+                                             std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_buffer) {
+  uniform_buffer->SetUniform1f("alpha_intensity", 1.0);
+  uniform_buffer->SetUniform1f("tex_T0", 0);
 
   for (int i = 0; i < NUM_MIPS; i++) {
     FramebufferTexturePairContext ctxt(m_result_texture, i);
-    m_uniform_buffer.SetUniform1f("alpha_intensity", std::max(0.f, 1.f - 0.51f * i));
-    m_uniform_buffer.SetUniform1f("scale", 1.f / (1 << i));
+    uniform_buffer->SetUniform1f("alpha_intensity", std::max(0.f, 1.f - 0.51f * i));
+    uniform_buffer->SetUniform1f("scale", 1.f / (1 << i));
     //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     prof.add_draw_call();
     prof.add_tri(2);

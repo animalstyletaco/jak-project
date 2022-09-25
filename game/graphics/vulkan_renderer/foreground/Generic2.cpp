@@ -4,14 +4,14 @@
 
 #include "third-party/imgui/imgui.h"
 
-Generic2::Generic2(VkDevice& device,
-                   const std::string& name,
+Generic2::Generic2(const std::string& name,
                    BucketId my_id,
+                   VulkanInitializationInfo& vulkan_info,
                    u32 num_verts,
                    u32 num_frags,
                    u32 num_adgif,
                    u32 num_buckets)
-    : BucketRenderer(name, my_id, device) {
+    : BucketRenderer(name, my_id, vulkan_info) {
   m_verts.resize(num_verts);
   m_fragments.resize(num_frags);
   m_adgifs.resize(num_adgif);

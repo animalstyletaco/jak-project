@@ -20,37 +20,36 @@ math::Vector2f fixed_to_floating_point(const math::Vector<s32, 2>& fixed_vec) {
 // Total number of loops depth-cue performs to draw to the framebuffer
 constexpr int TOTAL_DRAW_SLICES = 16;
 
-DepthCue::DepthCue(const std::string& name, BucketId my_id, VkDevice device) : BucketRenderer(name, my_id, device) {
+DepthCue::DepthCue(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info) :
+  BucketRenderer(name, my_id, vulkan_info) {
   vulkan_setup();
 
   m_draw_slices.resize(TOTAL_DRAW_SLICES);
 }
 
 void DepthCue::vulkan_setup() {
+  m_depth_cue_vertex_uniform_buffer = std::make_unique<DepthCueVertexUniformBuffer>(
+      m_vulkan_info.device, sizeof(DepthCueVertexUniformData), 1,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+  m_depth_cue_fragment_uniform_buffer = std::make_unique<UniformBuffer>(
+    m_vulkan_info.device, sizeof(uint32_t), 1,
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
   // Gen texture for sampling the framebuffer
-  VkImage sampling_texture;
-  VkDeviceMemory sampling_texture_memory;
+  m_ogl.framebuffer_sample_fbo = std::make_unique<TextureInfo>(m_vulkan_info.device);
+  m_ogl.framebuffer_sample_tex = std::make_unique<TextureInfo>(m_vulkan_info.device);
 
-  vulkan_utils::CreateImage(
-      m_device, 1, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_OPTIMAL,
-      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, sampling_texture,
-      sampling_texture_memory);
+  m_ogl.fbo = std::make_unique<TextureInfo>(m_vulkan_info.device);
+  m_ogl.fbo_texture = std::make_unique<TextureInfo>(m_vulkan_info.device);
 
-  VkImageView sampling_texture_view = vulkan_utils::CreateImageView(m_device, sampling_texture, VK_FORMAT_R8G8B8_USCALED,
-                                                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  m_ogl.depth_cue_page_vertex_buffer = std::make_unique<VertexBuffer>(
+      m_vulkan_info.device, sizeof(SpriteVertex), 4,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
-  VkImage depth_texture;
-  VkDeviceMemory depth_texture_memory;
-
-  vulkan_utils::CreateImage(
-      m_device, 1, 1, 1, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_OPTIMAL,
-      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, depth_texture,
-      depth_texture_memory);
-
-  VkImageView depth_texture_view = vulkan_utils::CreateImageView(
-      m_device, depth_texture, VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+  m_ogl.on_screen_vertex_buffer = std::make_unique<VertexBuffer>(
+      m_vulkan_info.device, sizeof(SpriteVertex), 4,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   VkSamplerCreateInfo samplerInfo{};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -71,58 +70,45 @@ void DepthCue::vulkan_setup() {
   samplerInfo.minFilter = VK_FILTER_LINEAR;
 
   // Gen framebuffer for depth-cue-base-page
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_ogl.fbo_texture, 0);
 
-  // Gen vertex array for drawing to depth-cue-base-page
-  glGenVertexArrays(1, &m_ogl.depth_cue_page_vao);
-  glBindVertexArray(m_ogl.depth_cue_page_vao);
-  glGenBuffers(1, &m_ogl.depth_cue_page_vertex_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.depth_cue_page_vertex_buffer);
+  std::array<VkVertexInputBindingDescription, 2> bindingDescriptions{};
+  bindingDescriptions[0].binding = 0;
+  bindingDescriptions[0].stride = sizeof(SpriteVertex);
+  bindingDescriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(SpriteVertex), nullptr, GL_STATIC_DRAW);
+  bindingDescriptions[1].binding = 1;
+  bindingDescriptions[1].stride = sizeof(SpriteVertex);
+  bindingDescriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0,                                 // location 0 in the shader
-                        2,                                 // 2 floats per vert
-                        GL_FLOAT,                          // floats
-                        GL_FALSE,                          // don't normalize, ignored
-                        sizeof(SpriteVertex),              //
-                        (void*)offsetof(SpriteVertex, xy)  // offset in array
-  );
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1,                                 // location 1 in the shader
-                        2,                                 // 2 floats per vert
-                        GL_FLOAT,                          // floats
-                        GL_FALSE,                          // don't normalize, ignored
-                        sizeof(SpriteVertex),              //
-                        (void*)offsetof(SpriteVertex, st)  // offset in array
-  );
+  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(SpriteVertex, xy);
 
-  // Gen vertex array for drawing to on-screen framebuffer
-  glGenVertexArrays(1, &m_ogl.on_screen_vao);
-  glBindVertexArray(m_ogl.on_screen_vao);
-  glGenBuffers(1, &m_ogl.on_screen_vertex_buffer);
-  glBindBuffer(GL_ARRAY_BUFFER, m_ogl.on_screen_vertex_buffer);
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(SpriteVertex, st);
 
-  glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(SpriteVertex), nullptr, GL_STATIC_DRAW);
+  attributeDescriptions[2].binding = 1;
+  attributeDescriptions[2].location = 0;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[2].offset = offsetof(SpriteVertex, xy);
 
-  glEnableVertexAttribArray(0);
-  glVertexAttribPointer(0,                                 // location 0 in the shader
-                        2,                                 // 2 floats per vert
-                        GL_FLOAT,                          // floats
-                        GL_FALSE,                          // don't normalize, ignored
-                        sizeof(SpriteVertex),              //
-                        (void*)offsetof(SpriteVertex, xy)  // offset in array
-  );
-  glEnableVertexAttribArray(1);
-  glVertexAttribPointer(1,                                 // location 1 in the shader
-                        2,                                 // 2 floats per vert
-                        GL_FLOAT,                          // floats
-                        GL_FALSE,                          // don't normalize, ignored
-                        sizeof(SpriteVertex),              //
-                        (void*)offsetof(SpriteVertex, st)  // offset in array
-  );
+  attributeDescriptions[3].binding = 1;
+  attributeDescriptions[3].location = 1;
+  attributeDescriptions[3].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[3].offset = offsetof(SpriteVertex, st);
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 2;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }
 
 void DepthCue::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) {
@@ -372,10 +358,14 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
   m_ogl.framebuffer_sample_width = pc_fb_sample_width;
   m_ogl.framebuffer_sample_height = pc_fb_sample_height;
 
-  glBindTexture(GL_TEXTURE_2D, m_ogl.framebuffer_sample_tex);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, pc_fb_sample_width, pc_fb_sample_height, 0, GL_RGB,
-               GL_UNSIGNED_BYTE, NULL);
-  glBindTexture(GL_TEXTURE_2D, 0);
+  VkExtent3D extents{m_ogl.framebuffer_sample_width, m_ogl.framebuffer_sample_height, 1};
+  m_ogl.framebuffer_sample_tex->CreateImage(
+      extents, 1, VK_IMAGE_TYPE_2D, m_vulkan_info.device->getMsaaCount(), VK_FORMAT_R8G8B8_UINT,
+      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+
+  m_ogl.framebuffer_sample_tex->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_UINT,
+                                                VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
   // DEPTH CUE BASE PAGE FRAMEBUFFER
   // --------------------------
@@ -397,11 +387,14 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
   m_ogl.fbo_width = pc_depth_cue_fb_width;
   m_ogl.fbo_height = pc_depth_cue_fb_height;
 
-  glBindTexture(GL_TEXTURE_2D, m_ogl.fbo_texture);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, pc_depth_cue_fb_width, pc_depth_cue_fb_height, 0, GL_RGB,
-               GL_UNSIGNED_BYTE, NULL);
-  glBindTexture(GL_TEXTURE_2D, 0);
+  VkExtent3D depth_extents{m_ogl.fbo_width, m_ogl.fbo_height, 1};
+  m_ogl.framebuffer_sample_tex->CreateImage(
+      depth_extents, 1, VK_IMAGE_TYPE_2D, m_vulkan_info.device->getMsaaCount(), VK_FORMAT_R8G8B8_USCALED,
+      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
+  m_ogl.framebuffer_sample_tex->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_USCALED,
+                                                VK_IMAGE_ASPECT_DEPTH_BIT, 1);
   // DEPTH CUE BASE PAGE VERTEX DATA
   // --------------------------
   // Now that we have a framebuffer to draw each slice to, we need the actual vertex data.
@@ -459,8 +452,9 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
                  uv2.y() / slice_height          // t2
     );
   }
-
-  VkBuffer vertex_page_buffer = CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, depth_cue_page_vertices);
+  m_ogl.depth_cue_page_vertex_buffer->map();
+  m_ogl.depth_cue_page_vertex_buffer->writeToBuffer(depth_cue_page_vertices.data());
+  m_ogl.depth_cue_page_vertex_buffer->unmap();
 
   // ON SCREEN VERTEX DATA
   // --------------------------
@@ -513,64 +507,86 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
     );
   }
 
-  VkBuffer vertex_on_screen_buffer =
-      CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, on_screen_vertices);
+  m_ogl.depth_cue_page_vertex_buffer->map();
+  m_ogl.depth_cue_page_vertex_buffer->writeToBuffer(on_screen_vertices.data());
+  m_ogl.depth_cue_page_vertex_buffer->unmap();
 }
 
 void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  // Disable depth writing but keep test
-  glEnable(GL_DEPTH_TEST);
-  glDepthMask(GL_FALSE);
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_TRUE;
+  depthStencil.depthWriteEnable = VK_FALSE;
+  depthStencil.depthBoundsTestEnable = VK_FALSE;
+  depthStencil.stencilTestEnable = VK_FALSE;
 
   // Activate shader
   auto shader = &render_state->shaders[ShaderId::DEPTH_CUE];
-  m_uniform_buffer.SetUniform1f("tex", 0);
+  m_depth_cue_fragment_uniform_buffer->SetUniform1f("tex", 0);
+
+  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  colorBlendAttachment.blendEnable = VK_FALSE;
+
+  VkPipelineColorBlendStateCreateInfo colorBlending{};
+  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  colorBlending.blendConstants[0] = 0.0f;
+  colorBlending.blendConstants[1] = 0.0f;
+  colorBlending.blendConstants[2] = 0.0f;
+  colorBlending.blendConstants[3] = 0.0f;
+
+  colorBlendAttachment.blendEnable = VK_TRUE;
 
   // First, we need to copy the framebuffer into the framebuffer sample texture
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, render_state->render_fb);
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_ogl.framebuffer_sample_fbo);
-
-  glBlitFramebuffer(render_state->draw_offset_x,                                // srcX0
-                    render_state->draw_offset_y,                                // srcY0
-                    render_state->draw_offset_x + render_state->draw_region_w,  // srcX1
-                    render_state->draw_offset_y + render_state->draw_region_h,  // srcY1
-                    0,                                                          // dstX0
-                    0,                                                          // dstY0
-                    m_ogl.framebuffer_sample_width,                             // dstX1
-                    m_ogl.framebuffer_sample_height,                            // dstY1
-                    GL_COLOR_BUFFER_BIT,                                        // mask
-                    GL_NEAREST                                                  // filter
-  );
-
-  glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
+  //glBindFramebuffer(GL_READ_FRAMEBUFFER, render_state->render_fb);
+  //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_ogl.framebuffer_sample_fbo);
+  //
+  //glBlitFramebuffer(render_state->draw_offset_x,                                // srcX0
+  //                  render_state->draw_offset_y,                                // srcY0
+  //                  render_state->draw_offset_x + render_state->draw_region_w,  // srcX1
+  //                  render_state->draw_offset_y + render_state->draw_region_h,  // srcY1
+  //                  0,                                                          // dstX0
+  //                  0,                                                          // dstY0
+  //                  m_ogl.framebuffer_sample_width,                             // dstX1
+  //                  m_ogl.framebuffer_sample_height,                            // dstY1
+  //                  GL_COLOR_BUFFER_BIT,                                        // mask
+  //                  GL_NEAREST                                                  // filter
+  //);
+  //
+  //glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
 
   // Next, we need to draw from the framebuffer sample texture to the depth-cue-base-page
   // framebuffer
   {
     const auto& depth_cue_page_draw = m_draw_slices[0].depth_cue_page_draw;
 
-    math::Vector4f colorf = math::Vector4f(
+    math::Vector4f colorf(
         depth_cue_page_draw.rgbaq.x() / 255.0f, depth_cue_page_draw.rgbaq.y() / 255.0f,
         depth_cue_page_draw.rgbaq.z() / 255.0f, depth_cue_page_draw.rgbaq.w() / 255.0f);
-    glUniform4fv(glGetUniformLocation(shader->id(), "u_color"), 1, colorf.data());
+    m_depth_cue_vertex_uniform_buffer->SetUniformVectorFourFloat("u_color", 1, colorf.data());
+    m_depth_cue_vertex_uniform_buffer->SetUniform1f("u_depth", 1.0f);
 
-    glUniform1f(glGetUniformLocation(shader->id(), "u_depth"), 1.0f);
+    //glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.fbo);
 
-    glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.fbo);
+    //glBindTexture(GL_TEXTURE_2D, m_ogl.framebuffer_sample_tex);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_ogl.framebuffer_sample_tex);
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-    glBlendEquation(GL_FUNC_ADD);
-    glBlendFunc(GL_ONE, GL_ZERO);
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-    glViewport(0, 0, m_ogl.fbo_width, m_ogl.fbo_height);
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+    //glViewport(0, 0, m_ogl.fbo_width, m_ogl.fbo_height);
 
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
 
-    glBindVertexArray(m_ogl.depth_cue_page_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * TOTAL_DRAW_SLICES);  // 6 verts per slice
+    //glBindVertexArray(m_ogl.depth_cue_page_vao);
+    //glDrawArrays(GL_TRIANGLES, 0, 6 * TOTAL_DRAW_SLICES);  // 6 verts per slice
   }
 
   // Finally, the contents of depth-cue-base-page need to be overlayed onto the on-screen
@@ -578,41 +594,45 @@ void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   {
     const auto& on_screen_draw = m_draw_slices[0].on_screen_draw;
 
-    math::Vector4f colorf =
-        math::Vector4f(on_screen_draw.rgbaq.x() / 255.0f, on_screen_draw.rgbaq.y() / 255.0f,
-                       on_screen_draw.rgbaq.z() / 255.0f, on_screen_draw.rgbaq.w() / 255.0f);
+    math::Vector4f colorf(on_screen_draw.rgbaq.x() / 255.0f, on_screen_draw.rgbaq.y() / 255.0f,
+                          on_screen_draw.rgbaq.z() / 255.0f, on_screen_draw.rgbaq.w() / 255.0f);
     if (m_debug.override_alpha) {
       colorf.w() = m_debug.draw_alpha / 2.0f;
     }
-    glUniform4fv(glGetUniformLocation(shader->id(), "u_color"), 1, colorf.data());
+    m_depth_cue_vertex_uniform_buffer->SetUniformVectorFourFloat("u_color", 1, colorf.data());
 
     if (m_debug.depth == 1.0f) {
-      glUniform1f(glGetUniformLocation(shader->id(), "u_depth"), m_debug.depth);
+      m_depth_cue_vertex_uniform_buffer->SetUniform1f("u_depth", m_debug.depth);
     } else {
       // Scale debug depth expontentially to make the slider easier to use
-      glUniform1f(glGetUniformLocation(shader->id(), "u_depth"), pow(m_debug.depth, 8));
+      m_depth_cue_vertex_uniform_buffer->SetUniform1f("u_depth", pow(m_debug.depth, 8));
     }
 
-    glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
+    //glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_ogl.fbo_texture);
+    //glBindTexture(GL_TEXTURE_2D, m_ogl.fbo_texture);
 
-    glBlendEquation(GL_FUNC_ADD);
-    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-    glViewport(render_state->draw_offset_x, render_state->draw_offset_y,
-               render_state->draw_region_w, render_state->draw_region_h);
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+
+    //glViewport(render_state->draw_offset_x, render_state->draw_offset_y,
+    //           render_state->draw_region_w, render_state->draw_region_h);
 
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
 
-    glBindVertexArray(m_ogl.on_screen_vao);
-    glDrawArrays(GL_TRIANGLES, 0, 6 * TOTAL_DRAW_SLICES);  // 6 verts per slice
+    //glBindVertexArray(m_ogl.on_screen_vao);
+    //glDrawArrays(GL_TRIANGLES, 0, 6 * TOTAL_DRAW_SLICES);  // 6 verts per slice
   }
 
   // Done
-  glDepthMask(GL_TRUE);
+  depthStencil.depthWriteEnable = VK_TRUE;
 }
 
 void DepthCue::build_sprite(std::vector<SpriteVertex>& vertices,
@@ -673,3 +693,14 @@ void DepthCue::draw_debug_window() {
     m_debug.res_scale = 1.0f;
   }
 }
+
+DepthCueVertexUniformBuffer::DepthCueVertexUniformBuffer(
+   std::unique_ptr<GraphicsDeviceVulkan>& device,
+   VkDeviceSize instanceSize,
+   uint32_t instanceCount,
+   VkMemoryPropertyFlags memoryPropertyFlags,
+   VkDeviceSize minOffsetAlignment) : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment){
+  section_name_to_memory_offset_map = {
+      {"u_color", offsetof(DepthCueVertexUniformData, u_color)},
+      {"u_depth", offsetof(DepthCueVertexUniformData, u_depth)}};
+};

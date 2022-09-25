@@ -13,6 +13,7 @@
 
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/texture/TextureConverter.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 
 
 // verify all texture lookups.
@@ -210,8 +211,7 @@ struct TextureInput {
 
   PcTextureId id;
 
-  VkImage gpu_texture;
-  VkDeviceMemory gpu_texture_memory;
+  TextureInfo* gpu_texture;
 
   bool common = false;
   const u8* src_data;
@@ -286,24 +286,6 @@ struct GoalTexturePage {
   }
 };
 
-struct TextureInfo {
-  VkPhysicalDevice physical_device = VK_NULL_HANDLE;
-  VkDevice device = VK_NULL_HANDLE;
-  VkImage texture = VK_NULL_HANDLE;
-  VkImageView texture_view = VK_NULL_HANDLE;
-  VkDeviceMemory texture_device_memory = VK_NULL_HANDLE;
-  VkDeviceSize device_size = 0;
-
-  template <class T>
-  void UpdateTexture(VkDeviceSize memory_offset, T* data, uint64_t element_count);
-  uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
-  void DestroyTexture();
-  void CreateImage(unsigned width, unsigned height, unsigned mipLevels, VkImageType image_type, VkSampleCountFlagBits sample_count, VkFormat format);
-
-  ~TextureInfo() { DestroyTexture(); };
-};
-
 /*!
  * The main texture pool.
  * Moving textures around should be done with locking. (the game EE thread and the loader run
@@ -322,12 +304,11 @@ struct TextureInfo {
  */
 class TexturePool {
  public:
-  TexturePool();
-  void Initialize(VkDevice device);
+  TexturePool(std::unique_ptr<GraphicsDeviceVulkan>& m_device);
   void handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr);
   GpuTexture* give_texture(const TextureInput& in);
   GpuTexture* give_texture_and_load_to_vram(const TextureInput& in, u32 vram_slot);
-  void unload_texture(PcTextureId tex_id, const TextureInfo& texture);
+  void unload_texture(PcTextureId tex_id, TextureInfo& texture);
 
   /*!
    * Look up an OpenGL texture by vram address. Return std::nullopt if the game hasn't loaded
@@ -380,7 +361,7 @@ class TexturePool {
   std::string get_debug_texture_name(PcTextureId id);
 
  private:
-  TextureInfo upload_to_gpu(const u8* data, u16 w, u16 h);
+  std::unique_ptr<TextureInfo> upload_to_gpu(const u8* data, u16 w, u16 h);
   void refresh_links(GpuTexture& texture);
   GpuTexture* get_gpu_texture_for_slot(PcTextureId id, u32 slot);
 
@@ -405,6 +386,6 @@ class TexturePool {
   u32 m_next_pc_texture_to_allocate = 0;
 
   std::mutex m_mutex;
-  VkDevice m_device = VK_NULL_HANDLE;
-  TextureInfo m_texture_info;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::unique_ptr<TextureInfo> m_placeholder_texture;
 };

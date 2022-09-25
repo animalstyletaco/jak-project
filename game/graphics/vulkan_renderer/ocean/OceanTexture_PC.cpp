@@ -398,7 +398,7 @@ void OceanTexture::setup_renderer() {
   m_pc.vtx_idx = 0;
 }
 
-void OceanTexture::flush(SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void OceanTexture::flush(SharedRenderState* render_state, ScopedProfilerNode& prof, std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_buffer) {
   ASSERT(m_pc.vtx_idx == 2112);
 
   //CreateVertexBuffer(m_pc.vertex_dynamic);
@@ -433,7 +433,7 @@ void OceanTexture::flush(SharedRenderState* render_state, ScopedProfilerNode& pr
   samplerInfo.minFilter = VK_FILTER_LINEAR;
   samplerInfo.magFilter = VK_FILTER_LINEAR;
 
-  m_uniform_buffer.SetUniform1f("tex_T0", 0);
+  uniform_buffer->SetUniform1f("tex_T0", 0);
 
   VkPipelineColorBlendAttachmentState colorBlendAttachment{};
   colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |

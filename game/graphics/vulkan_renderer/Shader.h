@@ -62,14 +62,11 @@ enum class ShaderId {
 
 class ShaderLibrary {
  public:
-  ShaderLibrary();
-  ShaderLibrary(VkDevice device);
+  ShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device);
   Shader& operator[](ShaderId id) { return m_shaders[(int)id]; }
   Shader& at(ShaderId id) { return m_shaders[(int)id]; }
 
  private:
   Shader m_shaders[(int)ShaderId::MAX_SHADERS];
-  VkDevice m_device = VK_NULL_HANDLE;
-  VkDeviceMemory m_device_memory;
-  VkDeviceSize m_device_size;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 };

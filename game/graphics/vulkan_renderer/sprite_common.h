@@ -144,3 +144,88 @@ enum SpriteProgMem {
 
 static_assert(offsetof(SpriteFrameData, hmge_scale) == 256);
 static_assert(sizeof(SpriteFrameData) == 0x290, "SpriteFrameData size");
+
+struct Sprite3dVertexUniformShaderData {
+  math::Vector4f hvdf_offset;
+  math::Matrix4f camera;
+  math::Matrix4f hud_matrix;
+  math::Vector4f hud_hvdf_offset;
+  math::Vector4f hud_hvdf_user[75];
+  float pfog0;
+  float min_scale;
+  float max_scale;
+  float bonus;
+  float deg_to_rad;
+  float inv_area;
+  math::Vector4f basis_x;
+  math::Vector4f basis_y;
+  float fog_min;
+  float fog_max;
+  math::Vector4f hmge_scale;
+  math::Vector4f xy_array[8];
+  math::Vector4f xyz_array[4];
+  math::Vector4f st_array[4];
+};
+
+class Sprite3dVertexUniformBuffer : public UniformBuffer {
+ public:
+  Sprite3dVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                              VkDeviceSize instanceSize,
+                              uint32_t instanceCount,
+                              VkMemoryPropertyFlags memoryPropertyFlags,
+                              VkDeviceSize minOffsetAlignment)
+      : UniformBuffer(device,
+                      instanceSize,
+                      instanceCount,
+                      memoryPropertyFlags,
+                      minOffsetAlignment) {
+    section_name_to_memory_offset_map = {
+        {"hvdf_offset", offsetof(Sprite3dVertexUniformShaderData, hvdf_offset)},
+        {"camera", offsetof(Sprite3dVertexUniformShaderData, camera)},
+        {"hud_matrix", offsetof(Sprite3dVertexUniformShaderData, hud_matrix)},
+        {"hud_hvdf_offset", offsetof(Sprite3dVertexUniformShaderData, hud_hvdf_offset)},
+        {"hud_hvdf_user", offsetof(Sprite3dVertexUniformShaderData, hud_hvdf_user)},
+        {"pfog0", offsetof(Sprite3dVertexUniformShaderData, pfog0)},
+        {"min_scale", offsetof(Sprite3dVertexUniformShaderData, min_scale)},
+        {"max_scale", offsetof(Sprite3dVertexUniformShaderData, max_scale)},
+        {"bonus", offsetof(Sprite3dVertexUniformShaderData, bonus)},
+        {"deg_to_rad", offsetof(Sprite3dVertexUniformShaderData, deg_to_rad)},
+        {"inv_area", offsetof(Sprite3dVertexUniformShaderData, inv_area)},
+        {"basis_x", offsetof(Sprite3dVertexUniformShaderData, basis_x)},
+        {"basis_y", offsetof(Sprite3dVertexUniformShaderData, basis_y)},
+        {"fog_min", offsetof(Sprite3dVertexUniformShaderData, fog_min)},
+        {"fog_max", offsetof(Sprite3dVertexUniformShaderData, fog_max)},
+        {"hmge_scale", offsetof(Sprite3dVertexUniformShaderData, hmge_scale)},
+        {"xy_array", offsetof(Sprite3dVertexUniformShaderData, xy_array)},
+        {"xyz_array", offsetof(Sprite3dVertexUniformShaderData, xyz_array)},
+        {"st_array", offsetof(Sprite3dVertexUniformShaderData, st_array)}
+    };
+  }
+};
+
+struct Sprite3dFragmentUniformShaderData {
+  int32_t tex_T0;
+  float alpha_min;
+  float alpha_max;
+  math::Vector4f fog_color;
+};
+
+class Sprite3dFragmentUniformBuffer : public UniformBuffer {
+ public:
+  Sprite3dFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                VkDeviceSize instanceSize,
+                                uint32_t instanceCount,
+                                VkMemoryPropertyFlags memoryPropertyFlags,
+                                VkDeviceSize minOffsetAlignment)
+      : UniformBuffer(device,
+                      instanceSize,
+                      instanceCount,
+                      memoryPropertyFlags,
+                      minOffsetAlignment) {
+    section_name_to_memory_offset_map = {
+        {"tex_T0", offsetof(Sprite3dFragmentUniformShaderData, tex_T0)},
+        {"alpha_min", offsetof(Sprite3dFragmentUniformShaderData, alpha_min)},
+        {"alpha_max", offsetof(Sprite3dFragmentUniformShaderData, alpha_max)},
+        {"fog_color", offsetof(Sprite3dFragmentUniformShaderData, fog_color)}};
+  }
+};

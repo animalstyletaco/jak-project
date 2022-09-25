@@ -278,7 +278,9 @@ void CommonOceanRenderer::handle_near_adgif(const u8* data, u32 offset, u32 coun
   }
 }
 
-void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer) {
+void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProfilerNode& prof,
+                                     std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_shader_buffer,
+                                     std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_shader_buffer) {
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
   inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
@@ -287,7 +289,8 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
   //CreateVertexBuffer(m_vertices);
   //glBufferData(GL_ARRAY_BUFFER, m_next_free_vertex * sizeof(Vertex), m_vertices.data(),
   //             GL_STREAM_DRAW);
-  uniform_buffer.SetUniform4f("fog_color",
+  uniform_fragment_shader_buffer->SetUniform4f(
+      "fog_color",
               render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
               render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
 
@@ -319,6 +322,8 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
   colorBlending.attachmentCount = 1;
   colorBlending.pAttachments = &colorBlendAttachment;
 
+  VkSamplerCreateInfo sampler_info{};
+
   for (int bucket = 0; bucket < 3; bucket++) {
     switch (bucket) {
       case 0: {
@@ -338,13 +343,14 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
         }
+        uniform_fragment_shader_buffer->SetUniform1i("tex_T0", 0);
+        uniform_vertex_shader_buffer->SetUniform1i("bucket", 0);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        uniform_buffer.SetUniform1i("tex_T0", 0);
-        uniform_buffer.SetUniform1i("bucket", 0);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
       }
 
       break;
@@ -357,8 +363,8 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
         colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-        uniform_buffer.SetUniform1f("alpha_mult", 1.f);
-        uniform_buffer.SetUniform1i("bucket", 1);
+        uniform_fragment_shader_buffer->SetUniform1f("alpha_mult", 1.f);
+        uniform_vertex_shader_buffer->SetUniform1i("bucket", 1);
         break;
       case 2:
         auto tex = render_state->texture_pool->lookup(m_envmap_tex);
@@ -374,7 +380,7 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
 
         colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        uniform_buffer.SetUniform1i("bucket", 2);
+        uniform_vertex_shader_buffer->SetUniform1i("bucket", 2);
         break;
     }
     //CreateIndexBuffer(m_indices[bucket]);
@@ -489,7 +495,11 @@ void reverse_indices(u32* indices, u32 count) {
   }
 }
 
-void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer) {
+void CommonOceanRenderer::flush_mid(
+    SharedRenderState* render_state,
+    ScopedProfilerNode& prof,
+    std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_shader_buffer,
+    std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_shader_buffer) {
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
   inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
@@ -497,7 +507,8 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
 
   //CreateVertexBuffer(m_vertices);
 
-  uniform_buffer.SetUniform4f("fog_color",
+  uniform_fragment_shader_buffer->SetUniform4f(
+      "fog_color",
               render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
               render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
 
@@ -548,6 +559,8 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
   colorBlending.attachmentCount = 1;
   colorBlending.pAttachments = &colorBlendAttachment;
 
+  VkSamplerCreateInfo sampler_info{};
+
   for (int bucket = 0; bucket < 2; bucket++) {
     switch (bucket) {
       case 0: {
@@ -555,17 +568,19 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
         }
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        uniform_buffer.SetUniform1i("tex_T0", 0);
-        uniform_buffer.SetUniform1i("bucket", 3);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+        uniform_fragment_shader_buffer->SetUniform1i("tex_T0", 0);
+        uniform_vertex_shader_buffer->SetUniform1i("bucket", 3);
+
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
+        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
       }
 
       break;
       case 1:
-        glEnable(GL_BLEND);
         auto tex = render_state->texture_pool->lookup(m_envmap_tex);
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
@@ -584,9 +599,10 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
         colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-        uniform_buffer.SetUniform1i("bucket", 4);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        uniform_vertex_shader_buffer->SetUniform1i("bucket", 4);
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
+        sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         break;
     }
     //CreateIndexBuffer(m_indices[bucket]);
@@ -596,3 +612,27 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
   }
 }
 
+CommonOceanVertexUniformBuffer::CommonOceanVertexUniformBuffer(
+   std::unique_ptr<GraphicsDeviceVulkan>& device,
+   VkDeviceSize instanceSize,
+   uint32_t instanceCount,
+   VkMemoryPropertyFlags memoryPropertyFlags,
+   VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+ //Only has one uniform variable in ocean_common.vert no need to populate section name map
+}
+
+CommonOceanFragmentUniformBuffer::CommonOceanFragmentUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment )
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"color_mult", offsetof(CommonOceanFragmentUniformShaderData, color_mult)},
+      {"alpha_mult", offsetof(CommonOceanFragmentUniformShaderData, alpha_mult)},
+      {"fog_color", offsetof(CommonOceanFragmentUniformShaderData, fog_color)},
+      {"bucket", offsetof(CommonOceanFragmentUniformShaderData, fog_color)},
+      {"tex_T0", offsetof(CommonOceanFragmentUniformShaderData, bucket)}};
+}

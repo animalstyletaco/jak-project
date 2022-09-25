@@ -1,10 +1,11 @@
 #pragma once
 
 #include <string>
+#include <memory>
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 constexpr int EYE_BASE_BLOCK = 8160;
 constexpr int NUM_EYE_PAIRS = 11;
@@ -12,7 +13,7 @@ constexpr int SINGLE_EYE_SIZE = 32;
 
 class EyeRenderer : public BucketRenderer {
  public:
-  EyeRenderer(const std::string& name, BucketId id, VkDevice device);
+  EyeRenderer(const std::string& name, BucketId id, VulkanInitializationInfo& vulkan_info);
   ~EyeRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
@@ -54,21 +55,25 @@ class EyeRenderer : public BucketRenderer {
 
   bool m_use_gpu = true;
 
-  TextureInfo m_cpu_eye_textures[NUM_EYE_PAIRS * 2];
+  struct CpuEyeTextures {
+    std::unique_ptr<TextureInfo> texture;
+    GpuTexture* gpu_texture = nullptr;
+    u32 tbp = 0;
+  };
+
+  std::array<CpuEyeTextures, NUM_EYE_PAIRS * 2> m_cpu_eye_textures;
 
   struct GpuEyeTex {
     GpuTexture* gpu_tex;
     u32 tbp;
     FramebufferTexturePair fb;
 
-    GpuEyeTex(VkDevice device);
-  } m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
+    GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  }; 
+  std::unique_ptr<GpuEyeTex> m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
 
   // xyst per vertex, 4 vertices per square, 3 draws per eye, 11 pairs of eyes, 2 eyes per pair.
   static constexpr int VTX_BUFFER_FLOATS = 4 * 4 * 3 * NUM_EYE_PAIRS * 2;
-  float m_gpu_vertex_buffer[VTX_BUFFER_FLOATS];
-  GLuint m_vao;
-  GLuint m_gl_vertex_buffer;
 
   struct SingleEyeDraws {
     int lr;
@@ -78,18 +83,21 @@ class EyeRenderer : public BucketRenderer {
     u32 clear_color;
     EyeDraw iris;
     GpuTexture* iris_tex = nullptr;
-    u64 iris_gl_tex = 0;
+    VkImage iris_gl_tex = VK_NULL_HANDLE;
 
     EyeDraw pupil;
     GpuTexture* pupil_tex = nullptr;
-    u64 pupil_gl_tex = 0;
+    VkImage pupil_gl_tex = VK_NULL_HANDLE;
 
     EyeDraw lid;
     GpuTexture* lid_tex = nullptr;
-    u64 lid_gl_tex = 0;
+    VkImage lid_gl_tex = VK_NULL_HANDLE;
   };
 
   std::vector<SingleEyeDraws> get_draws(DmaFollower& dma, SharedRenderState* render_state);
   void run_cpu(const std::vector<SingleEyeDraws>& draws, SharedRenderState* render_state);
   void run_gpu(const std::vector<SingleEyeDraws>& draws, SharedRenderState* render_state);
+
+  std::unique_ptr<VertexBuffer> m_gpu_vertex_buffer;
+  std::unique_ptr<UniformBuffer> m_uniform_buffer;
 };

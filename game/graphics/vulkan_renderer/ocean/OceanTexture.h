@@ -4,13 +4,17 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/vulkan_renderer/ocean/CommonOceanRenderer.h"
 
 class OceanTexture {
  public:
-  OceanTexture(bool generate_mipmaps, VkDevice& device);
-  void handle_ocean_texture(DmaFollower& dma,
-                            SharedRenderState* render_state,
-                            ScopedProfilerNode& prof);
+  OceanTexture(bool generate_mipmaps, VulkanInitializationInfo& vulkan_info);
+  void handle_ocean_texture(
+      DmaFollower& dma,
+      SharedRenderState* render_state,
+      ScopedProfilerNode& prof,
+      std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
+      std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
   void init_textures(TexturePool& pool);
   void draw_debug_window();
   ~OceanTexture();
@@ -26,15 +30,15 @@ class OceanTexture {
   void xgkick_PC(Vf* src);
 
   void setup_renderer();
-  void flush(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void flush(SharedRenderState* render_state, ScopedProfilerNode& prof, std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_buffer);
 
   void init_pc();
   void destroy_pc();
 
-  void make_texture_with_mipmaps(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void make_texture_with_mipmaps(SharedRenderState* render_state, ScopedProfilerNode& prof,
+                                 std::unique_ptr<CommonOceanFragmentUniformBuffer>&);
 
   bool m_generate_mipmaps;
-  UniformBuffer m_uniform_buffer;
 
   static constexpr int TEX0_SIZE = 128;
   static constexpr int NUM_MIPS = 8;
@@ -130,7 +134,8 @@ class OceanTexture {
     std::vector<u32> index_buffer;
     u32 vtx_idx = 0;
 
-    GLuint vao, static_vertex_buffer, dynamic_vertex_buffer, gl_index_buffer;
+    std::unique_ptr<VertexBuffer> static_vertex_buffer, dynamic_vertex_buffer;
+    std::unique_ptr<IndexBuffer> gl_index_buffer;
   } m_pc;
 
   struct MipMap {
@@ -153,4 +158,7 @@ class OceanTexture {
   enum TexVu1Prog { START = 0, REST = 2, DONE = 4 };
 
   static constexpr int NUM_FRAG_LOOPS = 9;
+
+  std::unique_ptr<GraphicsPipelineLayout> m_pipeline_layout;
+  PipelineConfigInfo m_pipeline_info;
 };

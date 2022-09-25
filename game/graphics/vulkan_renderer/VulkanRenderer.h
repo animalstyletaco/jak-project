@@ -10,7 +10,9 @@
 #include "game/graphics/vulkan_renderer/Profiler.h"
 #include "game/graphics/vulkan_renderer/Shader.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
 #include "game/tools/subtitles/subtitle_editor.h"
+
 
 struct RenderOptions {
   bool draw_render_debug_window = false;
@@ -47,19 +49,6 @@ struct RenderOptions {
   bool gpu_sync = false;
 };
 
-struct QueueFamilyIndices {
-  std::optional<uint32_t> graphicsFamily;
-  std::optional<uint32_t> presentFamily;
-
-  bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
-};
-
-struct SwapChainSupportDetails {
-  VkSurfaceCapabilitiesKHR capabilities;
-  std::vector<VkSurfaceFormatKHR> formats;
-  std::vector<VkPresentModeKHR> presentModes;
-};
-
 /*!
  * Main Vulkan renderer.
  * This handles the glClear and all game rendering, but not actual setup, synchronization or imgui
@@ -69,23 +58,38 @@ struct SwapChainSupportDetails {
  */
 class VulkanRenderer {
  public:
-  VulkanRenderer(std::shared_ptr<TexturePool> texture_pool, std::shared_ptr<Loader> loader);
+  VulkanRenderer(std::shared_ptr<TexturePool> texture_pool, std::shared_ptr<Loader> loader, std::unique_ptr<GraphicsDeviceVulkan>& device);
   ~VulkanRenderer();
 
   // rendering interface: takes the dma chain from the game, and some size/debug settings from
   // the graphics system.
   void render(DmaFollower dma, const RenderOptions& settings);
+  VkInstance GetInstance() { return m_device->getInstance(); }
+  VkPhysicalDevice GetPhysicalDevice() { return m_device->getPhysicalDevice(); }
+  VkDevice GetLogicalDevice() { return m_device->getLogicalDevice(); }
+  VkDescriptorPool GetDescriptorPool() { return m_descriptor_pool->getDescriptorPool(); }
+  VkQueue GetPresentQueue() { return m_device->presentQueue(); }
+  QueueFamilyIndices GetPhysicalQueueFamilies() { return m_device->findPhysicalQueueFamilies(); }
+  VkSampleCountFlagBits GetMaxUsableSampleCount() { return m_device->GetMaxUsableSampleCount(); }
 
-  VkSampleCountFlagBits GetMaxUsableSampleCount();
+  VkRenderPass getSwapChainRenderPass() const { return m_swap_chain->getRenderPass(); }
+  float getAspectRatio() const { return m_swap_chain->extentAspectRatio(); }
+  bool isFrameInProgress() const { return isFrameStarted; }
 
-  VkInstance GetInstance() const { return instance; };
-  VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice; };
-  VkRenderPass GetRendererPass() const { return renderPass; };
+  VkCommandBuffer getCurrentCommandBuffer() const {
+    assert(isFrameStarted && "Cannot get command buffer when frame not in progress");
+    return commandBuffers[currentFrame];
+  }
 
-  VkDevice GetLogicalDevice() const { return device; };
-  VkQueue GetPresentQueue() const { return presentQueue; };
-  VkDescriptorPool GetDescriptorPool() const { return descriptorPool; };
-  uint32_t GetQueueFamily() const { return 0; };
+  int getFrameIndex() const {
+    assert(isFrameStarted && "Cannot get frame index when frame not in progress");
+    return currentFrame;
+  }
+
+  VkCommandBuffer beginFrame();
+  void endFrame();
+  void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
+  void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
  private:
   void setup_frame(const RenderOptions& settings);
@@ -98,113 +102,15 @@ class VulkanRenderer {
   T* init_bucket_renderer(const std::string& name,
                           BucketCategory cat,
                           BucketId id,
+                          VulkanInitializationInfo& vulkan_info,
                           Args&&... args) {
-    auto renderer = std::make_unique<T>(name, id, std::forward<Args>(args)...);
+    auto renderer = std::make_unique<T>(name, id, vulkan_info, std::forward<Args>(args)...);
     T* ret = renderer.get();
     m_bucket_renderers.at((int)id) = std::move(renderer);
     m_bucket_categories.at((int)id) = cat;
     return ret;
   }
 
-  void createInstance();
-  void setupDebugMessenger();
-  void createSurface();
-  void pickPhysicalDevice();
-  void createLogicalDevice();
-  void createSwapChain();
-  void createImageViews();
-  void createRenderPass();
-  void createDescriptorSetLayout();
-  void createGraphicsPipeline();
-  void createCommandPool();
-  void createColorResources();
-  void createDepthResources();
-  void createFramebuffers();
-  void createTextureImage();
-  void createTextureImageView();
-  void createTextureSampler();
-  void loadModel();
-  void createVertexBuffer();
-  void createIndexBuffer();
-  void createUniformBuffers();
-  void createDescriptorPool();
-  void createDescriptorSets();
-  void createCommandBuffers();
-  void createSyncObjects();
-
-  void drawFrame();
-  void updateUniformBuffer(uint32_t currentImage);
-  void recreateSwapChain();
-  void cleanupSwapChain();
-  void cleanup();
-  SwapChainSupportDetails QuerySwapChainSupport();
-  void populateDebugMessengerCreateInfo(
-      VkDebugUtilsMessengerCreateInfoEXT& createInfo);
-  void CopyBufferToImage(VkBuffer buffer,
-                         VkImage image,
-                         uint32_t width,
-                         uint32_t height,
-                         uint32_t x_offset = 0,
-                         uint32_t y_offset = 0);
-
-  VkInstance instance;
-  VkDebugUtilsMessengerEXT debugMessenger;
-  VkSurfaceKHR surface;
-
-  VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-  VkPhysicalDeviceMemoryProperties memoryProperties;
-  VkSampleCountFlagBits msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-  VkDevice device;
-
-  VkQueue graphicsQueue;
-  VkQueue presentQueue;
-
-  VkSwapchainKHR swapChain;
-  std::vector<VkImage> swapChainImages;
-  VkFormat swapChainImageFormat;
-  VkExtent2D swapChainExtent;
-  std::vector<VkImageView> swapChainImageViews;
-  std::vector<VkFramebuffer> swapChainFramebuffers;
-
-  VkRenderPass renderPass;
-  VkDescriptorSetLayout descriptorSetLayout;
-  VkPipelineLayout pipelineLayout;
-  VkPipeline graphicsPipeline;
-
-  VkCommandPool commandPool;
-
-  VkImage colorImage;
-  VkDeviceMemory colorImageMemory;
-  VkImageView colorImageView;
-
-  VkImage depthImage;
-  VkDeviceMemory depthImageMemory;
-  VkImageView depthImageView;
-
-  uint32_t mipLevels;
-  VkImage textureImage;
-  VkDeviceMemory textureImageMemory;
-  VkImageView textureImageView;
-  VkSampler textureSampler;
-
-//  std::vector<Vertex> vertices;
-  std::vector<uint32_t> indices;
-  VkBuffer vertexBuffer;
-  VkDeviceMemory vertexBufferMemory;
-  VkBuffer indexBuffer;
-  VkDeviceMemory indexBufferMemory;
-
-  std::vector<VkBuffer> uniformBuffers;
-  std::vector<VkDeviceMemory> uniformBuffersMemory;
-
-  VkDescriptorPool descriptorPool;
-  std::vector<VkDescriptorSet> descriptorSets;
-
-  std::vector<VkCommandBuffer> commandBuffers;
-
-  std::vector<VkSemaphore> imageAvailableSemaphores;
-  std::vector<VkSemaphore> renderFinishedSemaphores;
-  std::vector<VkFence> inFlightFences;
   uint32_t currentFrame = 0;
 
   bool framebufferResized = false;
@@ -218,9 +124,24 @@ class VulkanRenderer {
   std::array<BucketCategory, (int)BucketId::MAX_BUCKETS> m_bucket_categories;
 
   std::array<float, (int)BucketCategory::MAX_CATEGORIES> m_category_times;
-  FullScreenDraw m_blackout_renderer;
-  CollideMeshRenderer m_collide_renderer;
 
   float m_last_pmode_alp = 1.;
   bool m_enable_fast_blackout_loads = true;
+
+  void createCommandBuffers();
+  void freeCommandBuffers();
+  void recreateSwapChain();
+
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::unique_ptr<SwapChain> m_swap_chain;
+  std::unique_ptr<DescriptorPool> m_descriptor_pool;
+  std::vector<VkCommandBuffer> commandBuffers;
+  FullScreenDraw m_blackout_renderer{m_device};
+  CollideMeshRenderer m_collide_renderer{m_device};
+
+  uint32_t currentImageIndex;
+  bool isFrameStarted = false;
+
+  VulkanInitializationInfo vulkan_info;
+  VkExtent2D m_extents = {640, 480};
 };

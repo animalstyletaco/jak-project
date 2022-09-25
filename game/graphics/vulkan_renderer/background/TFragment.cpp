@@ -16,13 +16,13 @@ bool looks_like_tfrag_init(const DmaFollower& follow) {
 }
 }  // namespace
 
-TFragment::TFragment(VkDevice& device,
-                     const std::string& name,
+TFragment::TFragment(const std::string& name,
                      BucketId my_id,
+                     VulkanInitializationInfo& vulkan_info,
                      const std::vector<tfrag3::TFragmentTreeKind>& trees,
                      bool child_mode,
                      int level_id)
-    : BucketRenderer(name, my_id, device),
+    : BucketRenderer(name, my_id, vulkan_info),
       m_child_mode(child_mode),
       m_tree_kinds(trees),
       m_level_id(level_id) {

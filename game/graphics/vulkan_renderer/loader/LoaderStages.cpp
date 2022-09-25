@@ -7,47 +7,52 @@ constexpr float LOAD_BUDGET = 2.5f;
 /*!
  * Upload a texture to the GPU, and give it to the pool.
  */
-TextureInfo add_texture(TexturePool& pool, const tfrag3::Texture& tex, bool is_common) {
-  TextureInfo textureInfo;
-  textureInfo.device_size = tex.w * tex.h * 4;
+TextureInfo add_texture(TexturePool& pool, const tfrag3::Texture& tex, std::unique_ptr<GraphicsDeviceVulkan>& device) {
+  TextureInfo textureInfo{device};
 
-  //textureInfo.CreateImage(tex.w, tex.h, VK_IMAGE_TYPE_1D, 1, VK_SAMPLE_COUNT_1_BIT,
-  //                        VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
-  //                        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-  //                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureInfo.texture,
-  //                        textureInfo.texture_memory, textureInfo.texture_memory_size);
+  VkExtent3D extents{tex.w, tex.h, 1};
+  textureInfo.CreateImage(extents, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(),
+                          VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
+                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  void* data = NULL;
-  vkMapMemory(textureInfo.device, textureInfo.texture_device_memory, 0, textureInfo.device_size, 0, &data);
-  ::memcpy(data, tex.data.data(), textureInfo.device_size);
-  vkUnmapMemory(textureInfo.device, textureInfo.texture_device_memory);
+  textureInfo.map();
+  textureInfo.writeToBuffer((u32*)tex.data.data());
+  textureInfo.unmap();
 
   //TODO: Get Mipmap Level here
-
   unsigned mipLevels = 1;
-  //textureInfo.texture_image_view = CreateImageView(texture, VK_FORMAT_A8B8G8R8_SINT_PACK32,
-  //                                                 VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+
+  textureInfo.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                              VK_IMAGE_ASPECT_COLOR_BIT, 1);
   // Max Anisotropy is set in vulkan renderer sampler info;
 
   if (tex.load_to_pool) {
-    TextureInput in;
-    in.debug_page_name = tex.debug_tpage_name;
-    in.debug_name = tex.debug_name;
-    in.w = tex.w;
-    in.h = tex.h;
-    in.gpu_texture = gl_tex;
-    in.common = is_common;
-    in.id = PcTextureId::from_combo_id(tex.combo_id);
-    in.src_data = (const u8*)tex.data.data();
-    pool.give_texture(in);
+
   }
 
   return textureInfo;
 }
 
+void load_texture(TexturePool& pool,
+                  const tfrag3::Texture& tex,
+                  TextureInfo& texture_info,
+                  bool is_common) {
+  TextureInput in;
+  in.debug_page_name = tex.debug_tpage_name;
+  in.debug_name = tex.debug_name;
+  in.w = tex.w;
+  in.h = tex.h;
+  in.gpu_texture = &texture_info;
+  in.common = is_common;
+  in.id = PcTextureId::from_combo_id(tex.combo_id);
+  in.src_data = (const u8*)tex.data.data();
+  pool.give_texture(in);
+}
+
 class TextureLoaderStage : public LoaderStage {
  public:
-  TextureLoaderStage() : LoaderStage("texture") {}
+  TextureLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStage(device, "texture") {}
   bool run(Timer& timer, LoaderInput& data) override {
     constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 512;
 
@@ -57,7 +62,10 @@ class TextureLoaderStage : public LoaderStage {
       std::unique_lock<std::mutex> tpool_lock(data.tex_pool->mutex());
       while (data.lev_data->textures.size() < data.lev_data->level->textures.size()) {
         auto& tex = data.lev_data->level->textures[data.lev_data->textures.size()];
-        data.lev_data->textures.push_back(add_texture(*data.tex_pool, tex, false));
+        data.lev_data->textures.push_back(add_texture(*data.tex_pool, tex, m_device));
+        if (tex.load_to_pool) {
+          load_texture(*data.tex_pool, tex, data.lev_data->textures.back(), false);
+        }
         bytes_this_run += tex.w * tex.h * 4;
         tex_this_run++;
         if (tex_this_run > 20) {
@@ -75,7 +83,7 @@ class TextureLoaderStage : public LoaderStage {
 
 class TfragLoadStage : public LoaderStage {
  public:
-  TfragLoadStage() : LoaderStage("tfrag") {}
+  TfragLoadStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStage(device, "tfrag") {}
   bool run(Timer& timer, LoaderInput& data) override {
     if (m_done) {
       return true;
@@ -90,13 +98,11 @@ class TfragLoadStage : public LoaderStage {
       for (int geo = 0; geo < tfrag3::TFRAG_GEOS; geo++) {
         auto& in_trees = data.lev_data->level->tfrag_trees[geo];
         for (auto& in_tree : in_trees) {
-          GLuint& tree_out = data.lev_data->tfrag_vertex_data[geo].emplace_back();
-          glGenBuffers(1, &tree_out);
-          glBindBuffer(GL_ARRAY_BUFFER, tree_out);
+          std::unique_ptr<VertexBuffer>& tree_vertex_buffer = data.lev_data->tfrag_vertex_data[geo].emplace_back();
 
-          glBufferData(GL_ARRAY_BUFFER,
-                       in_tree.unpacked.vertices.size() * sizeof(tfrag3::PreloadedVertex), nullptr,
-                       GL_STATIC_DRAW);
+          tree_vertex_buffer = std::make_unique<VertexBuffer>(
+              m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(),
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
         }
       }
       m_vulkan_created = true;
@@ -133,11 +139,14 @@ class TfragLoadStage : public LoaderStage {
           complete_tree = true;
         }
 
-        glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->tfrag_vertex_data[m_next_geo][m_next_tree]);
+        auto& tree_vertex_buffer = data.lev_data->tfrag_vertex_data[m_next_geo][m_next_tree];
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
-        glBufferSubData(GL_ARRAY_BUFFER, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex),
-                        upload_size, tree.unpacked.vertices.data() + start_vert_for_chunk);
+
+        tree_vertex_buffer->map(upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
+        tree_vertex_buffer->writeToBuffer((tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
+                                          upload_size, 0);
+        tree_vertex_buffer->unmap();
         uploaded_bytes += upload_size;
       }
 
@@ -186,7 +195,7 @@ class TfragLoadStage : public LoaderStage {
 
 class ShrubLoadStage : public LoaderStage {
  public:
-  ShrubLoadStage() : LoaderStage("shrub") {}
+  ShrubLoadStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStage(device, "shrub") {}
   bool run(Timer& timer, LoaderInput& data) override {
     if (m_done) {
       return true;
@@ -199,7 +208,10 @@ class ShrubLoadStage : public LoaderStage {
 
     if (!m_vulkan_created) {
       for (auto& in_tree : data.lev_data->level->shrub_trees) {
-        //CreateVertexBuffer(in_tree.unpacked.vertices);
+        std::unique_ptr<VertexBuffer>& tree_out = data.lev_data->shrub_vertex_data.emplace_back();
+        tree_out = std::make_unique<VertexBuffer>(
+            m_device, sizeof(tfrag3::ShrubGpuVertex), in_tree.unpacked.vertices.size(),
+            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
       }
       m_vulkan_created = true;
       return false;
@@ -231,11 +243,14 @@ class ShrubLoadStage : public LoaderStage {
         complete_tree = true;
       }
 
-      //u32 upload_size =
-      //    (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
-      //glBufferSubData(GL_ARRAY_BUFFER, start_vert_for_chunk * sizeof(tfrag3::ShrubGpuVertex),
-      //                upload_size, tree.unpacked.vertices.data() + start_vert_for_chunk);
-      //uploaded_bytes += upload_size;
+      u32 upload_size =
+          (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
+      data.lev_data->shrub_vertex_data[m_next_tree]->map(upload_size, start_vert_for_chunk *
+                                                         sizeof(tfrag3::ShrubGpuVertex));
+      data.lev_data->shrub_vertex_data[m_next_tree]->writeToBuffer((tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data() +
+                                                                   start_vert_for_chunk);
+      data.lev_data->shrub_vertex_data[m_next_tree]->unmap();
+      uploaded_bytes += upload_size;
 
       if (complete_tree) {
         // and move on to next tree
@@ -269,7 +284,7 @@ class ShrubLoadStage : public LoaderStage {
 
 class TieLoadStage : public LoaderStage {
  public:
-  TieLoadStage() : LoaderStage("tie") {}
+  TieLoadStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStage(device, "tie") {}
   bool run(Timer& timer, LoaderInput& data) override {
     if (m_done) {
       return true;
@@ -285,11 +300,9 @@ class TieLoadStage : public LoaderStage {
         auto& in_trees = data.lev_data->level->tie_trees[geo];
         for (auto& in_tree : in_trees) {
           LevelData::TieVulkan& tree_out = data.lev_data->tie_data[geo].emplace_back();
-          glGenBuffers(1, &tree_out.vertex_buffer);
-          glBindBuffer(GL_ARRAY_BUFFER, tree_out.vertex_buffer);
-          glBufferData(GL_ARRAY_BUFFER,
-                       in_tree.unpacked.vertices.size() * sizeof(tfrag3::PreloadedVertex), nullptr,
-                       GL_STATIC_DRAW);
+          tree_out.vertex_buffer = std::make_unique<VertexBuffer>(
+              m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(),
+              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
         }
       }
       m_vulkan_created = true;
@@ -323,12 +336,15 @@ class TieLoadStage : public LoaderStage {
           complete_tree = true;
         }
 
-        glBindBuffer(GL_ARRAY_BUFFER,
-                     data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer);
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
-        glBufferSubData(GL_ARRAY_BUFFER, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex),
-                        upload_size, tree.unpacked.vertices.data() + start_vert_for_chunk);
+
+        data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->map(
+            upload_size,
+            start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
+        data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->writeToBuffer(
+            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk);
+        data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->unmap();
         uploaded_bytes += upload_size;
 
         if (complete_tree) {
@@ -370,8 +386,6 @@ class TieLoadStage : public LoaderStage {
           }
           if (wind_idx_buffer_len > 0) {
             out_tree.has_wind = true;
-            glGenBuffers(1, &out_tree.wind_indices);
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, out_tree.wind_indices);
             std::vector<u32> temp;
             temp.resize(wind_idx_buffer_len);
             u32 off = 0;
@@ -380,9 +394,13 @@ class TieLoadStage : public LoaderStage {
                      draw.vertex_index_stream.size() * sizeof(u32));
               off += draw.vertex_index_stream.size();
             }
+            out_tree.wind_indices = std::make_unique<IndexBuffer>(
+                m_device, sizeof(u32), wind_idx_buffer_len,
+                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
-            glBufferData(GL_ELEMENT_ARRAY_BUFFER, wind_idx_buffer_len * sizeof(u32), temp.data(),
-                         GL_STATIC_DRAW);
+            out_tree.wind_indices->map();
+            out_tree.wind_indices->writeToBuffer((u32*)temp.data());
+            out_tree.wind_indices->unmap();
             abort = true;
           }
         }
@@ -406,9 +424,13 @@ class TieLoadStage : public LoaderStage {
     m_verts_done = false;
     m_indices_done = false;
     m_wind_indices_done = false;
+    m_tie_index_buffer.reset();
+    m_tie_vertex_buffer.reset();
   }
 
  private:
+  std::unique_ptr<VertexBuffer> m_tie_vertex_buffer;
+  std::unique_ptr<IndexBuffer> m_tie_index_buffer;
   bool m_done = false;
   bool m_vulkan_created = false;
   bool m_verts_done = false;
@@ -421,28 +443,27 @@ class TieLoadStage : public LoaderStage {
 
 class CollideLoaderStage : public LoaderStage {
  public:
-  CollideLoaderStage() : LoaderStage("collide") {}
+  CollideLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStage(device, "collide") {}
   bool run(Timer& /*timer*/, LoaderInput& data) override {
     if (m_done) {
       return true;
     }
     if (!m_vulkan_created) {
-      glGenBuffers(1, &data.lev_data->collide_vertices);
-      glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->collide_vertices);
-      glBufferData(
-          GL_ARRAY_BUFFER,
-          data.lev_data->level->collision.vertices.size() * sizeof(tfrag3::CollisionMesh::Vertex),
-          nullptr, GL_STATIC_DRAW);
+      m_collide_vertex_buffer = std::make_unique<VertexBuffer>(m_device, sizeof(tfrag3::CollisionMesh::Vertex),
+                                                               data.lev_data->level->collision.vertices.size(),
+                                                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                                                               1);
       m_vulkan_created = true;
       return false;
     }
 
     u32 start = m_vtx;
     u32 end = std::min((u32)data.lev_data->level->collision.vertices.size(), start + 32768);
-    glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->collide_vertices);
-    glBufferSubData(GL_ARRAY_BUFFER, start * sizeof(tfrag3::CollisionMesh::Vertex),
-                    (end - start) * sizeof(tfrag3::CollisionMesh::Vertex),
-                    data.lev_data->level->collision.vertices.data() + start);
+    m_collide_vertex_buffer->map((end - start) * sizeof(tfrag3::CollisionMesh::Vertex),
+                                 start * sizeof(tfrag3::CollisionMesh::Vertex));
+    m_collide_vertex_buffer->writeToBuffer(data.lev_data->level->collision.vertices.data() + start,
+                                           (end - start) * sizeof(tfrag3::CollisionMesh::Vertex), 0);
+    m_collide_vertex_buffer->unmap();
     m_vtx = end;
 
     if (m_vtx == data.lev_data->level->collision.vertices.size()) {
@@ -456,15 +477,35 @@ class CollideLoaderStage : public LoaderStage {
     m_vulkan_created = false;
     m_vtx = 0;
     m_done = false;
+    m_collide_vertex_buffer.reset();
   }
 
  private:
+  std::unique_ptr<VertexBuffer> m_collide_vertex_buffer;
   bool m_vulkan_created = false;
   u32 m_vtx = 0;
   bool m_done = false;
 };
 
-MercLoaderStage::MercLoaderStage() : LoaderStage("merc") {}
+class StallLoaderStage : public LoaderStage {
+ public:
+  StallLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStage(device, "stall") {}
+  bool run(Timer&, LoaderInput& /*data*/) override {
+    m_count++;
+    if (m_count > 10) {
+      return true;
+    }
+    return false;
+  }
+
+  void reset() override { m_count = 0; }
+
+ private:
+  int m_count = 0;
+};
+
+MercLoaderStage::MercLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device)
+    : LoaderStage(device, "merc") {}
 void MercLoaderStage::reset() {
   m_done = false;
   m_vulkan = false;
@@ -478,26 +519,24 @@ bool MercLoaderStage::run(Timer& /*timer*/, LoaderInput& data) {
   }
 
   if (!m_vulkan) {
-    glGenBuffers(1, &data.lev_data->merc_indices);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.lev_data->merc_indices);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                 data.lev_data->level->merc_data.indices.size() * sizeof(u32), nullptr,
-                 GL_STATIC_DRAW);
+    data.lev_data->merc_indices = std::make_unique<IndexBuffer>(
+        m_device, sizeof(u32), data.lev_data->level->merc_data.indices.size(),
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
-    glGenBuffers(1, &data.lev_data->merc_vertices);
-    glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->merc_vertices);
-    glBufferData(GL_ARRAY_BUFFER,
-                 data.lev_data->level->merc_data.vertices.size() * sizeof(tfrag3::MercVertex),
-                 nullptr, GL_STATIC_DRAW);
+    data.lev_data->merc_vertices = std::make_unique<VertexBuffer>(
+        m_device, sizeof(tfrag3::MercVertex), data.lev_data->level->merc_data.vertices.size(),
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+
     m_vulkan = true;
   }
 
   if (!m_vtx_uploaded) {
     u32 start = m_idx;
     m_idx = std::min(start + 32768, (u32)data.lev_data->level->merc_data.indices.size());
-    glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->merc_indices);
-    glBufferSubData(GL_ARRAY_BUFFER, start * sizeof(u32), (m_idx - start) * sizeof(u32),
-                    data.lev_data->level->merc_data.indices.data() + start);
+    data.lev_data->merc_indices->map((m_idx - start) * sizeof(u32), start * sizeof(u32));
+    data.lev_data->merc_indices->writeToBuffer((u32*)data.lev_data->level->merc_data.indices.data() +
+                                               start);
+    data.lev_data->merc_indices->unmap();
     if (m_idx != data.lev_data->level->merc_data.indices.size()) {
       return false;
     } else {
@@ -508,10 +547,12 @@ bool MercLoaderStage::run(Timer& /*timer*/, LoaderInput& data) {
 
   u32 start = m_idx;
   m_idx = std::min(start + 32768, (u32)data.lev_data->level->merc_data.vertices.size());
-  glBindBuffer(GL_ARRAY_BUFFER, data.lev_data->merc_vertices);
-  glBufferSubData(GL_ARRAY_BUFFER, start * sizeof(tfrag3::MercVertex),
-                  (m_idx - start) * sizeof(tfrag3::MercVertex),
-                  data.lev_data->level->merc_data.vertices.data() + start);
+  data.lev_data->merc_vertices->map((m_idx - start) * sizeof(tfrag3::MercVertex),
+                                    start * sizeof(tfrag3::MercVertex));
+  data.lev_data->merc_vertices->writeToBuffer(
+      (tfrag3::MercVertex*)data.lev_data->level->merc_data.indices.data() +
+                                             start);
+  data.lev_data->merc_vertices->unmap();
 
   if (m_idx != data.lev_data->level->merc_data.vertices.size()) {
     return false;
@@ -526,13 +567,14 @@ bool MercLoaderStage::run(Timer& /*timer*/, LoaderInput& data) {
   return true;
 }
 
-std::vector<std::unique_ptr<LoaderStage>> make_loader_stages() {
+std::vector<std::unique_ptr<LoaderStage>> make_loader_stages(std::unique_ptr<GraphicsDeviceVulkan>& device) {
   std::vector<std::unique_ptr<LoaderStage>> ret;
-  ret.push_back(std::make_unique<TieLoadStage>());
-  ret.push_back(std::make_unique<TextureLoaderStage>());
-  ret.push_back(std::make_unique<TfragLoadStage>());
-  ret.push_back(std::make_unique<ShrubLoadStage>());
-  ret.push_back(std::make_unique<CollideLoaderStage>());
-  ret.push_back(std::make_unique<MercLoaderStage>());
+  ret.push_back(std::make_unique<TieLoadStage>(device));
+  ret.push_back(std::make_unique<TextureLoaderStage>(device));
+  ret.push_back(std::make_unique<TfragLoadStage>(device));
+  ret.push_back(std::make_unique<ShrubLoadStage>(device));
+  ret.push_back(std::make_unique<CollideLoaderStage>(device));
+  ret.push_back(std::make_unique<StallLoaderStage>(device));
+  ret.push_back(std::make_unique<MercLoaderStage>(device));
   return ret;
 }

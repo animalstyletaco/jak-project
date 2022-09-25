@@ -4,9 +4,9 @@
 
 class Generic2 : public BucketRenderer {
  public:
-  Generic2(VkDevice& device,
-           const std::string& name,
+  Generic2(const std::string& name,
            BucketId my_id,
+           VulkanInitializationInfo& vulkan_info,
            u32 num_verts = 200000,
            u32 num_frags = 2000,
            u32 num_adgif = 6000,
@@ -197,10 +197,57 @@ protected:
   bool m_alpha_draw_enable[ALPHA_MODE_COUNT] = {true, true, true, true, true, true, true};
 
   struct {
-    GLuint vao;
-    GLuint vertex_buffer;
-    GLuint index_buffer;
+    std::unique_ptr<VertexBuffer> vertex_buffer;
+    std::unique_ptr<IndexBuffer> index_buffer;
     GLuint alpha_reject, color_mult, fog_color, scale, mat_23, mat_32, mat_33, fog_consts,
         hvdf_offset;
   } m_ogl;
+
+  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+};
+
+struct GenericCommonVertexUniformShaderData {
+  float mat_32;
+  math::Vector3f fog_constants;
+  math::Vector4f scale;
+  float mat_23;
+  float mat_33;
+  math::Vector4f hvdf_offset;
+};
+
+class GenericCommonVertexUniformBuffer : public UniformBuffer {
+ public:
+  GenericCommonVertexUniformBuffer(
+      std::unique_ptr<GraphicsDeviceVulkan>& device,
+      VkDeviceSize instanceSize,
+      uint32_t instanceCount,
+      VkMemoryPropertyFlags memoryPropertyFlags,
+      VkDeviceSize minOffsetAlignment);
+};
+
+struct GenericCommonFragmentUniformShaderData {
+  float alpha_reject;
+  float color_mult;
+  math::Vector4f fog_color;
+};
+
+//layout(binding = 0) uniform sampler2D tex_T0;
+//layout(binding = 1) uniform sampler2D tex_T1;
+//layout(binding = 2) uniform sampler2D tex_T2;
+//layout(binding = 3) uniform sampler2D tex_T3;
+//layout(binding = 4) uniform sampler2D tex_T4;
+//layout(binding = 5) uniform sampler2D tex_T5;
+//layout(binding = 6) uniform sampler2D tex_T6;
+//layout(binding = 7) uniform sampler2D tex_T7;
+//layout(binding = 8) uniform sampler2D tex_T8;
+//layout(binding = 9) uniform sampler2D tex_T9;
+
+class GenericCommonFragmentUniformBuffer : public UniformBuffer {
+ public:
+  GenericCommonFragmentUniformBuffer(
+      std::unique_ptr<GraphicsDeviceVulkan>& device,
+      VkDeviceSize instanceSize,
+      uint32_t instanceCount,
+      VkMemoryPropertyFlags memoryPropertyFlags,
+      VkDeviceSize minOffsetAlignment);
 };

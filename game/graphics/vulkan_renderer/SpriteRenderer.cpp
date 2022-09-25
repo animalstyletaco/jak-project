@@ -35,13 +35,14 @@ u32 process_sprite_chunk_header(DmaFollower& dma) {
 
 constexpr int SPRITE_RENDERER_MAX_SPRITES = 8000;
 
-SpriteRenderer::SpriteRenderer(const std::string& name, BucketId my_id, VkDevice device)
-    : BucketRenderer(name, my_id, device) {
+SpriteRenderer::SpriteRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, vulkan_info) {
   auto verts = SPRITE_RENDERER_MAX_SPRITES * 3 * 2;
   auto bytes = verts * sizeof(SpriteVertex3D);
 
   m_vertices_3d.resize(verts);
-  VkBuffer vertex_buffer = CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vertices_3d);
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_vulkan_info.device, bytes, 1,
+               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 }
 
 void SpriteRenderer::InitializeInputVertexAttribute() {
@@ -187,23 +188,23 @@ void SpriteRenderer::render_2d_group0(DmaFollower& dma,
                                       SharedRenderState* render_state,
                                       ScopedProfilerNode& prof) {
   // opengl sprite frame setup
-  m_uniform_buffer.SetUniformVectorFourFloat("hvdf_offset", 1, m_3d_matrix_data.hvdf_offset.data());
-  m_uniform_buffer.SetUniform1f("pfog0", m_frame_data.pfog0);
-  m_uniform_buffer.SetUniform1f("min_scale", m_frame_data.min_scale);
-  m_uniform_buffer.SetUniform1f("max_scale", m_frame_data.max_scale);
-  m_uniform_buffer.SetUniform1f("fog_min", m_frame_data.fog_min);
-  m_uniform_buffer.SetUniform1f("fog_max", m_frame_data.fog_max);
-  m_uniform_buffer.SetUniform1f("bonus", m_frame_data.bonus);
-  m_uniform_buffer.SetUniformVectorFourFloat("hmge_scale", 1,
-                                             m_frame_data.hmge_scale.data());
-  m_uniform_buffer.SetUniform1f("deg_to_rad", m_frame_data.deg_to_rad);
-  m_uniform_buffer.SetUniform1f("inv_area", m_frame_data.inv_area);
-  m_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE, m_3d_matrix_data.camera.data());
-  m_uniform_buffer.SetUniformVectorFourFloat("xy_array", 8, m_frame_data.xy_array[0].data());
-  m_uniform_buffer.SetUniformVectorFourFloat("xyz_array", 4, m_frame_data.xyz_array[0].data());
-  m_uniform_buffer.SetUniformVectorFourFloat("st_array", 4, m_frame_data.st_array[0].data());
-  m_uniform_buffer.SetUniformVectorFourFloat("basis_x", 1, m_frame_data.basis_x.data());
-  m_uniform_buffer.SetUniformVectorFourFloat("basis_y", 1, m_frame_data.basis_y.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("hvdf_offset", 1, m_3d_matrix_data.hvdf_offset.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("pfog0", m_frame_data.pfog0);
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("min_scale", m_frame_data.min_scale);
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("max_scale", m_frame_data.max_scale);
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("fog_min", m_frame_data.fog_min);
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("fog_max", m_frame_data.fog_max);
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("bonus", m_frame_data.bonus);
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("hmge_scale", 1,
+                                                               m_frame_data.hmge_scale.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("deg_to_rad", m_frame_data.deg_to_rad);
+  m_sprite_3d_vertex_uniform_buffer->SetUniform1f("inv_area", m_frame_data.inv_area);
+  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE, m_3d_matrix_data.camera.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xy_array", 8, m_frame_data.xy_array[0].data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xyz_array", 4, m_frame_data.xyz_array[0].data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("st_array", 4, m_frame_data.st_array[0].data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("basis_x", 1, m_frame_data.basis_x.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("basis_y", 1, m_frame_data.basis_y.data());
 
   u16 last_prog = -1;
 
@@ -283,12 +284,15 @@ void SpriteRenderer::render_2d_group1(DmaFollower& dma,
   memcpy(&m_hud_matrix_data, mat_upload.data, sizeof(m_hud_matrix_data));
 
   // opengl sprite frame setup
-  m_uniform_buffer.SetUniformVectorFourFloat("hud_hvdf_offset",
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat(
+      "hud_hvdf_offset",
       1,
       m_hud_matrix_data.hvdf_offset.data());
-  m_uniform_buffer.SetUniformVectorFourFloat("hud_hvdf_user",
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat(
+      "hud_hvdf_user",
                75, m_hud_matrix_data.user_hvdf[0].data());
-  m_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("hud_matrix", 1, GL_FALSE,
+  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+      "hud_matrix", 1, GL_FALSE,
       m_hud_matrix_data.matrix.data());
 
   m_prim_vulkan_state.from_register(m_frame_data.sprite_2d_giftag2.prim());
@@ -439,16 +443,21 @@ void SpriteRenderer::flush_sprites(SharedRenderState* render_state, ScopedProfil
 
   update_vulkan_blend(m_adgif_state_stack[m_adgif_index]);
 
+  VkPipelineDepthStencilStateCreateInfo depthStencil{};
+  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  depthStencil.depthTestEnable = VK_TRUE;
+
   if (m_adgif_state_stack[m_adgif_index].z_write) {
-    glDepthMask(GL_TRUE);
+    depthStencil.depthWriteEnable = VK_TRUE;
   } else {
-    glDepthMask(GL_FALSE);
+    depthStencil.depthWriteEnable = VK_FALSE;
   }
 
   // render!
 
-  //glBufferData(GL_ARRAY_BUFFER, m_sprite_offset * sizeof(SpriteVertex3D) * 6, m_vertices_3d.data(),
-  //             GL_STREAM_DRAW);
+  m_ogl.vertex_buffer->map();
+  m_ogl.vertex_buffer->writeToBuffer(m_vertices_3d.data());
+  m_ogl.vertex_buffer->unmap();
 
   //glDrawArrays(GL_TRIANGLES, 0, m_sprite_offset * 6);
 

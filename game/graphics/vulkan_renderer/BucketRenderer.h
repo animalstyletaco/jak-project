@@ -10,6 +10,10 @@
 #include "game/graphics/vulkan_renderer/buckets.h"
 #include "game/graphics/vulkan_renderer/loader/Loader.h"
 #include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/Buffer.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 
 struct LevelVis {
   bool valid = false;
@@ -23,12 +27,13 @@ class EyeRenderer;
  */
 struct SharedRenderState {
   explicit SharedRenderState(std::shared_ptr<TexturePool> _texture_pool,
-                             std::shared_ptr<Loader> _loader)
-      : texture_pool(_texture_pool), loader(_loader) {}
+                             std::shared_ptr<Loader> _loader,
+                             std::unique_ptr<GraphicsDeviceVulkan>& device)
+      : texture_pool(_texture_pool), loader(_loader), shaders(device) {}
 
-  ShaderLibrary shaders;
   std::shared_ptr<TexturePool> texture_pool;
   std::shared_ptr<Loader> loader;
+  ShaderLibrary shaders;
 
   u32 buckets_base = 0;  // address of buckets array.
   u32 next_bucket = 0;   // address of next bucket that we haven't started rendering in buckets
@@ -44,7 +49,6 @@ struct SharedRenderState {
   float fog_intensity = 1.f;
   bool no_multidraw = false;
 
-  void ResetShaderLibrary(VkDevice device) { shaders = ShaderLibrary(device); }
   void reset();
   bool has_pc_data = false;
   LevelVis occlusion_vis[2];
@@ -78,13 +82,21 @@ struct SharedRenderState {
   int draw_offset_y = 0;
 };
 
+struct VulkanInitializationInfo {
+  std::unique_ptr<GraphicsDeviceVulkan> device;
+  std::unique_ptr<DescriptorLayout> descriptor_layout;
+  VkRenderPass render_pass;
+};
+
+
 /*!
  * Interface for bucket renders. Each bucket will have its own BucketRenderer.
  */
 class BucketRenderer {
  public:
-  BucketRenderer(const std::string& name, BucketId my_id, VkDevice device)
-      : m_name(name), m_my_id(my_id), m_device(device) {}
+  BucketRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+      : m_name(name), m_my_id(my_id), m_vulkan_info(vulkan_info),
+        m_pipeline_layout(vulkan_info.device) {}
   virtual void render(DmaFollower& dma,
                       SharedRenderState* render_state,
                       ScopedProfilerNode& prof) = 0;
@@ -97,45 +109,18 @@ class BucketRenderer {
   virtual void init_textures(TexturePool&) {}
 
  protected:
-  VkDevice m_device;
-  UniformBuffer m_uniform_buffer;
   std::string m_name;
   BucketId m_my_id;
+  VulkanInitializationInfo& m_vulkan_info;
+  GraphicsPipelineLayout m_pipeline_layout;
   bool m_enabled = true;
-
-  void CreateImage(uint32_t width,
-                   uint32_t height,
-                   VkImageType imageType,
-                   uint32_t mipLevels,
-                   VkSampleCountFlagBits numSamples,
-                   VkFormat format,
-                   VkImageTiling tiling,
-                   VkImageUsageFlags usage,
-                   VkMemoryPropertyFlags properties,
-                   VkImage& image,
-                   VkDeviceMemory& imageMemory,
-                   VkDeviceSize& deviceSize);
-
-  VkImageView CreateImageView(VkImage image,
-                              VkFormat format,
-                              VkImageViewType viewType,
-                              VkImageAspectFlags aspectFlags,
-                              uint32_t mipLevels);
-
-  void CreateTextureSampler(VkFilter mag_filter, VkFilter min_filter, uint32_t mips_level);
-
-  template <class T>
-  VkBuffer CreateBuffer(VkBufferUsageFlags usage_flag, const T* input_data, uint64_t element_count);
-
-  template <class T>
-  VkBuffer CreateBuffer(VkBufferUsageFlags usage_flag, std::vector<T>& input_data);
-  uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 };
 
 class RenderMux : public BucketRenderer {
  public:
   RenderMux(const std::string& name,
             BucketId my_id,
+            VulkanInitializationInfo& vulkan_info,
             std::vector<std::unique_ptr<BucketRenderer>> renderers);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
@@ -155,7 +140,7 @@ class RenderMux : public BucketRenderer {
  */
 class EmptyBucketRenderer : public BucketRenderer {
  public:
-  EmptyBucketRenderer(const std::string& name, BucketId my_id);
+  EmptyBucketRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   bool empty() const override { return true; }
   void draw_debug_window() override {}
@@ -164,7 +149,7 @@ class EmptyBucketRenderer : public BucketRenderer {
 
 class SkipRenderer : public BucketRenderer {
  public:
-  SkipRenderer(const std::string& name, BucketId my_id);
+  SkipRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   bool empty() const override { return true; }
   void draw_debug_window() override {}

@@ -23,7 +23,7 @@
 #include "game/system/newpad.h"
 
 #ifdef _WIN32
-#include "pipelines/vulkan.h"
+#include "pipelines/vulkan_pipeline.h"
 #else
 #include "pipelines/opengl.h"
 #endif
@@ -64,11 +64,12 @@ std::function<void()> vsync_callback;
 GfxGlobalSettings g_global_settings;
 GfxSettings g_settings;
 
+//Attempting to future proof for os-specific renderers like DirectX and Metal
+std::array<const GfxRendererModule*, static_cast<uint32_t>(GfxPipeline::Count)> renderers{NULL};
+
 Pad::MappingInfo& get_button_mapping() {
   return g_settings.pad_mapping_info;
 }
-
-// const std::vector<const GfxRendererModule*> renderers = {&moduleOpenGL};
 
 // Not crazy about this declaration
 const std::pair<std::string, Pad::Button> gamepad_map[] = {{"Select", Pad::Button::Select},
@@ -244,15 +245,11 @@ void LoadSettings() {
 }
 
 const GfxRendererModule* GetRenderer(GfxPipeline pipeline) {
-  switch (pipeline) {
-    case GfxPipeline::Invalid:
-      lg::error("Requested invalid renderer", pipeline);
-      return NULL;
-    case GfxPipeline::OpenGL:
-      return &gRendererOpenGL;
-    default:
-      lg::error("Requested unknown renderer {}", (u64)pipeline);
-      return NULL;
+  uint32_t pipeline_index = static_cast<uint32_t>(pipeline);
+  if (renderers[pipeline_index]) {
+    return renderers[pipeline_index];
+  } else {
+    lg::error("Requested invalid renderer", pipeline);
   }
 }
 
@@ -273,6 +270,12 @@ u32 Init(GameVersion version) {
   Pad::ForceClearKeys();
 
   LoadSettings();
+
+#ifdef _WIN32
+  renderers[static_cast<uint32_t>(GfxPipeline::Vulkan)] = &gRendererVulkan;
+#else
+  renderers[static_cast<uint32_t>(GfxPipeline::OpenGoal)] = &gRendererOpenGL;
+#endif
   SetRenderer(g_settings.renderer);
 
   if (GetCurrentRenderer()->init(g_settings)) {

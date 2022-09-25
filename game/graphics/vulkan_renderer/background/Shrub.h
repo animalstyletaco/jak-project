@@ -7,11 +7,11 @@
 #include "game/graphics/gfx.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 class Shrub : public BucketRenderer {
  public:
-  Shrub(const std::string& name, BucketId my_id, VkDevice& device);
+  Shrub(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   ~Shrub();
   bool setup_for_level(const std::string& level, SharedRenderState* render_state);
   void render_all_trees(const TfragRenderSettings& settings,
@@ -32,11 +32,10 @@ protected:
   void discard_tree_cache();
 
   struct Tree {
-    GLuint vertex_buffer;
-    GLuint index_buffer;
-    GLuint single_draw_index_buffer;
-    GLuint time_of_day_texture;
-    GLuint vao;
+    std::unique_ptr<Buffer> vertex_buffer;
+    std::unique_ptr<Buffer> index_buffer;
+    std::unique_ptr<Buffer> single_draw_index_buffer;
+    std::unique_ptr<TextureInfo> time_of_day_texture;
     u32 vert_count;
     const std::vector<tfrag3::ShrubDraw>* draws = nullptr;
     const std::vector<tfrag3::TieWindInstance>* instance_info = nullptr;
@@ -74,5 +73,7 @@ protected:
     std::vector<void*> multidraw_index_offset_buffer;
   } m_cache;
   TfragPcPortData m_pc_port_data;
-  UniformBuffer time_of_day_color_buffer;
+
+  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+  std::unique_ptr<UniformBuffer> time_of_day_color_buffer;
 };

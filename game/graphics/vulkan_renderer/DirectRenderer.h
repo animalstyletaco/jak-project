@@ -8,7 +8,26 @@
 #include "common/util/SmallVector.h"
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
+
+struct DirectBasicTexturedFragmentUniformShaderData {
+  float alpha_reject;
+  float color_mult;
+  float alpha_mult;
+  float alpha_sub;
+  math::Vector4f fog_color;
+};
+
+class DirectBasicTexturedFragmentUniformBuffer : public UniformBuffer {
+ public:
+  DirectBasicTexturedFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                           VkDeviceSize instanceSize,
+                                           uint32_t instanceCount,
+                                           VkMemoryPropertyFlags memoryPropertyFlags,
+                                           VkDeviceSize minOffsetAlignment)
+      : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {}
+};
+
 
 /*!
  * The direct renderer will handle rendering GIFtags directly.
@@ -21,7 +40,7 @@
  */
 class DirectRenderer : public BucketRenderer {
  public:
-  DirectRenderer(const std::string& name, BucketId my_id, VkDevice device, int batch_size);
+  DirectRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info, int batch_size);
   ~DirectRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
@@ -239,8 +258,7 @@ class DirectRenderer : public BucketRenderer {
   } m_prim_buffer;
 
   struct {
-    GLuint vertex_buffer;
-    GLuint vao;
+    std::unique_ptr<Buffer> vertex_buffer;
     u32 vertex_buffer_bytes = 0;
     u32 vertex_buffer_max_verts = 0;
     float color_mult = 1.0;
@@ -276,4 +294,6 @@ class DirectRenderer : public BucketRenderer {
   struct SpriteMode {
     bool do_first_draw = true;
   } m_sprite_mode;
+
+  std::unique_ptr<DirectBasicTexturedFragmentUniformBuffer> m_direct_basic_fragment_uniform_buffer;
 };

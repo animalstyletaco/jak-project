@@ -13,20 +13,20 @@ void Generic2::init_shaders(ShaderLibrary& shaders) {
 }
 
 void Generic2::vulkan_bind_and_setup_proj(SharedRenderState* render_state) {
-  m_uniform_buffer.SetUniform4f(
+  m_uniform_buffer->SetUniform4f(
               "fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
-  m_uniform_buffer.SetUniform4f("scale", m_drawing_config.proj_scale[0],
+  m_uniform_buffer->SetUniform4f("scale", m_drawing_config.proj_scale[0],
                                                         m_drawing_config.proj_scale[1],
               m_drawing_config.proj_scale[2], 0);
-  m_uniform_buffer.SetUniform1f("mat_23", m_drawing_config.proj_mat_23);
-  m_uniform_buffer.SetUniform1f("mat_32", m_drawing_config.proj_mat_32);
-  m_uniform_buffer.SetUniform1f("mat_33", 0);
-  m_uniform_buffer.SetUniform3f(
+  m_uniform_buffer->SetUniform1f("mat_23", m_drawing_config.proj_mat_23);
+  m_uniform_buffer->SetUniform1f("mat_32", m_drawing_config.proj_mat_32);
+  m_uniform_buffer->SetUniform1f("mat_33", 0);
+  m_uniform_buffer->SetUniform3f(
               "fog_consts", m_drawing_config.pfog0, m_drawing_config.fog_min,
               m_drawing_config.fog_max);
-  m_uniform_buffer.SetUniform4f(
+  m_uniform_buffer->SetUniform4f(
               "hvdf_offset", m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
               m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]);
 }
@@ -214,7 +214,7 @@ void Generic2::setup_vulkan_for_draw_mode(const DrawMode& draw_mode,
 
     } else if (draw_mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_DST_DST) {
       // (Cs - 0) * Ad + Cd
-      glBlendFunc(GL_DST_ALPHA, GL_ONE);
+      //glBlendFunc(GL_DST_ALPHA, GL_ONE);
       colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
       colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
       color_mult = 0.5f;
@@ -270,9 +270,9 @@ void Generic2::setup_vulkan_for_draw_mode(const DrawMode& draw_mode,
 
   depthStencil.depthWriteEnable = draw_mode.get_depth_write_enable() ? VK_TRUE : VK_FALSE;
 
-  m_uniform_buffer.SetUniform1f("alpha_reject", alpha_reject);
-  m_uniform_buffer.SetUniform1f("color_mult", color_mult);
-  m_uniform_buffer.SetUniform4f(
+  m_uniform_buffer->SetUniform1f("alpha_reject", alpha_reject);
+  m_uniform_buffer->SetUniform1f("color_mult", color_mult);
+  m_uniform_buffer->SetUniform4f(
               "fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
@@ -370,8 +370,8 @@ void Generic2::do_draws_for_alpha(SharedRenderState* render_state,
       setup_vulkan_for_draw_mode(first.mode, first.fix, render_state);
       setup_vulkan_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
                        first.mode.get_clamp_t_enable(), render_state);
-      glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
-                     (void*)(sizeof(u32) * bucket.idx_idx));
+      //glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
+      //               (void*)(sizeof(u32) * bucket.idx_idx));
       prof.add_draw_call();
       prof.add_tri(bucket.tri_count);
     }
@@ -386,8 +386,8 @@ void Generic2::do_hud_draws(SharedRenderState* render_state, ScopedProfilerNode&
       setup_vulkan_for_draw_mode(first.mode, first.fix, render_state);
       setup_vulkan_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
                        first.mode.get_clamp_t_enable(), render_state);
-      glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
-                     (void*)(sizeof(u32) * bucket.idx_idx));
+      //glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
+      //               (void*)(sizeof(u32) * bucket.idx_idx));
       prof.add_draw_call();
       prof.add_tri(bucket.tri_count);
     }
@@ -395,12 +395,14 @@ void Generic2::do_hud_draws(SharedRenderState* render_state, ScopedProfilerNode&
 }
 
 void Generic2::do_draws(SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  //glBindBuffer(GL_ARRAY_BUFFER, m_ogl.vertex_buffer);
-  //glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_ogl.index_buffer);
-  //glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_next_free_idx * sizeof(u32), m_indices.data(),
-  //             GL_STREAM_DRAW);
-  //glBufferData(GL_ARRAY_BUFFER, m_next_free_vert * sizeof(Vertex), m_verts.data(), GL_STREAM_DRAW);
-  //
+  m_ogl.vertex_buffer->map(m_next_free_vert * sizeof(Vertex), 0);
+  m_ogl.vertex_buffer->writeToBuffer(m_verts.data());
+  m_ogl.vertex_buffer->unmap();
+
+  m_ogl.index_buffer->map(m_next_free_idx * sizeof(u32), 0);
+  m_ogl.index_buffer->writeToBuffer(m_indices.data());
+  m_ogl.index_buffer->unmap();
+
   //glEnable(GL_PRIMITIVE_RESTART);
   //glPrimitiveRestartIndex(UINT32_MAX);
 
@@ -419,12 +421,12 @@ void Generic2::do_draws(SharedRenderState* render_state, ScopedProfilerNode& pro
   }
 
   if (m_drawing_config.uses_hud) {
-    m_uniform_buffer.SetUniform4f(
+    m_uniform_buffer->SetUniform4f(
         "scale", m_drawing_config.hud_scale[0], m_drawing_config.hud_scale[1],
                 m_drawing_config.hud_scale[2], 0);
-    m_uniform_buffer.SetUniform1f("mat_23", m_drawing_config.hud_mat_23);
-    m_uniform_buffer.SetUniform1f("mat_32", m_drawing_config.hud_mat_32);
-    m_uniform_buffer.SetUniform1f("mat_33", m_drawing_config.hud_mat_33);
+    m_uniform_buffer->SetUniform1f("mat_23", m_drawing_config.hud_mat_23);
+    m_uniform_buffer->SetUniform1f("mat_32", m_drawing_config.hud_mat_32);
+    m_uniform_buffer->SetUniform1f("mat_33", m_drawing_config.hud_mat_33);
 
     do_hud_draws(render_state, prof);
   }
@@ -446,10 +448,6 @@ void Generic2::InitializeVertexBuffer(SharedRenderState* render_state) {
   fragShaderStageInfo.pName = "Shrub Fragment";
 
   VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
-
-   // set up the vertex array
-  //CreateIndexBuffer(m_indices);
-  //CreateVertexBuffer(m_verts);
 
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
@@ -501,3 +499,42 @@ void Generic2::InitializeVertexBuffer(SharedRenderState* render_state) {
 
   // TODO: Should shaders be deleted now?
 }
+
+struct GenericVertex {
+  float mat_32;
+  math::Vector3f fog_constants;
+  math::Vector4f scale;
+  float mat_23;
+  float mat_33;
+  math::Vector4f hvdf_offset;
+};
+
+GenericCommonVertexUniformBuffer::GenericCommonVertexUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"mat_32", offsetof(GenericCommonVertexUniformShaderData, mat_32)},
+      {"fog_constants", offsetof(GenericCommonVertexUniformShaderData, fog_constants)},
+      {"scale", offsetof(GenericCommonVertexUniformShaderData, scale)},
+      {"mat_23", offsetof(GenericCommonVertexUniformShaderData, mat_23)},
+      {"mat_33", offsetof(GenericCommonVertexUniformShaderData, mat_33)},
+      {"hvdf_offset", offsetof(GenericCommonVertexUniformShaderData, hvdf_offset)}};
+}
+
+GenericCommonFragmentUniformBuffer::GenericCommonFragmentUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"alpha_reject", offsetof(GenericCommonFragmentUniformShaderData, alpha_reject)},
+      {"color_mult", offsetof(GenericCommonFragmentUniformShaderData, color_mult)},
+      {"fog_color", offsetof(GenericCommonFragmentUniformShaderData, fog_color)}};
+}
+

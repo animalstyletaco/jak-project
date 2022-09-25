@@ -15,7 +15,7 @@
  */
 class OceanMidAndFar : public BucketRenderer {
  public:
-  OceanMidAndFar(const std::string& name, BucketId my_id, VkDevice& device);
+  OceanMidAndFar(const std::string& name, BucketId my_id, VulkanInitializationInfo& device);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   void init_textures(TexturePool& pool) override;
@@ -31,4 +31,7 @@ class OceanMidAndFar : public BucketRenderer {
   DirectRenderer m_direct;
   OceanTexture m_texture_renderer;
   OceanMid m_mid_renderer;
+
+  std::unique_ptr<CommonOceanVertexUniformBuffer> m_uniform_vertex_buffer;
+  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_uniform_fragment_buffer;
 };

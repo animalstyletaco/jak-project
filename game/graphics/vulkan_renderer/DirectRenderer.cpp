@@ -4,15 +4,18 @@
 #include "common/log/log.h"
 #include "common/util/Assert.h"
 
-#include "game/graphics/pipelines/vulkan.h"
-
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-DirectRenderer::DirectRenderer(const std::string& name, BucketId my_id, VkDevice device, int batch_size)
-    : BucketRenderer(name, my_id, device), m_prim_buffer(batch_size) {
+DirectRenderer::DirectRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info, int batch_size)
+    : BucketRenderer(name, my_id, vulkan_info), m_prim_buffer(batch_size) {
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
   m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(DirectRenderer::Vertex);
+
+  m_direct_basic_fragment_uniform_buffer = std::make_unique<DirectBasicTexturedFragmentUniformBuffer>(
+    vulkan_info.device,
+    sizeof(DirectBasicTexturedFragmentUniformShaderData), 1,
+    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   InitializeInputVertexAttribute();
 }
@@ -277,10 +280,10 @@ void DirectRenderer::update_vulkan_prim(SharedRenderState* render_state) {
       }
     }
 
-    m_uniform_buffer.SetUniform1f("alpha_reject", alpha_reject);
-    m_uniform_buffer.SetUniform1f("color_mult", m_ogl.color_mult);
-    m_uniform_buffer.SetUniform1f("alpha_mult", m_ogl.alpha_mult);
-    m_uniform_buffer.SetUniform4f("fog_color",
+    m_direct_basic_fragment_uniform_buffer->SetUniform1f("alpha_reject", alpha_reject);
+    m_direct_basic_fragment_uniform_buffer->SetUniform1f("color_mult", m_ogl.color_mult);
+    m_direct_basic_fragment_uniform_buffer->SetUniform1f("alpha_mult", m_ogl.alpha_mult);
+    m_direct_basic_fragment_uniform_buffer->SetUniform4f("fog_color",
                 render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
                 render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
 
@@ -484,7 +487,7 @@ void DirectRenderer::update_vulkan_blend() {
     } else if (state.a == GsAlpha::BlendMode::SOURCE && state.b == GsAlpha::BlendMode::SOURCE &&
                state.c == GsAlpha::BlendMode::SOURCE && state.d == GsAlpha::BlendMode::SOURCE) {
       // trick to disable alpha blending.
-      glDisable(GL_BLEND);
+      colorBlendAttachment.blendEnable = VK_FALSE;
     } else if (state.a == GsAlpha::BlendMode::SOURCE &&
                state.b == GsAlpha::BlendMode::ZERO_OR_FIXED &&
                state.c == GsAlpha::BlendMode::DEST && state.d == GsAlpha::BlendMode::DEST) {
@@ -513,6 +516,7 @@ void DirectRenderer::update_vulkan_test() {
   VkPipelineDepthStencilStateCreateInfo depthStencil{};
   depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   depthStencil.depthTestEnable = VK_FALSE;
+  depthStencil.depthWriteEnable = VK_FALSE;
   depthStencil.depthBoundsTestEnable = VK_FALSE;
   depthStencil.stencilTestEnable = VK_FALSE;
 
@@ -544,9 +548,9 @@ void DirectRenderer::update_vulkan_test() {
                                 m_test_state.alpha_test == GsTest::AlphaTest::NEVER &&
                                 m_test_state.afail == GsTest::AlphaFail::FB_ONLY;
   if (state.depth_writes && !alpha_trick_to_disable) {
-    glDepthMask(GL_TRUE);
+    depthStencil.depthWriteEnable = VK_TRUE;
   } else {
-    glDepthMask(GL_FALSE);
+    depthStencil.depthWriteEnable = VK_FALSE;
   }
 }
 

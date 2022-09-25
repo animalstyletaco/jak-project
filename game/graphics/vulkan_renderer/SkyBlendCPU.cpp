@@ -6,18 +6,21 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendCPU::SkyBlendCPU() {
+SkyBlendCPU::SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
   for (int i = 0; i < 2; i++) {
-    m_texture_data[i].resize(4 * m_sizes[i] * m_sizes[i]);
-    textures[i].CreateImage(m_sizes[i], m_sizes[i], 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
-                            VK_FORMAT_A8B8G8R8_SINT_PACK32);
+    textures[i] = std::make_unique<TextureInfo>(m_device);
+    VkDeviceSize texture_data = sizeof(u32) * m_sizes[i] * m_sizes[i];
+    VkExtent3D extents{m_sizes[i], m_sizes[i], 1};
+    textures[i]->CreateImage(extents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+                            VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
+                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+    textures[i]->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                                 VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
 }
 
 SkyBlendCPU::~SkyBlendCPU() {
-  for (auto& tex : m_textures) {
-    glDeleteTextures(1, &tex.gl);
-  }
 }
 
 void blend_sky_initial_fast(u8 intensity, u8* out, const u8* in, u32 size) {
@@ -174,8 +177,9 @@ SkyBlendStats SkyBlendCPU::do_sky_blends(DmaFollower& dma,
           stats.cloud_blends++;
         }
       }
-      textures[buffer_idx].UpdateTexture(0, m_texture_data[buffer_idx].data(),
-                                         m_texture_data[buffer_idx].size());
+      textures[buffer_idx]->map(m_texture_data[buffer_idx].size(), 0);
+      textures[buffer_idx]->writeToBuffer(m_texture_data[buffer_idx].data());
+      textures[buffer_idx]->unmap();
 
       render_state->texture_pool->move_existing_to_vram(m_textures[buffer_idx].tex,
                                                         m_textures[buffer_idx].tbp);
@@ -187,11 +191,12 @@ SkyBlendStats SkyBlendCPU::do_sky_blends(DmaFollower& dma,
 
 void SkyBlendCPU::init_textures(TexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
-    textures[i].UpdateTexture(0, m_texture_data[i].data(), m_texture_data[i].size());
+    textures[i]->map(m_texture_data[i].size(), 0);
+    textures[i]->writeToBuffer(m_texture_data[i].data());
+    textures[i]->unmap();
 
     TextureInput in;
-    in.gpu_texture = textures[i].texture;
-    in.gpu_texture_memory = textures[i].texture_device_memory;
+    in.gpu_texture = textures[i].get();
     in.w = m_sizes[i];
     in.h = m_sizes[i];
     in.debug_name = fmt::format("PC-SKY-CPU-{}", i);

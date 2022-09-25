@@ -36,9 +36,9 @@ static_assert(sizeof(TFragBufferedData) == 328 * 16);
 
 class TFragment : public BucketRenderer {
  public:
-  TFragment(VkDevice& device,
-            const std::string& name,
+  TFragment(const std::string& name,
             BucketId my_id,
+            VulkanInitializationInfo& device,
             const std::vector<tfrag3::TFragmentTreeKind>& trees,
             bool child_mode,
             int level_id);
@@ -81,4 +81,5 @@ class TFragment : public BucketRenderer {
   Tfrag3 m_tfrag3;
   std::vector<tfrag3::TFragmentTreeKind> m_tree_kinds;
   int m_level_id;
+  std::unique_ptr<UniformBuffer> m_uniform_buffer;
 };

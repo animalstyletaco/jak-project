@@ -8,7 +8,11 @@
 class OceanMid {
  public:
   OceanMid();
-  void run(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer);
+  void run(DmaFollower& dma,
+           SharedRenderState* render_state,
+           ScopedProfilerNode& prof,
+           std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
+           std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
 
  private:
   void run_call0();

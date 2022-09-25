@@ -19,8 +19,8 @@
 struct GfxSettings;
 class GfxDisplay;
 
-// enum for rendering pipeline
-enum class GfxPipeline { Invalid = 0, OpenGL, Vulkan };
+// enum for rendering pipeline, Count must always be last index to represent total number of supported renderers
+enum class GfxPipeline { Invalid = 0, OpenGL, Vulkan, Count };
 enum GfxDisplayMode { ForceUpdate = -1, Windowed = 0, Fullscreen = 1, Borderless = 2 };
 
 // module for the different rendering pipelines

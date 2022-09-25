@@ -9,14 +9,15 @@
 #include "common/util/Timer.h"
 
 #include "game/graphics/vulkan_renderer/loader/common.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 #include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
 
 class Loader {
  public:
+  static constexpr uint16_t MAX_LEVELS_LOADED = 2;
   static constexpr float TIE_LOAD_BUDGET = 1.5f;
   static constexpr float SHARED_TEXTURE_LOAD_BUDGET = 3.f;
-  Loader(const fs::path& base_path);
+  Loader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path);
   ~Loader();
   void update(TexturePool& tex_pool);
   void update_blocking(TexturePool& tex_pool);
@@ -53,4 +54,5 @@ class Loader {
   std::vector<std::unique_ptr<LoaderStage>> m_loader_stages;
 
   fs::path m_base_path;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 };

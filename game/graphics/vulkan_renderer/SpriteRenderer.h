@@ -9,7 +9,7 @@
 
 class SpriteRenderer : public BucketRenderer {
  public:
-  SpriteRenderer(const std::string& name, BucketId my_id, VkDevice device);
+  SpriteRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   static constexpr int SPRITES_PER_CHUNK = 48;
@@ -79,8 +79,7 @@ class SpriteRenderer : public BucketRenderer {
   std::vector<SpriteVertex3D> m_vertices_3d;
 
   struct {
-    GLuint vertex_buffer;
-    GLuint vao;
+    std::unique_ptr<Buffer>vertex_buffer;
   } m_ogl;
 
   int m_sprite_offset = 0;
@@ -160,5 +159,7 @@ class SpriteRenderer : public BucketRenderer {
 
   int m_adgif_index = 0;
 
+  std::unique_ptr<Sprite3dVertexUniformBuffer> m_sprite_3d_vertex_uniform_buffer;
+  std::unique_ptr<Sprite3dFragmentUniformBuffer> m_sprite_3d_fragment_uniform_buffer;
   void update_vulkan_blend(AdGifState& state);
 };

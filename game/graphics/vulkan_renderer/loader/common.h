@@ -12,17 +12,17 @@ struct LevelData {
   u64 load_id = UINT64_MAX;
 
   struct TieVulkan {
-    unsigned vertex_buffer;
+    std::unique_ptr<VertexBuffer> vertex_buffer;
     bool has_wind = false;
-    unsigned wind_indices;
+    std::unique_ptr<IndexBuffer> wind_indices;
   };
   std::array<std::vector<TieVulkan>, tfrag3::TIE_GEOS> tie_data;
-  std::array<std::vector<unsigned>, tfrag3::TIE_GEOS> tfrag_vertex_data;
-  std::vector<unsigned> shrub_vertex_data;
-  unsigned collide_vertices;
+  std::array<std::vector<std::unique_ptr<VertexBuffer>>, tfrag3::TIE_GEOS> tfrag_vertex_data;
+  std::vector<std::unique_ptr<VertexBuffer>> shrub_vertex_data;
+  std::unique_ptr<VertexBuffer> collide_vertices;
 
-  unsigned merc_vertices;
-  unsigned merc_indices;
+  std::unique_ptr<VertexBuffer> merc_vertices;
+  std::unique_ptr<IndexBuffer> merc_indices;
   std::unordered_map<std::string, const tfrag3::MercModel*> merc_model_lookup;
 
   int frames_since_last_used = 0;
@@ -45,12 +45,13 @@ struct LoaderInput {
 
 class LoaderStage {
  public:
-  LoaderStage(const std::string& name) : m_name(name) {}
+  LoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device, const std::string& name) : m_device(device), m_name(name) {}
   virtual bool run(Timer& timer, LoaderInput& data) = 0;
   virtual void reset() = 0;
   virtual ~LoaderStage() = default;
   const std::string& name() const { return m_name; }
 
  protected:
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::string m_name;
 };

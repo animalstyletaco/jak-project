@@ -4,8 +4,8 @@
 
 #include "third-party/imgui/imgui.h"
 
-ShadowRenderer::ShadowRenderer(const std::string& name, BucketId my_id, VkDevice device)
-    : BucketRenderer(name, my_id, device) {
+ShadowRenderer::ShadowRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, vulkan_info) {
   // set up the vertex array
   u32 index_buffer[MAX_INDICES] = {0};
   Vertex vertex_buffer[MAX_VERTICES];
@@ -328,9 +328,6 @@ void ShadowRenderer::render(DmaFollower& dma,
 }
 
 void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  // enable stencil!
-  glStencilMask(0xFF);
-
   u32 clear_vertices = m_next_vertex;
   m_vertices[m_next_vertex++] = Vertex{math::Vector3f(0.3, 0.3, 0), 0};
   m_vertices[m_next_vertex++] = Vertex{math::Vector3f(0.3, 0.7, 0), 0};
@@ -373,7 +370,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   colorBlending.blendConstants[2] = 0.0f;
   colorBlending.blendConstants[3] = 0.0f;
 
-  glDepthMask(GL_FALSE);  // no depth writes.
+  depthStencil.depthWriteEnable = VK_FALSE;
   if (m_debug_draw_volume) {
     colorBlendAttachment.blendEnable = VK_TRUE;
 
@@ -401,7 +398,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   // but we increment stencil on depth fail.
 
   {
-    m_uniform_buffer.SetUniform4f("color_uniform",
+    m_uniform_buffer->SetUniform4f("color_uniform",
                 0., 0.4, 0., 0.5);
     // SetIndexBuffer(0, m_back_indices, m_next_front_index * sizeof(u32));
 
@@ -414,11 +411,11 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
     depthStencil.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
     depthStencil.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
 
-    glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
+    //glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
 
     if (m_debug_draw_volume) {
       colorBlendAttachment.blendEnable = VK_FALSE;
-      m_uniform_buffer.SetUniform4f("color_uniform", 0.,
+      m_uniform_buffer->SetUniform4f("color_uniform", 0.,
           0.0, 0., 0.5);
       rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
       //glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
@@ -430,7 +427,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   }
 
   {
-    m_uniform_buffer.SetUniform4f("color_uniform",
+    m_uniform_buffer->SetUniform4f("color_uniform",
                 0.4, 0.0, 0., 0.5);
 
     //SetIndexBuffer(0, m_back_indices, m_next_back_index * sizeof(u32));
@@ -448,7 +445,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
     //glDrawElements(GL_TRIANGLES, m_next_back_index, GL_UNSIGNED_INT, nullptr);
     if (m_debug_draw_volume) {
       colorBlendAttachment.blendEnable = VK_FALSE;
-      m_uniform_buffer.SetUniform4f("color_uniform", 0., 0.0, 0., 0.5);
+      m_uniform_buffer->SetUniform4f("color_uniform", 0., 0.0, 0., 0.5);
       rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
       //glDrawElements(GL_TRIANGLES, (m_next_back_index - 0), GL_UNSIGNED_INT, nullptr);
       rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
@@ -460,7 +457,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   }
 
   // finally, draw shadow.
-  m_uniform_buffer.SetUniform4f("color_uniform", 0.13, 0.13, 0.13, 0.5);
+  m_uniform_buffer->SetUniform4f("color_uniform", 0.13, 0.13, 0.13, 0.5);
   colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
@@ -490,7 +487,7 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
 
   colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
   colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-  glDepthMask(GL_TRUE);
+  //glDepthMask(GL_TRUE);
 
   depthStencil.stencilTestEnable = VK_FALSE;
 }

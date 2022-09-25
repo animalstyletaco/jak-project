@@ -3,7 +3,7 @@
 #include "common/log/log.h"
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 #include "third-party/imgui/imgui.h"
 
@@ -24,15 +24,16 @@
 
 SkyBlendHandler::SkyBlendHandler(const std::string& name,
                                  BucketId my_id,
-                                 VkDevice device,
+                                 VulkanInitializationInfo& vulkan_info,
                                  int level_id,
                                  std::shared_ptr<SkyBlendGPU> shared_blender,
                                  std::shared_ptr<SkyBlendCPU> shared_blender_cpu)
-    : BucketRenderer(name, my_id, device),
+    : BucketRenderer(name, my_id, vulkan_info),
       m_shared_gpu_blender(shared_blender),
       m_shared_cpu_blender(shared_blender_cpu),
-      m_tfrag_renderer(device, fmt::format("tfrag-{}", name),
+      m_tfrag_renderer(fmt::format("tfrag-{}", name),
                        my_id,
+                       vulkan_info,
                        {tfrag3::TFragmentTreeKind::TRANS, tfrag3::TFragmentTreeKind::LOWRES_TRANS},
                        true,
                        level_id) {}
@@ -123,8 +124,8 @@ void SkyBlendHandler::draw_debug_window() {
   }
 }
 
-SkyRenderer::SkyRenderer(const std::string& name, BucketId my_id, VkDevice device)
-    : BucketRenderer(name, my_id, device), m_direct_renderer("sky-direct", my_id, device, 100) {}
+SkyRenderer::SkyRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, vulkan_info), m_direct_renderer("sky-direct", my_id, vulkan_info, 100) {}
 
 void SkyRenderer::render(DmaFollower& dma,
                          SharedRenderState* render_state,

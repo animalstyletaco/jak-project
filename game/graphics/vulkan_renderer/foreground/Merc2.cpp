@@ -5,13 +5,14 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Merc2::Merc2(const std::string& name, BucketId my_id, VkDevice& device) : BucketRenderer(name, my_id, device) {
+Merc2::Merc2(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info) :
+  BucketRenderer(name, my_id, vulkan_info) {
   std::vector<u8> temp(MAX_SHADER_BONE_VECTORS * sizeof(math::Vector4f));
   //m_bones_buffer = CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, temp);
 
   //TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
   m_vulkan_buffer_alignment = 1;
-  m_uniform_buffer = UniformBuffer(device, sizeof(UniformData));
+  //m_uniform_buffer = UniformBuffer(device, sizeof(UniformData));
 
   for (int i = 0; i < MAX_LEVELS; i++) {
     auto& draws = m_level_draw_buckets.emplace_back();
@@ -57,7 +58,7 @@ void Merc2::init_for_frame(SharedRenderState* render_state) {
   fog_color_vector.y() = render_state->fog_color[1] / 255.f;
   fog_color_vector.z() = render_state->fog_color[2] / 255.f;
   fog_color_vector.w() = render_state->fog_intensity / 255;
-  m_uniform_buffer.SetUniformMathVector4f("fog_color", fog_color_vector);
+  m_uniform_buffer->SetUniformMathVector4f("fog_color", fog_color_vector);
 }
 
 void Merc2::draw_debug_window() {
@@ -196,14 +197,14 @@ void Merc2::handle_setup_dma(DmaFollower& dma, SharedRenderState* render_state) 
 
   // 8 qw's of low memory data
   memcpy(&m_low_memory, first.data + 16, sizeof(LowMemory));
-  m_uniform_buffer.SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
-  m_uniform_buffer.SetUniformMathVector4f("fog", m_low_memory.fog);
+  m_uniform_buffer->SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
+  m_uniform_buffer->SetUniformMathVector4f("fog", m_low_memory.fog);
   for (int i = 0; i < 4; i++) {
-    m_uniform_buffer.SetUniformMathVector4f((std::string("perspective") + std::to_string(i)).c_str(), //Ugly declaration
+    m_uniform_buffer->SetUniformMathVector4f((std::string("perspective") + std::to_string(i)).c_str(), //Ugly declaration
                                                                   m_low_memory.perspective[i]);
   }
   // todo rm.
-  m_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
+  m_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
       "perspective_matrix", 1, GL_FALSE, &m_low_memory.perspective[0].x());
 
   // 1 qw with another 4 vifcodes.
@@ -491,21 +492,21 @@ void Merc2::flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNo
     for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
       auto& draw = lev_bucket.draws[di];
       auto& textureInfo = lev->textures[draw.texture];
-      m_uniform_buffer.SetUniform1i("ignore_alpha", draw.ignore_alpha);
+      m_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha);
 
       if ((int)draw.light_idx != last_light) {
-        m_uniform_buffer.SetUniformMathVector3f("light_direction0", m_lights_buffer[draw.light_idx].direction0);
-        m_uniform_buffer.SetUniformMathVector3f("light_direction1", m_lights_buffer[draw.light_idx].direction1);
-        m_uniform_buffer.SetUniformMathVector3f("light_direction2", m_lights_buffer[draw.light_idx].direction2);
-        m_uniform_buffer.SetUniformMathVector3f("light_color0", m_lights_buffer[draw.light_idx].color0);
-        m_uniform_buffer.SetUniformMathVector3f("light_color1", m_lights_buffer[draw.light_idx].color1);
-        m_uniform_buffer.SetUniformMathVector3f("light_color2", m_lights_buffer[draw.light_idx].color2);
-        m_uniform_buffer.SetUniformMathVector3f("light_ambient", m_lights_buffer[draw.light_idx].ambient);
+        m_uniform_buffer->SetUniformMathVector3f("light_direction0", m_lights_buffer[draw.light_idx].direction0);
+        m_uniform_buffer->SetUniformMathVector3f("light_direction1", m_lights_buffer[draw.light_idx].direction1);
+        m_uniform_buffer->SetUniformMathVector3f("light_direction2", m_lights_buffer[draw.light_idx].direction2);
+        m_uniform_buffer->SetUniformMathVector3f("light_color0", m_lights_buffer[draw.light_idx].color0);
+        m_uniform_buffer->SetUniformMathVector3f("light_color1", m_lights_buffer[draw.light_idx].color1);
+        m_uniform_buffer->SetUniformMathVector3f("light_color2", m_lights_buffer[draw.light_idx].color2);
+        m_uniform_buffer->SetUniformMathVector3f("light_ambient", m_lights_buffer[draw.light_idx].ambient);
         last_light = draw.light_idx;
       }
       setup_vulkan_from_draw_mode(draw.mode, textureInfo, true);
 
-      m_uniform_buffer.SetUniform1i("decal", draw.mode.get_decal());
+      m_uniform_buffer->SetUniform1i("decal", draw.mode.get_decal());
 
       prof.add_draw_call();
       prof.add_tri(draw.num_triangles);

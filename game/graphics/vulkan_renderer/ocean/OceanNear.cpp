@@ -2,8 +2,8 @@
 
 #include "third-party/imgui/imgui.h"
 
-OceanNear::OceanNear(const std::string& name, BucketId my_id, VkDevice& device)
-    : BucketRenderer(name, my_id, device), m_texture_renderer(false, device) {
+OceanNear::OceanNear(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, vulkan_info), m_texture_renderer(false, vulkan_info) {
   for (auto& a : m_vu_data) {
     a.fill(0);
   }
@@ -50,7 +50,8 @@ void OceanNear::render(DmaFollower& dma,
   {
     auto p = prof.make_scoped_child("texture");
     // TODO: this looks the same as the previous ocean renderer to me... why do it again?
-    m_texture_renderer.handle_ocean_texture(dma, render_state, p);
+    m_texture_renderer.handle_ocean_texture(dma, render_state, p, m_ocean_vertex_uniform_buffer,
+                                            m_ocean_fragment_uniform_buffer);
   }
 
   if (dma.current_tag().qwc != 2) {
@@ -112,7 +113,8 @@ void OceanNear::render(DmaFollower& dma,
     dma.read_and_advance();
   }
 
-  m_common_ocean_renderer.flush_near(render_state, prof, m_uniform_buffer);
+  m_common_ocean_renderer.flush_near(render_state, prof, m_ocean_vertex_uniform_buffer,
+                                     m_ocean_fragment_uniform_buffer);
 }
 
 void OceanNear::xgkick(u16 addr) {

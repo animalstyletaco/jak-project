@@ -4,22 +4,22 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendGPU::SkyBlendGPU(VkDevice device) : m_device(device) {
+SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
   // generate textures for sky blending
 
   // setup the framebuffers
   for (int i = 0; i < 2; i++) {
-    vulkan_utils::CreateImage(
-        m_device, m_sizes[i], m_sizes[i], 1,
-        VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SNORM_PACK32, VK_IMAGE_TILING_OPTIMAL,
+    m_textures[i] = std::make_unique<TextureInfo>(m_device);
+    VkExtent3D extents{m_sizes[i], m_sizes[i], 1};
+    m_textures[i]->CreateImage(
+        extents, 1, VK_IMAGE_TYPE_2D,
+        device->getMsaaCount(), VK_FORMAT_A8B8G8R8_SNORM_PACK32, VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_textures[i], m_texture_memories[i]);
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    //TODO: Set Image View
-    //TODO: Copy Image to buffer here
+    m_textures[i]->CreateImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SNORM_PACK32,
+                                   VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[i], 0);
     //GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
     //glDrawBuffers(1, draw_buffers);
@@ -27,8 +27,9 @@ SkyBlendGPU::SkyBlendGPU(VkDevice device) : m_device(device) {
 
   //glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 6, nullptr, GL_DYNAMIC_DRAW);
 
-  m_vertex_device_size = sizeof(Vertex) * 6;
-  m_vertex_buffer = vulkan_utils::CreateBuffer(m_device, m_vertex_memory, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, m_vertex_device_size);
+  VkDeviceSize m_vertex_device_size = sizeof(Vertex) * 6;
+  m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, m_vertex_device_size, 1, 
+                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
 
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
@@ -72,21 +73,12 @@ SkyBlendGPU::SkyBlendGPU(VkDevice device) : m_device(device) {
 }
 
 SkyBlendGPU::~SkyBlendGPU() {
-  for (uint32_t i = 0; i < 2; i++) {
-    vkDestroyImage(m_device, m_textures[i], nullptr);
-    vkDestroyImageView(m_device, m_texture_views[i], nullptr);
-    vkFreeMemory(m_device, m_texture_memories[i], nullptr);
-  }
-
-  vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
-  vkFreeMemory(m_device, m_vertex_memory, nullptr);
 }
 
 void SkyBlendGPU::init_textures(TexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
     TextureInput in;
-    in.gpu_texture = m_textures[i];
-    in.gpu_texture_memory = m_texture_memories[i];
+    in.gpu_texture = m_textures[i].get();
     in.w = m_sizes[i];
     in.h = in.w;
     in.debug_name = fmt::format("PC-SKY-GPU-{}", i);
@@ -124,8 +116,8 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
-  samplerInfo.magFilter = VK_FILTER_LINEAR;
-  samplerInfo.minFilter = VK_FILTER_LINEAR;
+  samplerInfo.magFilter = VK_FILTER_NEAREST;
+  samplerInfo.minFilter = VK_FILTER_NEAREST;
 
   VkPipelineColorBlendAttachmentState colorBlendAttachment{};
   colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -214,9 +206,11 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     //glDisable(GL_DEPTH_TEST);
 
     // setup draw data
-    vulkan_utils::SetDataInVkDeviceMemory(m_device, m_vertex_memory,
-                                          m_vertex_device_size, 0,
-                                          m_vertex_data, m_vertex_device_size, 0);
+    if (m_vertex_buffer->map() != VK_SUCCESS) {
+      lg::error("Failed to get mapped Sky Blend GPU memory");
+    }
+    m_vertex_buffer->writeToBuffer(m_vertex_data);
+    m_vertex_buffer->unmap();
 
     // Draw a sqaure
     //glDrawArrays(GL_TRIANGLES, 0, 6);

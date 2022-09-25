@@ -37,12 +37,14 @@ struct DoubleDraw {
   float aref_second = 0.;
 };
 
-DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& texture, UniformBuffer& uniform_buffer);
+DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& texture, std::unique_ptr<UniformBuffer>& uniform_buffer);
 DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, bool mipmap);
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             SharedRenderState* render_state,
-                            UniformBuffer& uniform_buffer);
+                            const TextureInfo& textureInfo,
+                            std::unique_ptr<UniformBuffer>& uniform_buffer);
+
 void interp_time_of_day_slow(const float weights[8],
                              const std::vector<tfrag3::TimeOfDayColor>& in,
                              math::Vector<u8, 4>* out);
@@ -100,3 +102,38 @@ u32 make_all_visible_index_list(std::pair<int, int>* group_out,
                                 const std::vector<tfrag3::ShrubDraw>& draws,
                                 const u32* idx_in);
 
+struct BackgroundCommonVertexUniformShaderData {
+  math::Vector4f hvdf_offset;
+  math::Matrix4f camera;
+  float fog_constant;
+  float fog_min;
+  float fog_max;
+  //layout(binding = 10) uniform sampler1D tex_T1;  // note, sampled in the vertex shader on purpose.
+};
+
+class BackgroundCommonVertexUniformBuffer : public UniformBuffer {
+ public:
+  BackgroundCommonVertexUniformBuffer(
+      std::unique_ptr<GraphicsDeviceVulkan>& device,
+      VkDeviceSize instanceSize,
+      uint32_t instanceCount,
+      VkMemoryPropertyFlags memoryPropertyFlags,
+      VkDeviceSize minOffsetAlignment);
+};
+
+struct BackgroundCommonFragmentUniformShaderData {
+  int32_t tex_T0;
+  float alpha_min;
+  float alpha_max;
+  math::Vector4f fog_color;
+};
+
+class BackgroundCommonFragmentUniformBuffer : public UniformBuffer {
+ public:
+  BackgroundCommonFragmentUniformBuffer(
+      std::unique_ptr<GraphicsDeviceVulkan>& device,
+      VkDeviceSize instanceSize,
+      uint32_t instanceCount,
+      VkMemoryPropertyFlags memoryPropertyFlags,
+      VkDeviceSize minOffsetAlignment);
+};

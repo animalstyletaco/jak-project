@@ -2,14 +2,17 @@
 
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-CollideMeshRenderer::CollideMeshRenderer() {
+CollideMeshRenderer::CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device)
+    : m_device{device},
+      m_collision_mesh_vertex_uniform_buffer(device, sizeof(CollisionMeshVertexUniformShaderData), 1,
+         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1) {
   InitializeInputVertexAttribute();
 }
 
 CollideMeshRenderer::~CollideMeshRenderer() {
 }
 
-void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfilerNode& prof, UniformBuffer& uniform_buffer) {
+void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   if (!render_state->has_pc_data) {
     return;
   }
@@ -28,15 +31,18 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
     settings.planes[i] = render_state->camera_planes[i];
   }
   auto& shader = render_state->shaders[ShaderId::COLLISION];
-  uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
+  m_collision_mesh_vertex_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
+      "camera", 1, GL_FALSE,
                      settings.math_camera.data());
-  uniform_buffer.SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
+  m_collision_mesh_vertex_uniform_buffer.SetUniform4f(
+      "hvdf_offset", settings.hvdf_offset[0],
               settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
   const auto& trans = render_state->camera_pos;
-  uniform_buffer.SetUniform4f("camera_position", trans[0], trans[1], trans[2], trans[3]);
-  uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
-  uniform_buffer.SetUniform1f("fog_min", settings.fog.y());
-  uniform_buffer.SetUniform1f("fog_max", settings.fog.z());
+  m_collision_mesh_vertex_uniform_buffer.SetUniform4f("camera_position", trans[0], trans[1],
+                                                      trans[2], trans[3]);
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_min", settings.fog.y());
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_max", settings.fog.z());
 
   //glDepthMask(GL_TRUE);
 
@@ -58,25 +64,29 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
   colorBlending.blendConstants[3] = 1.0f;
 
   for (auto lev : levels) {
-    uniform_buffer.SetUniform1f("wireframe", 0);
-    uniform_buffer.SetUniformVectorUnsigned("collision_mode_mask",
+    m_collision_mesh_vertex_uniform_buffer.SetUniform1f("wireframe", 0);
+    m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
+        "collision_mode_mask",
                 Gfx::g_global_settings.collision_mode_mask.size(),
                 Gfx::g_global_settings.collision_mode_mask.data());
-    uniform_buffer.SetUniformVectorUnsigned("collision_event_mask",
+    m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
+        "collision_event_mask",
                 Gfx::g_global_settings.collision_event_mask.size(),
                 Gfx::g_global_settings.collision_event_mask.data());
-    uniform_buffer.SetUniformVectorUnsigned("collision_material_mask",
+    m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
+        "collision_material_mask",
                 Gfx::g_global_settings.collision_material_mask.size(),
                 Gfx::g_global_settings.collision_material_mask.data());
-    uniform_buffer.SetUniform1i("collision_skip_mask",
+    m_collision_mesh_vertex_uniform_buffer.SetUniform1i("collision_skip_mask",
                Gfx::g_global_settings.collision_skip_mask);
-    uniform_buffer.SetUniform1f("mode", Gfx::g_global_settings.collision_mode);
+    m_collision_mesh_vertex_uniform_buffer.SetUniform1f("mode",
+                                                        Gfx::g_global_settings.collision_mode);
     //glDrawArrays(GL_TRIANGLES, 0, lev->level->collision.vertices.size());
 
     //CreateVertexBuffer(lev->level->collision.vertices);
 
     if (Gfx::g_global_settings.collision_wireframe) {
-      uniform_buffer.SetUniform1i("wireframe", 1);
+      m_collision_mesh_vertex_uniform_buffer.SetUniform1i("wireframe", 1);
       VkPipelineColorBlendAttachmentState colorBlendAttachment{};
       colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -142,3 +152,27 @@ void CollideMeshRenderer::InitializeInputVertexAttribute() {
     vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }
 
+CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"hvdf_offset", offsetof(CollisionMeshVertexUniformShaderData, hvdf_offset)},
+      {"camera", offsetof(CollisionMeshVertexUniformShaderData, camera)},
+      {"camera_position", offsetof(CollisionMeshVertexUniformShaderData, camera_position)},
+      {"fog_constant", offsetof(CollisionMeshVertexUniformShaderData, fog_constant)},
+      {"fog_min", offsetof(CollisionMeshVertexUniformShaderData, fog_min)},
+      {"fog_max", offsetof(CollisionMeshVertexUniformShaderData, fog_max)},
+      {"wireframe", offsetof(CollisionMeshVertexUniformShaderData, wireframe)},
+      {"mode", offsetof(CollisionMeshVertexUniformShaderData, mode)},
+      {"collision_mode_mask", offsetof(CollisionMeshVertexUniformShaderData, collision_mode_mask)},
+      {"collision_event_mask",
+       offsetof(CollisionMeshVertexUniformShaderData, collision_event_mask)},
+      {"collision_material_mask",
+       offsetof(CollisionMeshVertexUniformShaderData, collision_material_mask)},
+      {"collision_skip_mask", offsetof(CollisionMeshVertexUniformShaderData, collision_skip_mask)}
+  };
+}

@@ -3,8 +3,8 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Tie3::Tie3(const std::string& name, BucketId my_id, VkDevice& device, int level_id)
-    : BucketRenderer(name, my_id, device), m_level_id(level_id) {
+Tie3::Tie3(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info, int level_id)
+    : BucketRenderer(name, my_id, vulkan_info), m_level_id(level_id) {
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
@@ -23,9 +23,6 @@ void Tie3::update_load(const LevelData* loader_data) {
   for (int geo = 0; geo < 4; ++geo) {
     m_trees[geo].resize(lev_data->tie_trees[geo].size());
   }
-
-  std::vector<VkImage> textures[tfrag3::TIE_GEOS];
-  std::vector<VkDeviceMemory> texture_memories[tfrag3::TIE_GEOS];
 
   size_t vis_temp_len = 0;
   size_t max_draws = 0;
@@ -54,7 +51,7 @@ void Tie3::update_load(const LevelData* loader_data) {
       u32 verts = tree.packed_vertices.color_indices.size();
       auto& lod_tree = m_trees.at(l_geo);
 
-      lod_tree[l_tree].vertex_buffer = loader_data->tie_data[l_geo][l_tree].vertex_buffer;
+      lod_tree[l_tree].vertex_buffer = loader_data->tie_data[l_geo][l_tree].vertex_buffer.get();
       lod_tree[l_tree].vert_count = verts;
       lod_tree[l_tree].draws = &tree.static_draws;
       lod_tree[l_tree].colors = &tree.colors;
@@ -72,7 +69,7 @@ void Tie3::update_load(const LevelData* loader_data) {
         lod_tree[l_tree].wind_matrix_cache.resize(tree.wind_instance_info.size());
         lod_tree[l_tree].has_wind = true;
         lod_tree[l_tree].wind_vertex_index_buffer =
-            loader_data->tie_data[l_geo][l_tree].wind_indices;
+            loader_data->tie_data[l_geo][l_tree].wind_indices.get();
         u32 off = 0;
         for (auto& draw : tree.instanced_wind_draws) {
           lod_tree[l_tree].wind_vertex_index_offsets.push_back(off);
@@ -82,11 +79,11 @@ void Tie3::update_load(const LevelData* loader_data) {
 
       VkDeviceSize size = 0;
       //CreateIndexBuffer(tree.unpacked.indices);
-      CreateImage(0, 0, VK_IMAGE_TYPE_1D, 1, VK_SAMPLE_COUNT_1_BIT,
-                 VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
-                 VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textures[l_geo][l_tree],
-                 texture_memories[l_geo][l_tree], size);
+      VkExtent3D extents{TIME_OF_DAY_COLOR_COUNT, 1, 1};
+      textures[l_geo][l_tree].CreateImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
+                                          VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     }
   }
 
@@ -424,7 +421,7 @@ void Tie3::render_tree_wind(int idx,
         continue;  // invisible, skip.
       }
 
-      m_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1,
+      m_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1,
                                              GL_FALSE, (float*)tree.wind_matrix_cache.at(grp.instance_idx)[0].data());
 
       prof.add_draw_call();
@@ -445,8 +442,8 @@ void Tie3::render_tree_wind(int idx,
           tree.perf.wind_draws++;
           prof.add_draw_call();
           prof.add_tri(grp.num);
-          m_uniform_buffer.SetUniform1f("alpha_min", -10.f);
-          m_uniform_buffer.SetUniform1f("alpha_max", double_draw.aref_second);
+          m_uniform_buffer->SetUniform1f("alpha_min", -10.f);
+          m_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
           //glDepthMask(GL_FALSE);
           //glDrawElements(GL_TRIANGLE_STRIP, draw.vertex_index_stream.size(), GL_UNSIGNED_INT, (void*)0);
           break;
@@ -487,25 +484,24 @@ void Tie3::render_tree(int idx,
   tree.perf.tod_time.add(interp_timer.getSeconds());
 
   Timer setup_timer;
-  //glActiveTexture(GL_TEXTURE10);
-  //glBindTexture(GL_TEXTURE_1D, tree.time_of_day_texture);
-  VkImage timeOfDayTexture;
-  VkDeviceMemory timeOfDayDeviceMemory;
+
+  TextureInfo timeOfDayTexture{m_vulkan_info.device};
   VkDeviceSize size = m_color_result.size() * sizeof(m_color_result[0]);
 
-  CreateImage(0, tree.colors->size(), VK_IMAGE_TYPE_1D, 1, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+  VkExtent3D extents{tree.colors->size(), 1, 1};
+  timeOfDayTexture.CreateImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
               VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, timeOfDayTexture,
-              timeOfDayDeviceMemory, size);
+              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  //void* data = NULL;
-  //vkMapMemory(device, timeOfDayDeviceMemory, 0, tree.colors->size() * sizeof(tree.colors[0]), 0,
-  //            &data);
-  //::memcpy(data, m_color_result.data(), tree.colors->size() * sizeof(tree.colors[0]));
-  //vkUnmapMemory(device, timeOfDayDeviceMemory, nullptr);
+  timeOfDayTexture.CreateImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                                   VK_IMAGE_ASPECT_COLOR_BIT, 1);
+
+  timeOfDayTexture.map();
+  timeOfDayTexture.writeToBuffer(m_color_result.data());
+  timeOfDayTexture.unmap();
 
   // setup Vulkan shader
-  first_tfrag_draw_setup(settings, render_state, m_uniform_buffer);
+  first_tfrag_draw_setup(settings, render_state, timeOfDayTexture, m_uniform_buffer);
 
   tree.perf.tod_time.add(setup_timer.getSeconds());
 
@@ -582,6 +578,8 @@ void Tie3::render_tree(int idx,
 
     tree.perf.draws++;
 
+    VkPipelineRasterizationStateCreateInfo rasterization_info{};
+    VkPipelineInputAssemblyStateCreateInfo assembly_info{};
     if (render_state->no_multidraw) {
       //glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
       //               (void*)(singledraw_indices.first * sizeof(u32)));
@@ -598,9 +596,8 @@ void Tie3::render_tree(int idx,
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         tree.perf.draws++;
         prof.add_draw_call();
-        m_uniform_buffer.SetUniform1f("alpha_min", -10.f);
-        m_uniform_buffer.SetUniform1f("alpha_max", double_draw.aref_second);
-        glDepthMask(GL_FALSE);
+        m_uniform_buffer->SetUniform1f("alpha_min", -10.f);
+        m_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
         if (render_state->no_multidraw) {
           //glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
           //               (void*)(singledraw_indices.first * sizeof(u32)));
@@ -616,18 +613,19 @@ void Tie3::render_tree(int idx,
     }
 
     if (m_debug_wireframe && !render_state->no_multidraw) {
-      m_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE, (float*)settings.math_camera.data());
-      m_uniform_buffer.SetUniform4f("hvdf_offset",
+      m_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE, (float*)settings.math_camera.data());
+      m_uniform_buffer->SetUniform4f("hvdf_offset",
           settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
           settings.hvdf_offset[3]);
-      m_uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
-      glDisable(GL_BLEND);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+      m_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
+      rasterization_info.polygonMode = VK_POLYGON_MODE_LINE;
+      rasterization_info.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
       //glMultiDrawElements(GL_TRIANGLE_STRIP,
       //                    &m_cache.multidraw_count_buffer[multidraw_indices.first], GL_UNSIGNED_INT,
       //                    &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
       //                    multidraw_indices.second);
-      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+      rasterization_info.polygonMode = VK_POLYGON_MODE_FILL;
+      rasterization_info.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
       prof.add_draw_call();
     }
   }

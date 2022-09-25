@@ -2,8 +2,8 @@
 
 #include "third-party/imgui/imgui.h"
 
-OceanMidAndFar::OceanMidAndFar(const std::string& name, BucketId my_id, VkDevice& device)
-    : BucketRenderer(name, my_id, device), m_direct(name, my_id, device, 4096), m_texture_renderer(true, device) {}
+OceanMidAndFar::OceanMidAndFar(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, vulkan_info), m_direct(name, my_id, vulkan_info, 4096), m_texture_renderer(true, vulkan_info) {}
 
 void OceanMidAndFar::draw_debug_window() {
   m_texture_renderer.draw_debug_window();
@@ -44,7 +44,7 @@ void OceanMidAndFar::render(DmaFollower& dma,
 
   {
     auto p = prof.make_scoped_child("texture");
-    m_texture_renderer.handle_ocean_texture(dma, render_state, p);
+    m_texture_renderer.handle_ocean_texture(dma, render_state, p, m_uniform_vertex_buffer, m_uniform_fragment_buffer);
   }
 
   handle_ocean_far(dma, render_state, prof);
@@ -98,7 +98,7 @@ void OceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
                                       SharedRenderState* render_state,
                                       ScopedProfilerNode& prof) {
   if (dma.current_tag_vifcode0().kind == VifCode::Kind::BASE) {
-    m_mid_renderer.run(dma, render_state, prof, m_uniform_buffer);
+    m_mid_renderer.run(dma, render_state, prof, m_uniform_vertex_buffer, m_uniform_fragment_buffer);
   } else {
     // not drawing
     return;

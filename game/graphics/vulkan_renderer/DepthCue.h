@@ -5,9 +5,23 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
+struct DepthCueVertexUniformData {
+  math::Vector4f u_color;
+  float u_depth;
+};
+
+class DepthCueVertexUniformBuffer : public UniformBuffer {
+ public:
+  DepthCueVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                              VkDeviceSize instanceSize,
+                              uint32_t instanceCount,
+                              VkMemoryPropertyFlags memoryPropertyFlags,
+                              VkDeviceSize minOffsetAlignment);
+};
+
 class DepthCue : public BucketRenderer {
  public:
-  DepthCue(const std::string& name, BucketId my_id, VkDevice device);
+  DepthCue(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
@@ -118,22 +132,20 @@ class DepthCue : public BucketRenderer {
 
   struct {
     // Framebuffer for depth-cue-base-page
-    GLuint fbo;
-    GLuint fbo_texture;
+    std::unique_ptr<TextureInfo> fbo;
+    std::unique_ptr<TextureInfo> fbo_texture;
     int fbo_width = 0;
     int fbo_height = 0;
 
     // Vertex data for drawing to depth-cue-base-page
-    GLuint depth_cue_page_vao;
-    GLuint depth_cue_page_vertex_buffer;
+    std::unique_ptr<VertexBuffer> depth_cue_page_vertex_buffer;
 
     // Vertex data for drawing to on-screen framebuffer
-    GLuint on_screen_vao;
-    GLuint on_screen_vertex_buffer;
+    std::unique_ptr<VertexBuffer> on_screen_vertex_buffer;
 
     // Texture to sample the framebuffer from
-    GLuint framebuffer_sample_fbo;
-    GLuint framebuffer_sample_tex;
+    std::unique_ptr<TextureInfo> framebuffer_sample_fbo;
+    std::unique_ptr<TextureInfo> framebuffer_sample_tex;
     int framebuffer_sample_width = 0;
     int framebuffer_sample_height = 0;
 
@@ -180,4 +192,7 @@ class DepthCue : public BucketRenderer {
                     float t1,
                     float s2,
                     float t2);
+
+   std::unique_ptr<DepthCueVertexUniformBuffer> m_depth_cue_vertex_uniform_buffer;
+  std::unique_ptr<UniformBuffer> m_depth_cue_fragment_uniform_buffer;
 };

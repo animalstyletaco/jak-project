@@ -70,7 +70,7 @@ void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kind
         time_of_day_count = std::max(tree.colors.size(), time_of_day_count);
         u32 verts = tree.packed_vertices.vertices.size();
 
-        tree_cache.vertex_buffer = loader_data->tfrag_vertex_data[geom][tree_idx];
+        tree_cache.vertex_buffer = loader_data->tfrag_vertex_data[geom][tree_idx].get();
         tree_cache.vert_count = verts;
         tree_cache.draws = &tree.draws;  // todo - should we just copy this?
         tree_cache.colors = &tree.colors;
@@ -134,7 +134,7 @@ void Tfrag3::render_tree(int geom,
                          const TfragRenderSettings& settings,
                          SharedRenderState* render_state,
                          ScopedProfilerNode& prof,
-                         UniformBuffer& uniform_buffer) {
+                         std::unique_ptr<UniformBuffer>& uniform_buffer) {
   if (!m_has_level) {
     return;
   }
@@ -150,13 +150,23 @@ void Tfrag3::render_tree(int geom,
     interp_time_of_day_slow(settings.time_of_day_weights, *tree.colors, m_color_result.data());
   }
 
-  // void* data = NULL;
-  // vkMapMemory(device, timeOfDayDeviceMemory, 0, tree.colors->size() * sizeof(tree.colors[0]), 0,
-  //            &data);
-  //::memcpy(data, m_color_result.data(), tree.colors->size() * sizeof(tree.colors[0]));
-  // vkUnmapMemory(device, timeOfDayDeviceMemory, nullptr);
+  TextureInfo timeOfDayTexture { uniform_buffer->getDevice() };
+  VkDeviceSize size = m_color_result.size() * sizeof(m_color_result[0]);
 
-  first_tfrag_draw_setup(settings, render_state, uniform_buffer);
+  VkExtent3D extents{tree.colors->size(), 1, 1};
+  timeOfDayTexture.CreateImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
+                               VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+  timeOfDayTexture.CreateImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                                   VK_IMAGE_ASPECT_COLOR_BIT, 1);
+
+  timeOfDayTexture.map();
+  timeOfDayTexture.writeToBuffer(m_color_result.data());
+  timeOfDayTexture.unmap();
+
+  first_tfrag_draw_setup(settings, render_state, timeOfDayTexture, uniform_buffer);
 
   cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
                       m_cache.vis_temp.data());
@@ -214,9 +224,9 @@ void Tfrag3::render_tree(int geom,
         break;
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         prof.add_draw_call();
-        uniform_buffer.SetUniform1f("alpha_min", -10.f);
-        uniform_buffer.SetUniform1f("alpha_max", double_draw.aref_second);
-        glDepthMask(GL_FALSE);
+        uniform_buffer->SetUniform1f("alpha_min", -10.f);
+        uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
+        //glDepthMask(GL_FALSE);
         if (render_state->no_multidraw) {
           //glDrawElements(tree.draw_mode, singledraw_indices.second, GL_UNSIGNED_INT,
           //               (void*)(singledraw_indices.first * sizeof(u32)));
@@ -242,7 +252,7 @@ void Tfrag3::render_all_trees(int geom,
                               const TfragRenderSettings& settings,
                               SharedRenderState* render_state,
                               ScopedProfilerNode& prof,
-                              UniformBuffer& uniform_buffer) {
+                              std::unique_ptr<UniformBuffer>& uniform_buffer) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
     if (m_cached_trees[geom][i].kind != tfrag3::TFragmentTreeKind::INVALID) {
@@ -257,7 +267,7 @@ void Tfrag3::render_matching_trees(int geom,
                                    const TfragRenderSettings& settings,
                                    SharedRenderState* render_state,
                                    ScopedProfilerNode& prof,
-                                   UniformBuffer& uniform_buffer) {
+                                   std::unique_ptr<UniformBuffer>& uniform_buffer) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
     auto& tree = m_cached_trees[geom][i];
@@ -391,7 +401,7 @@ void debug_vis_draw(int first_root,
 void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
                                     SharedRenderState* render_state,
                                     ScopedProfilerNode& prof,
-                                    UniformBuffer& uniform_buffer) {
+                                    std::unique_ptr<UniformBuffer>& uniform_buffer) {
   // generate debug verts:
   m_debug_vert_data.clear();
   auto& tree = m_cached_trees.at(settings.tree_idx).at(lod());
@@ -399,12 +409,12 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
   debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
                  tree.vis->vis_nodes, m_debug_vert_data);
 
-   uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1,
+   uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1,
       GL_FALSE, (float*)settings.math_camera.data());
-   uniform_buffer.SetUniform4f("hvdf_offset",
+   uniform_buffer->SetUniform4f("hvdf_offset",
       settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
       settings.hvdf_offset[3]);
-   uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
+   uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
 
   //FIXME: Add depth test for vulkan
   //glEnable(GL_DEPTH_TEST);

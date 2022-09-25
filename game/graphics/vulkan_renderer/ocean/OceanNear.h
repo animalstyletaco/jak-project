@@ -7,7 +7,7 @@
 
 class OceanNear : public BucketRenderer {
  public:
-  OceanNear(const std::string& name, BucketId my_id, VkDevice& device);
+  OceanNear(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   void init_textures(TexturePool& pool) override;
@@ -24,6 +24,8 @@ class OceanNear : public BucketRenderer {
 
   OceanTexture m_texture_renderer;
   CommonOceanRenderer m_common_ocean_renderer;
+  std::unique_ptr<CommonOceanVertexUniformBuffer> m_ocean_vertex_uniform_buffer;
+  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_ocean_fragment_uniform_buffer;
 
   bool m_buffer_toggle = false;
   static constexpr int VU1_INPUT_BUFFER_BASE = 0;

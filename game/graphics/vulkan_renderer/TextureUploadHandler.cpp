@@ -1,13 +1,13 @@
 #include "TextureUploadHandler.h"
 
 #include "game/graphics/vulkan_renderer/EyeRenderer.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-TextureUploadHandler::TextureUploadHandler(const std::string& name, BucketId my_id, VkDevice device)
-    : BucketRenderer(name, my_id, device) {}
+TextureUploadHandler::TextureUploadHandler(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, vulkan_info) {}
 
 void TextureUploadHandler::render(DmaFollower& dma,
                                   SharedRenderState* render_state,

@@ -7,11 +7,11 @@
 #include "game/graphics/gfx.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 class Tie3 : public BucketRenderer {
  public:
-  Tie3(const std::string& name, BucketId my_id, VkDevice& device, int level_id);
+  Tie3(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info, int level_id);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   ~Tie3();
@@ -51,11 +51,10 @@ class Tie3 : public BucketRenderer {
                         ScopedProfilerNode& prof);
 
   struct Tree {
-    GLuint vertex_buffer;
-    GLuint index_buffer;
-    GLuint single_draw_index_buffer;
-    GLuint time_of_day_texture;
-    GLuint vao;
+    VertexBuffer* vertex_buffer = nullptr;
+    IndexBuffer* index_buffer = nullptr;
+    IndexBuffer* single_draw_index_buffer = nullptr;
+    TextureInfo* time_of_day_texture = nullptr;
     u32 vert_count;
     const std::vector<tfrag3::StripDraw>* draws = nullptr;
     const std::vector<tfrag3::InstancedStripDraw>* wind_draws = nullptr;
@@ -68,7 +67,7 @@ class Tie3 : public BucketRenderer {
     std::vector<std::array<math::Vector4f, 4>> wind_matrix_cache;
 
     bool has_wind = false;
-    GLuint wind_vertex_index_buffer;
+    IndexBuffer* wind_vertex_index_buffer;
     std::vector<u32> wind_vertex_index_offsets;
 
     struct {
@@ -118,6 +117,8 @@ class Tie3 : public BucketRenderer {
   float m_wind_multiplier = 1.f;
 
   int m_level_id;
+  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+  std::vector<TextureInfo> textures[tfrag3::TIE_GEOS];
 
   static_assert(sizeof(WindWork) == 84 * 16);
 };

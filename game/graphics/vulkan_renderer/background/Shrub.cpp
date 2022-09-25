@@ -1,10 +1,12 @@
 #include "Shrub.h"
 
-Shrub::Shrub(const std::string& name, BucketId my_id, VkDevice& device) : BucketRenderer(name, my_id, device) {
+Shrub::Shrub(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
+  : BucketRenderer(name, my_id, vulkan_info) {
   m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
 
   VkDeviceSize device_size = sizeof(m_color_result[0]) * TIME_OF_DAY_COLOR_COUNT;
-  time_of_day_color_buffer = UniformBuffer(device, device_size);
+  time_of_day_color_buffer = std::make_unique<UniformBuffer>(vulkan_info.device, device_size, 1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
 Shrub::~Shrub() {
@@ -94,7 +96,7 @@ void Shrub::update_load(const LevelData* loader_data) {
     max_inds = std::max(tree.indices.size(), max_inds);
     u32 verts = tree.unpacked.vertices.size();
 
-    m_trees[l_tree].vertex_buffer = loader_data->shrub_vertex_data[l_tree];
+    //m_trees[l_tree].vertex_buffer = loader_data->shrub_vertex_data[l_tree];
     m_trees[l_tree].vert_count = verts;
     m_trees[l_tree].draws = &tree.static_draws;
     m_trees[l_tree].colors = &tree.time_of_day_colors;
@@ -255,26 +257,26 @@ void Shrub::render_tree(int idx,
 
   Timer setup_timer;
 
-  VkImage texture_image;
-  VkDeviceMemory texture_image_memory;
+  TextureInfo texture{m_vulkan_info.device};
 
   //FIXME: Combine these APIs into one
   //CreateTextureImage(m_color_result);
-  //CreateImage(_width, _height, 1, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM,
-  //            VK_IMAGE_TILING_OPTIMAL,
-  //            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-  //            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture_image,
-  //            texture_image_memory);
+  VkExtent3D extents{tree.colors->size(), 1, 1};
+  texture.CreateImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM,
+              VK_IMAGE_TILING_OPTIMAL,
+              VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  VkImageView texture_image_view =
-      CreateImageView(texture_image, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_VIEW_TYPE_1D, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  texture.CreateImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-  //texture_image_views.push_back(texture_image_view);
+  texture.map();
+  texture.writeToBuffer(m_color_result.data());
+  texture.unmap();
 
   //FIXME: Needs to be part of VkSampler
-  CreateTextureSampler(VK_FILTER_NEAREST, VK_FILTER_NEAREST, 1);
+  //CreateTextureSampler(VK_FILTER_NEAREST, VK_FILTER_NEAREST, 1);
 
-  first_tfrag_draw_setup(settings, render_state, time_of_day_color_buffer);
+  first_tfrag_draw_setup(settings, render_state, texture, time_of_day_color_buffer);
 
   //FIXME: Needs to be part of pipeline
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -329,8 +331,8 @@ void Shrub::render_tree(int idx,
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         tree.perf.draws++;
         prof.add_draw_call();
-        m_uniform_buffer.SetUniform1f("alpha_min", -10.f);
-        m_uniform_buffer.SetUniform1f("alpha_max", double_draw.aref_second);
+        m_uniform_buffer->SetUniform1f("alpha_min", -10.f);
+        m_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
         //TODO: Set real index buffers here
         //glDepthMask(GL_FALSE);
         //if (render_state->no_multidraw) {

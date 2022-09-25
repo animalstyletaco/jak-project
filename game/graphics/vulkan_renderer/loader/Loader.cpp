@@ -1,4 +1,4 @@
-#include "Loader.h"
+#include "game/graphics/vulkan_renderer/loader/Loader.h"
 
 #include "common/util/FileUtil.h"
 #include "common/util/Timer.h"
@@ -16,9 +16,9 @@ std::string uppercase_string(const std::string& s) {
 }
 }  // namespace
 
-Loader::Loader(const fs::path& base_path) : m_base_path(base_path) {
+Loader::Loader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path) : m_device(device), m_base_path(base_path) {
   m_loader_thread = std::thread(&Loader::loader_thread, this);
-  m_loader_stages = make_loader_stages();
+  m_loader_stages = make_loader_stages(m_device);
 }
 
 Loader::~Loader() {
@@ -86,9 +86,9 @@ std::vector<LevelData*> Loader::get_in_use_levels() {
   std::vector<LevelData*> result;
   std::unique_lock<std::mutex> lk(m_loader_mutex);
 
-  for (auto& lev : m_loaded_tfrag3_levels) {
-    if (lev.second->frames_since_last_used < 5) {
-      result.push_back(lev.second.get());
+  for (auto& [level_name, level_data] : m_loaded_tfrag3_levels) {
+    if (level_data->frames_since_last_used < 5) {
+      result.push_back(level_data.get());
     }
   }
   return result;
@@ -174,11 +174,14 @@ void Loader::load_common(TexturePool& tex_pool, const std::string& name) {
   m_common_level.level = std::make_unique<tfrag3::Level>();
   m_common_level.level->serialize(ser);
   for (auto& tex : m_common_level.level->textures) {
-    m_common_level.textures.push_back(add_texture(tex_pool, tex, true));
+    m_common_level.textures.push_back(add_texture(tex_pool, tex, m_device));
+    if (tex.load_to_pool) {
+      load_texture(tex_pool, tex, m_common_level.textures.back(), true);
+    }
   }
 
   Timer tim;
-  MercLoaderStage mls;
+  MercLoaderStage mls{m_device};
   LoaderInput input;
   input.tex_pool = &tex_pool;
   input.mercs = &m_all_merc_models;
@@ -200,7 +203,10 @@ bool Loader::upload_textures(Timer& timer, LevelData& data, TexturePool& texture
     std::unique_lock<std::mutex> tpool_lock(texture_pool.mutex());
     while (data.textures.size() < data.level->textures.size()) {
       auto& tex = data.level->textures[data.textures.size()];
-      data.textures.push_back(add_texture(texture_pool, tex, false));
+      data.textures.push_back(add_texture(texture_pool, tex, m_device));
+      if (tex.load_to_pool) {
+        load_texture(texture_pool, tex, m_common_level.textures.back(), false);
+      }
       bytes_this_run += tex.w * tex.h * 4;
       tex_this_run++;
       if (tex_this_run > 20) {
@@ -328,20 +334,20 @@ void Loader::update(TexturePool& texture_pool) {
   if (!did_gpu_stuff) {
     // try to remove levels.
     Timer unload_timer;
-    if (m_loaded_tfrag3_levels.size() >= 3) {
-      for (auto& lev : m_loaded_tfrag3_levels) {
-        if (lev.second->frames_since_last_used > 180) {
+    if (m_loaded_tfrag3_levels.size() > MAX_LEVELS_LOADED) {
+      for (auto& [level_name, level_data] : m_loaded_tfrag3_levels) {
+        if (level_data->frames_since_last_used > 180) {
           std::unique_lock<std::mutex> lk(texture_pool.mutex());
-          fmt::print("------------------------- PC unloading {}\n", lev.first);
-          for (size_t i = 0; i < lev.second->level->textures.size(); i++) {
-            auto& tex = lev.second->level->textures[i];
+          fmt::print("------------------------- PC unloading {}\n", level_name);
+          for (size_t i = 0; i < level_data->level->textures.size(); i++) {
+            auto& tex = level_data->level->textures[i];
             if (tex.load_to_pool) {
               texture_pool.unload_texture(PcTextureId::from_combo_id(tex.combo_id),
-                                          lev.second->textures.at(i));
+                                          level_data->textures.at(i));
             }
           }
           lk.unlock();
-          for (auto tex : lev.second->textures) {
+          for (auto& tex : level_data->textures) {
             //if (EXTRA_TEX_DEBUG) {
             //  for (auto& slot : texture_pool.all_textures()) {
             //    if (slot.source) {
@@ -355,7 +361,7 @@ void Loader::update(TexturePool& texture_pool) {
             tex.DestroyTexture();
           }
 
-          for (auto& tie_geo : lev.second->tie_data) {
+          for (auto& tie_geo : level_data->tie_data) {
             for (auto& tie_tree : tie_geo) {
               //glDeleteBuffers(1, &tie_tree.vertex_buffer);
               if (tie_tree.has_wind) {
@@ -364,7 +370,7 @@ void Loader::update(TexturePool& texture_pool) {
             }
           }
 
-          for (auto& tfrag_geo : lev.second->tfrag_vertex_data) {
+          for (auto& tfrag_geo : level_data->tfrag_vertex_data) {
             for (auto& tfrag_buff : tfrag_geo) {
               //glDeleteBuffers(1, &tfrag_buff);
             }
@@ -374,15 +380,15 @@ void Loader::update(TexturePool& texture_pool) {
           //glDeleteBuffers(1, &lev.second->merc_vertices);
           //glDeleteBuffers(1, &lev.second->merc_indices);
 
-          for (auto& model : lev.second->level->merc_data.models) {
+          for (auto& model : level_data->level->merc_data.models) {
             auto& mercs = m_all_merc_models.at(model.name);
-            MercRef ref{&model, lev.second->load_id};
+            MercRef ref{&model, level_data->load_id};
             auto it = std::find(mercs.begin(), mercs.end(), ref);
             ASSERT_MSG(it != mercs.end(), fmt::format("missing merc: {}\n", model.name));
             mercs.erase(it);
           }
 
-          m_loaded_tfrag3_levels.erase(lev.first);
+          m_loaded_tfrag3_levels.erase(level_name);
           break;
         }
       }

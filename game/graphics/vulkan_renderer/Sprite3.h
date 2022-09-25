@@ -11,9 +11,37 @@
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 #include "game/graphics/vulkan_renderer/sprite_common.h"
 
+class SpriteDistortInstancedVertexUniformBuffer : public UniformBuffer {
+ public:
+  SpriteDistortInstancedVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                            VkDeviceSize instanceSize,
+                                            uint32_t instanceCount,
+                                            VkMemoryPropertyFlags memoryPropertyFlags,
+                                            VkDeviceSize minOffsetAlignment)
+      : UniformBuffer(device,
+                      instanceSize,
+                      instanceCount,
+                      memoryPropertyFlags,
+                      minOffsetAlignment){};
+};
+
+class SpriteDistortInstancedFragmentUniformBuffer : public UniformBuffer {
+ public:
+  SpriteDistortInstancedFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                              VkDeviceSize instanceSize,
+                                              uint32_t instanceCount,
+                                              VkMemoryPropertyFlags memoryPropertyFlags,
+                                              VkDeviceSize minOffsetAlignment)
+      : UniformBuffer(device,
+                      instanceSize,
+                      instanceCount,
+                      memoryPropertyFlags,
+                      minOffsetAlignment){};
+};
+
 class Sprite3 : public BucketRenderer {
  public:
-  Sprite3(const std::string& name, BucketId my_id, VkDevice device);
+  Sprite3(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   static constexpr int SPRITES_PER_CHUNK = 48;
@@ -105,19 +133,20 @@ class Sprite3 : public BucketRenderer {
   };
 
   struct {
-    GLuint vao;
-    GLuint vertex_buffer;
-    GLuint index_buffer;
-    GLuint fbo;
-    GLuint fbo_texture;
+    std::unique_ptr<Buffer> vertex_buffer;  // contains vertex data for each possible sprite resolution (3-11)
+    std::unique_ptr<Buffer> index_buffer;  // contains all instance specific data for each sprite per frame
+
+    std::unique_ptr<TextureInfo> fbo;
+    std::unique_ptr<TextureInfo> fbo_texture;
+
     int fbo_width = 640;
     int fbo_height = 480;
   } m_distort_ogl;
 
   struct {
-    GLuint vao;
-    GLuint vertex_buffer;    // contains vertex data for each possible sprite resolution (3-11)
-    GLuint instance_buffer;  // contains all instance specific data for each sprite per frame
+    std::unique_ptr<VertexBuffer> vertex_buffer;    // contains vertex data for each possible sprite resolution (3-11)
+    std::unique_ptr<VertexBuffer> instance_buffer;  // contains all instance specific data for each sprite per frame
+
     float last_aspect_x = -1.0;
     float last_aspect_y = -1.0;
     bool vertex_data_changed = false;
@@ -173,9 +202,8 @@ class Sprite3 : public BucketRenderer {
   std::vector<SpriteVertex3D> m_vertices_3d;
 
   struct {
-    GLuint vertex_buffer;
-    GLuint vao;
-    GLuint index_buffer;
+    std::unique_ptr<Buffer> vertex_buffer;
+    std::unique_ptr<Buffer> index_buffer;
   } m_ogl;
 
   DrawMode m_current_mode, m_default_mode;
@@ -194,6 +222,14 @@ class Sprite3 : public BucketRenderer {
   Bucket* m_last_bucket = nullptr;
 
   u64 m_sprite_idx = 0;
-
   std::vector<u32> m_index_buffer_data;
+
+  std::unique_ptr<Sprite3dVertexUniformBuffer> m_sprite_3d_vertex_uniform_buffer;
+  std::unique_ptr<Sprite3dFragmentUniformBuffer> m_sprite_3d_fragment_uniform_buffer;
+
+  std::unique_ptr<SpriteDistortInstancedVertexUniformBuffer>
+      m_sprite_3d_instanced_vertex_uniform_buffer;
+  std::unique_ptr<SpriteDistortInstancedFragmentUniformBuffer>
+      m_sprite_3d_instanced_fragment_uniform_buffer;
 };
+

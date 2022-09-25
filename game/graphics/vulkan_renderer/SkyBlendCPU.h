@@ -5,11 +5,11 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/SkyBlendCommon.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 class SkyBlendCPU {
  public:
-  SkyBlendCPU();
+  SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device);
   ~SkyBlendCPU();
 
   SkyBlendStats do_sky_blends(DmaFollower& dma,
@@ -27,5 +27,6 @@ class SkyBlendCPU {
     GpuTexture* tex;
   } m_textures[2];
 
-  TextureInfo textures[2];
+  std::unique_ptr<TextureInfo> textures[2];
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 };

@@ -6,7 +6,7 @@
 #include "game/graphics/gfx.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 class Tfrag3 {
  public:
@@ -17,20 +17,20 @@ class Tfrag3 {
                         const TfragRenderSettings& settings,
                         SharedRenderState* render_state,
                         ScopedProfilerNode& prof,
-                        UniformBuffer& uniform_buffer);
+                        std::unique_ptr<UniformBuffer>& uniform_buffer);
 
   void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,
                              SharedRenderState* render_state,
                              ScopedProfilerNode& prof,
-                             UniformBuffer& uniform_buffer);
+                             std::unique_ptr<UniformBuffer>& uniform_buffer);
 
   void render_tree(int geom,
                    const TfragRenderSettings& settings,
                    SharedRenderState* render_state,
                    ScopedProfilerNode& prof,
-                   UniformBuffer& uniform_buffer);
+                   std::unique_ptr<UniformBuffer>& uniform_buffer);
 
   bool setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                        const std::string& level,
@@ -40,7 +40,7 @@ class Tfrag3 {
   void render_tree_cull_debug(const TfragRenderSettings& settings,
                               SharedRenderState* render_state,
                               ScopedProfilerNode& prof,
-                              UniformBuffer& uniform_buffer);
+                              std::unique_ptr<UniformBuffer>& uniform_buffer);
 
   void draw_debug_window();
   struct DebugVertex {
@@ -61,11 +61,10 @@ class Tfrag3 {
 
   struct TreeCache {
     tfrag3::TFragmentTreeKind kind = tfrag3::TFragmentTreeKind::INVALID;
-    GLuint vertex_buffer = -1;
-    GLuint index_buffer = -1;
-    GLuint single_draw_index_buffer = -1;
-    GLuint time_of_day_texture = -1;
-    GLuint vao = -1;
+    VertexBuffer* vertex_buffer = nullptr;
+    IndexBuffer* index_buffer = nullptr;
+    IndexBuffer* single_draw_index_buffer = nullptr;
+    TextureInfo* time_of_day_texture = nullptr;
     u32 vert_count = 0;
     const std::vector<tfrag3::StripDraw>* draws = nullptr;
     const std::vector<tfrag3::TimeOfDayColor>* colors = nullptr;

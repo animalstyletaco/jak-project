@@ -5,7 +5,7 @@
 
 class ShadowRenderer : public BucketRenderer {
  public:
-  ShadowRenderer(const std::string& name, BucketId my_id, VkDevice device);
+  ShadowRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   ~ShadowRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
@@ -126,4 +126,5 @@ class ShadowRenderer : public BucketRenderer {
   } m_ogl;
 
   bool m_debug_draw_volume = false;
+  std::unique_ptr<UniformBuffer> m_uniform_buffer;
 };

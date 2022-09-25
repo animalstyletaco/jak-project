@@ -3,7 +3,7 @@
  * Lower-level vulkan interface. No actual rendering is performed here!
  */
 
-#include "vulkan.h"
+#include "vulkan_pipeline.h"
 
 #include <condition_variable>
 #include <memory>
@@ -70,16 +70,23 @@ struct VulkanGraphicsData {
   std::string imgui_log_filename, imgui_filename;
   GameVersion version;
 
-  VulkanGraphicsData(GameVersion version)
+  VulkanGraphicsData(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& vulkan_device)
       : dma_copier(EE_MAIN_MEM_SIZE),
-        texture_pool(std::make_shared<TexturePool>()),
-        loader(std::make_shared<Loader>(file_util::get_jak_project_dir() / "out" /
+        texture_pool(std::make_shared<TexturePool>(vulkan_device)),
+        loader(std::make_shared<Loader>(vulkan_device, file_util::get_jak_project_dir() / "out" /
                                         game_version_names[version] / "fr3")),
-        vulkan_renderer(texture_pool, loader),
+        vulkan_renderer(texture_pool, loader, vulkan_device),
         version(version) {}
 };
 
 std::unique_ptr<VulkanGraphicsData> g_gfx_data;
+std::unique_ptr<GraphicsDeviceVulkan> g_vulkan_device;
+
+static bool want_hotkey_screenshot = false;
+
+bool is_cursor_position_valid = false;
+double last_cursor_x_position = 0;
+double last_cursor_y_position = 0;
 
 struct {
   bool callbacks_registered = false;
@@ -163,7 +170,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
                                                    GfxSettings& settings,
                                                    GameVersion game_version,
                                                    bool is_main) {
-  GLFWwindow* window = glfwCreateWindow(width, height, title, NULL, NULL);
+  GLFWwindow* window = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
   if (!window) {
     lg::error("vk_make_display failed - Could not create display window");
@@ -171,16 +178,8 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   }
 
   glfwMakeContextCurrent(window);
-  if (!vk_inited) {
-    if (!gladLoadVulkan(g_gfx_data->vulkan_renderer.GetPhysicalDevice(),
-                        (GLADloadfunc)glfwGetProcAddress)) {
-      lg::error("GL init fail");
-      return NULL;
-    }
-    g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version);
-
-    vk_inited = true;
-  }
+  g_vulkan_device = std::make_unique<GraphicsDeviceVulkan>(window);
+  g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version, g_vulkan_device);
 
   // window icon
   std::string image_path =
@@ -205,6 +204,8 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   }
 
   auto display = std::make_shared<VkDisplay>(window, is_main);
+  display->set_imgui_visible(Gfx::get_debug_menu_visible_on_startup());
+  display->update_cursor_visibility(window, display->is_imgui_visible());
   // lg::debug("init display #x{:x}", (uintptr_t)display);
 
   // setup imgui
@@ -235,7 +236,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   imgui_vulkan_info.Instance = g_gfx_data->vulkan_renderer.GetInstance();
   imgui_vulkan_info.PhysicalDevice = g_gfx_data->vulkan_renderer.GetPhysicalDevice();
   imgui_vulkan_info.Device = g_gfx_data->vulkan_renderer.GetLogicalDevice();
-  imgui_vulkan_info.QueueFamily = g_gfx_data->vulkan_renderer.GetQueueFamily();
+  imgui_vulkan_info.QueueFamily = g_gfx_data->vulkan_renderer.GetPhysicalQueueFamilies().presentFamily.value();
   imgui_vulkan_info.Queue = g_gfx_data->vulkan_renderer.GetPresentQueue();
   imgui_vulkan_info.PipelineCache = NULL;
   imgui_vulkan_info.DescriptorPool = g_gfx_data->vulkan_renderer.GetDescriptorPool();
@@ -246,7 +247,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   imgui_vulkan_info.Allocator = NULL;
   imgui_vulkan_info.CheckVkResultFn = NULL;
 
-  ImGui_ImplVulkan_Init(&imgui_vulkan_info, g_gfx_data->vulkan_renderer.GetRendererPass());
+  ImGui_ImplVulkan_Init(&imgui_vulkan_info, g_gfx_data->vulkan_renderer.getSwapChainRenderPass());
 
   return std::static_pointer_cast<GfxDisplay>(display);
 }
@@ -264,6 +265,16 @@ VkDisplay::VkDisplay(GLFWwindow* window, bool is_main) : m_window(window) {
   glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
     VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
     display->on_key(window, key, scancode, action, mods);
+  });
+
+  glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mode) {
+    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
+    display->on_mouse_key(window, button, action, mode);
+  });
+
+  glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xposition, double yposition) {
+    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
+    display->on_cursor_position(window, xposition, yposition);
   });
 
   glfwSetWindowPosCallback(window, [](GLFWwindow* window, int xpos, int ypos) {
@@ -300,6 +311,13 @@ VkDisplay::~VkDisplay() {
   }
 }
 
+void VkDisplay::update_cursor_visibility(GLFWwindow* window, bool is_visible) {
+  if (Gfx::get_button_mapping().use_mouse) {
+    auto cursor_mode = is_visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED;
+    glfwSetInputMode(window, GLFW_CURSOR, cursor_mode);
+  }
+}
+
 void VkDisplay::on_key(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
   if (action == GlfwKeyAction::Press) {
     // lg::debug("KEY PRESS:   key: {} scancode: {} mods: {:X}", key, scancode, mods);
@@ -307,11 +325,65 @@ void VkDisplay::on_key(GLFWwindow* window, int key, int /*scancode*/, int action
   } else if (action == GlfwKeyAction::Release) {
     // lg::debug("KEY RELEASE: key: {} scancode: {} mods: {:X}", key, scancode, mods);
     Pad::OnKeyRelease(key);
-    if ((key == GLFW_KEY_LEFT_ALT || key == GLFW_KEY_RIGHT_ALT) &&
-        glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
-      set_imgui_visible(!is_imgui_visible());
+    // Debug keys input mapping TODO add remapping
+    switch (key) {
+      case GLFW_KEY_LEFT_ALT:
+      case GLFW_KEY_RIGHT_ALT:
+        if (glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
+          set_imgui_visible(!is_imgui_visible());
+          update_cursor_visibility(window, is_imgui_visible());
+        }
+        break;
+      case GLFW_KEY_F2:
+        want_hotkey_screenshot = true;
+        break;
     }
   }
+}
+
+void VkDisplay::on_mouse_key(GLFWwindow* /*window*/, int button, int action, int /*mode*/) {
+  int key =
+      button + GLFW_KEY_LAST;  // Mouse button index are appended after initial GLFW keys in newpad
+
+  if (button == GLFW_MOUSE_BUTTON_LEFT &&
+      is_imgui_visible()) {  // Are there any other mouse buttons we don't want to use?
+    Pad::ClearKey(key);
+    return;
+  }
+
+  if (action == GlfwKeyAction::Press) {
+    Pad::OnKeyPress(key);
+  } else if (action == GlfwKeyAction::Release) {
+    Pad::OnKeyRelease(key);
+  }
+}
+
+void VkDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, double yposition) {
+  Pad::MappingInfo mapping_info = Gfx::get_button_mapping();
+  if (is_imgui_visible() || !mapping_info.use_mouse) {
+    if (is_cursor_position_valid == true) {
+      Pad::ClearAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_X_AXIS);
+      Pad::ClearAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_Y_AXIS);
+      is_cursor_position_valid = false;
+    }
+    return;
+  }
+
+  if (is_cursor_position_valid == false) {
+    last_cursor_x_position = xposition;
+    last_cursor_y_position = yposition;
+    is_cursor_position_valid = true;
+    return;
+  }
+
+  double xoffset = xposition - last_cursor_x_position;
+  double yoffset = yposition - last_cursor_y_position;
+
+  Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_X_AXIS, xoffset);
+  Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_Y_AXIS, yoffset);
+
+  last_cursor_x_position = xposition;
+  last_cursor_y_position = yposition;
 }
 
 void VkDisplay::on_window_pos(GLFWwindow* /*window*/, int xpos, int ypos) {
@@ -322,11 +394,14 @@ void VkDisplay::on_window_pos(GLFWwindow* /*window*/, int xpos, int ypos) {
 }
 
 void VkDisplay::on_window_size(GLFWwindow* /*window*/, int width, int height) {
-  if (m_fullscreen_target_mode == GfxDisplayMode::Windowed) {
+  // only change them on a legit change, not on the initial update
+  if (m_fullscreen_mode != GfxDisplayMode::ForceUpdate &&
+      m_fullscreen_target_mode == GfxDisplayMode::Windowed) {
     m_last_windowed_width = width;
     m_last_windowed_height = height;
   }
-}
+}	
+
 
 void VkDisplay::on_iconify(GLFWwindow* window, int iconified) {
   m_minimized = iconified == GLFW_TRUE;
@@ -426,20 +501,38 @@ void render_game_frame(int game_width,
 }
 
 void VkDisplay::get_position(int* x, int* y) {
-  glfwGetWindowPos(m_window, x, y);
+  std::lock_guard<std::mutex> lk(m_lock);
+  if (x) {
+    *x = m_display_state.window_pos_x;
+  }
+  if (y) {
+    *y = m_display_state.window_pos_y;
+  }
 }
-
 void VkDisplay::get_size(int* width, int* height) {
-  glfwGetFramebufferSize(m_window, width, height);
+  std::lock_guard<std::mutex> lk(m_lock);
+  if (width) {
+    *width = m_display_state.window_size_width;
+  }
+  if (height) {
+    *height = m_display_state.window_size_height;
+  }
 }
-
 void VkDisplay::get_scale(float* xs, float* ys) {
-  glfwGetWindowContentScale(m_window, xs, ys);
+  std::lock_guard<std::mutex> lk(m_lock);
+  if (xs) {
+    *xs = m_display_state.window_scale_x;
+  }
+  if (ys) {
+    *ys = m_display_state.window_scale_y;
+  }
 }
 
 void VkDisplay::set_size(int width, int height) {
-  glfwSetWindowSize(m_window, width, height);
-
+  // glfwSetWindowSize(m_window, width, height);
+  m_pending_size.width = width;
+  m_pending_size.height = height;
+  m_pending_size.pending = true;
   if (windowed()) {
     m_last_windowed_width = width;
     m_last_windowed_height = height;
@@ -603,6 +696,56 @@ void update_global_profiler() {
   prof().set_enable(g_gfx_data->debug_gui.record_events);
 }
 
+void VkDisplay::VMode::set(const GLFWvidmode* vmode) {
+  width = vmode->width;
+  height = vmode->height;
+  refresh_rate = vmode->refreshRate;
+}
+
+void VkDisplay::update_glfw() {
+  auto p = scoped_prof("update_glfw");
+  glfwPollEvents();
+  glfwMakeContextCurrent(m_window);
+  auto& mapping_info = Gfx::get_button_mapping();
+  Pad::update_gamepads(mapping_info);
+  glfwGetFramebufferSize(m_window, &m_display_state_copy.window_size_width,
+                         &m_display_state_copy.window_size_height);
+  glfwGetWindowContentScale(m_window, &m_display_state_copy.window_scale_x,
+                            &m_display_state_copy.window_scale_y);
+  glfwGetWindowPos(m_window, &m_display_state_copy.window_pos_x,
+                   &m_display_state_copy.window_pos_y);
+  GLFWmonitor* monitor = get_monitor(fullscreen_screen());
+  auto current_vmode = glfwGetVideoMode(monitor);
+  if (current_vmode) {
+    m_display_state_copy.current_vmode.set(current_vmode);
+  }
+  int count = 0;
+  auto vmodes = glfwGetVideoModes(monitor, &count);
+  if (count > MAX_VMODES) {
+    fmt::print("got too many vmodes: {}\n", count);
+    count = MAX_VMODES;
+  }
+  m_display_state_copy.num_vmodes = count;
+  m_display_state_copy.largest_vmode_width = 1;
+  m_display_state_copy.largest_vmode_refresh_rate = 1;
+  for (int i = 0; i < count; i++) {
+    if (vmodes[i].width > m_display_state_copy.largest_vmode_width) {
+      m_display_state_copy.largest_vmode_height = vmodes[i].height;
+      m_display_state_copy.largest_vmode_width = vmodes[i].width;
+    }
+    if (vmodes[i].refreshRate > m_display_state_copy.largest_vmode_refresh_rate) {
+      m_display_state_copy.largest_vmode_refresh_rate = vmodes[i].refreshRate;
+    }
+    m_display_state_copy.vmodes[i].set(&vmodes[i]);
+  }
+  if (m_pending_size.pending) {
+    glfwSetWindowSize(m_window, m_pending_size.width, m_pending_size.height);
+    m_pending_size.pending = false;
+  }
+  std::lock_guard<std::mutex> lk(m_lock);
+  m_display_state = m_display_state_copy;
+}
+
 /*!
  * Main function called to render graphics frames. This is called in a loop.
  */
@@ -676,7 +819,7 @@ void VkDisplay::render() {
   }
   // actually wait for vsync
   if (g_gfx_data->debug_gui.should_vk_finish()) {
-    glFinish();
+    //glFinish();
   }
 
   // switch vsync modes, if requested
@@ -698,16 +841,6 @@ void VkDisplay::render() {
     std::unique_lock<std::mutex> lock(g_gfx_data->sync_mutex);
     g_gfx_data->frame_idx++;
     g_gfx_data->sync_cv.notify_all();
-  }
-
-  // update fullscreen mode, if requested
-  {
-    auto p = scoped_prof("fullscreen-update");
-    update_last_fullscreen_mode();
-
-    if (fullscreen_pending() && !minimized()) {
-      fullscreen_flush();
-    }
   }
 
   // reboot whole game, if requested

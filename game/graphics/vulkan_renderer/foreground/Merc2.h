@@ -3,7 +3,7 @@
 
 class Merc2 : public BucketRenderer {
  public:
-  Merc2(const std::string& name, BucketId my_id, VkDevice& device);
+  Merc2(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
   ~Merc2();
   void draw_debug_window() override;
   void init_shaders(ShaderLibrary& shaders) override;
@@ -144,5 +144,6 @@ class Merc2 : public BucketRenderer {
   size_t m_vulkan_buffer_alignment = 0;
 
   void flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  std::unique_ptr<UniformBuffer> m_uniform_buffer;
 };
 

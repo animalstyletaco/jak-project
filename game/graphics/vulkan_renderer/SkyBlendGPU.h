@@ -3,11 +3,11 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/SkyBlendCommon.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 class SkyBlendGPU {
  public:
-  SkyBlendGPU(VkDevice device);
+  SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device);
   ~SkyBlendGPU();
   void init_textures(TexturePool& tex_pool);
   SkyBlendStats do_sky_blends(DmaFollower& dma,
@@ -15,15 +15,9 @@ class SkyBlendGPU {
                               ScopedProfilerNode& prof);
 
  private:
-  VkBuffer m_vertex_buffer = VK_NULL_HANDLE;
-  VkDeviceMemory m_vertex_memory = VK_NULL_HANDLE;
-  VkDeviceSize m_vertex_device_size = 0;
-
-  VkImage m_textures[2] = {VK_NULL_HANDLE};
-  VkImageView m_texture_views[2] = {VK_NULL_HANDLE};
-  VkDeviceMemory m_texture_memories[2] = {VK_NULL_HANDLE};
-  VkDeviceSize m_texture_size[2] = {0};
-  VkDevice m_device = VK_NULL_HANDLE;
+  std::unique_ptr<VertexBuffer> m_vertex_buffer;
+  std::unique_ptr<TextureInfo> m_textures[2];
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 
   int m_sizes[2] = {32, 64};
 

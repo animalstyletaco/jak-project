@@ -7,7 +7,7 @@
 #include "common/util/os.h"
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/pipelines/vulkan.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 //FIXME: Get Vulkan structure into pipeline
 DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, bool mipmap) {
@@ -218,35 +218,29 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture
   return double_draw;
 }
 
-DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& textureInfo, UniformBuffer& uniform_buffer) {
+DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& textureInfo, std::unique_ptr<UniformBuffer>& uniform_buffer) {
   auto draw_settings = setup_vulkan_from_draw_mode(mode, textureInfo, true);
-  uniform_buffer.SetUniform1f("alpha_min",
+  uniform_buffer->SetUniform1f("alpha_min",
               draw_settings.aref_first);
-  uniform_buffer.SetUniform1f("alpha_max", 10.f);
+  uniform_buffer->SetUniform1f("alpha_max", 10.f);
   return draw_settings;
 }
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             SharedRenderState* render_state,
                             const TextureInfo& textureInfo,
-                            UniformBuffer& uniform_buffer) {
-  uniform_buffer.SetUniform1i("tex_T0", 0);
-  uniform_buffer.Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
+                            std::unique_ptr<UniformBuffer>& uniform_buffer) {
+  uniform_buffer->SetUniform1i("tex_T0", 0);
+  uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
                 (float*)settings.math_camera.data());
-  uniform_buffer.SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
+  uniform_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
                 settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
-  uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
-  uniform_buffer.SetUniform1f("fog_min", settings.fog.y());
-  uniform_buffer.SetUniform1f("fog_max", settings.fog.z());
-  uniform_buffer.SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
+  uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
+  uniform_buffer->SetUniform1f("fog_min", settings.fog.y());
+  uniform_buffer->SetUniform1f("fog_max", settings.fog.z());
+  uniform_buffer->SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
-}
-
-
-
-
-void SetUniform1i(uint32_t memory_offset, uint32_t value) {
 }
 
 void interp_time_of_day_slow(const float weights[8],
@@ -779,4 +773,43 @@ void update_render_state_from_pc_settings(SharedRenderState* state, const TfragP
     state->camera_fog = data.fog;
     state->has_pc_data = true;
   }
+}
+
+struct BackgroundCommonVertex {
+  math::Vector4f hvdf_offset;
+  math::Matrix4f camera;
+  float fog_constant;
+  float fog_min;
+  float fog_max;
+  // layout(binding = 10) uniform sampler1D tex_T1;  // note, sampled in the vertex shader on
+  // purpose.
+};
+
+BackgroundCommonVertexUniformBuffer::BackgroundCommonVertexUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"hvdf_offset", offsetof(BackgroundCommonVertexUniformShaderData, hvdf_offset)},
+      {"camera", offsetof(BackgroundCommonVertexUniformShaderData, camera)},
+      {"fog_constant", offsetof(BackgroundCommonVertexUniformShaderData, fog_constant)},
+      {"fog_min", offsetof(BackgroundCommonVertexUniformShaderData, fog_min)},
+      {"fog_max", offsetof(BackgroundCommonVertexUniformShaderData, fog_max)}};
+}
+
+BackgroundCommonFragmentUniformBuffer::BackgroundCommonFragmentUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VkDeviceSize instanceSize,
+    uint32_t instanceCount,
+    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"tex_T0", offsetof(BackgroundCommonFragmentUniformShaderData, tex_T0)},
+      {"alpha_min", offsetof(BackgroundCommonFragmentUniformShaderData, alpha_min)},
+      {"alpha_max", offsetof(BackgroundCommonFragmentUniformShaderData, alpha_max)},
+      {"fog_color", offsetof(BackgroundCommonFragmentUniformShaderData, fog_color)}};
 }

@@ -13,7 +13,7 @@
 #include "decompiler/ObjectFile/LinkedObjectFile.h"
 #include "decompiler/util/DecompilerTypeSystem.h"
 #include "decompiler/util/data_decompile.h"
-#include "decompiler/util/goal_constants.h"
+#include "decompiler/util/type_utils.h"
 
 /*
  * TODO
@@ -133,6 +133,16 @@ Form* try_cast_simplify(Form* in,
 
   if (new_type == TypeSpec("meters")) {
     auto fc = get_goal_float_constant(in);
+
+    if (!fc && env.version == GameVersion::Jak2) {
+      auto ic = get_goal_integer_constant(in, env);
+      if (ic) {
+        ASSERT((s64)*ic == (s64)(s32)*ic);
+        float f;
+        memcpy(&f, &ic.value(), sizeof(float));
+        fc = f;
+      }
+    }
 
     if (fc) {
       double div = (double)*fc / METER_LENGTH;  // GOOS will use doubles here
@@ -688,6 +698,21 @@ void LoadSourceElement::update_from_stack(const Env& env,
                                           bool allow_side_effects) {
   mark_popped();
   m_addr->update_children_from_stack(env, pool, stack, allow_side_effects);
+
+  // most of the time, the AtomicOpForm logic is able to figure the load, but sometimes
+  // it's impossible before expressions:
+
+  //  ori a2, r0, 33708
+  //  lw a3, *level*(s7)
+  //  daddu a2, a2, a3
+  //  lq a2, 0(a2)
+
+  /*
+  if (m_load_source_ro && m_load_source_ro->offset == 0) {
+    // maybe a case like above, try to improve
+  }
+  */
+
   result->push_back(this);
 }
 
@@ -1025,19 +1050,9 @@ void SimpleExpressionElement::update_from_stack_add_i(const Env& env,
 
     // try to find symbol to string stuff
     auto arg0_int = get_goal_integer_constant(args.at(0), env);
-    u64 symbol_to_string_offset = -1;
-    switch (env.version) {
-      case GameVersion::Jak1:
-        symbol_to_string_offset = DECOMP_SYM_INFO_OFFSET + 4;
-        break;
-      case GameVersion::Jak2:
-        symbol_to_string_offset = jak2::SYM_TO_STRING_OFFSET;
-        break;
-      default:
-        ASSERT(false);
-    }
-    if (arg0_int && (*arg0_int == symbol_to_string_offset) &&
-        arg1_type.typespec() == TypeSpec("symbol")) {
+
+    if (arg0_int && (*arg0_int == SYMBOL_TO_STRING_MEM_OFFSET_DECOMP[env.version]) &&
+        allowable_base_type_for_symbol_to_string(arg1_type.typespec())) {
       result->push_back(pool.alloc_element<GetSymbolStringPointer>(args.at(1)));
       return;
     }
@@ -1250,10 +1265,29 @@ void SimpleExpressionElement::update_from_stack_add_i(const Env& env,
           throw std::runtime_error("Failed to match product_with_constant inline array access 2.");
         }
       }
+    } else if (arg0_type.kind == TP_Type::Kind::INTEGER_CONSTANT) {
+      // try to see if this is valid, from the type system.
+      FieldReverseLookupInput input;
+      input.offset = arg0_type.get_integer_constant();
+      input.stride = 0;
+      input.base_type = arg1_type.typespec();
+      auto out = env.dts->ts.reverse_field_lookup(input);
+      if (out.success && !out.has_variable_token()) {
+        // it is. now we have to modify things
+        // first, look for the index
+        std::vector<DerefToken> tokens;
+        for (auto& tok : out.tokens) {
+          tokens.push_back(to_token(tok));
+        }
+
+        result->push_back(pool.alloc_element<DerefElement>(args.at(1), out.addr_of, tokens));
+        return;
+      }
     }
   }
 
-  if (env.dts->ts.tc(TypeSpec("structure"), arg0_type.typespec()) && m_expr.get_arg(1).is_int()) {
+  if (env.dts->ts.tc(TypeSpec("structure"), arg0_type.typespec()) && m_expr.get_arg(1).is_int() &&
+      arg0_type.kind != TP_Type::Kind::INTEGER_CONSTANT_PLUS_VAR) {
     auto type_info = env.dts->ts.lookup_type(arg0_type.typespec());
     if (type_info->get_size_in_memory() == m_expr.get_arg(1).get_int()) {
       auto new_form = pool.alloc_element<GenericElement>(
@@ -1276,7 +1310,7 @@ void SimpleExpressionElement::update_from_stack_add_i(const Env& env,
     }
   }
 
-  if (arg0_ptr) {
+  if (arg0_ptr && arg0_type.kind != TP_Type::Kind::INTEGER_CONSTANT_PLUS_VAR) {
     auto new_form = pool.alloc_element<GenericElement>(
         GenericOperator::make_fixed(FixedOperatorKind::ADDITION_PTR), args.at(0), args.at(1));
     result->push_back(new_form);
@@ -1962,63 +1996,77 @@ void SimpleExpressionElement::update_from_stack_left_shift(const Env& env,
                                                            FormStack& stack,
                                                            std::vector<FormElement*>* result,
                                                            bool allow_side_effects) {
-  auto arg0_type = env.get_variable_type(m_expr.get_arg(0).var(), true);
+  TypeSpec arg0_type;
+  auto& arg0 = m_expr.get_arg(0);
+  if (arg0.is_var()) {
+    arg0_type = env.get_variable_type(m_expr.get_arg(0).var(), true);
+    auto type_info = env.dts->ts.lookup_type(arg0_type);
+    auto bitfield_info = dynamic_cast<BitFieldType*>(type_info);
+    if (arg0_type.base_type() != "time-frame" && bitfield_info && m_expr.get_arg(1).is_int()) {
+      auto base =
+          pop_to_forms({m_expr.get_arg(0).var()}, env, pool, stack, allow_side_effects).at(0);
+      auto read_elt = pool.alloc_element<BitfieldAccessElement>(base, arg0_type);
+      BitfieldManip step(BitfieldManip::Kind::LEFT_SHIFT, m_expr.get_arg(1).get_int());
+      auto other = read_elt->push_step(step, env.dts->ts, pool, env);
+      ASSERT(!other);  // shouldn't be complete.
+      result->push_back(read_elt);
+    } else {
+      // try to turn this into a multiplication, if possible
+      if (m_expr.get_arg(1).is_int()) {
+        auto args = pop_to_forms({m_expr.get_arg(0).var()}, env, pool, stack, allow_side_effects);
+        int sa = m_expr.get_arg(1).get_int();
 
-  auto type_info = env.dts->ts.lookup_type(arg0_type);
-  auto bitfield_info = dynamic_cast<BitFieldType*>(type_info);
-  if (arg0_type.base_type() != "time-frame" && bitfield_info && m_expr.get_arg(1).is_int()) {
-    auto base = pop_to_forms({m_expr.get_arg(0).var()}, env, pool, stack, allow_side_effects).at(0);
-    auto read_elt = pool.alloc_element<BitfieldAccessElement>(base, arg0_type);
-    BitfieldManip step(BitfieldManip::Kind::LEFT_SHIFT, m_expr.get_arg(1).get_int());
-    auto other = read_elt->push_step(step, env.dts->ts, pool, env);
-    ASSERT(!other);  // shouldn't be complete.
-    result->push_back(read_elt);
-  } else {
-    // try to turn this into a multiplication, if possible
-    if (m_expr.get_arg(1).is_int()) {
-      auto args = pop_to_forms({m_expr.get_arg(0).var()}, env, pool, stack, allow_side_effects);
-      int sa = m_expr.get_arg(1).get_int();
+        auto as_ba = args.at(0)->try_as_element<BitfieldAccessElement>();
+        if (as_ba) {
+          BitfieldManip step(BitfieldManip::Kind::LEFT_SHIFT, m_expr.get_arg(1).get_int());
+          auto other = as_ba->push_step(step, env.dts->ts, pool, env);
+          ASSERT(!other);  // shouldn't be complete.
+          result->push_back(as_ba);
+          return;
+        }
 
-      auto as_ba = args.at(0)->try_as_element<BitfieldAccessElement>();
-      if (as_ba) {
-        BitfieldManip step(BitfieldManip::Kind::LEFT_SHIFT, m_expr.get_arg(1).get_int());
-        auto other = as_ba->push_step(step, env.dts->ts, pool, env);
-        ASSERT(!other);  // shouldn't be complete.
-        result->push_back(as_ba);
+        // somewhat arbitrary threshold to switch from multiplications to shift.
+        if (sa < 10) {
+          s64 multiplier = (s64(1) << sa);
+
+          auto new_form = pool.alloc_element<GenericElement>(
+              GenericOperator::make_fixed(FixedOperatorKind::MULTIPLICATION), args.at(0),
+              pool.form<SimpleAtomElement>(SimpleAtom::make_int_constant(multiplier)));
+          result->push_back(new_form);
+          return;
+        }
+
+        auto arg0_i = is_int_type(env, m_my_idx, m_expr.get_arg(0).var());
+        auto arg0_u = is_uint_type(env, m_my_idx, m_expr.get_arg(0).var());
+        if (!arg0_i && !arg0_u) {
+          auto new_form = pool.alloc_element<GenericElement>(
+              GenericOperator::make_fixed(FixedOperatorKind::SHL),
+              pool.form<CastElement>(TypeSpec("int"), args.at(0)),
+              pool.form<SimpleAtomElement>(m_expr.get_arg(1)));
+          result->push_back(new_form);
+        } else {
+          auto new_form = pool.alloc_element<GenericElement>(
+              GenericOperator::make_fixed(FixedOperatorKind::SHL), args.at(0),
+              pool.form<SimpleAtomElement>(m_expr.get_arg(1)));
+          result->push_back(new_form);
+        }
+
         return;
       }
 
-      // somewhat arbitrary threshold to switch from multiplications to shift.
-      if (sa < 10) {
-        s64 multiplier = (s64(1) << sa);
-
-        auto new_form = pool.alloc_element<GenericElement>(
-            GenericOperator::make_fixed(FixedOperatorKind::MULTIPLICATION), args.at(0),
-            pool.form<SimpleAtomElement>(SimpleAtom::make_int_constant(multiplier)));
-        result->push_back(new_form);
-        return;
-      }
-
-      auto arg0_i = is_int_type(env, m_my_idx, m_expr.get_arg(0).var());
-      auto arg0_u = is_uint_type(env, m_my_idx, m_expr.get_arg(0).var());
-      if (!arg0_i && !arg0_u) {
-        auto new_form =
-            pool.alloc_element<GenericElement>(GenericOperator::make_fixed(FixedOperatorKind::SHL),
-                                               pool.form<CastElement>(TypeSpec("int"), args.at(0)),
-                                               pool.form<SimpleAtomElement>(m_expr.get_arg(1)));
-        result->push_back(new_form);
-      } else {
-        auto new_form = pool.alloc_element<GenericElement>(
-            GenericOperator::make_fixed(FixedOperatorKind::SHL), args.at(0),
-            pool.form<SimpleAtomElement>(m_expr.get_arg(1)));
-        result->push_back(new_form);
-      }
-
-      return;
+      update_from_stack_copy_first_int_2(env, FixedOperatorKind::SHL, pool, stack, result,
+                                         allow_side_effects);
     }
+  } else if ((arg0.is_sym_val("#f") || arg0.is_sym_ptr("#f")) && m_expr.get_arg(1).is_int()) {
+    auto new_form = pool.alloc_element<GenericElement>(
+        GenericOperator::make_fixed(FixedOperatorKind::SHL),
+        pool.form<CastElement>(TypeSpec("int"), pool.form<SimpleAtomElement>(m_expr.get_arg(0))),
+        pool.form<SimpleAtomElement>(m_expr.get_arg(1)));
+    result->push_back(new_form);
+    return;
 
-    update_from_stack_copy_first_int_2(env, FixedOperatorKind::SHL, pool, stack, result,
-                                       allow_side_effects);
+  } else {
+    ASSERT(false);
   }
 }
 

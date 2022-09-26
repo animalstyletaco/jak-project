@@ -163,7 +163,8 @@ goos::Object decompile_function_at_label(const DecompilerLabel& label,
                                          const LinkedObjectFile* file) {
   if (file) {
     auto other_func = file->try_get_function_at_label(label);
-    if (other_func) {
+    if (other_func && other_func->ir2.env.has_local_vars() && other_func->ir2.top_form &&
+        other_func->ir2.expressions_succeeded) {
       return final_output_lambda(*other_func);
     }
   }
@@ -436,9 +437,9 @@ goos::Object decomp_ref_to_inline_array_guess_size(
 
   // verify the stride matches the type system
   auto elt_type_info = ts.lookup_type(array_elt_type);
-  int ye = align(elt_type_info->get_size_in_memory(),
-                 elt_type_info->get_inline_array_stride_alignment());
-  ASSERT(stride == ye);
+  int elt_size = align(elt_type_info->get_size_in_memory(),
+                       elt_type_info->get_inline_array_stride_alignment());
+  ASSERT(stride == elt_size);
 
   // the input is the location of the data field.
   // we expect that to be a label:
@@ -573,6 +574,29 @@ goos::Object nav_mesh_poly_arr_decompile(const std::vector<LinkedWord>& words,
                                                file, TypeSpec("nav-poly"), 8);
 }
 
+goos::Object nav_mesh_poly_arr_jak2_decompile(const std::vector<LinkedWord>& words,
+                                              const std::vector<DecompilerLabel>& labels,
+                                              int my_seg,
+                                              int field_location,
+                                              const TypeSystem& ts,
+                                              const std::vector<std::vector<LinkedWord>>& all_words,
+                                              const LinkedObjectFile* file) {
+  return decomp_ref_to_inline_array_guess_size(words, labels, my_seg, field_location, ts, all_words,
+                                               file, TypeSpec("nav-poly"), 64);
+}
+
+goos::Object nav_mesh_nav_control_arr_decompile(
+    const std::vector<LinkedWord>& words,
+    const std::vector<DecompilerLabel>& labels,
+    int my_seg,
+    int field_location,
+    const TypeSystem& ts,
+    const std::vector<std::vector<LinkedWord>>& all_words,
+    const LinkedObjectFile* file) {
+  return decomp_ref_to_inline_array_guess_size(words, labels, my_seg, field_location, ts, all_words,
+                                               file, TypeSpec("nav-control"), 288);
+}
+
 goos::Object nav_mesh_route_arr_decompile(const std::vector<LinkedWord>& words,
                                           const std::vector<DecompilerLabel>& labels,
                                           int my_seg,
@@ -668,7 +692,7 @@ goos::Object decompile_sound_spec(const TypeSpec& type,
   if (bend) {
     throw std::runtime_error("static sound-spec bend was not zero.");
   }
-  if (fo_curve) {
+  if (fo_curve && file->version == GameVersion::Jak1) {
     throw std::runtime_error("static sound-spec fo_curve was not zero.");
   }
   if (priority) {
@@ -719,6 +743,10 @@ goos::Object decompile_sound_spec(const TypeSpec& type,
     implicit_mask |= 1 << 7;
     the_macro.push_back(pretty_print::to_symbol(fmt::format(":fo-max {}", fo_max)));
   }
+  if (fo_curve != 0) {
+    implicit_mask |= (1 << 8);
+    the_macro.push_back(pretty_print::to_symbol(fmt::format(":fo-curve {}", fo_curve)));
+  }
 
   if (mask < implicit_mask) {
     throw std::runtime_error(
@@ -757,16 +785,18 @@ goos::Object decompile_structure(const TypeSpec& type,
                                  bool use_fancy_macros) {
   // some structures we want to decompile to fancy macros instead of a raw static definiton
   // temp hack!!
-  if (use_fancy_macros && file && file->version == GameVersion::Jak1) {
-    if (type == TypeSpec("sp-field-init-spec")) {
-      ASSERT(file->version == GameVersion::Jak1);  // need to update enums
-      return decompile_sparticle_field_init(type, label, labels, words, ts, file);
+  if (use_fancy_macros && file) {
+    if (file->version == GameVersion::Jak1) {
+      if (type == TypeSpec("sp-field-init-spec")) {
+        ASSERT(file->version == GameVersion::Jak1);  // need to update enums
+        return decompile_sparticle_field_init(type, label, labels, words, ts, file);
+      }
+      if (type == TypeSpec("sparticle-group-item")) {
+        ASSERT(file->version == GameVersion::Jak1);  // need to update enums
+        return decompile_sparticle_group_item(type, label, labels, words, ts, file);
+      }
     }
-    if (type == TypeSpec("sparticle-group-item")) {
-      ASSERT(file->version == GameVersion::Jak1);  // need to update enums
-      return decompile_sparticle_group_item(type, label, labels, words, ts, file);
-    }
-    if (type == TypeSpec("sound-spec") && file->version != GameVersion::Jak2) {
+    if (type == TypeSpec("sound-spec")) {
       return decompile_sound_spec(type, label, labels, words, ts, file);
     }
   }
@@ -958,6 +988,7 @@ goos::Object decompile_structure(const TypeSpec& type,
             fmt::format("Dynamic value field {} in static data type {} not yet implemented",
                         field.name(), actual_type.print()));
       } else {
+        // TODO - this is getting a little unwieldly -- refactor this at some point
         if (field.name() == "data" && type.print() == "ocean-near-indices") {
           // first, get the label:
           field_defs_out.emplace_back(
@@ -971,15 +1002,28 @@ goos::Object decompile_structure(const TypeSpec& type,
           field_defs_out.emplace_back(
               field.name(), sp_field_init_spec_decompile(obj_words, labels, label.target_segment,
                                                          field_start, ts, words, file));
-        } else if (field.name() == "vertex" && type.print() == "nav-mesh") {
+        } else if (field.name() == "vertex" && type.print() == "nav-mesh" &&
+                   file->version == GameVersion::Jak1) {
           field_defs_out.emplace_back(
               field.name(), nav_mesh_vertex_arr_decompile(obj_words, labels, label.target_segment,
                                                           field_start, ts, words, file));
-        } else if (field.name() == "poly" && type.print() == "nav-mesh") {
+        } else if (field.name() == "poly" && type.print() == "nav-mesh" &&
+                   file->version == GameVersion::Jak1) {
           field_defs_out.emplace_back(
               field.name(), nav_mesh_poly_arr_decompile(obj_words, labels, label.target_segment,
                                                         field_start, ts, words, file));
-        } else if (field.name() == "route" && type.print() == "nav-mesh") {
+        } else if (field.name() == "poly-array" && type.print() == "nav-mesh" &&
+                   file->version == GameVersion::Jak2) {
+          field_defs_out.emplace_back(field.name(), nav_mesh_poly_arr_jak2_decompile(
+                                                        obj_words, labels, label.target_segment,
+                                                        field_start, ts, words, file));
+        } else if (field.name() == "nav-control-array" && type.print() == "nav-mesh" &&
+                   file->version == GameVersion::Jak2) {
+          field_defs_out.emplace_back(field.name(), nav_mesh_nav_control_arr_decompile(
+                                                        obj_words, labels, label.target_segment,
+                                                        field_start, ts, words, file));
+        } else if (field.name() == "route" && type.print() == "nav-mesh" &&
+                   file->version == GameVersion::Jak1) {
           field_defs_out.emplace_back(
               field.name(), nav_mesh_route_arr_decompile(obj_words, labels, label.target_segment,
                                                          field_start, ts, words, file));

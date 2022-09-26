@@ -4,7 +4,7 @@
 #include "decompiler/IR2/bitfields.h"
 #include "decompiler/ObjectFile/LinkedObjectFile.h"
 #include "decompiler/types2/types2.h"
-#include "decompiler/util/goal_constants.h"
+#include "decompiler/util/type_utils.h"
 
 /*!
  * This file contains implementations of forward type propagation.
@@ -184,7 +184,7 @@ TP_Type get_type_symbol_ptr(const std::string& name) {
   if (name == "#f") {
     return TP_Type::make_false();
   } else {
-    return TP_Type::make_from_ts("symbol");
+    return TP_Type::make_symbol(name);
   }
 }
 
@@ -261,10 +261,16 @@ bool backprop_tagged_type(const TP_Type& expected_type,
 
     case types2::Tag::BLOCK_ENTRY:
       // don't update if we're updating to exactly the same thing.
-      if (actual_type.tag.block_entry->selected_type &&
-          actual_type.tag.block_entry->selected_type == expected_type) {
-        return false;
+      if (actual_type.tag.block_entry->selected_type) {
+        if (actual_type.tag.block_entry->selected_type == expected_type) {
+          return false;
+        }
+        if (actual_type.tag.block_entry->selected_type->typespec().base_type() == "vector" &&
+            expected_type.typespec().base_type() == "vector4") {
+          return false;
+        }
       }
+
       {
         actual_type.tag.block_entry->updated = true;
         actual_type.tag.block_entry->selected_type = expected_type;
@@ -856,6 +862,10 @@ void types2_for_div_mod_signed(types2::Type& type_out,
                                        expr.to_string(env), arg0_type.print(), arg1_type.print()));
 }
 
+void types2_for_div_mod_unsigned(types2::Type& type_out) {
+  type_out.type = TP_Type::make_from_ts("uint");
+}
+
 void types2_for_pcpyld(types2::Type& type_out,
                        const SimpleExpression& expr,
                        const Env& env,
@@ -1100,8 +1110,19 @@ void types2_for_add(types2::Type& type_out,
 
   // propagate integer math: a + C1
   if (arg1_type.is_integer_constant() && is_int_or_uint(dts, arg0_type)) {
+    TypeSpec sum_type = arg0_type.typespec();
+
+    FieldReverseLookupInput rd_in;
+    rd_in.offset = arg1_type.get_integer_constant();
+    rd_in.stride = 0;
+    rd_in.base_type = arg0_type.typespec();
+    auto out = env.dts->ts.reverse_field_lookup(rd_in);
+    if (out.success) {
+      sum_type = coerce_to_reg_type(out.result_type);
+    }
+
     type_out.type = TP_Type::make_from_integer_constant_plus_var(arg1_type.get_integer_constant(),
-                                                                 arg0_type.typespec());
+                                                                 arg0_type.typespec(), sum_type);
     return;
   }
 
@@ -1203,7 +1224,7 @@ void types2_for_add(types2::Type& type_out,
       type_out.type =
           TP_Type::make_from_ts(coerce_to_reg_type(filtered_results.front().result_type));
       return;
-    } else {
+    } else if (!filtered_results.empty()) {
       types2_from_ambiguous_deref(output_instr, type_out, filtered_results, extras.tags_locked);
       return;
     }
@@ -1230,7 +1251,7 @@ void types2_for_add(types2::Type& type_out,
       type_out.type =
           TP_Type::make_from_ts(coerce_to_reg_type(filtered_results.front().result_type));
       return;
-    } else {
+    } else if (!filtered_results.empty()) {
       types2_from_ambiguous_deref(output_instr, type_out, filtered_results, extras.tags_locked);
       return;
     }
@@ -1296,8 +1317,8 @@ void types2_for_add(types2::Type& type_out,
 
   if (tc(dts, TypeSpec("structure"), arg1_type) && !expr.get_arg(0).is_int() &&
       is_int_or_uint(dts, arg0_type)) {
-    if (arg1_type.typespec() == TypeSpec("symbol") &&
-        arg0_type.is_integer_constant(DECOMP_SYM_INFO_OFFSET + POINTER_SIZE)) {
+    if (allowable_base_type_for_symbol_to_string(arg1_type.typespec()) &&
+        arg0_type.is_integer_constant(SYMBOL_TO_STRING_MEM_OFFSET_DECOMP[env.version])) {
       // symbol -> GOAL String
       // NOTE - the offset doesn't fit in a s16, so it's loaded into a register first.
       // so we expect the arg to be a variable, and the type propagation will figure out the
@@ -1308,8 +1329,25 @@ void types2_for_add(types2::Type& type_out,
       // byte access of offset array field trick.
       // arg1 holds a structure.
       // arg0 is an integer in a register.
-      type_out.type = TP_Type::make_object_plus_product(arg1_type.typespec(), 1, true);
-      return;
+
+      // TODO port to old type pass too
+      if (arg0_type.is_integer_constant()) {
+        TypeSpec sum_type = arg1_type.typespec();
+        FieldReverseLookupInput rd_in;
+        rd_in.offset = arg0_type.get_integer_constant();
+        rd_in.stride = 0;
+        rd_in.base_type = arg1_type.typespec();
+        auto out = env.dts->ts.reverse_field_lookup(rd_in);
+        if (out.success) {
+          sum_type = coerce_to_reg_type(out.result_type);
+        }
+        type_out.type = TP_Type::make_from_integer_constant_plus_var(
+            arg0_type.get_integer_constant(), arg1_type.typespec(), sum_type);
+        return;
+      } else {
+        type_out.type = TP_Type::make_object_plus_product(arg1_type.typespec(), 1, true);
+        return;
+      }
     }
   }
 
@@ -1503,6 +1541,10 @@ void types2_for_expr(types2::Type& type_out,
     case SimpleExpression::Kind::DIV_SIGNED:
     case SimpleExpression::Kind::MOD_SIGNED:
       types2_for_div_mod_signed(type_out, expr, env, input_types, dts);
+      break;
+    case SimpleExpression::Kind::DIV_UNSIGNED:
+    case SimpleExpression::Kind::MOD_UNSIGNED:
+      types2_for_div_mod_unsigned(type_out);
       break;
     case SimpleExpression::Kind::NEG:
     case SimpleExpression::Kind::MIN_SIGNED:
@@ -1938,6 +1980,29 @@ bool load_var_op_determine_type(types2::Type& type_out,
       }
     }
 
+    if (input_type.kind == TP_Type::Kind::INTEGER_CONSTANT_PLUS_VAR &&
+        input_type.get_integer_constant() == 0) {
+      FieldReverseLookupInput rd_in;
+      DerefKind dk;
+      dk.is_store = false;
+      dk.reg_kind = get_reg_kind(ro.reg);
+      dk.sign_extend = op.kind() == LoadVarOp::Kind::SIGNED;
+      dk.size = op.size();
+      rd_in.deref = dk;
+      rd_in.base_type = input_type.get_objects_typespec();
+      rd_in.offset = ro.offset;
+      auto rd = dts.ts.reverse_field_multi_lookup(rd_in);
+      if (rd.success) {
+        if (rd.results.size() == 1) {
+          type_out.type = TP_Type::make_from_ts(coerce_to_reg_type(rd.results.front().result_type));
+          return true;
+        } else {
+          types2_from_ambiguous_deref(output_instr, type_out, rd.results, extras.tags_locked);
+          return true;
+        }
+      }
+    }
+
     if (input_type.kind == TP_Type::Kind::TYPESPEC && ro.offset == -4 &&
         op.kind() == LoadVarOp::Kind::UNSIGNED && op.size() == 4 && ro.reg.get_kind() == Reg::GPR) {
       // get type of basic likely, but misrecognized as an object.
@@ -2069,9 +2134,32 @@ bool load_var_op_determine_type(types2::Type& type_out,
       }
     }
 
+    if (input_type.kind == TP_Type::Kind::INTEGER_CONSTANT_PLUS_VAR && ro.offset == 0) {
+      FieldReverseLookupInput rd_in;
+      DerefKind dk;
+      dk.is_store = false;
+      dk.reg_kind = get_reg_kind(ro.reg);
+      dk.sign_extend = op.kind() == LoadVarOp::Kind::SIGNED;
+      dk.size = op.size();
+      rd_in.deref = dk;
+      rd_in.base_type = input_type.get_objects_typespec();
+      rd_in.stride = 0;
+      rd_in.offset = input_type.get_integer_constant();
+      auto rd = dts.ts.reverse_field_multi_lookup(rd_in);
+      if (rd.success) {
+        if (rd.results.size() == 1) {
+          type_out.type = TP_Type::make_from_ts(coerce_to_reg_type(rd.results.front().result_type));
+          return true;
+        } else {
+          types2_from_ambiguous_deref(output_instr, type_out, rd.results, extras.tags_locked);
+          return true;
+        }
+      }
+    }
+
     throw std::runtime_error(fmt::format("Could not figure out load: {}", op.to_string(env)));
   } else {
-    throw std::runtime_error(fmt::format("Could not figure out load: {}", op.to_string(env)));
+    throw std::runtime_error(fmt::format("Could not figure out load (2): {}", op.to_string(env)));
   }
 }
 
@@ -2388,6 +2476,22 @@ void CallOp::propagate_types2(types2::Instruction& instr,
   m_call_type_set = true;
 
   out_types[Register(Reg::GPR, Reg::V0)]->type = TP_Type::make_from_ts(in_type.last_arg());
+
+  if (in_tp.kind == TP_Type::Kind::NON_OBJECT_NEW_METHOD &&
+      in_tp.method_from_type() == TypeSpec("array") &&
+      input_types[Register(Reg::GPR, arg_regs[2])]) {
+    // array new:
+    auto& a2 = input_types[Register(Reg::GPR, arg_regs[2])];
+    auto& a1 = input_types[Register(Reg::GPR, arg_regs[1])];
+    auto& a0 = input_types[Register(Reg::GPR, arg_regs[0])];
+
+    if (a0->type && a0->type->is_symbol() && a2->type &&
+        a2->type->kind == TP_Type::Kind::TYPE_OF_TYPE_NO_VIRTUAL && a1->type) {
+      out_types[Register(Reg::GPR, Reg::V0)]->type = TP_Type::make_from_ts(TypeSpec(
+          "array",
+          {input_types[Register(Reg::GPR, arg_regs[2])]->type->get_type_objects_typespec()}));
+    }
+  }
 
   // we can also update register usage here.
   m_read_regs.clear();

@@ -2,8 +2,12 @@
 
 #include "third-party/imgui/imgui.h"
 
-OceanMidAndFar::OceanMidAndFar(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info), m_direct(name, my_id, vulkan_info, 4096), m_texture_renderer(true, vulkan_info) {}
+OceanMidAndFar::OceanMidAndFar(const std::string& name,
+                               BucketId my_id,
+                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+                               VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info), m_direct(name, my_id, device, vulkan_info, 4096),
+      m_texture_renderer(true, device, vulkan_info), m_mid_renderer(device) {}
 
 void OceanMidAndFar::draw_debug_window() {
   m_texture_renderer.draw_debug_window();

@@ -2,7 +2,7 @@
 
 layout(location = 0) out vec4 color;
 
-in vec3 tex_coord;
+layout (location = 0) in vec3 tex_coord;
 layout (binding = 0) uniform sampler2D tex_T0;
 
 void main() {

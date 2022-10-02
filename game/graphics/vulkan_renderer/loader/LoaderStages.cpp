@@ -7,16 +7,20 @@ constexpr float LOAD_BUDGET = 2.5f;
 /*!
  * Upload a texture to the GPU, and give it to the pool.
  */
-TextureInfo add_texture(TexturePool& pool, const tfrag3::Texture& tex, std::unique_ptr<GraphicsDeviceVulkan>& device) {
+TextureInfo add_texture(TexturePool& pool,
+                        const tfrag3::Texture& tex,
+                        std::unique_ptr<GraphicsDeviceVulkan>& device) {
   TextureInfo textureInfo{device};
 
   VkExtent3D extents{tex.w, tex.h, 1};
   textureInfo.CreateImage(extents, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(),
                           VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-  textureInfo.map();
+  if (textureInfo.map() != VK_SUCCESS){
+    throw std::runtime_error("Can not get texture mapped memory");
+  }
   textureInfo.writeToBuffer((u32*)tex.data.data());
   textureInfo.unmap();
 

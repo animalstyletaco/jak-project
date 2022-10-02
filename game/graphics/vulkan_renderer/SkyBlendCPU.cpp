@@ -17,6 +17,7 @@ SkyBlendCPU::SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_devi
                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
     textures[i]->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
                                  VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    m_texture_data[i].resize(4 * m_sizes[i] * m_sizes[i]);
   }
 }
 

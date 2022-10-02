@@ -9,10 +9,6 @@
 #include "game/graphics/vulkan_renderer/Shader.h"
 
 struct PipelineConfigInfo {
-  PipelineConfigInfo() = default;
-  PipelineConfigInfo(const PipelineConfigInfo&) = delete;
-  PipelineConfigInfo& operator=(const PipelineConfigInfo&) = delete;
-
   std::vector<VkVertexInputBindingDescription> bindingDescriptions{};
   std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
   VkPipelineViewportStateCreateInfo viewportInfo;

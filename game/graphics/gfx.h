@@ -125,6 +125,7 @@ extern GfxSettings g_settings;
 const GfxRendererModule* GetCurrentRenderer();
 
 u32 Init(GameVersion version);
+void SetRenderer(GfxPipeline pipeline);
 void Loop(std::function<bool()> f);
 u32 Exit();
 

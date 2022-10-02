@@ -1,30 +1,31 @@
 #version 430 core
 
-out vec4 color;
+layout (location = 0) out vec4 color;
 
-in vec4 fragment_color;
-in vec3 tex_coord;
-uniform float color_mult;
-uniform float alpha_mult;
+layout (location = 0) in vec4 fragment_color;
+layout (location = 1) in vec3 tex_coord;
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+  float color_mult;
+  float alpha_mult;
+  vec4 fog_color;
+  int bucket;
+} ubo;
 
-uniform vec4 fog_color;
-uniform int bucket;
+layout (location = 2) in float fog;
 
-in float fog;
-
-uniform sampler2D tex_T0;
+layout (set = 0, binding = 1) uniform sampler2D tex_T0;
 
 void main() {
     vec4 T0 = texture(tex_T0, tex_coord.xy / tex_coord.z);
-    if (bucket == 0) {
+    if (ubo.bucket == 0) {
         color.rgb = fragment_color.rgb * T0.rgb;
         color.a = fragment_color.a;
-        color.rgb = mix(color.rgb, fog_color.rgb, clamp(fog_color.a * fog, 0, 1));
-    } else if (bucket == 1 || bucket == 2 || bucket == 4) {
+        color.rgb = mix(color.rgb, ubo.fog_color.rgb, clamp(ubo.fog_color.a * fog, 0, 1));
+    } else if (ubo.bucket == 1 || ubo.bucket == 2 || ubo.bucket == 4) {
         color = fragment_color * T0;
-    } else if (bucket == 3) {
+    } else if (ubo.bucket == 3) {
         color = fragment_color * T0;
-        color.rgb = mix(color.rgb, fog_color.rgb, clamp(fog_color.a * fog, 0, 1));
+        color.rgb = mix(color.rgb, ubo.fog_color.rgb, clamp(ubo.fog_color.a * fog, 0, 1));
     }
 
 }

@@ -30,7 +30,6 @@ Buffer::Buffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
       memoryPropertyFlags{memoryPropertyFlags} {
   alignmentSize = getAlignment(instanceSize, minOffsetAlignment);
   bufferSize = alignmentSize * instanceCount;
-  map(bufferSize);
   createBuffer(bufferSize, usageFlags, memoryPropertyFlags, buffer, memory);
 }
 

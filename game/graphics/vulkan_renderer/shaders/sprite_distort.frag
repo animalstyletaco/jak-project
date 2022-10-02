@@ -1,11 +1,11 @@
 #version 430 core
 
-out vec4 out_color;
+layout (location = 0) out vec4 out_color;
 
-uniform sampler2D framebuffer_tex;
+layout (set = 0, binding = 0) uniform sampler2D framebuffer_tex;
 
-in flat vec4 fragment_color;
-in vec2 tex_coord;
+layout (location = 0) in flat vec4 fragment_color;
+layout (location = 1) in vec2 tex_coord;
 
 void main() {
   vec4 color = fragment_color;

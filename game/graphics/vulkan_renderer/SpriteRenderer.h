@@ -9,7 +9,11 @@
 
 class SpriteRenderer : public BucketRenderer {
  public:
-  SpriteRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
+  SpriteRenderer(
+      const std::string& name,
+      BucketId my_id,
+      std::unique_ptr<GraphicsDeviceVulkan>& device,
+      VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   static constexpr int SPRITES_PER_CHUNK = 48;

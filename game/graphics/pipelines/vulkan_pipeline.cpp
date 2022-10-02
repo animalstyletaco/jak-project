@@ -54,7 +54,6 @@ struct VulkanGraphicsData {
 
   std::shared_ptr<Loader> loader;
 
-  // temporary opengl renderer
   VulkanRenderer vulkan_renderer;
 
   VulkanDebugGui debug_gui;
@@ -65,7 +64,6 @@ struct VulkanGraphicsData {
   float pmode_alp = 0.f;
 
   VkRenderPass render_pass;
-  VkCommandBuffer command_buffer;
 
   std::string imgui_log_filename, imgui_filename;
   GameVersion version;
@@ -177,7 +175,6 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
     return NULL;
   }
 
-  glfwMakeContextCurrent(window);
   g_vulkan_device = std::make_unique<GraphicsDeviceVulkan>(window);
   g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version, g_vulkan_device);
 
@@ -754,17 +751,21 @@ void VkDisplay::render() {
   {
     auto p = scoped_prof("poll-gamepads");
     glfwPollEvents();
-    glfwMakeContextCurrent(m_window);
 
     auto& mapping_info = Gfx::get_button_mapping();
     Pad::update_gamepads(mapping_info);
   }
 
   // imgui start of frame
+  VkCommandBuffer command_buffer = g_gfx_data->vulkan_renderer.beginFrame();
   {
     auto p = scoped_prof("imgui-init");
-    //ImGui_ImplVulkan_NewFrame(); Not used?
+    ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
+
+    if (!ImGui_ImplVulkan_CreateFontsTexture(command_buffer)) {
+      throw std::runtime_error("Failed to create font texture");
+    }
     ImGui::NewFrame();
   }
 
@@ -802,14 +803,14 @@ void VkDisplay::render() {
   {
     auto p = scoped_prof("imgui-render");
     ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), g_gfx_data->command_buffer, NULL);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer, NULL);
   }
 
   // actual vsync
   g_gfx_data->debug_gui.finish_frame();
   {
-    auto p = scoped_prof("swap-buffers");
-    glfwSwapBuffers(m_window);
+    //auto p = scoped_prof("swap-buffers");
+    //glfwSwapBuffers(m_window);
   }
   if (Gfx::g_global_settings.framelimiter) {
     auto p = scoped_prof("frame-limiter");
@@ -820,12 +821,6 @@ void VkDisplay::render() {
   // actually wait for vsync
   if (g_gfx_data->debug_gui.should_vk_finish()) {
     //glFinish();
-  }
-
-  // switch vsync modes, if requested
-  if (Gfx::g_global_settings.vsync != Gfx::g_global_settings.old_vsync) {
-    Gfx::g_global_settings.old_vsync = Gfx::g_global_settings.vsync;
-    glfwSwapInterval(Gfx::g_global_settings.vsync);
   }
 
   // Start timing for the next frame.
@@ -858,6 +853,7 @@ void VkDisplay::render() {
       g_gfx_data->sync_cv.notify_all();
     }
   }
+  g_gfx_data->vulkan_renderer.endFrame();
 }
 
 /*!

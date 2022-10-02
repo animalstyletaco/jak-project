@@ -1,9 +1,9 @@
 #version 430 core
 
-out vec4 color;
+layout (location = 0) out vec4 color;
 
-uniform vec4 fragment_color;
+layout (set = 0, binding = 0) uniform UniformBufferObject { vec4 fragment_color; }ubo;
 
 void main() {
-  color = fragment_color;
+  color = ubo.fragment_color;
 }

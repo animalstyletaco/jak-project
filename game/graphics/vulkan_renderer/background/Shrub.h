@@ -11,7 +11,10 @@
 
 class Shrub : public BucketRenderer {
  public:
-  Shrub(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
+  Shrub(const std::string& name,
+        BucketId my_id,
+        std::unique_ptr<GraphicsDeviceVulkan>& device,
+        VulkanInitializationInfo& vulkan_info);
   ~Shrub();
   bool setup_for_level(const std::string& level, SharedRenderState* render_state);
   void render_all_trees(const TfragRenderSettings& settings,

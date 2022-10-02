@@ -5,7 +5,7 @@ static bool is_end_tag(const DmaTag& tag, const VifCode& v0, const VifCode& v1) 
          v1.kind == VifCode::Kind::DIRECT;
 }
 
-OceanMid::OceanMid() {
+OceanMid::OceanMid(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_common_ocean_renderer(device) {
   for (auto& x : m_vu_data) {
     x.fill(999.);
   }

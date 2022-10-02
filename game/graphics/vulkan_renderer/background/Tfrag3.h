@@ -10,7 +10,7 @@
 
 class Tfrag3 {
  public:
-  Tfrag3();
+  Tfrag3(std::unique_ptr<GraphicsDeviceVulkan>& device);
   ~Tfrag3();
 
   void render_all_trees(int geom,
@@ -102,9 +102,6 @@ class Tfrag3 {
 
   std::vector<math::Vector<u8, 4>> m_color_result;
 
-  GLuint m_debug_vao = -1;
-  GLuint m_debug_verts = -1;
-
   u64 m_load_id = -1;
 
   // in theory could be up to 4096, I think, but we don't see that many...
@@ -116,4 +113,9 @@ class Tfrag3 {
 
   bool m_has_level = false;
   bool m_use_fast_time_of_day = true;
+
+  PipelineConfigInfo m_pipeline_config_info;
+  PipelineConfigInfo m_debug_pipeline_config_info;
+  GraphicsPipelineLayout m_pipeline_layout;
+  GraphicsPipelineLayout m_debug_pipeline_layout;
 };

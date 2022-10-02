@@ -13,19 +13,22 @@
 EyeRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device) : fb(128, 128, VK_FORMAT_A8B8G8R8_UINT_PACK32, device) {
 }
 
-EyeRenderer::EyeRenderer(const std::string& name, BucketId id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, id, vulkan_info) {
+EyeRenderer::EyeRenderer(const std::string& name,
+                         BucketId id,
+                         std::unique_ptr<GraphicsDeviceVulkan>& device,
+                         VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, id, device, vulkan_info) {
   std::unique_ptr<UniformBuffer> m_uniform_buffer = std::make_unique<UniformBuffer>(
-      m_vulkan_info.device, sizeof(int), 1,
+      m_device, sizeof(int), 1,
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
   for (uint32_t i = 0; i < NUM_EYE_PAIRS * 2; i++) {
-    m_gpu_eye_textures[i] = std::make_unique<EyeRenderer::GpuEyeTex>(vulkan_info.device);
-    m_cpu_eye_textures[i].texture = std::make_unique<TextureInfo>(m_vulkan_info.device);
+    m_gpu_eye_textures[i] = std::make_unique<EyeRenderer::GpuEyeTex>(m_device);
+    m_cpu_eye_textures[i].texture = std::make_unique<TextureInfo>(m_device);
   }
 
   VkDeviceSize device_size = sizeof(float) * VTX_BUFFER_FLOATS;
   m_gpu_vertex_buffer = std::make_unique<VertexBuffer>(
-      vulkan_info.device, device_size, 1,
+      m_device, device_size, 1,
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 }
 
@@ -77,6 +80,7 @@ void EyeRenderer::InitializeInputVertexAttribute() {
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(float) * 4;
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
   std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
   // TODO: This value needs to be normalized
@@ -84,15 +88,7 @@ void EyeRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[0].location = 0;
   attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
   attributeDescriptions[0].offset = 0;
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.push_back(attributeDescriptions[0]);
 }
 
 EyeRenderer::~EyeRenderer() {
@@ -569,32 +565,28 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
   }
 
   //glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_FALSE;
-  depthStencil.depthBoundsTestEnable = VK_FALSE;
-  depthStencil.stencilTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+  m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
 
   // the first thing we'll do is prepare the vertices
@@ -649,7 +641,7 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
     float clear[4] = {0, 0, 0, 0};
     for (int i = 0; i < 4; i++) {
       clear[i] = ((draw.clear_color >> (8 * i)) & 0xff) / 255.f;
-      colorBlending.blendConstants[0] = clear[i];
+      m_pipeline_config_info.colorBlendInfo.blendConstants[0] = clear[i];
     }
 
     // iris
@@ -657,22 +649,22 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
       // set alpha
       // set Z
       // set texture
-      colorBlendAttachment.blendEnable = VK_FALSE;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       //draw.iris_gl_tex;
       //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
     if (draw.pupil_tex) {
-      colorBlendAttachment.blendEnable = VK_TRUE;
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
       //draw.pupil_gl_tex;
       //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
@@ -680,7 +672,7 @@ void EyeRenderer::run_gpu(const std::vector<SingleEyeDraws>& draws,
     buffer_idx += 4 * 4;
 
     if (draw.lid_tex) {
-      colorBlendAttachment.blendEnable = VK_FALSE;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       //draw.lid_gl_tex;
       //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }

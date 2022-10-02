@@ -150,8 +150,8 @@ void SwapChain::createSwapChain() {
 
   createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain;
 
-  if (vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create swap chain!");
+  if(vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain) != VK_SUCCESS){
+    throw std::runtime_error("failed to create swap chain");
   }
 
   // we only specified a minimum number of images in the swap chain, so the implementation is
@@ -259,10 +259,10 @@ void SwapChain::createFramebuffers() {
     framebufferInfo.height = swapChainExtent.height;
     framebufferInfo.layers = 1;
 
-    if (vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo, nullptr,
-                            &swapChainFramebuffers[i]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create framebuffer!");
-    }
+    //if (vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo, nullptr,
+    //                        &swapChainFramebuffers[i]) != VK_SUCCESS) {
+    //  throw std::runtime_error("failed to create framebuffer!");
+    //}
   }
 }
 
@@ -359,28 +359,11 @@ VkFormat SwapChain::findDepthFormat() {
 
 
 void SwapChain::recordCommandBuffer(VkCommandBuffer commandBuffer,
-                                    VkRenderPass render_pass,
                                     std::unique_ptr<VertexBuffer>& vertex_buffer,
                                     std::unique_ptr<IndexBuffer>& index_buffer,
                                     VkPipelineLayout& pipeline_layout,
                                     std::vector<VkDescriptorSet>& descriptors,
                                     uint32_t imageIndex) {
-  VkRenderPassBeginInfo renderPassInfo{};
-  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  renderPassInfo.renderPass = render_pass;
-  renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
-  renderPassInfo.renderArea.offset = {0, 0};
-  renderPassInfo.renderArea.extent = swapChainExtent;
-
-  std::array<VkClearValue, 2> clearValues{};
-  clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-  clearValues[1].depthStencil = {1.0f, 0};
-
-  renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-  renderPassInfo.pClearValues = clearValues.data();
-
-  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
   VkViewport viewport{};
   viewport.x = 0.0f;
   viewport.y = 0.0f;
@@ -411,4 +394,38 @@ void SwapChain::recordCommandBuffer(VkCommandBuffer commandBuffer,
   if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
     throw std::runtime_error("failed to record command buffer!");
   }
+}
+
+void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
+                                         uint32_t currentImageIndex) {
+  VkRenderPassBeginInfo renderPassInfo{};
+  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  renderPassInfo.renderPass = renderPass;
+  renderPassInfo.framebuffer = getFrameBuffer(currentImageIndex);
+
+  renderPassInfo.renderArea.offset = {0, 0};
+  renderPassInfo.renderArea.extent = getSwapChainExtent();
+
+  std::array<VkClearValue, 2> clearValues{};
+  clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
+  clearValues[1].depthStencil = {1.0f, 0};
+  renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+  renderPassInfo.pClearValues = clearValues.data();
+
+  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+  VkViewport viewport{};
+  viewport.x = 0.0f;
+  viewport.y = 0.0f;
+  viewport.width = static_cast<float>(swapChainExtent.width);
+  viewport.height = static_cast<float>(swapChainExtent.height);
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;
+  VkRect2D scissor{{0, 0}, swapChainExtent};
+  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+}
+
+void SwapChain::endSwapChainRenderPass(VkCommandBuffer commandBuffer) {
+  vkCmdEndRenderPass(commandBuffer);
 }

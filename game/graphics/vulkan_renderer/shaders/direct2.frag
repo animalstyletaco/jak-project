@@ -1,26 +1,29 @@
 #version 430 core
 
-out vec4 color;
+layout (location = 0) out vec4 color;
 
-in vec4 fragment_color;
-in vec3 tex_coord;
-uniform float alpha_reject;
-uniform float color_mult;
-uniform vec4 fog_color;
+layout (location = 0) in vec4 fragment_color;
+layout (location = 1) in vec3 tex_coord;
 
-in flat uvec2 tex_info;
-in float fog;
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+  float alpha_reject;
+  float color_mult;
+  vec4 fog_color;
+} ubo;
 
-layout (binding = 0) uniform sampler2D tex_T0;
-layout (binding = 1) uniform sampler2D tex_T1;
-layout (binding = 2) uniform sampler2D tex_T2;
-layout (binding = 3) uniform sampler2D tex_T3;
-layout (binding = 4) uniform sampler2D tex_T4;
-layout (binding = 5) uniform sampler2D tex_T5;
-layout (binding = 6) uniform sampler2D tex_T6;
-layout (binding = 7) uniform sampler2D tex_T7;
-layout (binding = 8) uniform sampler2D tex_T8;
-layout (binding = 9) uniform sampler2D tex_T9;
+layout (location = 2) in flat uvec2 tex_info;
+layout (location = 3) in float fog;
+
+layout (set = 0, binding = 1) uniform sampler2D tex_T0;
+layout (set = 0, binding = 2) uniform sampler2D tex_T1;
+layout (set = 0, binding = 3) uniform sampler2D tex_T2;
+layout (set = 0, binding = 4) uniform sampler2D tex_T3;
+layout (set = 0, binding = 5) uniform sampler2D tex_T4;
+layout (set = 0, binding = 6) uniform sampler2D tex_T5;
+layout (set = 0, binding = 7) uniform sampler2D tex_T6;
+layout (set = 0, binding = 8) uniform sampler2D tex_T7;
+layout (set = 0, binding = 9) uniform sampler2D tex_T8;
+layout (set = 0, binding = 10) uniform sampler2D tex_T9;
 
 
 vec4 sample_tex(vec2 coord, uint unit) {
@@ -65,11 +68,11 @@ void main() {
         }
     }
     color *= 2;
-    color.xyz *= color_mult;
-    if (color.a < alpha_reject) {
+    color.xyz *= ubo.color_mult;
+    if (color.a < ubo.alpha_reject) {
         discard;
     }
     if ((tex_info.y & 4u) != 0) {
-        color.xyz = mix(color.xyz, fog_color.rgb, clamp(fog_color.a * fog, 0, 1));
+        color.xyz = mix(color.xyz, ubo.fog_color.rgb, clamp(ubo.fog_color.a * fog, 0, 1));
     }
 }

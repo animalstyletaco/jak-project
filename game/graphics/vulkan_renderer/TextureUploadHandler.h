@@ -10,7 +10,11 @@
  */
 class TextureUploadHandler : public BucketRenderer {
  public:
-  TextureUploadHandler(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
+  TextureUploadHandler(
+      const std::string& name,
+      BucketId my_id,
+      std::unique_ptr<GraphicsDeviceVulkan>& device,
+      VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 

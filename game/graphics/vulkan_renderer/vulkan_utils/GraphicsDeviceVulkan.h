@@ -92,17 +92,17 @@ class GraphicsDeviceVulkan {
 
   VkSampleCountFlagBits m_msaa_samples = VK_SAMPLE_COUNT_1_BIT;
 
-  VkInstance m_instance;
+  VkInstance m_instance = VK_NULL_HANDLE;
   VkDebugUtilsMessengerEXT m_debug_messenger;
   VkPhysicalDevice m_physical_device = VK_NULL_HANDLE;
   VkCommandPool m_command_pool;
 
-  VkDevice m_device;
-  VkSurfaceKHR m_surface;
-  VkQueue m_graphics_queue;
-  VkQueue m_present_queue;
+  VkDevice m_device = VK_NULL_HANDLE;
+  VkSurfaceKHR m_surface = VK_NULL_HANDLE;
+  VkQueue m_graphics_queue = VK_NULL_HANDLE;
+  VkQueue m_present_queue = VK_NULL_HANDLE;
 
-  GLFWwindow* m_window;
+  GLFWwindow* m_window = nullptr;
 
   const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
   const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};

@@ -113,6 +113,29 @@ set(RUNTIME_SOURCE
         tools/subtitles/subtitle_editor.cpp)
 
 if(WIN32)
+  if (WIN32)
+    set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator.exe")
+  else()
+    set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator")
+  endif()
+  
+  file(GLOB_RECURSE GLSL_SOURCE_FILES
+      "${CMAKE_CURRENT_SOURCE_DIR}/graphics/vulkan_renderer/shaders/*.frag"
+      "${CMAKE_CURRENT_SOURCE_DIR}/graphics/vulkan_renderer/shaders/*.vert"
+      )
+  
+  foreach(GLSL ${GLSL_SOURCE_FILES})
+    get_filename_component(FILE_NAME ${GLSL} NAME)
+    set(SPIRV "${CMAKE_CURRENT_SOURCE_DIR}/graphics/vulkan_renderer/shaders/${FILE_NAME}.spv")
+    add_custom_command(
+      OUTPUT ${SPIRV}
+      COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV}
+      DEPENDS ${GLSL})
+    list(APPEND SPIRV_BINARY_FILES ${SPIRV})
+  endforeach(GLSL)
+
+  add_custom_target(shaders ALL DEPENDS ${SPIRV_BINARY_FILES})
+
   list(APPEND RUNTIME_SOURCE
         graphics/pipelines/vulkan_pipeline.cpp
         graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.cpp
@@ -253,5 +276,11 @@ else()
     target_link_libraries(runtime pthread dl)
 endif()
 
-add_executable(gk main.cpp)
-target_link_libraries(gk runtime)
+if(WIN32)
+    add_executable(gk main.cpp ${SHADERS})
+    add_dependencies(gk shaders)
+else()
+    add_executable(gk main.cpp)
+endif()
+
+ target_link_libraries(gk runtime)

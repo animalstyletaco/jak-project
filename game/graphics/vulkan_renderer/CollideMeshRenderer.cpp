@@ -5,7 +5,9 @@
 CollideMeshRenderer::CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device)
     : m_device{device},
       m_collision_mesh_vertex_uniform_buffer(device, sizeof(CollisionMeshVertexUniformShaderData), 1,
-         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1) {
+          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+          1),
+      m_pipeline_layout{device} {
   InitializeInputVertexAttribute();
 }
 
@@ -46,22 +48,17 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
 
   //glDepthMask(GL_TRUE);
 
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_TRUE;
-  depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 1.0f;
-  colorBlending.blendConstants[1] = 1.0f;
-  colorBlending.blendConstants[2] = 1.0f;
-  colorBlending.blendConstants[3] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
   for (auto lev : levels) {
     m_collision_mesh_vertex_uniform_buffer.SetUniform1f("wireframe", 0);
@@ -88,19 +85,20 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
     if (Gfx::g_global_settings.collision_wireframe) {
       m_collision_mesh_vertex_uniform_buffer.SetUniform1i("wireframe", 1);
       VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-      colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+      m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+          VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-      colorBlendAttachment.blendEnable = VK_FALSE;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       //imageView.aspectView &= ~VK_IMAGE_ASPECT_DEPTH_BIT;
 
       VkPipelineRasterizationStateCreateInfo rasterizer{};
-      rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-      rasterizer.rasterizerDiscardEnable = VK_FALSE;
-      rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
-      rasterizer.lineWidth = 1.0f;
-      rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-      rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //TODO: Verify that this is correct
-      rasterizer.depthBiasEnable = VK_FALSE;
+      m_pipeline_config_info.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+      m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
+      m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
+      m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+      m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //TODO: Verify that this is correct
+      m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
       //CreateVertexBuffer(lev->level->collision.vertices);
       //glDrawArrays(GL_TRIANGLES, 0, lev->level->collision.vertices.size());
@@ -119,6 +117,7 @@ void CollideMeshRenderer::InitializeInputVertexAttribute() {
     bindingDescription.binding = 0;
     bindingDescription.stride = sizeof(tfrag3::CollisionMesh::Vertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
     std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
     // TODO: This value needs to be normalized
@@ -141,15 +140,8 @@ void CollideMeshRenderer::InitializeInputVertexAttribute() {
     attributeDescriptions[3].location = 2;
     attributeDescriptions[3].format = VK_FORMAT_R32_UINT;
     attributeDescriptions[3].offset = offsetof(tfrag3::CollisionMesh::Vertex, pat);
-
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.vertexAttributeDescriptionCount =
-        static_cast<uint32_t>(attributeDescriptions.size());
-    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    m_pipeline_config_info.attributeDescriptions.insert(
+        m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(), attributeDescriptions.end());
 }
 
 CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(

@@ -41,6 +41,10 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 }
 
 GraphicsDeviceVulkan::GraphicsDeviceVulkan(GLFWwindow* window) : m_window(window) {
+  if (!vulkan_device::is_vulkan_loaded) {
+    gladLoaderLoadVulkan(nullptr, nullptr, nullptr); //Initial load to get vulkan function loaded
+  }
+
   createInstance();
   setupDebugMessenger();
   createSurface();
@@ -59,6 +63,7 @@ GraphicsDeviceVulkan::~GraphicsDeviceVulkan() {
 
   vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
   vkDestroyInstance(m_instance, nullptr);
+  gladLoaderUnloadVulkan();
 }
 
 void GraphicsDeviceVulkan::createInstance() {
@@ -156,13 +161,6 @@ void GraphicsDeviceVulkan::pickPhysicalDevice() {
 
   VkPhysicalDeviceMemoryProperties memory_properties;
   vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memory_properties);
-
-  if(!vulkan_device::is_vulkan_loaded){
-    if (!gladLoadVulkan(m_physical_device, nullptr)) {
-      lg::error("GL init fail");
-    }
-    vulkan_device::is_vulkan_loaded = true;
-  }
 }
 
 void GraphicsDeviceVulkan::createLogicalDevice() {
@@ -205,6 +203,13 @@ void GraphicsDeviceVulkan::createLogicalDevice() {
 
   if (vkCreateDevice(m_physical_device, &createInfo, nullptr, &m_device) != VK_SUCCESS) {
     lg::error("failed to create logical device!");
+  }
+
+  if (!vulkan_device::is_vulkan_loaded) {
+    if (!gladLoaderLoadVulkan(m_instance, m_physical_device, m_device)) { //update loader with new instance, physical device, and logical device
+      lg::error("GL init fail");
+    }
+    vulkan_device::is_vulkan_loaded = true;
   }
 
   vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphics_queue);

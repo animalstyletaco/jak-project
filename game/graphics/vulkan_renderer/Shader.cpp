@@ -4,7 +4,7 @@
 #include "common/util/Assert.h"
 #include "common/util/FileUtil.h"
 
-VkShaderModule Shader::PopulateShader(const std::string& code) {
+VkShaderModule Shader::PopulateShader(const std::vector<u8>& code) {
   VkShaderModuleCreateInfo create_info{};
   create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
   create_info.codeSize = code.size();
@@ -24,9 +24,9 @@ Shader::Shader(VkDevice device, const std::string& shader_name)
     : m_device(device) ,shader_name(shader_name) {
   // read the shader source
   auto vert_src =
-      file_util::read_text_file(file_util::get_file_path({shader_folder, shader_name + ".vert.spv"}));
+      file_util::read_binary_file(file_util::get_file_path({shader_folder, shader_name + ".vert.spv"}));
   auto frag_src =
-      file_util::read_text_file(file_util::get_file_path({shader_folder, shader_name + ".frag.spv"}));
+      file_util::read_binary_file(file_util::get_file_path({shader_folder, shader_name + ".frag.spv"}));
 
   m_vert_shader = PopulateShader(vert_src);
   m_frag_shader = PopulateShader(frag_src);
@@ -35,12 +35,8 @@ Shader::Shader(VkDevice device, const std::string& shader_name)
 }
 
 Shader::~Shader() {
-  if (m_device != VK_NULL_HANDLE && m_vert_shader != VK_NULL_HANDLE) {
-    vkDestroyShaderModule(m_device, m_vert_shader, nullptr);
-  }
-  if (m_device != VK_NULL_HANDLE && m_frag_shader != VK_NULL_HANDLE) {
-    vkDestroyShaderModule(m_device, m_frag_shader, nullptr);
-  }
+  vkDestroyShaderModule(m_device, m_vert_shader, nullptr);
+  vkDestroyShaderModule(m_device, m_frag_shader, nullptr);
 }
 
 ShaderLibrary::ShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {

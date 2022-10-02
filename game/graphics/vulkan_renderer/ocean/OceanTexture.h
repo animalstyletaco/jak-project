@@ -8,7 +8,9 @@
 
 class OceanTexture {
  public:
-  OceanTexture(bool generate_mipmaps, VulkanInitializationInfo& vulkan_info);
+  OceanTexture(bool generate_mipmaps,
+               std::unique_ptr<GraphicsDeviceVulkan>& device,
+               VulkanInitializationInfo& vulkan_info);
   void handle_ocean_texture(
       DmaFollower& dma,
       SharedRenderState* render_state,

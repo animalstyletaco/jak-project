@@ -3,7 +3,8 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Tfrag3::Tfrag3() {
+Tfrag3::Tfrag3(std::unique_ptr<GraphicsDeviceVulkan>& device)
+    : m_pipeline_layout{device}, m_debug_pipeline_layout{device} {
   InitializeDebugInputVertexAttribute();
   InitializeInputVertexAttribute();
 
@@ -204,7 +205,7 @@ void Tfrag3::render_tree(int geom,
 
     ASSERT(m_textures);
     auto double_draw = setup_tfrag_shader(render_state, draw.mode,
-                                          m_textures->at(draw.tree_tex_id), uniform_buffer);
+                                          m_textures->at(draw.tree_tex_id), m_pipeline_config_info, uniform_buffer);
     tree.tris_this_frame += draw.num_triangles;
     tree.draws_this_frame++;
 
@@ -449,14 +450,14 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
 }
 
 void Tfrag3::InitializeDebugInputVertexAttribute() {
- VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
- inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
- inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
- inputAssembly.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
+
 
  VkVertexInputBindingDescription bindingDescription{};
  bindingDescription.binding = 0; bindingDescription.stride = sizeof(DebugVertex);
  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+ m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
  attributeDescriptions[0].binding = 0;
@@ -468,6 +469,9 @@ void Tfrag3::InitializeDebugInputVertexAttribute() {
  attributeDescriptions[1].location = 1;
  attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
  attributeDescriptions[1].offset = offsetof(DebugVertex, rgba);
+ m_pipeline_config_info.attributeDescriptions.insert(
+     m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+     attributeDescriptions.end());
 
  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -487,6 +491,7 @@ void Tfrag3::InitializeInputVertexAttribute() {
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(tfrag3::PreloadedVertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
   std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
@@ -503,13 +508,7 @@ void Tfrag3::InitializeInputVertexAttribute() {
   attributeDescriptions[2].location = 2;
   attributeDescriptions[2].format = VK_FORMAT_R16_UINT;
   attributeDescriptions[2].offset = offsetof(tfrag3::PreloadedVertex, color_index);
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }

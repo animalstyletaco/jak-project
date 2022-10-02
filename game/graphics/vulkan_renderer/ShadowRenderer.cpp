@@ -4,8 +4,12 @@
 
 #include "third-party/imgui/imgui.h"
 
-ShadowRenderer::ShadowRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info) {
+ShadowRenderer::ShadowRenderer(
+    const std::string& name,
+    BucketId my_id,
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info) {
   // set up the vertex array
   u32 index_buffer[MAX_INDICES] = {0};
   Vertex vertex_buffer[MAX_VERTICES];
@@ -23,6 +27,7 @@ void ShadowRenderer::InitializeInputVertexAttribute() {
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(Vertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
   std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
   // TODO: This value needs to be normalized
@@ -30,15 +35,7 @@ void ShadowRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[0].location = 0;
   attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[0].offset = offsetof(Vertex, xyz);
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.push_back(attributeDescriptions[0]);
 }
 
 void ShadowRenderer::draw_debug_window() {
@@ -48,9 +45,6 @@ void ShadowRenderer::draw_debug_window() {
 }
 
 ShadowRenderer::~ShadowRenderer() {
-  //glDeleteBuffers(1, &m_ogl.vertex_buffer);
-  //glDeleteBuffers(2, m_ogl.index_buffer);
-  //glDeleteVertexArrays(1, &m_ogl.vao);
 }
 
 void ShadowRenderer::xgkick(u16 imm) {
@@ -342,55 +336,51 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
 
   //SetVertexBuffer(0, m_vertices, m_next_vertex); glBufferData(GL_ARRAY_BUFFER, m_next_vertex * sizeof(Vertex), m_vertices, GL_STREAM_DRAW);
 
-  VkPipelineRasterizationStateCreateInfo rasterizer{};
-  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  rasterizer.rasterizerDiscardEnable = VK_FALSE;
-  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-  rasterizer.lineWidth = 1.0f;
-  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-  rasterizer.depthBiasEnable = VK_FALSE;
+  m_pipeline_config_info.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+  m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+  m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+  m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
+  m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+  m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_TRUE;
-  depthStencil.depthBoundsTestEnable = VK_FALSE;
-  depthStencil.stencilTestEnable = VK_TRUE;
-  depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+  m_pipeline_config_info.depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
-  depthStencil.depthWriteEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   if (m_debug_draw_volume) {
-    colorBlendAttachment.blendEnable = VK_TRUE;
+    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+    m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+    m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
   } else {
-    colorBlendAttachment.colorWriteMask = 0;
+    m_pipeline_config_info.colorBlendAttachment.colorWriteMask = 0;
   }
 
-  depthStencil.front.failOp = VK_STENCIL_OP_KEEP;
-  depthStencil.front.writeMask = 0xFF;
+  m_pipeline_config_info.depthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
+  m_pipeline_config_info.depthStencilInfo.front.writeMask = 0xFF;
 
-  depthStencil.back.failOp = VK_STENCIL_OP_KEEP;
-  depthStencil.back.writeMask = 0xFF;
+  m_pipeline_config_info.depthStencilInfo.back.failOp = VK_STENCIL_OP_KEEP;
+  m_pipeline_config_info.depthStencilInfo.back.writeMask = 0xFF;
 
 
   // First pass.
@@ -402,25 +392,25 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
                 0., 0.4, 0., 0.5);
     // SetIndexBuffer(0, m_back_indices, m_next_front_index * sizeof(u32));
 
-    depthStencil.front.compareMask = 0;
-    depthStencil.front.compareOp = VK_COMPARE_OP_ALWAYS;
+    m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
+    m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
 
-    depthStencil.back.compareMask = 0;
-    depthStencil.back.compareOp = VK_COMPARE_OP_ALWAYS;
+    m_pipeline_config_info.depthStencilInfo.back.compareMask = 0;
+    m_pipeline_config_info.depthStencilInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
 
-    depthStencil.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
-    depthStencil.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+    m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+    m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
 
     //glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
 
     if (m_debug_draw_volume) {
-      colorBlendAttachment.blendEnable = VK_FALSE;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_uniform_buffer->SetUniform4f("color_uniform", 0.,
           0.0, 0., 0.5);
-      rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       //glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
-      rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-      colorBlendAttachment.blendEnable = VK_TRUE;
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
     prof.add_draw_call();
     prof.add_tri(m_next_back_index / 3);
@@ -434,22 +424,22 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
 
     // Second pass.
 
-    depthStencil.front.compareMask = 0;
-    depthStencil.front.compareOp = VK_COMPARE_OP_ALWAYS;
+    m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
+    m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
 
-    depthStencil.back.compareMask = 0;
-    depthStencil.back.compareOp = VK_COMPARE_OP_ALWAYS;
+    m_pipeline_config_info.depthStencilInfo.back.compareMask = 0;
+    m_pipeline_config_info.depthStencilInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
 
-    depthStencil.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-    depthStencil.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+    m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+    m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
     //glDrawElements(GL_TRIANGLES, m_next_back_index, GL_UNSIGNED_INT, nullptr);
     if (m_debug_draw_volume) {
-      colorBlendAttachment.blendEnable = VK_FALSE;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_uniform_buffer->SetUniform4f("color_uniform", 0., 0.0, 0., 0.5);
-      rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       //glDrawElements(GL_TRIANGLES, (m_next_back_index - 0), GL_UNSIGNED_INT, nullptr);
-      rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-      colorBlendAttachment.blendEnable = VK_TRUE;
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
 
     prof.add_draw_call();
@@ -458,36 +448,36 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
 
   // finally, draw shadow.
   m_uniform_buffer->SetUniform4f("color_uniform", 0.13, 0.13, 0.13, 0.5);
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-  depthStencil.front.compareMask = 0xFF;
-  depthStencil.front.compareOp = VK_COMPARE_OP_NOT_EQUAL;
+  m_pipeline_config_info.depthStencilInfo.front.compareMask = 0xFF;
+  m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_NOT_EQUAL;
 
-  depthStencil.back.compareMask = 0xFF;
-  depthStencil.back.compareOp = VK_COMPARE_OP_NOT_EQUAL;
+  m_pipeline_config_info.depthStencilInfo.back.compareMask = 0xFF;
+  m_pipeline_config_info.depthStencilInfo.back.compareOp = VK_COMPARE_OP_NOT_EQUAL;
 
-  depthStencil.front.passOp = VK_STENCIL_OP_KEEP;
-  depthStencil.back.passOp = VK_STENCIL_OP_KEEP;
+  m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_KEEP;
+  m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_KEEP;
 
-  colorBlendAttachment.blendEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
 
-  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+  m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
-  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+  m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
   //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(sizeof(u32) * (m_next_front_index - 6)));
   prof.add_draw_call();
   prof.add_tri(2);
 
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
   //glDepthMask(GL_TRUE);
 
-  depthStencil.stencilTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 }

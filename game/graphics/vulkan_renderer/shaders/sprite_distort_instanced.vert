@@ -5,14 +5,14 @@ layout (location = 1) in vec2 st;                   // tex coord from sine table
 layout (location = 2) in vec4 instance_xyz_s;       // sprite position + texture S-coord
 layout (location = 3) in vec4 instance_scale_t;     // sprite scale + texture T-coord
 
-uniform vec4 u_color;
+layout (set = 0, binding = 0) uniform UniformBufferObject {vec4 u_color;} ubo;
 
-out flat vec4 fragment_color;
-out vec2 tex_coord;
+layout (location = 0) out flat vec4 fragment_color;
+layout (location = 1) out vec2 tex_coord;
 
 void main() {
     // Pass on fragment color
-    fragment_color = u_color;
+    fragment_color = ubo.u_color;
 
     // Adjust position and texture coordinates the same way as in the VU program
     //
@@ -21,7 +21,7 @@ void main() {
     // for each vertex, we need to know which one it is. The order is always 2
     // vertices scaled by sizeX, 2 scaled by sizeY (sizeZ for tex coords), and
     // finally the center vertex which isn't modified.
-    float slice_vert_id = mod(gl_VertexID, 5);
+    float slice_vert_id = mod(gl_VertexIndex, 5);
 
     vec2 texture_coord = vec2(instance_xyz_s.w, instance_scale_t.w);
     if (slice_vert_id < 2) {

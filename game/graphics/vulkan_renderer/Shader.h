@@ -19,7 +19,7 @@ class Shader {
   u64 id() const { return m_program; }
 
  private:
-  VkShaderModule PopulateShader(const std::string& code);
+  VkShaderModule PopulateShader(const std::vector<u8>& code);
 
   VkShaderModule m_frag_shader = VK_NULL_HANDLE;
   VkShaderModule m_vert_shader = VK_NULL_HANDLE;

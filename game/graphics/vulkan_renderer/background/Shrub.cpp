@@ -1,12 +1,15 @@
 #include "Shrub.h"
 
-Shrub::Shrub(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-  : BucketRenderer(name, my_id, vulkan_info) {
+Shrub::Shrub(const std::string& name,
+             BucketId my_id,
+             std::unique_ptr<GraphicsDeviceVulkan>& device,
+             VulkanInitializationInfo& vulkan_info)
+  : BucketRenderer(name, my_id, device, vulkan_info) {
   m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
 
   VkDeviceSize device_size = sizeof(m_color_result[0]) * TIME_OF_DAY_COLOR_COUNT;
-  time_of_day_color_buffer = std::make_unique<UniformBuffer>(vulkan_info.device, device_size, 1, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  time_of_day_color_buffer = std::make_unique<UniformBuffer>(m_device, device_size, 1,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 }
 
 Shrub::~Shrub() {
@@ -257,7 +260,7 @@ void Shrub::render_tree(int idx,
 
   Timer setup_timer;
 
-  TextureInfo texture{m_vulkan_info.device};
+  TextureInfo texture{m_device};
 
   //FIXME: Combine these APIs into one
   //CreateTextureImage(m_color_result);
@@ -318,7 +321,7 @@ void Shrub::render_tree(int idx,
     }
 
     auto double_draw = setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id),
-                                          time_of_day_color_buffer);
+                                          m_pipeline_config_info, time_of_day_color_buffer);
 
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);

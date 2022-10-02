@@ -1,9 +1,61 @@
 #pragma once
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
+struct MercLightControlUniformBufferVertexData {
+  math::Vector3f light_dir0;
+  math::Vector3f light_dir1;
+  math::Vector3f light_dir2;
+  math::Vector3f light_col0;
+  math::Vector3f light_col1;
+  math::Vector3f light_col2;
+  math::Vector3f light_ambient;
+};
+
+struct MercCameraControlUniformBufferVertexData {
+  math::Vector4f hvdf_offset;
+  math::Vector4f perspective0;
+  math::Vector4f perspective1;
+  math::Vector4f perspective2;
+  math::Vector4f perspective3;
+  math::Vector4f fog_constants;
+};
+
+struct MercUniformBufferVertexData {
+  MercLightControlUniformBufferVertexData light_system;    // binding = 0
+  MercCameraControlUniformBufferVertexData camera_system;  // binding = 1
+  math::Matrix4f perspective_matrix;                       // binding = 2
+};
+
+class MercVertexUniformBuffer : public UniformBuffer {
+ public:
+  MercVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                          VkDeviceSize instanceSize,
+                          uint32_t instanceCount,
+                          VkMemoryPropertyFlags memoryPropertyFlags,
+                          VkDeviceSize minOffsetAlignment = 1);
+};
+
+struct MercUniformBufferFragmentData {
+  math::Vector4f fog_color;
+  int ignore_alpha;
+  int decal_enable;
+};
+
+class MercFragmentUniformBuffer : public UniformBuffer {
+ public:
+  MercFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            VkDeviceSize instanceSize,
+                            uint32_t instanceCount,
+                            VkMemoryPropertyFlags memoryPropertyFlags,
+                            VkDeviceSize minOffsetAlignment = 1);
+};
+
 class Merc2 : public BucketRenderer {
  public:
-  Merc2(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
+  Merc2(const std::string& name,
+        BucketId my_id,
+        std::unique_ptr<GraphicsDeviceVulkan>& device,
+        VulkanInitializationInfo& vulkan_info);
   ~Merc2();
   void draw_debug_window() override;
   void init_shaders(ShaderLibrary& shaders) override;
@@ -144,6 +196,7 @@ class Merc2 : public BucketRenderer {
   size_t m_vulkan_buffer_alignment = 0;
 
   void flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNode& prof);
-  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+  std::unique_ptr<MercVertexUniformBuffer> m_vertex_uniform_buffer;
+  std::unique_ptr<MercFragmentUniformBuffer> m_fragment_uniform_buffer;
 };
 

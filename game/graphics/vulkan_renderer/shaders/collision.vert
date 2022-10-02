@@ -5,24 +5,26 @@ layout (location = 1) in uint flags;
 layout (location = 2) in vec3 normal_in;
 layout (location = 3) in uint pat;
 
-uniform vec4 hvdf_offset;
-uniform mat4 camera;
-uniform vec4 camera_position;
-uniform float fog_constant;
-uniform float fog_min;
-uniform float fog_max;
-uniform int wireframe;
-uniform int mode;
-
-out vec4 fragment_color;
-
 const int PAT_MOD_COUNT = 3;
 const int PAT_EVT_COUNT = 7;
 const int PAT_MAT_COUNT = 23;
-uniform uint collision_mode_mask[(PAT_MOD_COUNT + 31) / 32];
-uniform uint collision_event_mask[(PAT_EVT_COUNT + 31) / 32];
-uniform uint collision_material_mask[(PAT_MAT_COUNT + 31) / 32];
-uniform uint collision_skip_mask;
+
+layout (binding = 0) uniform UniformBufferObject {
+  uniform vec4 hvdf_offset;
+  uniform mat4 camera;
+  uniform vec4 camera_position;
+  uniform float fog_constant;
+  uniform float fog_min;
+  uniform float fog_max;
+  uniform int wireframe;
+  uniform int mode;
+  uniform uint collision_mode_mask[(PAT_MOD_COUNT + 31) / 32];
+  uniform uint collision_event_mask[(PAT_EVT_COUNT + 31) / 32];
+  uniform uint collision_material_mask[(PAT_MAT_COUNT + 31) / 32];
+  uniform uint collision_skip_mask;
+} ubo;
+
+layout (location = 0) out vec4 fragment_color;
 
 const int MODE_NONE = 0;
 const int MODE_MODE = 1;
@@ -38,19 +40,19 @@ bool logtesta(uint a, uint b) { return (a & b) == b; }
 
 void main() {
     // Step 3, the camera transform
-    vec4 transformed = -camera[3].xyzw;
-    transformed += -camera[0] * position_in.x;
-    transformed += -camera[1] * position_in.y;
-    transformed += -camera[2] * position_in.z;
+    vec4 transformed = -ubo.camera[3].xyzw;
+    transformed += -ubo.camera[0] * position_in.x;
+    transformed += -ubo.camera[1] * position_in.y;
+    transformed += -ubo.camera[2] * position_in.z;
 
     // compute Q
-    float Q = fog_constant / transformed[3];
+    float Q = ubo.fog_constant / transformed[3];
 
     // perspective divide!
     transformed.xyz *= Q;
 
     // offset
-    transformed.xyz += hvdf_offset.xyz;
+    transformed.xyz += ubo.hvdf_offset.xyz;
 
     // correct xy offset
     transformed.xy -= (2048.);
@@ -71,9 +73,9 @@ void main() {
     gl_Position.y *= 512.0/448.0;
 
     // wireframe check
-    if (wireframe == 0) {
+    if (ubo.wireframe == 0) {
         // lighting check
-        vec3 to_cam = camera_position.xyz - position_in;
+        vec3 to_cam = ubo.camera_position.xyz - position_in;
         float dist_from_cam = length(to_cam);
         vec3 to_cam_n = to_cam / dist_from_cam;
         float cam_dot = abs(dot(to_cam_n, normal_in));
@@ -86,19 +88,19 @@ void main() {
         uint pMode = pat_get_mode(pat);
         uint pMat = pat_get_material(pat);
         uint pEvent = pat_get_event(pat);
-        if (logtest(collision_mode_mask[pMode/32], 1 << (pMode & 0x1f)) &&
-            logtest(collision_material_mask[pMat/32], 1 << (pMat & 0x1f)) &&
-            logtest(collision_event_mask[pEvent/32], 1 << (pEvent & 0x1f)) &&
-            logtesta(collision_skip_mask, pat)) {
+        if (logtest(ubo.collision_mode_mask[pMode/32], 1 << (pMode & 0x1f)) &&
+            logtest(ubo.collision_material_mask[pMat/32], 1 << (pMat & 0x1f)) &&
+            logtest(ubo.collision_event_mask[pEvent/32], 1 << (pEvent & 0x1f)) &&
+            logtesta(ubo.collision_skip_mask, pat)) {
           // fancy colors
-          if (mode == MODE_MODE) {
+          if (ubo.mode == MODE_MODE) {
             switch ( pMode ) {
               case 0: fragment_color.rgb *= vec3(1.25, 0.1, 0.1); break; // ground
               case 1: fragment_color.rgb *= vec3(0.1, 0.1, 1.0); break; // wall
               case 2: fragment_color.rgb *= vec3(1.0, 0.1, 1.0); break; // obstacle
               default: fragment_color.rgb = vec3(1, 0, 1); break;
             }
-          } else if (mode == MODE_EVENT) {
+          } else if (ubo.mode == MODE_EVENT) {
             switch ( pEvent ) {
               case 0: fragment_color.rgb *= vec3(1.0); break; // none
               case 1: fragment_color.rgb *= vec3(0.2, 1.0, 1.0); break; // deadly
@@ -109,7 +111,7 @@ void main() {
               case 6: fragment_color.rgb *= vec3(1.0, 0.1, 0.1); break; // melt
               default: fragment_color.rgb = vec3(1, 0, 1); break;
             }
-          } else if (mode == MODE_MATERIAL) {
+          } else if (ubo.mode == MODE_MATERIAL) {
             switch ( pMat ) {
               case  0: fragment_color.rgb *= vec3(1.0, 0.7, 1.0); break; // stone
               case  1: fragment_color.rgb *= vec3(0.1, 2.0, 2.0); break; // ice

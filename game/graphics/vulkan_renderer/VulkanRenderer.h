@@ -88,8 +88,6 @@ class VulkanRenderer {
 
   VkCommandBuffer beginFrame();
   void endFrame();
-  void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
-  void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
  private:
   void setup_frame(const RenderOptions& settings);
@@ -102,9 +100,10 @@ class VulkanRenderer {
   T* init_bucket_renderer(const std::string& name,
                           BucketCategory cat,
                           BucketId id,
+                          std::unique_ptr<GraphicsDeviceVulkan>& device,
                           VulkanInitializationInfo& vulkan_info,
                           Args&&... args) {
-    auto renderer = std::make_unique<T>(name, id, vulkan_info, std::forward<Args>(args)...);
+    auto renderer = std::make_unique<T>(name, id, device, vulkan_info, std::forward<Args>(args)...);
     T* ret = renderer.get();
     m_bucket_renderers.at((int)id) = std::move(renderer);
     m_bucket_categories.at((int)id) = cat;
@@ -112,8 +111,6 @@ class VulkanRenderer {
   }
 
   uint32_t currentFrame = 0;
-
-  bool framebufferResized = false;
 
   SharedRenderState m_render_state;
   Profiler m_profiler;

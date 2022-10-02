@@ -6,12 +6,12 @@ layout (location = 2) in vec3 tex_coord_in;
 layout (location = 3) in uvec4 byte_info;
 
 
-out vec4 fragment_color;
-out vec3 tex_coord;
-out float fog;
+layout (location = 0) out vec4 fragment_color;
+layout (location = 1) out vec3 tex_coord;
+layout (location = 2) out float fog;
 
 // putting all texture info stuff here so it's easier to copy-paste
-out flat uvec2 tex_info;
+layout (location = 3) out flat uvec2 tex_info;
 
 void main() {
     gl_Position = vec4((position_in.x - 0x8000) / 0x1000,

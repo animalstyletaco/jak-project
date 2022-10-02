@@ -43,4 +43,7 @@ class CollideMeshRenderer {
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   UniformBuffer m_collision_mesh_vertex_uniform_buffer;
+
+  GraphicsPipelineLayout m_pipeline_layout;
+  PipelineConfigInfo m_pipeline_config_info;
 };

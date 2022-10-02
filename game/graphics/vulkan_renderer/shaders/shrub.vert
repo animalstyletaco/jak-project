@@ -5,16 +5,19 @@ layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in vec3 rgba_base;
 layout (location = 3) in int time_of_day_index;
 
-uniform vec4 hvdf_offset;
-uniform mat4 camera;
-uniform float fog_constant;
-uniform float fog_min;
-uniform float fog_max;
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+  vec4 hvdf_offset;
+  mat4 camera;
+  float fog_constant;
+  float fog_min;
+  float fog_max;
+} ubo;
+
 layout (binding = 10) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
 
-out vec4 fragment_color;
-out vec3 tex_coord;
-out float fogginess;
+layout (location = 0) out vec4 fragment_color;
+layout (location = 1) out vec3 tex_coord;
+layout (location = 2) out float fogginess;
 
 const float SCISSOR_ADJUST = 512.0/448.0;
 
@@ -36,21 +39,21 @@ void main() {
     // the itof0 is done in the preprocessing step.  now we have floats.
     
     // Step 3, the camera transform
-    vec4 transformed = -camera[3];
-    transformed -= camera[0] * position_in.x;
-    transformed -= camera[1] * position_in.y;
-    transformed -= camera[2] * position_in.z;
+    vec4 transformed = -ubo.camera[3];
+    transformed -= ubo.camera[0] * position_in.x;
+    transformed -= ubo.camera[1] * position_in.y;
+    transformed -= ubo.camera[2] * position_in.z;
 
     // compute Q
-    float Q = fog_constant / transformed.w;
+    float Q = ubo.fog_constant / transformed.w;
 
     // do fog!
-    fogginess = 255 - clamp(-transformed.w + hvdf_offset.w, fog_min, fog_max);
+    fogginess = 255 - clamp(-transformed.w + ubo.hvdf_offset.w, ubo.fog_min, ubo.fog_max);
 
     // perspective divide!
     transformed.xyz *= Q;
     // offset
-    transformed.xyz += hvdf_offset.xyz;
+    transformed.xyz += ubo.hvdf_offset.xyz;
     // correct xy offset
     transformed.xy -= (2048.);
     // correct z scale

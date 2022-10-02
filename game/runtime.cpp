@@ -310,6 +310,9 @@ RuntimeExitStatus exec_runtime(int argc, char** argv) {
 
   // parse opengoal arguments
   g_game_version = GameVersion::Jak1;
+  //Gfx::SetRenderer(GfxPipeline::OpenGL);
+  Gfx::SetRenderer(GfxPipeline::Vulkan); //Temp
+
   bool enable_display = true;
   for (int i = 1; i < argc; i++) {
     if (std::string("-nodisplay") == argv[i]) {  // disable video display
@@ -320,6 +323,8 @@ RuntimeExitStatus exec_runtime(int argc, char** argv) {
       VM::use = false;
     } else if (std::string("-jak2") == argv[i]) {
       g_game_version = GameVersion::Jak2;
+    } else if (std::string("-vulkan") == argv[i]) { //enables vulkan renderer
+      Gfx::SetRenderer(GfxPipeline::Vulkan);
     }
   }
 

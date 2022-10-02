@@ -13,7 +13,10 @@ constexpr int SINGLE_EYE_SIZE = 32;
 
 class EyeRenderer : public BucketRenderer {
  public:
-  EyeRenderer(const std::string& name, BucketId id, VulkanInitializationInfo& vulkan_info);
+  EyeRenderer(const std::string& name,
+              BucketId id,
+              std::unique_ptr<GraphicsDeviceVulkan>& device,
+              VulkanInitializationInfo& vulkan_info);
   ~EyeRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;

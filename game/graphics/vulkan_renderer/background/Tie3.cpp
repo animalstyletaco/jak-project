@@ -3,8 +3,13 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Tie3::Tie3(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info, int level_id)
-    : BucketRenderer(name, my_id, vulkan_info), m_level_id(level_id) {
+Tie3::Tie3(const std::string& name,
+           BucketId my_id,
+           std::unique_ptr<GraphicsDeviceVulkan>& device,
+           VulkanInitializationInfo& vulkan_info,
+           int level_id)
+    : BucketRenderer(name, my_id, device, vulkan_info),
+      m_level_id(level_id) {
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
@@ -412,7 +417,7 @@ void Tie3::render_tree_wind(int idx,
 
   for (size_t draw_idx = 0; draw_idx < tree.wind_draws->size(); draw_idx++) {
     const auto& draw = tree.wind_draws->operator[](draw_idx);
-    auto double_draw = setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id), m_uniform_buffer);
+    auto double_draw = setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id), m_pipeline_config_info, m_uniform_buffer);
 
     int off = 0;
     for (auto& grp : draw.instance_groups) {
@@ -485,7 +490,7 @@ void Tie3::render_tree(int idx,
 
   Timer setup_timer;
 
-  TextureInfo timeOfDayTexture{m_vulkan_info.device};
+  TextureInfo timeOfDayTexture{m_device};
   VkDeviceSize size = m_color_result.size() * sizeof(m_color_result[0]);
 
   VkExtent3D extents{tree.colors->size(), 1, 1};
@@ -572,7 +577,7 @@ void Tie3::render_tree(int idx,
     }
 
     auto double_draw = setup_tfrag_shader(render_state, draw.mode,
-                                          m_textures->at(draw.tree_tex_id), m_uniform_buffer);
+                                          m_textures->at(draw.tree_tex_id), m_pipeline_config_info, m_uniform_buffer);
 
     prof.add_draw_call();
 

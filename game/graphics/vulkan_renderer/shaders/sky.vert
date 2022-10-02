@@ -4,8 +4,8 @@ layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec4 rgba_in;
 layout (location = 2) in vec3 tex_coord_in;
 
-out vec4 fragment_color;
-noperspective out vec3 tex_coord;
+layout (location = 0) out vec4 fragment_color;
+layout (location = 1) noperspective out vec3 tex_coord;
 
 void main() {
     gl_Position = vec4((position_in.x - 0.5) * 16. , -(position_in.y - 0.5) * 32, position_in.z * 2 - 1., 1.0);

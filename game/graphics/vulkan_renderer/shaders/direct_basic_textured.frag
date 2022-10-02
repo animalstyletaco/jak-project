@@ -1,29 +1,30 @@
 #version 430 core
 
-out vec4 color;
+layout (location = 0) out vec4 color;
 
-in vec4 fragment_color;
-in vec3 tex_coord;
-uniform float alpha_reject;
-uniform float color_mult;
-uniform float alpha_mult;
-uniform float alpha_sub;
+layout (location = 0) in vec4 fragment_color;
+layout (location = 1) in vec3 tex_coord;
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+  float alpha_reject;
+  float color_mult;
+  float alpha_mult;
+  float alpha_sub;
+  vec4 fog_color;
+} ubo;
 
-uniform vec4 fog_color;
+layout (location = 2) in flat uvec4 tex_info;
+layout (location = 3) in float fog;
 
-in flat uvec4 tex_info;
-in float fog;
-
-layout (binding = 20) uniform sampler2D tex_T0;
-layout (binding = 21) uniform sampler2D tex_T1;
-layout (binding = 22) uniform sampler2D tex_T2;
-layout (binding = 23) uniform sampler2D tex_T3;
-layout (binding = 24) uniform sampler2D tex_T4;
-layout (binding = 25) uniform sampler2D tex_T5;
-layout (binding = 26) uniform sampler2D tex_T6;
-layout (binding = 27) uniform sampler2D tex_T7;
-layout (binding = 28) uniform sampler2D tex_T8;
-layout (binding = 29) uniform sampler2D tex_T9;
+layout (set = 0, binding = 20) uniform sampler2D tex_T0;
+layout (set = 0, binding = 21) uniform sampler2D tex_T1;
+layout (set = 0, binding = 22) uniform sampler2D tex_T2;
+layout (set = 0, binding = 23) uniform sampler2D tex_T3;
+layout (set = 0, binding = 24) uniform sampler2D tex_T4;
+layout (set = 0, binding = 25) uniform sampler2D tex_T5;
+layout (set = 0, binding = 26) uniform sampler2D tex_T6;
+layout (set = 0, binding = 27) uniform sampler2D tex_T7;
+layout (set = 0, binding = 28) uniform sampler2D tex_T8;
+layout (set = 0, binding = 29) uniform sampler2D tex_T9;
 
 vec4 sample_tex(vec2 coord, uint unit) {
     switch (unit) {
@@ -67,13 +68,13 @@ void main() {
         }
     }
     color *= 2;
-    color.xyz *= color_mult;
-    color.w *= alpha_mult;
-    if (color.a < alpha_reject) {
+    color.xyz *= ubo.color_mult;
+    color.w *= ubo.alpha_mult;
+    if (color.a < ubo.alpha_reject) {
         discard;
     }
     if (tex_info.w == 1) {
-        color.xyz = mix(color.xyz, fog_color.rgb, clamp(fog_color.a * fog, 0, 1));
+        color.xyz = mix(color.xyz, ubo.fog_color.rgb, clamp(ubo.fog_color.a * fog, 0, 1));
     }
 
 }

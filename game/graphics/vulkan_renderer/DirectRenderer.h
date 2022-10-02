@@ -40,7 +40,11 @@ class DirectBasicTexturedFragmentUniformBuffer : public UniformBuffer {
  */
 class DirectRenderer : public BucketRenderer {
  public:
-  DirectRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info, int batch_size);
+  DirectRenderer(const std::string& name,
+                 BucketId my_id,
+                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                 VulkanInitializationInfo& vulkan_info,
+                 int batch_size);
   ~DirectRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
 

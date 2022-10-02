@@ -5,14 +5,16 @@
 #include "third-party/imgui/imgui.h"
 
 constexpr int OCEAN_TEX_TBP = 8160;  // todo
-OceanTexture::OceanTexture(bool generate_mipmaps, VulkanInitializationInfo& vulkan_info)
+OceanTexture::OceanTexture(bool generate_mipmaps,
+                           std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           VulkanInitializationInfo& vulkan_info)
     : m_generate_mipmaps(generate_mipmaps),
       m_result_texture(TEX0_SIZE,
                        TEX0_SIZE,
                        VK_FORMAT_A8B8G8R8_SINT_PACK32,
-                       vulkan_info.device,
+                       device,
                        m_generate_mipmaps ? NUM_MIPS : 1),
-      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SINT_PACK32, vulkan_info.device) {
+      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SINT_PACK32, device) {
   m_dbuf_x = m_dbuf_a;
   m_dbuf_y = m_dbuf_b;
 

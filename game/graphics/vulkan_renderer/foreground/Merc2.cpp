@@ -5,14 +5,23 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Merc2::Merc2(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info) :
-  BucketRenderer(name, my_id, vulkan_info) {
+Merc2::Merc2(const std::string& name,
+             BucketId my_id,
+             std::unique_ptr<GraphicsDeviceVulkan>& device,
+             VulkanInitializationInfo& vulkan_info) :
+  BucketRenderer(name, my_id, device, vulkan_info) {
   std::vector<u8> temp(MAX_SHADER_BONE_VECTORS * sizeof(math::Vector4f));
   //m_bones_buffer = CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, temp);
 
   //TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
   m_vulkan_buffer_alignment = 1;
-  //m_uniform_buffer = UniformBuffer(device, sizeof(UniformData));
+  m_vertex_uniform_buffer = std::make_unique<MercVertexUniformBuffer>(
+      m_device, sizeof(MercUniformBufferVertexData),
+      1, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+  m_fragment_uniform_buffer = std::make_unique<MercFragmentUniformBuffer>(
+      m_device, sizeof(MercUniformBufferFragmentData), 1,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
   for (int i = 0; i < MAX_LEVELS; i++) {
     auto& draws = m_level_draw_buckets.emplace_back();
@@ -26,7 +35,7 @@ Merc2::Merc2(const std::string& name, BucketId my_id, VulkanInitializationInfo& 
 void Merc2::init_pc_model(const DmaTransfer& setup, SharedRenderState* render_state) {
   // determine the name. We've packed this in a separate PC-port specific packet.
   char name[128];
-  strcpy(name, (const char*)setup.data);
+  strncpy(name, (const char*)setup.data, sizeof(name) - (sizeof(name[0])));
 
   // get the model from the loader
   m_current_model = render_state->loader->get_merc_model(name);
@@ -58,7 +67,7 @@ void Merc2::init_for_frame(SharedRenderState* render_state) {
   fog_color_vector.y() = render_state->fog_color[1] / 255.f;
   fog_color_vector.z() = render_state->fog_color[2] / 255.f;
   fog_color_vector.w() = render_state->fog_intensity / 255;
-  m_uniform_buffer->SetUniformMathVector4f("fog_color", fog_color_vector);
+  m_fragment_uniform_buffer->SetUniformMathVector4f("fog_color", fog_color_vector);
 }
 
 void Merc2::draw_debug_window() {
@@ -197,14 +206,14 @@ void Merc2::handle_setup_dma(DmaFollower& dma, SharedRenderState* render_state) 
 
   // 8 qw's of low memory data
   memcpy(&m_low_memory, first.data + 16, sizeof(LowMemory));
-  m_uniform_buffer->SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
-  m_uniform_buffer->SetUniformMathVector4f("fog", m_low_memory.fog);
+  m_vertex_uniform_buffer->SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
+  m_vertex_uniform_buffer->SetUniformMathVector4f("fog_constants", m_low_memory.fog);
   for (int i = 0; i < 4; i++) {
-    m_uniform_buffer->SetUniformMathVector4f((std::string("perspective") + std::to_string(i)).c_str(), //Ugly declaration
+    m_vertex_uniform_buffer->SetUniformMathVector4f((std::string("perspective") + std::to_string(i)).c_str(), //Ugly declaration
                                                                   m_low_memory.perspective[i]);
   }
   // todo rm.
-  m_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+  m_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
       "perspective_matrix", 1, GL_FALSE, &m_low_memory.perspective[0].x());
 
   // 1 qw with another 4 vifcodes.
@@ -492,21 +501,21 @@ void Merc2::flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNo
     for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
       auto& draw = lev_bucket.draws[di];
       auto& textureInfo = lev->textures[draw.texture];
-      m_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha);
+      m_vertex_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha);
 
       if ((int)draw.light_idx != last_light) {
-        m_uniform_buffer->SetUniformMathVector3f("light_direction0", m_lights_buffer[draw.light_idx].direction0);
-        m_uniform_buffer->SetUniformMathVector3f("light_direction1", m_lights_buffer[draw.light_idx].direction1);
-        m_uniform_buffer->SetUniformMathVector3f("light_direction2", m_lights_buffer[draw.light_idx].direction2);
-        m_uniform_buffer->SetUniformMathVector3f("light_color0", m_lights_buffer[draw.light_idx].color0);
-        m_uniform_buffer->SetUniformMathVector3f("light_color1", m_lights_buffer[draw.light_idx].color1);
-        m_uniform_buffer->SetUniformMathVector3f("light_color2", m_lights_buffer[draw.light_idx].color2);
-        m_uniform_buffer->SetUniformMathVector3f("light_ambient", m_lights_buffer[draw.light_idx].ambient);
+        m_vertex_uniform_buffer->SetUniformMathVector3f("light_direction0", m_lights_buffer[draw.light_idx].direction0);
+        m_vertex_uniform_buffer->SetUniformMathVector3f("light_direction1", m_lights_buffer[draw.light_idx].direction1);
+        m_vertex_uniform_buffer->SetUniformMathVector3f("light_direction2", m_lights_buffer[draw.light_idx].direction2);
+        m_vertex_uniform_buffer->SetUniformMathVector3f("light_color0", m_lights_buffer[draw.light_idx].color0);
+        m_vertex_uniform_buffer->SetUniformMathVector3f("light_color1", m_lights_buffer[draw.light_idx].color1);
+        m_vertex_uniform_buffer->SetUniformMathVector3f("light_color2", m_lights_buffer[draw.light_idx].color2);
+        m_vertex_uniform_buffer->SetUniformMathVector3f("light_ambient", m_lights_buffer[draw.light_idx].ambient);
         last_light = draw.light_idx;
       }
-      setup_vulkan_from_draw_mode(draw.mode, textureInfo, true);
+      setup_vulkan_from_draw_mode(draw.mode, textureInfo, m_pipeline_config_info, true);
 
-      m_uniform_buffer->SetUniform1i("decal", draw.mode.get_decal());
+      m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
 
       prof.add_draw_call();
       prof.add_tri(draw.num_triangles);
@@ -628,13 +637,44 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
   pipelineInfo.pStages = shaderStages;
   pipelineInfo.pVertexInputState = &vertexInputInfo;
 
-  //if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-  //                              &graphicsPipeline) != VK_SUCCESS) {
-  //  throw std::runtime_error("failed to create graphics pipeline!");
-  //}
-
   // TODO: Should shaders be deleted now?
 }
+
+MercVertexUniformBuffer::MercVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                 VkDeviceSize instanceSize,
+                                                 uint32_t instanceCount,
+                                                 VkMemoryPropertyFlags memoryPropertyFlags,
+                                                 VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"light_dir0", offsetof(MercUniformBufferVertexData, light_system.light_dir0)},
+      {"light_dir1", offsetof(MercUniformBufferVertexData, light_system.light_dir1)},
+      {"light_dir2", offsetof(MercUniformBufferVertexData, light_system.light_dir2)},
+      {"light_col0", offsetof(MercUniformBufferVertexData, light_system.light_col0)},
+      {"light_col1", offsetof(MercUniformBufferVertexData, light_system.light_col1)},
+      {"light_col2", offsetof(MercUniformBufferVertexData, light_system.light_col2)},
+      {"light_ambient", offsetof(MercUniformBufferVertexData, light_system.light_ambient)},
+      {"hvdf_offset", offsetof(MercUniformBufferVertexData, camera_system.hvdf_offset)},
+      {"perspective0", offsetof(MercUniformBufferVertexData, camera_system.perspective0)},
+      {"perspective1", offsetof(MercUniformBufferVertexData, camera_system.perspective1)},
+      {"perspective2", offsetof(MercUniformBufferVertexData, camera_system.perspective2)},
+      {"perspective3", offsetof(MercUniformBufferVertexData, camera_system.perspective3)},
+      {"fog_constants", offsetof(MercUniformBufferVertexData, camera_system.fog_constants)},
+      {"perspective_matrix", offsetof(MercUniformBufferVertexData, perspective_matrix)}};
+}
+
+MercFragmentUniformBuffer::MercFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                     VkDeviceSize instanceSize,
+                                                     uint32_t instanceCount,
+                                                     VkMemoryPropertyFlags memoryPropertyFlags,
+                                                     VkDeviceSize minOffsetAlignment) :
+  UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"fog_color", offsetof(MercUniformBufferFragmentData, fog_color)},
+      {"ignore_alpha", offsetof(MercUniformBufferFragmentData, ignore_alpha)},
+      {"decal_enable", offsetof(MercUniformBufferFragmentData, decal_enable)}};
+}
+
 
 Merc2::~Merc2() {
 }

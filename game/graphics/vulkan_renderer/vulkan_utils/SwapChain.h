@@ -20,7 +20,7 @@ class SwapChain {
   VkRenderPass getRenderPass() { return renderPass; }
   VkImage getImage(int index) { return swapChainImages[index].GetImage(); }
   VkImageView getImageView(int index) { return swapChainImages[index].GetImageView(); }
-  size_t imageCount() { return swapChainImages.size(); }
+  size_t imageCount() { return swapChainSourceImages.size(); }
   VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
   void setSwapChainExtent(VkExtent2D extents) { swapChainExtent = extents; };
   void setSwapChainOffsetExtent(VkOffset2D offset) { offsetSwapChainExtent = offset; };
@@ -29,13 +29,15 @@ class SwapChain {
   uint32_t width() { return swapChainExtent.width; }
   uint32_t height() { return swapChainExtent.height; }
 
-void recordCommandBuffer(VkCommandBuffer commandBuffer,
-                         VkRenderPass render_pass,
-                         std::unique_ptr<VertexBuffer>& vertex_buffer,
-                         std::unique_ptr<IndexBuffer>& index_buffer,
-                         VkPipelineLayout& pipeline_layout,
-                         std::vector<VkDescriptorSet>& descriptors,
-                         uint32_t imageIndex);
+  void recordCommandBuffer(VkCommandBuffer commandBuffer,
+                           std::unique_ptr<VertexBuffer>& vertex_buffer,
+                           std::unique_ptr<IndexBuffer>& index_buffer,
+                           VkPipelineLayout& pipeline_layout,
+                           std::vector<VkDescriptorSet>& descriptors,
+                           uint32_t imageIndex);
+  
+  void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);
+  void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
   float extentAspectRatio() {
     return static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height);
@@ -68,7 +70,7 @@ void recordCommandBuffer(VkCommandBuffer commandBuffer,
 
   VkFormat swapChainImageFormat;
   VkFormat swapChainDepthFormat;
-  VkExtent2D swapChainExtent;
+  VkExtent2D swapChainExtent = {640, 480};
   VkOffset2D offsetSwapChainExtent;
 
   std::vector<VkFramebuffer> swapChainFramebuffers;

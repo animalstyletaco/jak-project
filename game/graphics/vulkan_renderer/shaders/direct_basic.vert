@@ -5,7 +5,7 @@
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec4 rgba_in;
 
-out vec4 fragment_color;
+layout (location = 0) out vec4 fragment_color;
 
 void main() {
   // Note: position.y is multiplied by 32 instead of 16 to undo the half-height for interlacing stuff.

@@ -30,7 +30,7 @@ class CommonOceanFragmentUniformBuffer : public UniformBuffer {
 
 class CommonOceanRenderer {
  public:
-  CommonOceanRenderer();
+  CommonOceanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device);
   ~CommonOceanRenderer();
 
   void init_for_near();
@@ -90,5 +90,8 @@ protected:
   struct {
     GLuint vertex_buffer, index_buffer[NUM_BUCKETS], vao;
   } m_ogl;
+
+  PipelineConfigInfo m_pipeline_config_info;
+  GraphicsPipelineLayout m_pipeline_layout;
 };
 

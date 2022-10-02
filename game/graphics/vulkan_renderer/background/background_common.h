@@ -37,8 +37,9 @@ struct DoubleDraw {
   float aref_second = 0.;
 };
 
-DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& texture, std::unique_ptr<UniformBuffer>& uniform_buffer);
-DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, bool mipmap);
+DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& texture,
+  PipelineConfigInfo& pipeline_info, std::unique_ptr<UniformBuffer>& uniform_buffer);
+DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, PipelineConfigInfo& pipeline_config, bool mipmap);
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             SharedRenderState* render_state,

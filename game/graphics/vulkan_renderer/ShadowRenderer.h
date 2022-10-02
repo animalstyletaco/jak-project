@@ -5,7 +5,10 @@
 
 class ShadowRenderer : public BucketRenderer {
  public:
-  ShadowRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
+  ShadowRenderer(const std::string& name,
+                 BucketId my_id,
+                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                 VulkanInitializationInfo& vulkan_info);
   ~ShadowRenderer();
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;

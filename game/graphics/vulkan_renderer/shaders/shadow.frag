@@ -1,8 +1,8 @@
 #version 430 core
 
-out vec4 color;
-uniform vec4 color_uniform;
+layout (location = 0) out vec4 color;
+layout (set = 0, binding = 0) uniform UniformBufferObject { vec4 color_uniform; } ubo;
 
 void main() {
-    color = color_uniform;
+    color = ubo.color_uniform;
 }

@@ -48,23 +48,26 @@ constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
 constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
     256 * 10;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
 
-Sprite3::Sprite3(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info), m_direct(name, my_id, vulkan_info, 1024) {
+Sprite3::Sprite3(const std::string& name,
+                 BucketId my_id,
+                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                 VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info), m_direct(name, my_id, device, vulkan_info, 1024) {
   m_sprite_3d_vertex_uniform_buffer = std::make_unique<Sprite3dVertexUniformBuffer>(
-      vulkan_info.device, sizeof(Sprite3dVertexUniformShaderData), 1,
+      m_device, sizeof(Sprite3dVertexUniformShaderData), 1,
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   m_sprite_3d_fragment_uniform_buffer = std::make_unique<Sprite3dFragmentUniformBuffer>(
-    vulkan_info.device, sizeof(Sprite3dFragmentUniformShaderData), 1,
+    m_device, sizeof(Sprite3dFragmentUniformShaderData), 1,
     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   m_sprite_3d_instanced_vertex_uniform_buffer =
       std::make_unique<SpriteDistortInstancedVertexUniformBuffer>(
-          vulkan_info.device, sizeof(int), 1,
+          m_device, sizeof(int), 1,
           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   m_sprite_3d_instanced_fragment_uniform_buffer =
-      std::make_unique<SpriteDistortInstancedFragmentUniformBuffer>(vulkan_info.device, sizeof(math::Vector4f), 1,
+      std::make_unique<SpriteDistortInstancedFragmentUniformBuffer>(m_device, sizeof(math::Vector4f), 1,
         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   vulkan_setup();
@@ -87,13 +90,13 @@ void Sprite3::vulkan_setup_normal() {
   m_vertices_3d.resize(verts);
   m_index_buffer_data.resize(index_device_size);
 
-  m_ogl.index_buffer = std::make_unique<IndexBuffer>(m_vulkan_info.device, index_device_size, 1,
+  m_ogl.index_buffer = std::make_unique<IndexBuffer>(m_device, index_device_size, 1,
                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
   m_vertices_3d.resize(verts);
 
   VkDeviceSize vertex_device_size = bytes;
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_vulkan_info.device, vertex_device_size, 1,
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, vertex_device_size, 1,
                                                        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
   m_default_mode.disable_depth_write();
@@ -108,8 +111,8 @@ void Sprite3::vulkan_setup_normal() {
 
   m_current_mode = m_default_mode;
 
-  m_distort_ogl.fbo = std::make_unique<TextureInfo>(m_vulkan_info.device);
-  m_distort_ogl.fbo_texture = std::make_unique<TextureInfo>(m_vulkan_info.device);
+  m_distort_ogl.fbo = std::make_unique<TextureInfo>(m_device);
+  m_distort_ogl.fbo_texture = std::make_unique<TextureInfo>(m_device);
 }
 
 void Sprite3::vulkan_setup_distort() {
@@ -117,7 +120,7 @@ void Sprite3::vulkan_setup_distort() {
   // shader This will represent tex0 from the original GS data
   VkExtent3D extents{m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, 1};
   m_distort_ogl.fbo_texture->CreateImage(
-    extents, 1, VK_IMAGE_TYPE_2D, m_vulkan_info.device->getMsaaCount(), 
+    extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), 
     VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_OPTIMAL,
     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
@@ -150,7 +153,7 @@ void Sprite3::vulkan_setup_distort() {
       SPRITE_RENDERER_MAX_DISTORT_SPRITES *
       ((5 - 1) * 11 + 1);  // max * ((verts_per_slice - 1) * max_slices + 1)
   VkDeviceSize vertex_device_size = distort_vert_buffer_len * sizeof(SpriteDistortVertex);
-  m_distort_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_vulkan_info.device, vertex_device_size, 1,
+  m_distort_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, vertex_device_size, 1,
                              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1 );
 
   // note: add one extra element per sprite that marks the end of a triangle strip
@@ -159,7 +162,7 @@ void Sprite3::vulkan_setup_distort() {
 
   VkDeviceSize index_device_size = distort_idx_buffer_len * sizeof(u32);
   m_distort_ogl.index_buffer = std::make_unique<IndexBuffer>(
-      m_vulkan_info.device, index_device_size, 1,
+      m_device, index_device_size, 1,
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   m_sprite_distorter_vertices.resize(distort_vert_buffer_len);
@@ -182,6 +185,8 @@ void Sprite3::vulkan_setup_distort() {
   bindingDescriptions[1].binding = 1;
   bindingDescriptions[1].stride = sizeof(SpriteDistortInstanceData);
   bindingDescriptions[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
+  m_pipeline_config_info.bindingDescriptions.insert(
+      m_pipeline_config_info.bindingDescriptions.end(), bindingDescriptions.begin(), bindingDescriptions.end());
 
   std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
@@ -203,24 +208,18 @@ void Sprite3::vulkan_setup_distort() {
   attributeDescriptions[3].location = 1;
   attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
   attributeDescriptions[3].offset = offsetof(SpriteDistortInstanceData, sx_sy_sz_t);
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 2;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 
   VkDeviceSize instanced_vertex_device_size = distort_max_sprite_slices * 5 * sizeof(SpriteDistortVertex);
-  m_distort_instanced_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_vulkan_info.device, instanced_vertex_device_size, 1,
+  m_distort_instanced_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, instanced_vertex_device_size, 1,
                                                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                                                                      1);
 
   VkDeviceSize instanced_device_size = SPRITE_RENDERER_MAX_DISTORT_SPRITES * sizeof(SpriteDistortInstanceData);
   m_distort_instanced_ogl.instance_buffer = std::make_unique<VertexBuffer>(
-      m_vulkan_info.device, instanced_device_size, 1,
+      m_device, instanced_device_size, 1,
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
 
   m_sprite_distorter_vertices_instanced.resize(instanced_device_size);
@@ -560,10 +559,8 @@ void Sprite3::distort_draw(SharedRenderState* render_state, ScopedProfilerNode& 
                                                                            colorf.data());
 
   // Enable prim restart, we need this to break up the triangle strips
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
   // Upload vertex data
   m_distort_ogl.vertex_buffer->map();
@@ -684,7 +681,7 @@ void Sprite3::distort_draw_common(SharedRenderState* render_state, ScopedProfile
   update_mode_from_alpha1(
       m_sprite_distorter_setup.alpha.data,
       m_current_mode);  // alpha1
-  setup_vulkan_from_draw_mode(m_current_mode, *m_distort_ogl.fbo_texture, false);
+  setup_vulkan_from_draw_mode(m_current_mode, *m_distort_ogl.fbo_texture, m_pipeline_config_info, false);
 }
 
 void Sprite3::distort_setup_framebuffer_dims(SharedRenderState* render_state) {
@@ -697,7 +694,7 @@ void Sprite3::distort_setup_framebuffer_dims(SharedRenderState* render_state) {
   //TODO: Move this logic to it's own helper function
     VkExtent3D extents{m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, 1};
     m_distort_ogl.fbo_texture->CreateImage(
-        extents, 1, VK_IMAGE_TYPE_2D, m_vulkan_info.device->getMsaaCount(),
+        extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(),
         VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
@@ -947,26 +944,23 @@ void Sprite3::render(DmaFollower& dma, SharedRenderState* render_state, ScopedPr
     flush_sprites(render_state, prof, true);
   }
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-
-  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+          
+  m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+          
+  m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
   // TODO finish this up.
   // fmt::print("next bucket is 0x{}\n", render_state->next_bucket);
@@ -1004,10 +998,8 @@ void Sprite3::flush_sprites(SharedRenderState* render_state,
                             ScopedProfilerNode& prof,
                             bool double_draw) {
   // Enable prim restart, we need this to break up the triangle strips
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
   // upload vertex buffer
   m_ogl.vertex_buffer->map();
@@ -1041,8 +1033,8 @@ void Sprite3::flush_sprites(SharedRenderState* render_state,
     }
     ASSERT(tex);
 
-    TextureInfo texture_info{m_vulkan_info.device};
-    auto settings = setup_vulkan_from_draw_mode(mode, texture_info, false);
+    TextureInfo texture_info{m_device};
+    auto settings = setup_vulkan_from_draw_mode(mode, texture_info, m_pipeline_config_info, false);
 
     m_sprite_3d_fragment_uniform_buffer->SetUniform1f("alpha_min", double_draw ? settings.aref_first : 0.016);
     m_sprite_3d_fragment_uniform_buffer->SetUniform1f("alpha_max", 10.f);

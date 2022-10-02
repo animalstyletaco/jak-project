@@ -491,7 +491,7 @@ void OceanTexture::InitializeVertexInputAttributes() {
   bindingDescription.stride = sizeof(Vertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+  std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
   //TODO: This value needs to be normalized
   attributeDescriptions[0].binding = 0;
   attributeDescriptions[0].location = 0;

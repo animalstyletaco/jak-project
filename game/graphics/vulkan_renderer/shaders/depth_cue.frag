@@ -1,11 +1,11 @@
 #version 430 core
 
-in flat vec4 fragment_color;
-in vec2 tex_coord;
+layout (location = 0) in flat vec4 fragment_color;
+layout (location = 1) in vec2 tex_coord;
 
-uniform sampler2D tex;
+layout (binding = 0) uniform sampler2D tex;
 
-out vec4 out_color;
+layout (location = 0) out vec4 out_color;
 
 void main() {
     // sample texture

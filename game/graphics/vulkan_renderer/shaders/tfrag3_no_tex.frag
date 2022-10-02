@@ -1,13 +1,15 @@
 #version 430 core
 
-out vec4 color;
+layout (location = 0) out vec4 color;
 
-in vec4 fragment_color;
-in vec3 tex_coord;
-uniform sampler2D tex_T0;
+layout (location = 0) in vec4 fragment_color;
+layout (location = 1) in vec3 tex_coord;
+layout (set = 0, binding = 0) uniform sampler2D tex_T0;
 
-uniform float alpha_min;
-uniform float alpha_max;
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+   float alpha_min;
+   float alpha_max;
+} ubo;
 
 void main() {
     color = fragment_color;

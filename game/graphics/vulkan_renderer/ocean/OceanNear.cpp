@@ -2,8 +2,11 @@
 
 #include "third-party/imgui/imgui.h"
 
-OceanNear::OceanNear(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info), m_texture_renderer(false, vulkan_info) {
+OceanNear::OceanNear(const std::string& name,
+                     BucketId my_id,
+                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                     VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info), m_texture_renderer(false, device, vulkan_info), m_common_ocean_renderer(device) {
   for (auto& a : m_vu_data) {
     a.fill(0);
   }

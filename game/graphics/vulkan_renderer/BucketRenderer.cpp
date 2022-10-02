@@ -7,8 +7,11 @@ std::string BucketRenderer::name_and_id() const {
   return fmt::format("[{:2d}] {}", (int)m_my_id, m_name);
 }
 
-EmptyBucketRenderer::EmptyBucketRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info) {}
+EmptyBucketRenderer::EmptyBucketRenderer(const std::string& name,
+                                         BucketId my_id,
+                                         std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                         VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info) {}
 
 void EmptyBucketRenderer::render(DmaFollower& dma,
                                  SharedRenderState* render_state,
@@ -48,7 +51,11 @@ void EmptyBucketRenderer::render(DmaFollower& dma,
   ASSERT(dma.current_tag_offset() == render_state->next_bucket);
 }
 
-SkipRenderer::SkipRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info) : BucketRenderer(name, my_id, vulkan_info) {}
+SkipRenderer::SkipRenderer(const std::string& name,
+                           BucketId my_id,
+                           std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info) {}
 
 void SkipRenderer::render(DmaFollower& dma,
                           SharedRenderState* render_state,
@@ -68,9 +75,10 @@ void SharedRenderState::reset() {
 
 RenderMux::RenderMux(const std::string& name,
                      BucketId my_id,
+                     std::unique_ptr<GraphicsDeviceVulkan>& device,
                      VulkanInitializationInfo& vulkan_info,
                      std::vector<std::unique_ptr<BucketRenderer>> renderers)
-    : BucketRenderer(name, my_id, vulkan_info), m_renderers(std::move(renderers)) {
+    : BucketRenderer(name, my_id, device, vulkan_info), m_renderers(std::move(renderers)) {
   for (auto& r : m_renderers) {
     m_name_strs.push_back(r->name_and_id());
   }

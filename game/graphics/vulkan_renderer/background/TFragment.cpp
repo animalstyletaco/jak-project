@@ -18,12 +18,14 @@ bool looks_like_tfrag_init(const DmaFollower& follow) {
 
 TFragment::TFragment(const std::string& name,
                      BucketId my_id,
+                     std::unique_ptr<GraphicsDeviceVulkan>& device,
                      VulkanInitializationInfo& vulkan_info,
                      const std::vector<tfrag3::TFragmentTreeKind>& trees,
                      bool child_mode,
                      int level_id)
-    : BucketRenderer(name, my_id, vulkan_info),
+    : BucketRenderer(name, my_id, device, vulkan_info),
       m_child_mode(child_mode),
+      m_tfrag3(device),
       m_tree_kinds(trees),
       m_level_id(level_id) {
   for (auto& buf : m_buffered_data) {

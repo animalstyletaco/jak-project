@@ -1,14 +1,17 @@
 #version 430 core
 
-out vec4 color;
+layout (location = 0) out vec4 color;
 
-in flat vec4 fragment_color;
-in vec3 tex_coord;
-in flat uvec2 tex_info;
+layout (location = 0) in flat vec4 fragment_color;
+layout (location = 1) in vec3 tex_coord;
+layout (location = 2) in flat uvec2 tex_info;
 
-uniform sampler2D tex_T0;
-uniform float alpha_min;
-uniform float alpha_max;
+layout (set = 0, binding = 0) uniform sampler2D tex_T0;
+
+layout (set = 0, binding = 1) uniform UniformBufferObject {
+   float alpha_min;
+   float alpha_max;
+} ubo;
 
 void main() {
     vec4 T0 = texture(tex_T0, tex_coord.xy);
@@ -17,7 +20,7 @@ void main() {
     }
     color = fragment_color * T0;
 
-    if (color.a < alpha_min || color.a > alpha_max) {
+    if (color.a < ubo.alpha_min || color.a > ubo.alpha_max) {
         discard;
     }
 }

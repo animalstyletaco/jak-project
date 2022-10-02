@@ -24,15 +24,17 @@
 
 SkyBlendHandler::SkyBlendHandler(const std::string& name,
                                  BucketId my_id,
+                                 std::unique_ptr<GraphicsDeviceVulkan>& device,
                                  VulkanInitializationInfo& vulkan_info,
                                  int level_id,
                                  std::shared_ptr<SkyBlendGPU> shared_blender,
                                  std::shared_ptr<SkyBlendCPU> shared_blender_cpu)
-    : BucketRenderer(name, my_id, vulkan_info),
+    : BucketRenderer(name, my_id, device, vulkan_info),
       m_shared_gpu_blender(shared_blender),
       m_shared_cpu_blender(shared_blender_cpu),
       m_tfrag_renderer(fmt::format("tfrag-{}", name),
                        my_id,
+                       device,
                        vulkan_info,
                        {tfrag3::TFragmentTreeKind::TRANS, tfrag3::TFragmentTreeKind::LOWRES_TRANS},
                        true,
@@ -124,8 +126,12 @@ void SkyBlendHandler::draw_debug_window() {
   }
 }
 
-SkyRenderer::SkyRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info), m_direct_renderer("sky-direct", my_id, vulkan_info, 100) {}
+SkyRenderer::SkyRenderer(
+    const std::string& name,
+    BucketId my_id,
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info), m_direct_renderer("sky-direct", my_id, device, vulkan_info, 100) {}
 
 void SkyRenderer::render(DmaFollower& dma,
                          SharedRenderState* render_state,

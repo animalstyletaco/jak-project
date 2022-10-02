@@ -11,7 +11,11 @@
 
 class Tie3 : public BucketRenderer {
  public:
-  Tie3(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info, int level_id);
+  Tie3(const std::string& name,
+       BucketId my_id,
+       std::unique_ptr<GraphicsDeviceVulkan>& device,
+       VulkanInitializationInfo& vulkan_info,
+       int level_id);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   ~Tie3();

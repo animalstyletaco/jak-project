@@ -38,7 +38,8 @@ class TFragment : public BucketRenderer {
  public:
   TFragment(const std::string& name,
             BucketId my_id,
-            VulkanInitializationInfo& device,
+            std::unique_ptr<GraphicsDeviceVulkan>& device,
+            VulkanInitializationInfo& vulkan_info,
             const std::vector<tfrag3::TFragmentTreeKind>& trees,
             bool child_mode,
             int level_id);

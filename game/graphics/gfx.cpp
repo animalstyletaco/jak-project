@@ -28,7 +28,6 @@
 #include "pipelines/opengl.h"
 #endif
 
-
 extern const GfxRendererModule gRendererOpenGL;
 extern const GfxRendererModule gRendererVulkan;
 
@@ -38,9 +37,6 @@ namespace {
 void InitSettings(GfxSettings& settings) {
   // set the current settings version
   settings.version = GfxSettings::CURRENT_VERSION;
-
-  // use opengl by default for now
-  settings.renderer = GfxPipeline::OpenGL;  // Gfx::renderers[0];
 
   // 1 screen update per frame
   settings.vsync = 1;
@@ -245,11 +241,21 @@ void LoadSettings() {
 }
 
 const GfxRendererModule* GetRenderer(GfxPipeline pipeline) {
-  uint32_t pipeline_index = static_cast<uint32_t>(pipeline);
-  if (renderers[pipeline_index]) {
-    return renderers[pipeline_index];
-  } else {
-    lg::error("Requested invalid renderer", pipeline);
+  switch (pipeline) {
+    case GfxPipeline::Invalid:
+      lg::error("Requested invalid renderer", pipeline);
+      return NULL;
+    case GfxPipeline::OpenGL:
+#if !_WIN32
+      return &gRendererOpenGL;
+#else
+      return NULL;
+#endif
+    case GfxPipeline::Vulkan:
+      return &gRendererVulkan;
+    default:
+      lg::error("Requested unknown renderer {}", (u64)pipeline);
+      return NULL;
   }
 }
 

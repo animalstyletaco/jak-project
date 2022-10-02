@@ -7,7 +7,7 @@
 
 class OceanMid {
  public:
-  OceanMid();
+  OceanMid(std::unique_ptr<GraphicsDeviceVulkan>& device);
   void run(DmaFollower& dma,
            SharedRenderState* render_state,
            ScopedProfilerNode& prof,

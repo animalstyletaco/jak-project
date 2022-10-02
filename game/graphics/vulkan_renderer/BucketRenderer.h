@@ -83,7 +83,6 @@ struct SharedRenderState {
 };
 
 struct VulkanInitializationInfo {
-  std::unique_ptr<GraphicsDeviceVulkan> device;
   std::unique_ptr<DescriptorLayout> descriptor_layout;
   VkRenderPass render_pass;
 };
@@ -94,9 +93,11 @@ struct VulkanInitializationInfo {
  */
 class BucketRenderer {
  public:
-  BucketRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-      : m_name(name), m_my_id(my_id), m_vulkan_info(vulkan_info),
-        m_pipeline_layout(vulkan_info.device) {}
+  BucketRenderer(const std::string& name, BucketId my_id, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info)
+      : m_name(name), m_my_id(my_id), m_device(device), m_vulkan_info(vulkan_info),
+        m_pipeline_layout(device) {
+    m_pipeline_layout.defaultPipelineConfigInfo(m_pipeline_config_info);
+  }
   virtual void render(DmaFollower& dma,
                       SharedRenderState* render_state,
                       ScopedProfilerNode& prof) = 0;
@@ -111,8 +112,11 @@ class BucketRenderer {
  protected:
   std::string m_name;
   BucketId m_my_id;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   VulkanInitializationInfo& m_vulkan_info;
   GraphicsPipelineLayout m_pipeline_layout;
+
+  PipelineConfigInfo m_pipeline_config_info;
   bool m_enabled = true;
 };
 
@@ -120,6 +124,7 @@ class RenderMux : public BucketRenderer {
  public:
   RenderMux(const std::string& name,
             BucketId my_id,
+            std::unique_ptr<GraphicsDeviceVulkan>& device,
             VulkanInitializationInfo& vulkan_info,
             std::vector<std::unique_ptr<BucketRenderer>> renderers);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
@@ -140,7 +145,10 @@ class RenderMux : public BucketRenderer {
  */
 class EmptyBucketRenderer : public BucketRenderer {
  public:
-  EmptyBucketRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
+  EmptyBucketRenderer(const std::string& name,
+                      BucketId my_id,
+                      std::unique_ptr<GraphicsDeviceVulkan>& device,
+                      VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   bool empty() const override { return true; }
   void draw_debug_window() override {}
@@ -149,7 +157,10 @@ class EmptyBucketRenderer : public BucketRenderer {
 
 class SkipRenderer : public BucketRenderer {
  public:
-  SkipRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info);
+  SkipRenderer(const std::string& name,
+               BucketId my_id,
+               std::unique_ptr<GraphicsDeviceVulkan>& device,
+               VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   bool empty() const override { return true; }
   void draw_debug_window() override {}

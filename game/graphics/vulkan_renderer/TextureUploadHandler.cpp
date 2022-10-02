@@ -6,8 +6,11 @@
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-TextureUploadHandler::TextureUploadHandler(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info) {}
+TextureUploadHandler::TextureUploadHandler(const std::string& name,
+                                           BucketId my_id,
+                                           std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                           VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info) {}
 
 void TextureUploadHandler::render(DmaFollower& dma,
                                   SharedRenderState* render_state,

@@ -1,6 +1,7 @@
 #include "CommonOceanRenderer.h"
 
-CommonOceanRenderer::CommonOceanRenderer() {
+CommonOceanRenderer::CommonOceanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device)
+    : m_pipeline_layout{device} {
   m_vertices.resize(4096 * 10);  // todo decrease
   for (auto& buf : m_indices) {
     buf.resize(4096 * 10);
@@ -14,6 +15,7 @@ void CommonOceanRenderer::InitializeVertexInputAttributes() {
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(Vertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
   std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
@@ -36,47 +38,13 @@ void CommonOceanRenderer::InitializeVertexInputAttributes() {
   attributeDescriptions[3].location = 3;
   attributeDescriptions[3].format = VK_FORMAT_R4G4_UNORM_PACK8;
   attributeDescriptions[3].offset = offsetof(Vertex, fog);
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }
 
 void CommonOceanRenderer::SetShaders(SharedRenderState* render_state) {
-  auto& shader = render_state->shaders[ShaderId::OCEAN_COMMON];
-
-  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Vertex Fragment";
-
-  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Shrub Fragment";
-
-  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
-
-  // FIXME: Added necessary configuration back to shrub pipeline
-  VkGraphicsPipelineCreateInfo pipelineInfo{};
-  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipelineInfo.stageCount = 2;
-  pipelineInfo.pStages = shaderStages;
-  //pipelineInfo.pVertexInputState = &vertexInputInfo;
-
-  // if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-  //                              &graphicsPipeline) != VK_SUCCESS) {
-  //  throw std::runtime_error("failed to create graphics pipeline!");
-  //}
-
-  // TODO: Should shaders be deleted now?
+  //auto& shader = render_state->shaders[ShaderId::OCEAN_COMMON];
 }
 
 CommonOceanRenderer::~CommonOceanRenderer() {

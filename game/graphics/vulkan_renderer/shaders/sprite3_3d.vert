@@ -6,27 +6,29 @@ layout (location = 2) in vec4 rgba;
 layout (location = 3) in uvec2 flags_matrix;
 layout (location = 4) in uvec4 tex_info_in;
 
-uniform vec4 hvdf_offset;
-uniform mat4 camera;
-uniform mat4 hud_matrix;
-uniform vec4 hud_hvdf_offset;
-uniform vec4 hud_hvdf_user[75];
-uniform float pfog0;
-uniform float fog_min;
-uniform float fog_max;
-uniform float min_scale;
-uniform float max_scale;
-uniform float deg_to_rad;
-uniform float inv_area;
-uniform vec4 basis_x;
-uniform vec4 basis_y;
-uniform vec4 xy_array[8];
-uniform vec4 xyz_array[4];
-uniform vec4 st_array[4];
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+  vec4 hvdf_offset;
+  mat4 camera;
+  mat4 hud_matrix;
+  vec4 hud_hvdf_offset;
+  vec4 hud_hvdf_user[75];
+  float pfog0;
+  float fog_min;
+  float fog_max;
+  float min_scale;
+  float max_scale;
+  float deg_to_rad;
+  float inv_area;
+  vec4 basis_x;
+  vec4 basis_y;
+  vec4 xy_array[8];
+  vec4 xyz_array[4];
+  vec4 st_array[4];
+}ubo;
 
-out flat vec4 fragment_color;
-out vec3 tex_coord;
-out flat uvec2 tex_info;
+layout (location = 0) out flat vec4 fragment_color;
+layout (location = 1) out vec3 tex_coord;
+layout (location = 2) out flat uvec2 tex_info;
 
 const float SCISSOR_ADJUST = 512.0/448.0;
 
@@ -58,10 +60,10 @@ vec4 sprite_transform2(vec3 root, vec4 off, mat3 sprite_rot, float sx, float sy)
     vec3 offset = sprite_rot[0] * off.x * sx + sprite_rot[1] * off.y + sprite_rot[2] * off.z * sy;
 
     pos += offset;
-    vec4 transformed_pos = -matrix_transform(camera, pos);
-    float Q = pfog0 / transformed_pos.w;
+    vec4 transformed_pos = -matrix_transform(ubo.camera, pos);
+    float Q = ubo.pfog0 / transformed_pos.w;
     transformed_pos.xyz *= Q;
-    transformed_pos.xyz += hvdf_offset.xyz;
+    transformed_pos.xyz += ubo.hvdf_offset.xyz;
 
     return transformed_pos;
 }
@@ -82,8 +84,8 @@ void main() {
     vec4 transformed;
 
     // STEP 2: perspective transform for distance
-    vec4 transformed_pos_vf02 = matrix_transform(rendermode == 2 ? hud_matrix : camera, position);
-    float Q = pfog0 / transformed_pos_vf02.w;
+    vec4 transformed_pos_vf02 = matrix_transform(rendermode == 2 ? ubo.hud_matrix : ubo.camera, position);
+    float Q = ubo.pfog0 / transformed_pos_vf02.w;
 
 
     // STEP 3: fade out sprite!
@@ -92,7 +94,7 @@ void main() {
     scales_vf01.zw *= Q;  // sy sx
     scales_vf01.x = scales_vf01.z;  // = sy
     scales_vf01.x *= scales_vf01.w;  // x = sx * sy
-    scales_vf01.x *= inv_area;  // x = sx * sy * inv_area (area ratio)
+    scales_vf01.x *= ubo.inv_area;  // x = sx * sy * inv_area (area ratio)
     fragment_color.w *= min(scales_vf01.x, 1.0);  // is this right? doesn't this stall??
 
 
@@ -100,30 +102,30 @@ void main() {
     if (rendermode == 3) { // 3D sprites
 
         mat3 rot = sprite_quat_to_rot(quat);
-        transformed = sprite_transform2(position, xyz_array[vert_id], rot, sx, sy);
+        transformed = sprite_transform2(position, ubo.xyz_array[vert_id], rot, sx, sy);
 
     } else if (rendermode == 1) { // 2D sprites
 
         transformed_pos_vf02.xyz *= Q;
-        vec4 offset_pos_vf10 = transformed_pos_vf02 + hvdf_offset;
-        offset_pos_vf10.w = max(offset_pos_vf10.w, fog_min);
+        vec4 offset_pos_vf10 = transformed_pos_vf02 + ubo.hvdf_offset;
+        offset_pos_vf10.w = max(offset_pos_vf10.w, ubo.fog_min);
 
-        /* transformed_pos_vf02.w = offset_pos_vf10.w - fog_max;
+        /* transformed_pos_vf02.w = offset_pos_vf10.w - ubo.fog_max;
         int fge = matrix == 0;
         if (transformed_pos_vf02.w != 0) {
           fge = false;
         } */
 
-        scales_vf01.z = clamp(scales_vf01.z, min_scale, max_scale);
-        scales_vf01.w = clamp(scales_vf01.w, min_scale, max_scale);
+        scales_vf01.z = clamp(scales_vf01.z, ubo.min_scale, ubo.max_scale);
+        scales_vf01.w = clamp(scales_vf01.w, ubo.min_scale, ubo.max_scale);
 
-        quat.z *= deg_to_rad;
+        quat.z *= ubo.deg_to_rad;
         float sp_sin = sin(quat.z);
         float sp_cos = cos(quat.z);
 
-        vec4 xy0_vf19 = xy_array[vert_id + flags_matrix.x];
-        vec4 vf12_rotated = (basis_x * sp_cos) - (basis_y * sp_sin);
-        vec4 vf13_rotated_trans = (basis_x * sp_sin) + (basis_y * sp_cos);
+        vec4 xy0_vf19 = ubo.xy_array[vert_id + flags_matrix.x];
+        vec4 vf12_rotated = (ubo.basis_x * sp_cos) - (ubo.basis_y * sp_sin);
+        vec4 vf13_rotated_trans = (ubo.basis_x * sp_sin) + (ubo.basis_y * sp_cos);
 
         vf12_rotated *= scales_vf01.w;
         vf13_rotated_trans *= scales_vf01.z;
@@ -133,19 +135,19 @@ void main() {
     } else if (rendermode == 2) { // hud sprites
     
         transformed_pos_vf02.xyz *= Q;
-        vec4 offset_pos_vf10 = transformed_pos_vf02 + (matrix == 0 ? hud_hvdf_offset : hud_hvdf_user[matrix - 1]);
+        vec4 offset_pos_vf10 = transformed_pos_vf02 + (matrix == 0 ? ubo.hud_hvdf_offset : ubo.hud_hvdf_user[matrix - 1]);
 
         // NOTE: no max scale for hud
-        scales_vf01.z = max(scales_vf01.z, min_scale);
-        scales_vf01.w = max(scales_vf01.w, min_scale);
+        scales_vf01.z = max(scales_vf01.z, ubo.min_scale);
+        scales_vf01.w = max(scales_vf01.w, ubo.min_scale);
 
-        quat.z *= deg_to_rad;
+        quat.z *= ubo.deg_to_rad;
         float sp_sin = sin(quat.z);
         float sp_cos = cos(quat.z);
 
-        vec4 xy0_vf19 = xy_array[vert_id + flags_matrix.x];
-        vec4 vf12_rotated = (basis_x * sp_cos) - (basis_y * sp_sin);
-        vec4 vf13_rotated_trans = (basis_x * sp_sin) + (basis_y * sp_cos);
+        vec4 xy0_vf19 = ubo.xy_array[vert_id + flags_matrix.x];
+        vec4 vf12_rotated = (ubo.basis_x * sp_cos) - (ubo.basis_y * sp_sin);
+        vec4 vf13_rotated_trans = (ubo.basis_x * sp_sin) + (ubo.basis_y * sp_cos);
 
         vf12_rotated *= scales_vf01.w;
         vf13_rotated_trans *= scales_vf01.z;
@@ -154,7 +156,7 @@ void main() {
 
     }
 
-    tex_coord = st_array[vert_id].xyz;
+    tex_coord = ubo.st_array[vert_id].xyz;
 
 
     // STEP 5: final adjustments

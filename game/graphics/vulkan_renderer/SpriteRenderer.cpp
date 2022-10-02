@@ -35,13 +35,16 @@ u32 process_sprite_chunk_header(DmaFollower& dma) {
 
 constexpr int SPRITE_RENDERER_MAX_SPRITES = 8000;
 
-SpriteRenderer::SpriteRenderer(const std::string& name, BucketId my_id, VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, vulkan_info) {
+SpriteRenderer::SpriteRenderer(const std::string& name,
+                               BucketId my_id,
+                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+                               VulkanInitializationInfo& vulkan_info)
+    : BucketRenderer(name, my_id, device, vulkan_info) {
   auto verts = SPRITE_RENDERER_MAX_SPRITES * 3 * 2;
   auto bytes = verts * sizeof(SpriteVertex3D);
 
   m_vertices_3d.resize(verts);
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_vulkan_info.device, bytes, 1,
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, bytes, 1,
                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 }
 
@@ -50,6 +53,7 @@ void SpriteRenderer::InitializeInputVertexAttribute() {
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(SpriteVertex3D);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
   std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
   // TODO: This value needs to be normalized
@@ -59,37 +63,31 @@ void SpriteRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[0].offset = offsetof(SpriteVertex3D, xyz_sx);
 
     // TODO: This value needs to be normalized
-  attributeDescriptions[0].binding = 0;
-  attributeDescriptions[0].location = 0;
-  attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, quat_sy);
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 0;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(SpriteVertex3D, quat_sy);
 
     // TODO: This value needs to be normalized
-  attributeDescriptions[0].binding = 0;
-  attributeDescriptions[0].location = 0;
-  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, rgba);
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 0;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[2].offset = offsetof(SpriteVertex3D, rgba);
 
     // TODO: This value needs to be normalized
-  attributeDescriptions[0].binding = 0;
-  attributeDescriptions[0].location = 0;
-  attributeDescriptions[0].format = VK_FORMAT_R16G16_UINT;
-  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, flags_matrix);
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 0;
+  attributeDescriptions[3].format = VK_FORMAT_R16G16_UINT;
+  attributeDescriptions[3].offset = offsetof(SpriteVertex3D, flags_matrix);
 
     // TODO: This value needs to be normalized
-  attributeDescriptions[0].binding = 0;
-  attributeDescriptions[0].location = 0;
-  attributeDescriptions[0].format = VK_FORMAT_R16G16B16A16_UINT;
-  attributeDescriptions[0].offset = offsetof(SpriteVertex3D, info);
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  attributeDescriptions[4].binding = 0;
+  attributeDescriptions[4].location = 0;
+  attributeDescriptions[4].format = VK_FORMAT_R16G16B16A16_UINT;
+  attributeDescriptions[4].offset = offsetof(SpriteVertex3D, info);
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }
 
 /*!
@@ -393,26 +391,23 @@ void SpriteRenderer::render(DmaFollower& dma,
     }
   }
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 1.0f;
-  colorBlending.blendConstants[1] = 1.0f;
-  colorBlending.blendConstants[2] = 1.0f;
-  colorBlending.blendConstants[3] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 }
 
 void SpriteRenderer::draw_debug_window() {
@@ -443,14 +438,12 @@ void SpriteRenderer::flush_sprites(SharedRenderState* render_state, ScopedProfil
 
   update_vulkan_blend(m_adgif_state_stack[m_adgif_index]);
 
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
 
   if (m_adgif_state_stack[m_adgif_index].z_write) {
-    depthStencil.depthWriteEnable = VK_TRUE;
+    m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_TRUE;
   } else {
-    depthStencil.depthWriteEnable = VK_FALSE;
+    m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   }
 
   // render!
@@ -535,33 +528,30 @@ void SpriteRenderer::handle_clamp(u64 val,
 }
 
 void SpriteRenderer::update_vulkan_blend(AdGifState& state) {
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
   if (m_prim_vulkan_state.alpha_blend_enable) {
-    colorBlendAttachment.blendEnable = VK_TRUE;
+    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     if (state.a == GsAlpha::BlendMode::SOURCE && state.b == GsAlpha::BlendMode::DEST &&
         state.c == GsAlpha::BlendMode::SOURCE && state.d == GsAlpha::BlendMode::DEST) {
       // (Cs - Cd) * As + Cd
       // Cs * As  + (1 - As) * Cd
       // s, d
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
     } else if (state.a == GsAlpha::BlendMode::SOURCE &&
                state.b == GsAlpha::BlendMode::ZERO_OR_FIXED &&
                state.c == GsAlpha::BlendMode::SOURCE && state.d == GsAlpha::BlendMode::DEST) {
@@ -569,14 +559,14 @@ void SpriteRenderer::update_vulkan_blend(AdGifState& state) {
       // Cs * As + (1) * Cd
       // s, d
 
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     } else if (state.a == GsAlpha::BlendMode::ZERO_OR_FIXED &&
                state.b == GsAlpha::BlendMode::SOURCE && state.c == GsAlpha::BlendMode::SOURCE &&
                state.d == GsAlpha::BlendMode::DEST) {
@@ -584,14 +574,14 @@ void SpriteRenderer::update_vulkan_blend(AdGifState& state) {
       // Cd - Cs * As
       // s, d
 
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
 
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     } else {
       // unsupported blend: a 0 b 2 c 2 d 1
       lg::error("unsupported blend: a {} b {} c {} d {} NOTE THIS DOWN IMMEDIATELY!!", (int)state.a,

@@ -60,7 +60,7 @@ protected:
 
   std::vector<Tree> m_trees;
   std::string m_level_name;
-  const std::vector<TextureInfo>* m_textures;
+  std::vector<TextureInfo>* m_textures;
   u64 m_load_id = -1;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
@@ -77,6 +77,6 @@ protected:
   } m_cache;
   TfragPcPortData m_pc_port_data;
 
-  std::unique_ptr<UniformBuffer> m_uniform_buffer;
-  std::unique_ptr<UniformBuffer> time_of_day_color_buffer;
+  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
+  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_buffer;
 };

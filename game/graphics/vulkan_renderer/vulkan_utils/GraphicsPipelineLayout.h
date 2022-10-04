@@ -4,13 +4,11 @@
 #include <vector>
 
 #include "GraphicsDeviceVulkan.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
-
-#include "game/graphics/vulkan_renderer/Shader.h"
 
 struct PipelineConfigInfo {
   std::vector<VkVertexInputBindingDescription> bindingDescriptions{};
   std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
+  std::vector<VkPipelineShaderStageCreateInfo> shaderStages{};
   VkPipelineViewportStateCreateInfo viewportInfo;
   VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo;
   VkPipelineRasterizationStateCreateInfo rasterizationInfo;
@@ -34,8 +32,7 @@ class GraphicsPipelineLayout {
   GraphicsPipelineLayout& operator=(const GraphicsPipelineLayout&) = delete;
 
   void bind(VkCommandBuffer commandBuffer);
-  void createGraphicsPipeline(Shader& shader,
-                              const PipelineConfigInfo& configInfo);
+  void createGraphicsPipeline(const PipelineConfigInfo& configInfo);
 
   static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
 

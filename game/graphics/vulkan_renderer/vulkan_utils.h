@@ -6,6 +6,7 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/Buffer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 #include "game/graphics/pipelines/vulkan_pipeline.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
 
 struct SharedRenderState;
 class ScopedProfilerNode;
@@ -63,4 +64,6 @@ class FullScreenDraw {
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   std::unique_ptr<UniformBuffer> m_fragment_uniform_buffer;
+  GraphicsPipelineLayout m_pipeline_layout;
+  PipelineConfigInfo m_pipeline_config_info;
 };

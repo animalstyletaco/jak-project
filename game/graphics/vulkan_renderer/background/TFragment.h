@@ -47,6 +47,8 @@ class TFragment : public BucketRenderer {
   void draw_debug_window() override;
 
  private:
+  void InitializeInputVertexAttribute();
+  void InitializeDebugInputVertexAttribute();
   void handle_initialization(DmaFollower& dma);
 
   bool m_child_mode = false;
@@ -79,8 +81,10 @@ class TFragment : public BucketRenderer {
     TFragSetup = 0,
   };
 
-  Tfrag3 m_tfrag3;
+  std::unique_ptr<Tfrag3> m_tfrag3;
   std::vector<tfrag3::TFragmentTreeKind> m_tree_kinds;
   int m_level_id;
-  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+  
+  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
+  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color;
 };

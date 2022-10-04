@@ -7,7 +7,36 @@ OceanMidAndFar::OceanMidAndFar(const std::string& name,
                                std::unique_ptr<GraphicsDeviceVulkan>& device,
                                VulkanInitializationInfo& vulkan_info)
     : BucketRenderer(name, my_id, device, vulkan_info), m_direct(name, my_id, device, vulkan_info, 4096),
-      m_texture_renderer(true, device, vulkan_info), m_mid_renderer(device) {}
+      m_texture_renderer(true, device, vulkan_info), m_mid_renderer(device) {
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(2);
+  m_ocean_uniform_vertex_buffer = std::make_unique<CommonOceanVertexUniformBuffer>(
+      m_device, 1, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+  m_ocean_uniform_fragment_buffer = std::make_unique<CommonOceanFragmentUniformBuffer>(
+      m_device, 1, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+
+  auto vertex_buffer_descriptor_info = m_ocean_uniform_vertex_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  auto fragment_buffer_descriptor_info = m_ocean_uniform_fragment_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
+}
 
 void OceanMidAndFar::draw_debug_window() {
   m_texture_renderer.draw_debug_window();
@@ -48,7 +77,8 @@ void OceanMidAndFar::render(DmaFollower& dma,
 
   {
     auto p = prof.make_scoped_child("texture");
-    m_texture_renderer.handle_ocean_texture(dma, render_state, p, m_uniform_vertex_buffer, m_uniform_fragment_buffer);
+    m_texture_renderer.handle_ocean_texture(dma, render_state, p, m_ocean_uniform_vertex_buffer,
+                                            m_ocean_uniform_fragment_buffer);
   }
 
   handle_ocean_far(dma, render_state, prof);
@@ -102,7 +132,8 @@ void OceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
                                       SharedRenderState* render_state,
                                       ScopedProfilerNode& prof) {
   if (dma.current_tag_vifcode0().kind == VifCode::Kind::BASE) {
-    m_mid_renderer.run(dma, render_state, prof, m_uniform_vertex_buffer, m_uniform_fragment_buffer);
+    m_mid_renderer.run(dma, render_state, prof, m_ocean_uniform_vertex_buffer,
+                       m_ocean_uniform_fragment_buffer);
   } else {
     // not drawing
     return;

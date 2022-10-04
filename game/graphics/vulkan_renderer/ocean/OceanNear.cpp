@@ -7,6 +7,37 @@ OceanNear::OceanNear(const std::string& name,
                      std::unique_ptr<GraphicsDeviceVulkan>& device,
                      VulkanInitializationInfo& vulkan_info)
     : BucketRenderer(name, my_id, device, vulkan_info), m_texture_renderer(false, device, vulkan_info), m_common_ocean_renderer(device) {
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(2);
+  m_ocean_vertex_uniform_buffer = std::make_unique<CommonOceanVertexUniformBuffer>(
+      m_device, 1,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+  m_ocean_fragment_uniform_buffer = std::make_unique<CommonOceanFragmentUniformBuffer>(
+      m_device, 1,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+
+  auto vertex_buffer_descriptor_info = m_ocean_vertex_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  auto fragment_buffer_descriptor_info = m_ocean_fragment_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
+
   for (auto& a : m_vu_data) {
     a.fill(0);
   }

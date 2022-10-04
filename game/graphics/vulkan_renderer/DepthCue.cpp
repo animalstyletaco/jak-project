@@ -521,9 +521,22 @@ void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
 
   // Activate shader
   auto shader = &render_state->shaders[ShaderId::DEPTH_CUE];
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader->GetVertexShader();
+  vertShaderStageInfo.pName = "Depth Cue Fragment";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader->GetFragmentShader();
+  fragShaderStageInfo.pName = "Depth Cue Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+
   m_depth_cue_fragment_uniform_buffer->SetUniform1f("tex", 0);
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;

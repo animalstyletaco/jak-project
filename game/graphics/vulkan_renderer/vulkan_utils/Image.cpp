@@ -42,6 +42,7 @@ void TextureInfo::CreateImage(VkExtent3D extents,
   }
 
   vkBindImageMemory(m_device->getLogicalDevice(), m_image, m_device_memory, 0);
+  m_initialized = true;
 }
 
 void TextureInfo::CreateImageView(VkImageViewType image_view_type,
@@ -179,6 +180,11 @@ bool hasStencilComponent(VkFormat format) {
 }
 
 void TextureInfo::CreateTextureSampler() {
+  if (m_sampler) {
+    vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
+    m_sampler = VK_NULL_HANDLE;
+  }
+
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(m_device->getPhysicalDevice(), &properties);
 
@@ -196,4 +202,20 @@ void TextureInfo::CreateTextureSampler() {
       VK_SUCCESS) {
     throw std::runtime_error("failed to create texture sampler!");
   }
+}
+
+/**
+ * Create a buffer info descriptor
+ *
+ * @param size (Optional) Size of the memory range of the descriptor
+ * @param offset (Optional) Byte offset from beginning
+ *
+ * @return VkDescriptorBufferInfo of specified offset and range
+ */
+VkDescriptorImageInfo TextureInfo::descriptorInfo(VkImageLayout image_layout) {
+  return VkDescriptorImageInfo{
+      m_sampler,
+      m_image_view,
+      image_layout
+  };
 }

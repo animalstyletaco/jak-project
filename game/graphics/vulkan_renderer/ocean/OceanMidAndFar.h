@@ -35,6 +35,6 @@ class OceanMidAndFar : public BucketRenderer {
   OceanTexture m_texture_renderer;
   OceanMid m_mid_renderer;
 
-  std::unique_ptr<CommonOceanVertexUniformBuffer> m_uniform_vertex_buffer;
-  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_uniform_fragment_buffer;
+  std::unique_ptr<CommonOceanVertexUniformBuffer> m_ocean_uniform_vertex_buffer;
+  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_ocean_uniform_fragment_buffer;
 };

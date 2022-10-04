@@ -10,27 +10,30 @@
 
 class Tfrag3 {
  public:
-  Tfrag3(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  Tfrag3(VulkanInitializationInfo& vulkan_info,
+         PipelineConfigInfo& pipeline_config_info,
+         GraphicsPipelineLayout& pipeline_layout,
+         std::unique_ptr<DescriptorWriter>& vertex_description_writer,
+         std::unique_ptr<DescriptorWriter>& fragment_description_writer,
+         std::unique_ptr<BackgroundCommonVertexUniformBuffer>& vertex_shader_uniform_buffer,
+         std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& fragment_shader_uniform_buffer);
   ~Tfrag3();
 
   void render_all_trees(int geom,
                         const TfragRenderSettings& settings,
                         SharedRenderState* render_state,
-                        ScopedProfilerNode& prof,
-                        std::unique_ptr<UniformBuffer>& uniform_buffer);
+                        ScopedProfilerNode& prof);
 
   void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,
                              SharedRenderState* render_state,
-                             ScopedProfilerNode& prof,
-                             std::unique_ptr<UniformBuffer>& uniform_buffer);
+                             ScopedProfilerNode& prof);
 
   void render_tree(int geom,
                    const TfragRenderSettings& settings,
                    SharedRenderState* render_state,
-                   ScopedProfilerNode& prof,
-                   std::unique_ptr<UniformBuffer>& uniform_buffer);
+                   ScopedProfilerNode& prof);
 
   bool setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                        const std::string& level,
@@ -39,8 +42,7 @@ class Tfrag3 {
 
   void render_tree_cull_debug(const TfragRenderSettings& settings,
                               SharedRenderState* render_state,
-                              ScopedProfilerNode& prof,
-                              std::unique_ptr<UniformBuffer>& uniform_buffer);
+                              ScopedProfilerNode& prof);
 
   void draw_debug_window();
   struct DebugVertex {
@@ -54,9 +56,6 @@ class Tfrag3 {
   int lod() const { return Gfx::g_global_settings.lod_tfrag; }
 
  private:
-  void InitializeInputVertexAttribute();
-  void InitializeDebugInputVertexAttribute();
-
   static constexpr int GEOM_MAX = 3;
 
   struct TreeCache {
@@ -97,7 +96,7 @@ class Tfrag3 {
 
   std::string m_level_name;
 
-  const std::vector<TextureInfo>* m_textures = nullptr;
+  std::vector<TextureInfo>* m_textures = nullptr;
   std::array<std::vector<TreeCache>, GEOM_MAX> m_cached_trees;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
@@ -114,8 +113,15 @@ class Tfrag3 {
   bool m_has_level = false;
   bool m_use_fast_time_of_day = true;
 
-  PipelineConfigInfo m_pipeline_config_info;
-  PipelineConfigInfo m_debug_pipeline_config_info;
-  GraphicsPipelineLayout m_pipeline_layout;
-  GraphicsPipelineLayout m_debug_pipeline_layout;
+  PipelineConfigInfo& m_pipeline_config_info;
+  GraphicsPipelineLayout& m_pipeline_layout;
+
+  std::unique_ptr<DescriptorWriter>& m_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter>& m_fragment_descriptor_writer;
+
+  std::unique_ptr<BackgroundCommonVertexUniformBuffer>& m_vertex_shader_uniform_buffer;
+  std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& m_time_of_day_color;
+
+  VkSamplerCreateInfo m_sampler_info;
+  VkSampler m_sampler = VK_NULL_HANDLE;
 };

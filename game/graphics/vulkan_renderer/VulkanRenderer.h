@@ -67,7 +67,7 @@ class VulkanRenderer {
   VkInstance GetInstance() { return m_device->getInstance(); }
   VkPhysicalDevice GetPhysicalDevice() { return m_device->getPhysicalDevice(); }
   VkDevice GetLogicalDevice() { return m_device->getLogicalDevice(); }
-  VkDescriptorPool GetDescriptorPool() { return m_descriptor_pool->getDescriptorPool(); }
+  VkDescriptorPool GetDescriptorPool() { return m_vulkan_info.descriptor_pool->getDescriptorPool(); }
   VkQueue GetPresentQueue() { return m_device->presentQueue(); }
   QueueFamilyIndices GetPhysicalQueueFamilies() { return m_device->findPhysicalQueueFamilies(); }
   VkSampleCountFlagBits GetMaxUsableSampleCount() { return m_device->GetMaxUsableSampleCount(); }
@@ -131,7 +131,6 @@ class VulkanRenderer {
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unique_ptr<SwapChain> m_swap_chain;
-  std::unique_ptr<DescriptorPool> m_descriptor_pool;
   std::vector<VkCommandBuffer> commandBuffers;
   FullScreenDraw m_blackout_renderer{m_device};
   CollideMeshRenderer m_collide_renderer{m_device};
@@ -139,6 +138,6 @@ class VulkanRenderer {
   uint32_t currentImageIndex;
   bool isFrameStarted = false;
 
-  VulkanInitializationInfo vulkan_info;
+  VulkanInitializationInfo m_vulkan_info;
   VkExtent2D m_extents = {640, 480};
 };

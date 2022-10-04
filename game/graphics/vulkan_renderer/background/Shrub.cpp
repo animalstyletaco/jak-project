@@ -4,12 +4,39 @@ Shrub::Shrub(const std::string& name,
              BucketId my_id,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info)
-  : BucketRenderer(name, my_id, device, vulkan_info) {
+    : BucketRenderer(name, my_id, device, vulkan_info) {
   m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
 
-  VkDeviceSize device_size = sizeof(m_color_result[0]) * TIME_OF_DAY_COLOR_COUNT;
-  time_of_day_color_buffer = std::make_unique<UniformBuffer>(m_device, device_size, 1,
-                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(2);
+  m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(
+      m_device, TIME_OF_DAY_COLOR_COUNT,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+  m_time_of_day_color_buffer = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
+      m_device, TIME_OF_DAY_COLOR_COUNT,
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+
+  auto vertex_buffer_descriptor_info = m_vertex_shader_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  auto fragment_buffer_descriptor_info = m_vertex_shader_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
 }
 
 Shrub::~Shrub() {
@@ -59,7 +86,7 @@ void Shrub::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProf
         2 * (0xff & m_pc_port_data.itimes[i / 2].data()[2 * (i % 2)]) / 127.f;
   }
 
-  update_render_state_from_pc_settings(render_state, m_pc_port_data);
+  vk_common_background_renderer::update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
   for (int i = 0; i < 4; i++) {
     settings.planes[i] = m_pc_port_data.planes[i];
@@ -104,7 +131,7 @@ void Shrub::update_load(const LevelData* loader_data) {
     m_trees[l_tree].draws = &tree.static_draws;
     m_trees[l_tree].colors = &tree.time_of_day_colors;
     m_trees[l_tree].index_data = tree.indices.data();
-    m_trees[l_tree].tod_cache = swizzle_time_of_day(tree.time_of_day_colors);
+    m_trees[l_tree].tod_cache = vk_common_background_renderer::swizzle_time_of_day(tree.time_of_day_colors);
 
     total_shrub_vertices.insert(total_shrub_vertices.end(), tree.unpacked.vertices.begin(),
                                 tree.unpacked.vertices.end());
@@ -128,15 +155,15 @@ void Shrub::InitializeVertexBuffer(SharedRenderState* render_state) {
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Vertex Fragment";
+  vertShaderStageInfo.pName = "Shrub Vertex Shader";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
   fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Shrub Fragment";
+  fragShaderStageInfo.pName = "Shrub Fragment Shader";
 
-  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
@@ -164,29 +191,9 @@ void Shrub::InitializeVertexBuffer(SharedRenderState* render_state) {
   attributeDescriptions[3].location = 3;
   attributeDescriptions[3].format = VK_FORMAT_R4G4B4A4_UNORM_PACK16;
   attributeDescriptions[3].offset = offsetof(tfrag3::ShrubGpuVertex, color_index);
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-  //FIXME: Added necessary configuration back to shrub pipeline
-  VkGraphicsPipelineCreateInfo pipelineInfo{};
-  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipelineInfo.stageCount = 2;
-  pipelineInfo.pStages = shaderStages;
-  pipelineInfo.pVertexInputState = &vertexInputInfo;
-
-  //if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-  //                              &graphicsPipeline) != VK_SUCCESS) {
-  //  throw std::runtime_error("failed to create graphics pipeline!");
-  //}
-
-  //TODO: Should shaders be deleted now?
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }
 
 bool Shrub::setup_for_level(const std::string& level, SharedRenderState* render_state) {
@@ -255,7 +262,7 @@ void Shrub::render_tree(int idx,
   }
 
   Timer interp_timer;
-  interp_time_of_day_fast(settings.time_of_day_weights, tree.tod_cache, m_color_result.data());
+  vk_common_background_renderer::interp_time_of_day_fast(settings.time_of_day_weights, tree.tod_cache, m_color_result.data());
   tree.perf.tod_time.add(interp_timer.getSeconds());
 
   Timer setup_timer;
@@ -279,13 +286,12 @@ void Shrub::render_tree(int idx,
   //FIXME: Needs to be part of VkSampler
   //CreateTextureSampler(VK_FILTER_NEAREST, VK_FILTER_NEAREST, 1);
 
-  first_tfrag_draw_setup(settings, render_state, texture, time_of_day_color_buffer);
+  vk_common_background_renderer::first_tfrag_draw_setup(settings, render_state,
+                                                        m_vertex_shader_uniform_buffer);
 
   //FIXME: Needs to be part of pipeline
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
   tree.perf.tod_time.add(setup_timer.getSeconds());
 
@@ -294,9 +300,9 @@ void Shrub::render_tree(int idx,
   tree.perf.cull_time.add(0);
   Timer index_timer;
   if (render_state->no_multidraw) {
-    make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, tree.index_data);
+    vk_common_background_renderer::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, tree.index_data);
   } else {
-    make_all_visible_multidraws(m_cache.multidraw_offset_per_stripdraw.data(),
+    vk_common_background_renderer::make_all_visible_multidraws(m_cache.multidraw_offset_per_stripdraw.data(),
                                 m_cache.multidraw_count_buffer.data(),
                                 m_cache.multidraw_index_offset_buffer.data(), *tree.draws);
   }
@@ -320,8 +326,8 @@ void Shrub::render_tree(int idx,
       }
     }
 
-    auto double_draw = setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id),
-                                          m_pipeline_config_info, time_of_day_color_buffer);
+    auto double_draw = vk_common_background_renderer::setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id),
+                                          m_pipeline_config_info, m_time_of_day_color_buffer);
 
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);
@@ -334,8 +340,8 @@ void Shrub::render_tree(int idx,
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         tree.perf.draws++;
         prof.add_draw_call();
-        m_uniform_buffer->SetUniform1f("alpha_min", -10.f);
-        m_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
+        m_time_of_day_color_buffer->SetUniform1f("alpha_min", -10.f);
+        m_time_of_day_color_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
         //TODO: Set real index buffers here
         //glDepthMask(GL_FALSE);
         //if (render_state->no_multidraw) {

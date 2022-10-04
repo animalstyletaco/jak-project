@@ -78,7 +78,7 @@ class DescriptorPool {
 
 class DescriptorWriter {
  public:
-  DescriptorWriter(DescriptorLayout& setLayout, DescriptorPool& pool);
+  DescriptorWriter(std::unique_ptr<DescriptorLayout>& setLayout, std::unique_ptr<DescriptorPool>& pool);
 
   DescriptorWriter& writeBuffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo);
   DescriptorWriter& writeImage(uint32_t binding, VkDescriptorImageInfo* imageInfo);
@@ -87,7 +87,7 @@ class DescriptorWriter {
   void overwrite(VkDescriptorSet& set);
 
  private:
-  DescriptorLayout& m_set_layout;
-  DescriptorPool& m_pool;
+  std::unique_ptr<DescriptorLayout>& m_set_layout;
+  std::unique_ptr<DescriptorPool>& m_pool;
   std::vector<VkWriteDescriptorSet> m_writes;
 };

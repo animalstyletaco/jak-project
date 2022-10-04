@@ -148,10 +148,6 @@ class Merc2 : public BucketRenderer {
     s32 pad[3]; //TODO: Verify that this padding is necessary
   };
 
-  unsigned m_vao;
-
-  unsigned m_bones_buffer;
-
   struct Stats {
     int num_models = 0;
     int num_chains = 0;
@@ -175,7 +171,7 @@ class Merc2 : public BucketRenderer {
   };
 
   struct LevelDrawBucket {
-    const LevelData* level = nullptr;
+    LevelData* level = nullptr;
     std::vector<Draw> draws;
     u32 next_free_draw = 0;
 

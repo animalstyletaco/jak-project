@@ -11,13 +11,16 @@ ShadowRenderer::ShadowRenderer(
     VulkanInitializationInfo& vulkan_info)
     : BucketRenderer(name, my_id, device, vulkan_info) {
   // set up the vertex array
-  u32 index_buffer[MAX_INDICES] = {0};
-  Vertex vertex_buffer[MAX_VERTICES];
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
+      device, sizeof(Vertex), MAX_VERTICES,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
   for (int i = 0; i < 2; i++) {
-    //m_index_buffers[i] = CreateBuffer(VK_BUFFER_USAGE_INDEX_BUFFER_BIT, index_buffer, MAX_INDICES);
+    m_ogl.index_buffers[i] = std::make_unique<IndexBuffer>(
+        device, sizeof(u32), MAX_INDICES,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
   }
 
-  // m_vertex_buffer = CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, index_buffer, MAX_VERTEX);
   // xyz
   InitializeInputVertexAttribute();
 }
@@ -334,7 +337,9 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   m_front_indices[m_next_front_index++] = clear_vertices + 2;
   m_front_indices[m_next_front_index++] = clear_vertices + 1;
 
-  //SetVertexBuffer(0, m_vertices, m_next_vertex); glBufferData(GL_ARRAY_BUFFER, m_next_vertex * sizeof(Vertex), m_vertices, GL_STREAM_DRAW);
+  m_ogl.vertex_buffer->map(m_next_vertex * sizeof(Vertex));
+  m_ogl.vertex_buffer->writeToBuffer(m_vertices);
+  m_ogl.vertex_buffer->unmap();
 
   m_pipeline_config_info.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
   m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
@@ -382,7 +387,6 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   m_pipeline_config_info.depthStencilInfo.back.failOp = VK_STENCIL_OP_KEEP;
   m_pipeline_config_info.depthStencilInfo.back.writeMask = 0xFF;
 
-
   // First pass.
   // here, we don't write depth or color.
   // but we increment stencil on depth fail.
@@ -390,7 +394,9 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   {
     m_uniform_buffer->SetUniform4f("color_uniform",
                 0., 0.4, 0., 0.5);
-    // SetIndexBuffer(0, m_back_indices, m_next_front_index * sizeof(u32));
+    m_ogl.index_buffers[0]->map(m_next_front_index * sizeof(u32));
+    m_ogl.index_buffers[0]->writeToBuffer(m_back_indices);
+    m_ogl.index_buffers[0]->unmap();
 
     m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
     m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
@@ -420,7 +426,9 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
     m_uniform_buffer->SetUniform4f("color_uniform",
                 0.4, 0.0, 0., 0.5);
 
-    //SetIndexBuffer(0, m_back_indices, m_next_back_index * sizeof(u32));
+    m_ogl.index_buffers[1]->map(m_next_back_index * sizeof(u32));
+    m_ogl.index_buffers[1]->writeToBuffer(m_back_indices);
+    m_ogl.index_buffers[1]->unmap();
 
     // Second pass.
 

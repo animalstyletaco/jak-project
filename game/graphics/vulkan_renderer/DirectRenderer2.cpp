@@ -6,32 +6,36 @@
 
 #include "third-party/imgui/imgui.h"
 
-DirectRenderer2::DirectRenderer2(u32 max_verts,
+DirectRenderer2::DirectRenderer2(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                 u32 max_verts,
                                  u32 max_inds,
                                  u32 max_draws,
                                  const std::string& name,
                                  bool use_ftoi_mod)
-    : m_name(name), m_use_ftoi_mod(use_ftoi_mod) {
+    : m_name(name), m_use_ftoi_mod(use_ftoi_mod), m_pipeline_layout(device) {
   // allocate buffers
   m_vertices.vertices.resize(max_verts);
   m_vertices.indices.resize(max_inds);
   m_draw_buffer.resize(max_draws);
 
-  // set up the vertex array
-  //CreateVertexBuffer(m_vertices.vertices);
-  //CreateIndexBuffer(m_vertices.indices);
+  m_ogl.index_buffer = std::make_unique<IndexBuffer>(
+      device, sizeof(u32), max_inds,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
+    device, sizeof(Vertex), max_verts,
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
 }
 
 void DirectRenderer2::InitializeInputVertexAttribute() {
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(DirectRenderer2::Vertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
   std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
   // TODO: This value needs to be normalized
@@ -54,23 +58,28 @@ void DirectRenderer2::InitializeInputVertexAttribute() {
   attributeDescriptions[3].location = 3;
   attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
   attributeDescriptions[3].offset = offsetof(DirectRenderer2::Vertex, tex_unit);
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }
 
 void DirectRenderer2::SetShaderModule(Shader& shader) {
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Collision Fragment";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Collision Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
 
 DirectRenderer2::~DirectRenderer2() {
-   //DeleteVertexBuffer();
-  // DeleteIndexBuffer();
 }
 
 void DirectRenderer2::init_shaders(ShaderLibrary& shaders) {
@@ -120,8 +129,13 @@ void DirectRenderer2::flush_pending(SharedRenderState* render_state, ScopedProfi
   // first, upload:
   Timer upload_timer;
 
-  //SetVertexBuffer(m_vertices.vertices);
-  //SetIndexBuffer(m_vertices.indices);
+  m_ogl.vertex_buffer->map();
+  m_ogl.vertex_buffer->writeToBuffer(m_vertices.vertices.data());
+  m_ogl.vertex_buffer->unmap();
+
+  m_ogl.index_buffer->map();
+  m_ogl.index_buffer->writeToBuffer(m_vertices.indices.data());
+  m_ogl.index_buffer->unmap();
 
   m_stats.upload_wait += upload_timer.getSeconds();
   m_stats.num_uploads++;
@@ -225,134 +239,130 @@ void DirectRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
     }
   }
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
-
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
-  colorBlending.logicOpEnable = VK_FALSE;
-  colorBlending.attachmentCount = 1;
-  colorBlending.pAttachments = &colorBlendAttachment;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
+  
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_FALSE;
+  m_pipeline_config_info.colorBlendInfo.attachmentCount = 1;
+  m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
 
   // setup blending and color mult
   float color_mult = 1.f;
   if (draw.mode.get_ab_enable()) {
-    colorBlendAttachment.blendEnable = VK_FALSE;
-    colorBlending.blendConstants[0] = 1.0f;
-    colorBlending.blendConstants[1] = 1.0f;
-    colorBlending.blendConstants[2] = 1.0f;
-    colorBlending.blendConstants[3] = 1.0f;
+    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
+    m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
+    m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 1.0f;
+    m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
+    m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
     if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_DST_SRC_DST) {
       // (Cs - Cd) * As + Cd
       // Cs * As  + (1 - As) * Cd
       // s, d
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_SRC_DST) {
       // (Cs - 0) * As + Cd
       // Cs * As + (1) * Cd
       // s, d
       ASSERT(draw.fix == 0);
 
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::ZERO_SRC_SRC_DST) {
       // (0 - Cs) * As + Cd
       // Cd - Cs * As
       // s, d
 
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+      
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_DST_FIX_DST) {
       // (Cs - Cd) * fix + Cd
       // Cs * fix + (1 - fx) * Cd
 
-      colorBlending.blendConstants[0] = 0.0f;
-      colorBlending.blendConstants[1] = 0.0f;
-      colorBlending.blendConstants[2] = 0.0f;
-      colorBlending.blendConstants[3] = draw.fix / 127.0f;
-
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
-
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+      m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+      m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+      m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+      m_pipeline_config_info.colorBlendInfo.blendConstants[3] = draw.fix / 127.0f;
+      
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+      
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_SRC_SRC_SRC) {
       // this is very weird...
       // Cs
 
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+      
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_DST_DST) {
       // (Cs - 0) * Ad + Cd
 
-      colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-      colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-      colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
-      colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-
-      colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-      colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+      
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
       color_mult = 0.5;
     } else {
       ASSERT(false);
     }
   }
 
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_FALSE;
-  depthStencil.depthBoundsTestEnable = VK_FALSE;
-  depthStencil.stencilTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
   if (draw.mode.get_zt_enable()) {
-    depthStencil.depthTestEnable = VK_TRUE;
+    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
     switch (draw.mode.get_depth_test()) {
       case GsTest::ZTest::NEVER:
-        depthStencil.depthCompareOp = VK_COMPARE_OP_NEVER;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
         break;
       case GsTest::ZTest::ALWAYS:
-        depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
-        depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER;
         break;
       default:
         ASSERT(false);
@@ -385,7 +395,7 @@ void DirectRenderer2::setup_vulkan_tex(u16 unit,
                                        bool clamp_t,
                                        SharedRenderState* render_state) {
   // look up the texture
-  VkImage tex;
+  TextureInfo* tex;
   u32 tbp_to_lookup = tbp & 0x7fff;
   bool use_mt4hh = tbp & 0x8000;
 
@@ -407,18 +417,16 @@ void DirectRenderer2::setup_vulkan_tex(u16 unit,
     }
   }
 
-  VkPipelineRasterizationStateCreateInfo rasterizer{};
-  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-  rasterizer.rasterizerDiscardEnable = VK_FALSE;
-  rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-  rasterizer.lineWidth = 1.0f;
-  rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-  rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-  rasterizer.depthBiasEnable = VK_FALSE;
+  m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+  m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+  m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
+  m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+  m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
   if (clamp_s || clamp_t) {
-    rasterizer.depthClampEnable = VK_TRUE;
+    m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_TRUE;
   } else {
-    rasterizer.depthClampEnable = VK_FALSE;
+    m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
 
   // VkPhysicalDeviceProperties properties{};

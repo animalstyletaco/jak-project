@@ -15,6 +15,30 @@ void Generic2::vulkan_setup() {
   m_fragment_uniform_buffer = std::make_unique<GenericCommonFragmentUniformBuffer>(
       m_device, sizeof(GenericCommonFragmentUniformShaderData), 1,
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(2);
+  auto vertex_buffer_descriptor_info = m_vertex_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  auto fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
 }
 
 void Generic2::vulkan_cleanup() {
@@ -293,25 +317,25 @@ void Generic2::setup_vulkan_tex(u16 unit,
                                 bool clamp_t,
                                 SharedRenderState* render_state) {
   // look up the texture
-  VkImage tex;
+  TextureInfo* texture = NULL;
   u32 tbp_to_lookup = tbp & 0x7fff;
   bool use_mt4hh = tbp & 0x8000;
 
   if (use_mt4hh) {
-    tex = render_state->texture_pool->lookup_mt4hh(tbp_to_lookup);
+    texture = render_state->texture_pool->lookup_mt4hh(tbp_to_lookup);
   } else {
-    tex = render_state->texture_pool->lookup(tbp_to_lookup);
+    texture = render_state->texture_pool->lookup(tbp_to_lookup);
   }
 
-  if (!tex) {
+  if (!texture) {
     // TODO Add back
     if (tbp_to_lookup >= 8160 && tbp_to_lookup <= 8600) {
       fmt::print("Failed to find texture at {}, using random (eye zone)\n", tbp_to_lookup);
 
-      tex = render_state->texture_pool->get_placeholder_texture();
+      texture = render_state->texture_pool->get_placeholder_texture();
     } else {
       fmt::print("Failed to find texture at {}, using random\n", tbp_to_lookup);
-      tex = render_state->texture_pool->get_placeholder_texture();
+      texture = render_state->texture_pool->get_placeholder_texture();
     }
   }
 
@@ -450,7 +474,7 @@ void Generic2::InitializeVertexBuffer(SharedRenderState* render_state) {
   fragShaderStageInfo.module = shader.GetFragmentShader();
   fragShaderStageInfo.pName = "Shrub Fragment";
 
-  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;

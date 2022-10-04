@@ -31,7 +31,7 @@ struct LevelData {
 struct MercRef {
   const tfrag3::MercModel* model = nullptr;
   u64 load_id = 0;
-  const LevelData* level = nullptr;
+  LevelData* level = nullptr;
   bool operator==(const MercRef& other) const {
     return model == other.model && load_id == other.load_id;
   }

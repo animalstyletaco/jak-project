@@ -10,8 +10,8 @@
 #include "game/graphics/pipelines/vulkan_pipeline.h"
 
 //FIXME: Get Vulkan structure into pipeline
-DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, PipelineConfigInfo& pipeline_config_info, bool mipmap) {
-  pipeline_config_info.depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+DoubleDraw vk_common_background_renderer::setup_vulkan_from_draw_mode(
+  DrawMode mode, TextureInfo& texture, PipelineConfigInfo& pipeline_config_info, bool mipmap) {
   pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
@@ -127,7 +127,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture
   //VkPhysicalDeviceProperties properties{};
   //vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 
-  VkSamplerCreateInfo samplerInfo{};
+  VkSamplerCreateInfo samplerInfo = texture.getSamplerInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -212,7 +212,10 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture
   return double_draw;
 }
 
-DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& textureInfo, PipelineConfigInfo& pipeline_info, std::unique_ptr<UniformBuffer>& uniform_buffer) {
+DoubleDraw vk_common_background_renderer::setup_tfrag_shader(
+  SharedRenderState* render_state, DrawMode mode, TextureInfo& textureInfo,
+    PipelineConfigInfo& pipeline_info,
+    std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer) {
   auto draw_settings = setup_vulkan_from_draw_mode(mode, textureInfo, pipeline_info, true);
   uniform_buffer->SetUniform1f("alpha_min",
               draw_settings.aref_first);
@@ -220,26 +223,27 @@ DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, co
   return draw_settings;
 }
 
-void first_tfrag_draw_setup(const TfragRenderSettings& settings,
-                            SharedRenderState* render_state,
-                            const TextureInfo& textureInfo,
-                            std::unique_ptr<UniformBuffer>& uniform_buffer) {
-  uniform_buffer->SetUniform1i("tex_T0", 0);
-  uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
-                (float*)settings.math_camera.data());
-  uniform_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
-                settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
-  uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
-  uniform_buffer->SetUniform1f("fog_min", settings.fog.y());
-  uniform_buffer->SetUniform1f("fog_max", settings.fog.z());
-  uniform_buffer->SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
+void vk_common_background_renderer::first_tfrag_draw_setup(
+  const TfragRenderSettings& settings,
+  SharedRenderState* render_state,
+  std::unique_ptr<BackgroundCommonVertexUniformBuffer>& uniform_vertex_shader_buffer) {
+  uniform_vertex_shader_buffer->SetUniform1i("tex_T0", 0);
+  uniform_vertex_shader_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
+                  (float*)settings.math_camera.data());
+  uniform_vertex_shader_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
+                  settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
+  uniform_vertex_shader_buffer->SetUniform1f("fog_constant", settings.fog.x());
+  uniform_vertex_shader_buffer->SetUniform1f("fog_min", settings.fog.y());
+  uniform_vertex_shader_buffer->SetUniform1f("fog_max", settings.fog.z());
+  uniform_vertex_shader_buffer->SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
 }
 
-void interp_time_of_day_slow(const float weights[8],
-                             const std::vector<tfrag3::TimeOfDayColor>& in,
-                             math::Vector<u8, 4>* out) {
+void vk_common_background_renderer::interp_time_of_day_slow(
+  const float weights[8],
+  const std::vector<tfrag3::TimeOfDayColor>& in,
+  math::Vector<u8, 4>* out) {
   // Timer interp_timer;
   for (size_t color = 0; color < in.size(); color++) {
     math::Vector4f result = math::Vector4f::zero();
@@ -272,7 +276,7 @@ void interp_time_of_day_slow(const float weights[8],
 // the swizzle function below rearranges to get this pattern.
 // it's not the most efficient way to do it, but it just runs during loading and not on every frame.
 
-SwizzledTimeOfDay swizzle_time_of_day(const std::vector<tfrag3::TimeOfDayColor>& in) {
+SwizzledTimeOfDay vk_common_background_renderer::swizzle_time_of_day(const std::vector<tfrag3::TimeOfDayColor>& in) {
   SwizzledTimeOfDay out;
   out.data.resize((in.size() + 3) * 8 * 4);
 
@@ -393,7 +397,7 @@ void interp_time_of_day_fast_avx2(const float weights[8],
 #endif
 }
 
-void interp_time_of_day_fast(const float weights[8],
+void vk_common_background_renderer::interp_time_of_day_fast(const float weights[8],
                              const SwizzledTimeOfDay& in,
                              math::Vector<u8, 4>* out) {
   // even though the colors are 8 bits, we'll use 16 bits so we can saturate correctly
@@ -532,7 +536,7 @@ void interp_time_of_day_fast(const float weights[8],
   }
 }
 
-bool sphere_in_view_ref(const math::Vector4f& sphere, const math::Vector4f* planes) {
+bool vk_common_background_renderer::sphere_in_view_ref(const math::Vector4f& sphere, const math::Vector4f* planes) {
   math::Vector4f acc =
       planes[0] * sphere.x() + planes[1] * sphere.y() + planes[2] * sphere.z() - planes[3];
 
@@ -541,7 +545,7 @@ bool sphere_in_view_ref(const math::Vector4f& sphere, const math::Vector4f* plan
 }
 
 // this isn't super efficient, but we spend so little time here it's not worth it to go faster.
-void cull_check_all_slow(const math::Vector4f* planes,
+void vk_common_background_renderer::cull_check_all_slow(const math::Vector4f* planes,
                          const std::vector<tfrag3::VisNode>& nodes,
                          const u8* level_occlusion_string,
                          u8* out) {
@@ -559,7 +563,7 @@ void cull_check_all_slow(const math::Vector4f* planes,
   }
 }
 
-void make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
+void vk_common_background_renderer::make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
                                  GLsizei* counts_out,
                                  void** index_offsets_out,
                                  const std::vector<tfrag3::ShrubDraw>& draws) {
@@ -577,7 +581,7 @@ void make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
   }
 }
 
-u32 make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
+u32 vk_common_background_renderer::make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
                                 GLsizei* counts_out,
                                 void** index_offsets_out,
                                 const std::vector<tfrag3::StripDraw>& draws) {
@@ -602,7 +606,7 @@ u32 make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
   return num_tris;
 }
 
-u32 make_all_visible_index_list(std::pair<int, int>* group_out,
+u32 vk_common_background_renderer::make_all_visible_index_list(std::pair<int, int>* group_out,
                                 u32* idx_out,
                                 const std::vector<tfrag3::ShrubDraw>& draws,
                                 const u32* idx_in) {
@@ -620,7 +624,7 @@ u32 make_all_visible_index_list(std::pair<int, int>* group_out,
   return idx_buffer_ptr;
 }
 
-u32 make_multidraws_from_vis_string(std::pair<int, int>* draw_ptrs_out,
+u32 vk_common_background_renderer::make_multidraws_from_vis_string(std::pair<int, int>* draw_ptrs_out,
                                     GLsizei* counts_out,
                                     void** index_offsets_out,
                                     const std::vector<tfrag3::StripDraw>& draws,
@@ -675,7 +679,7 @@ u32 make_multidraws_from_vis_string(std::pair<int, int>* draw_ptrs_out,
   return num_tris;
 }
 
-u32 make_index_list_from_vis_string(std::pair<int, int>* group_out,
+u32 vk_common_background_renderer::make_index_list_from_vis_string(std::pair<int, int>* group_out,
                                     u32* idx_out,
                                     const std::vector<tfrag3::StripDraw>& draws,
                                     const std::vector<u8>& vis_data,
@@ -730,7 +734,7 @@ u32 make_index_list_from_vis_string(std::pair<int, int>* group_out,
   return idx_buffer_ptr;
 }
 
-u32 make_all_visible_index_list(std::pair<int, int>* group_out,
+u32 vk_common_background_renderer::make_all_visible_index_list(std::pair<int, int>* group_out,
                                 u32* idx_out,
                                 const std::vector<tfrag3::StripDraw>& draws,
                                 const u32* idx_in,
@@ -756,7 +760,7 @@ u32 make_all_visible_index_list(std::pair<int, int>* group_out,
   return idx_buffer_ptr;
 }
 
-void update_render_state_from_pc_settings(SharedRenderState* state, const TfragPcPortData& data) {
+void vk_common_background_renderer::update_render_state_from_pc_settings(SharedRenderState* state, const TfragPcPortData& data) {
   if (!state->has_pc_data) {
     for (int i = 0; i < 4; i++) {
       state->camera_planes[i] = data.planes[i];
@@ -769,23 +773,16 @@ void update_render_state_from_pc_settings(SharedRenderState* state, const TfragP
   }
 }
 
-struct BackgroundCommonVertex {
-  math::Vector4f hvdf_offset;
-  math::Matrix4f camera;
-  float fog_constant;
-  float fog_min;
-  float fog_max;
-  // layout(binding = 10) uniform sampler1D tex_T1;  // note, sampled in the vertex shader on
-  // purpose.
-};
-
 BackgroundCommonVertexUniformBuffer::BackgroundCommonVertexUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
-    VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkMemoryPropertyFlags memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment)
-    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+    : UniformBuffer(device,
+                    sizeof(BackgroundCommonVertexUniformShaderData),
+                    instanceCount,
+                    memoryPropertyFlags,
+                    minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"hvdf_offset", offsetof(BackgroundCommonVertexUniformShaderData, hvdf_offset)},
       {"camera", offsetof(BackgroundCommonVertexUniformShaderData, camera)},
@@ -796,11 +793,14 @@ BackgroundCommonVertexUniformBuffer::BackgroundCommonVertexUniformBuffer(
 
 BackgroundCommonFragmentUniformBuffer::BackgroundCommonFragmentUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
-    VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkMemoryPropertyFlags memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment)
-    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+    : UniformBuffer(device,
+                    sizeof(BackgroundCommonFragmentUniformShaderData),
+                    instanceCount,
+                    memoryPropertyFlags,
+                    minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"tex_T0", offsetof(BackgroundCommonFragmentUniformShaderData, tex_T0)},
       {"alpha_min", offsetof(BackgroundCommonFragmentUniformShaderData, alpha_min)},

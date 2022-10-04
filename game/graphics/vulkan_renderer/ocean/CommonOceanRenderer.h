@@ -88,7 +88,8 @@ protected:
   u32 m_envmap_tex = 0;
 
   struct {
-    GLuint vertex_buffer, index_buffer[NUM_BUCKETS], vao;
+    std::unique_ptr<VertexBuffer> vertex_buffer;
+    std::unique_ptr<IndexBuffer> index_buffers[NUM_BUCKETS];
   } m_ogl;
 
   PipelineConfigInfo m_pipeline_config_info;

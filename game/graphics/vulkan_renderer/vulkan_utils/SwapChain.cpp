@@ -159,16 +159,20 @@ void SwapChain::createSwapChain() {
   // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
   // retrieve the handles.
   vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, nullptr);
-  swapChainSourceImages.resize(imageCount);
-  vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, swapChainSourceImages.data());
+  swapChainImages.resize(imageCount, TextureInfo{device});
+
+  std::vector<VkImage> images;
+  for (uint32_t i = 0; i < imageCount; i++) {
+    images.push_back(swapChainImages[i].GetImage());
+  }
+  vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, images.data());
 
   swapChainImageFormat = surfaceFormat.format;
 }
 
 void SwapChain::createImageViews() {
   for (int i = 0; i < imageCount(); i++) {
-    swapChainImages.push_back(TextureInfo{device});
-    swapChainImages.back().CreateImage(
+    swapChainImages[i].CreateImage(
         {
             swapChainExtent.width,
             swapChainExtent.height,
@@ -177,16 +181,15 @@ void SwapChain::createImageViews() {
         1, VK_IMAGE_TYPE_2D, device->getMsaaCount(), swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    swapChainImages.back().CreateImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat,
-                                           VK_IMAGE_ASPECT_COLOR_BIT, 1);
-    swapChainSourceImages.at(i) = swapChainImages.back().GetImage();
+    swapChainImages[i].CreateImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat,
+                                       VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
 }
 
 void SwapChain::createRenderPass() {
   VkAttachmentDescription depthAttachment{};
   depthAttachment.format = findDepthFormat();
-  depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+  depthAttachment.samples = device->getMsaaCount();
   depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -259,10 +262,10 @@ void SwapChain::createFramebuffers() {
     framebufferInfo.height = swapChainExtent.height;
     framebufferInfo.layers = 1;
 
-    //if (vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo, nullptr,
-    //                        &swapChainFramebuffers[i]) != VK_SUCCESS) {
-    //  throw std::runtime_error("failed to create framebuffer!");
-    //}
+    if (vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo, nullptr,
+                            &swapChainFramebuffers[i]) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create framebuffer!");
+    }
   }
 }
 
@@ -271,10 +274,9 @@ void SwapChain::createDepthResources() {
   swapChainDepthFormat = depthFormat;
   VkExtent2D swapChainExtent = getSwapChainExtent();
 
+  depthImages.resize(imageCount(), TextureInfo{device});
   for (int i = 0; i < imageCount(); i++) {
-    depthImages.push_back(TextureInfo{device});
-
-    depthImages.back().CreateImage({
+    depthImages[i].CreateImage({
         swapChainExtent.width,
         swapChainExtent.height,
         1,
@@ -282,7 +284,7 @@ void SwapChain::createDepthResources() {
     depthFormat, VK_IMAGE_TILING_OPTIMAL,
     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-   depthImages.back().CreateImageView(
+   depthImages[i].CreateImageView(
         VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
   }
 }

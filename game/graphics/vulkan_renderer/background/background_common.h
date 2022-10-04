@@ -5,6 +5,38 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
+
+struct BackgroundCommonVertexUniformShaderData {
+  math::Vector4f hvdf_offset;
+  math::Matrix4f camera;
+  float fog_constant;
+  float fog_min;
+  float fog_max;
+};
+
+class BackgroundCommonVertexUniformBuffer : public UniformBuffer {
+ public:
+  BackgroundCommonVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                      uint32_t instanceCount,
+                                      VkMemoryPropertyFlags memoryPropertyFlags,
+                                      VkDeviceSize minOffsetAlignment);
+};
+
+struct BackgroundCommonFragmentUniformShaderData {
+  int32_t tex_T0;
+  float alpha_min;
+  float alpha_max;
+  math::Vector4f fog_color;
+};
+
+class BackgroundCommonFragmentUniformBuffer : public UniformBuffer {
+ public:
+  BackgroundCommonFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                        uint32_t instanceCount,
+                                        VkMemoryPropertyFlags memoryPropertyFlags,
+                                        VkDeviceSize minOffsetAlignment);
+};
+
 // data passed from game to PC renderers
 // the GOAL code assumes this memory layout.
 struct TfragPcPortData {
@@ -37,23 +69,29 @@ struct DoubleDraw {
   float aref_second = 0.;
 };
 
-DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, const TextureInfo& texture,
-  PipelineConfigInfo& pipeline_info, std::unique_ptr<UniformBuffer>& uniform_buffer);
-DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode, const TextureInfo& texture, PipelineConfigInfo& pipeline_config, bool mipmap);
-
-void first_tfrag_draw_setup(const TfragRenderSettings& settings,
-                            SharedRenderState* render_state,
-                            const TextureInfo& textureInfo,
-                            std::unique_ptr<UniformBuffer>& uniform_buffer);
-
-void interp_time_of_day_slow(const float weights[8],
-                             const std::vector<tfrag3::TimeOfDayColor>& in,
-                             math::Vector<u8, 4>* out);
-
 struct SwizzledTimeOfDay {
   std::vector<u8> data;
   u32 color_count = 0;
 };
+
+namespace vk_common_background_renderer {
+DoubleDraw setup_tfrag_shader(SharedRenderState* render_state,
+                              DrawMode mode,
+                              TextureInfo& texture,
+                              PipelineConfigInfo& pipeline_info,
+                              std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer);
+DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
+                                       TextureInfo& texture,
+                                       PipelineConfigInfo& pipeline_config,
+                                       bool mipmap);
+
+void first_tfrag_draw_setup(const TfragRenderSettings& settings,
+                            SharedRenderState* render_state,
+                            std::unique_ptr<BackgroundCommonVertexUniformBuffer>& uniform_buffer);
+
+void interp_time_of_day_slow(const float weights[8],
+                             const std::vector<tfrag3::TimeOfDayColor>& in,
+                             math::Vector<u8, 4>* out);
 
 SwizzledTimeOfDay swizzle_time_of_day(const std::vector<tfrag3::TimeOfDayColor>& in);
 
@@ -102,39 +140,4 @@ u32 make_all_visible_index_list(std::pair<int, int>* group_out,
                                 u32* idx_out,
                                 const std::vector<tfrag3::ShrubDraw>& draws,
                                 const u32* idx_in);
-
-struct BackgroundCommonVertexUniformShaderData {
-  math::Vector4f hvdf_offset;
-  math::Matrix4f camera;
-  float fog_constant;
-  float fog_min;
-  float fog_max;
-  //layout(binding = 10) uniform sampler1D tex_T1;  // note, sampled in the vertex shader on purpose.
-};
-
-class BackgroundCommonVertexUniformBuffer : public UniformBuffer {
- public:
-  BackgroundCommonVertexUniformBuffer(
-      std::unique_ptr<GraphicsDeviceVulkan>& device,
-      VkDeviceSize instanceSize,
-      uint32_t instanceCount,
-      VkMemoryPropertyFlags memoryPropertyFlags,
-      VkDeviceSize minOffsetAlignment);
-};
-
-struct BackgroundCommonFragmentUniformShaderData {
-  int32_t tex_T0;
-  float alpha_min;
-  float alpha_max;
-  math::Vector4f fog_color;
-};
-
-class BackgroundCommonFragmentUniformBuffer : public UniformBuffer {
- public:
-  BackgroundCommonFragmentUniformBuffer(
-      std::unique_ptr<GraphicsDeviceVulkan>& device,
-      VkDeviceSize instanceSize,
-      uint32_t instanceCount,
-      VkMemoryPropertyFlags memoryPropertyFlags,
-      VkDeviceSize minOffsetAlignment);
-};
+}  // namespace vk_common_background_renderer

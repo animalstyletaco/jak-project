@@ -1,5 +1,6 @@
 #include <set>
 #include <stdexcept>
+#include <iostream>
 
 #include "GraphicsDeviceVulkan.h"
 
@@ -11,8 +12,11 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
               VkDebugUtilsMessageTypeFlagsEXT messageType,
               const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
               void* pUserData) {
-  lg::info("validation layer: {}", pCallbackData->pMessage);
-
+  if (strcmp(pCallbackData->pMessageIdName, "Loader Message")) {
+    lg::error("{}: {}", pCallbackData->pMessageIdName, pCallbackData->pMessage);
+  } else {
+    lg::info("{}: {}", pCallbackData->pMessageIdName, pCallbackData->pMessage);
+  }
   return VK_FALSE;
 }
 }

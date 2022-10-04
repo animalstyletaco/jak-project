@@ -18,6 +18,8 @@ class SkyBlendGPU {
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   std::unique_ptr<TextureInfo> m_textures[2];
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  GraphicsPipelineLayout m_pipeline_layout;
+  PipelineConfigInfo m_pipeline_config_info;
 
   int m_sizes[2] = {32, 64};
 

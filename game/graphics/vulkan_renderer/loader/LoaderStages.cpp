@@ -7,51 +7,39 @@ constexpr float LOAD_BUDGET = 2.5f;
 /*!
  * Upload a texture to the GPU, and give it to the pool.
  */
-TextureInfo add_texture(TexturePool& pool,
-                        const tfrag3::Texture& tex,
-                        std::unique_ptr<GraphicsDeviceVulkan>& device) {
-  TextureInfo textureInfo{device};
-
+void vk_loader_stage::update_texture(TexturePool& pool,
+                                     const tfrag3::Texture& tex,
+                                     TextureInfo& texture_info,
+                                     bool is_common) {
   VkExtent3D extents{tex.w, tex.h, 1};
-  textureInfo.CreateImage(extents, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(),
-                          VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
-                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  texture_info.CreateImage(extents, 1, VK_IMAGE_TYPE_2D, texture_info.getMsaaCount(),
+                           VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
+                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-  if (textureInfo.map() != VK_SUCCESS){
-    throw std::runtime_error("Can not get texture mapped memory");
-  }
-  textureInfo.writeToBuffer((u32*)tex.data.data());
-  textureInfo.unmap();
+  texture_info.map();
+  texture_info.writeToBuffer((u32*)tex.data.data());
+  texture_info.unmap();
 
   //TODO: Get Mipmap Level here
   unsigned mipLevels = 1;
 
-  textureInfo.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
-                              VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  texture_info.CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                               VK_IMAGE_ASPECT_COLOR_BIT, 1);
   // Max Anisotropy is set in vulkan renderer sampler info;
 
   if (tex.load_to_pool) {
-
+    TextureInput in;
+    in.debug_page_name = tex.debug_tpage_name;
+    in.debug_name = tex.debug_name;
+    in.w = tex.w;
+    in.h = tex.h;
+    in.gpu_texture = &texture_info;
+    in.common = is_common;
+    in.id = PcTextureId::from_combo_id(tex.combo_id);
+    in.src_data = (const u8*)tex.data.data();
+    pool.give_texture(in);
   }
-
-  return textureInfo;
-}
-
-void load_texture(TexturePool& pool,
-                  const tfrag3::Texture& tex,
-                  TextureInfo& texture_info,
-                  bool is_common) {
-  TextureInput in;
-  in.debug_page_name = tex.debug_tpage_name;
-  in.debug_name = tex.debug_name;
-  in.w = tex.w;
-  in.h = tex.h;
-  in.gpu_texture = &texture_info;
-  in.common = is_common;
-  in.id = PcTextureId::from_combo_id(tex.combo_id);
-  in.src_data = (const u8*)tex.data.data();
-  pool.give_texture(in);
 }
 
 class TextureLoaderStage : public LoaderStage {
@@ -65,12 +53,12 @@ class TextureLoaderStage : public LoaderStage {
     if (data.lev_data->textures.size() < data.lev_data->level->textures.size()) {
       std::unique_lock<std::mutex> tpool_lock(data.tex_pool->mutex());
       while (data.lev_data->textures.size() < data.lev_data->level->textures.size()) {
-        auto& tex = data.lev_data->level->textures[data.lev_data->textures.size()];
-        data.lev_data->textures.push_back(add_texture(*data.tex_pool, tex, m_device));
-        if (tex.load_to_pool) {
-          load_texture(*data.tex_pool, tex, data.lev_data->textures.back(), false);
-        }
-        bytes_this_run += tex.w * tex.h * 4;
+        auto& level_texture = data.lev_data->level->textures[data.lev_data->textures.size()];
+        data.lev_data->textures.emplace_back(TextureInfo{m_device});
+        TextureInfo& texture_to_be_loaded = data.lev_data->textures.back();
+
+        vk_loader_stage::update_texture(*data.tex_pool, level_texture, texture_to_be_loaded, false);
+        bytes_this_run += level_texture.w * level_texture.h * 4;
         tex_this_run++;
         if (tex_this_run > 20) {
           break;
@@ -571,7 +559,7 @@ bool MercLoaderStage::run(Timer& /*timer*/, LoaderInput& data) {
   return true;
 }
 
-std::vector<std::unique_ptr<LoaderStage>> make_loader_stages(std::unique_ptr<GraphicsDeviceVulkan>& device) {
+std::vector<std::unique_ptr<LoaderStage>> vk_loader_stage::make_loader_stages(std::unique_ptr<GraphicsDeviceVulkan>& device) {
   std::vector<std::unique_ptr<LoaderStage>> ret;
   ret.push_back(std::make_unique<TieLoadStage>(device));
   ret.push_back(std::make_unique<TextureLoaderStage>(device));

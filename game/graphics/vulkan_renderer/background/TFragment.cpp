@@ -25,7 +25,6 @@ TFragment::TFragment(const std::string& name,
                      int level_id)
     : BucketRenderer(name, my_id, device, vulkan_info),
       m_child_mode(child_mode),
-      m_tfrag3(device),
       m_tree_kinds(trees),
       m_level_id(level_id) {
   for (auto& buf : m_buffered_data) {
@@ -33,6 +32,39 @@ TFragment::TFragment(const std::string& name,
       x = 0xff;
     }
   }
+
+  m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(
+      device, 1, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+  m_time_of_day_color = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
+      device, 1, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(2);
+  auto vertex_buffer_descriptor_info = m_vertex_shader_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  auto fragment_buffer_descriptor_info = m_vertex_shader_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
+
+  m_tfrag3 = std::make_unique<Tfrag3>(vulkan_info, m_pipeline_config_info, m_pipeline_layout,
+                                      m_vertex_descriptor_writer, m_fragment_descriptor_writer,
+                                      m_vertex_shader_uniform_buffer, m_time_of_day_color);
 }
 
 void TFragment::render(DmaFollower& dma,
@@ -114,7 +146,7 @@ void TFragment::render(DmaFollower& dma,
 
   ASSERT(!level_name.empty());
   {
-    m_tfrag3.setup_for_level(m_tree_kinds, level_name, render_state);
+    m_tfrag3->setup_for_level(m_tree_kinds, level_name, render_state);
     TfragRenderSettings settings;
     settings.hvdf_offset = m_tfrag_data.hvdf_offset;
     settings.fog = m_tfrag_data.fog;
@@ -125,7 +157,7 @@ void TFragment::render(DmaFollower& dma,
       settings.occlusion_culling = render_state->occlusion_vis[m_level_id].data;
     }
 
-    update_render_state_from_pc_settings(render_state, m_pc_port_data);
+    vk_common_background_renderer::update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
     for (int i = 0; i < 4; i++) {
       settings.planes[i] = m_pc_port_data.planes[i];
@@ -143,7 +175,7 @@ void TFragment::render(DmaFollower& dma,
     }
 
     auto t3prof = prof.make_scoped_child("t3");
-    m_tfrag3.render_matching_trees(m_tfrag3.lod(), m_tree_kinds, settings, render_state, t3prof, m_uniform_buffer);
+    m_tfrag3->render_matching_trees(m_tfrag3->lod(), m_tree_kinds, settings, render_state, t3prof);
   }
 
   while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -160,7 +192,7 @@ void TFragment::draw_debug_window() {
     }
   }
 
-  m_tfrag3.draw_debug_window();
+  m_tfrag3->draw_debug_window();
 }
 
 void TFragment::handle_initialization(DmaFollower& dma) {
@@ -222,4 +254,68 @@ std::string TFragData::print() const {
   result += fmt::format("k1s[0]: {}\n", k1s[0].to_string_aligned());
   result += fmt::format("k1s[1]: {}\n", k1s[1].to_string_aligned());
   return result;
+}
+
+void TFragment::InitializeDebugInputVertexAttribute() {
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
+
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(Tfrag3::DebugVertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
+
+  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(Tfrag3::DebugVertex, position);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(Tfrag3::DebugVertex, rgba);
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
+
+  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+  vertexInputInfo.vertexBindingDescriptionCount = 1;
+  vertexInputInfo.vertexAttributeDescriptionCount =
+      static_cast<uint32_t>(attributeDescriptions.size());
+  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+}
+
+void TFragment::InitializeInputVertexAttribute() {
+  //            glBufferData(GL_ARRAY_BUFFER, verts * sizeof(tfrag3::PreloadedVertex),
+  //            nullptr,
+  //                         GL_STREAM_DRAW);
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(tfrag3::PreloadedVertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
+
+  std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(tfrag3::PreloadedVertex, x);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(tfrag3::PreloadedVertex, s);
+
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R16_UINT;
+  attributeDescriptions[2].offset = offsetof(tfrag3::PreloadedVertex, color_index);
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }

@@ -2,8 +2,7 @@
 
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-CollideMeshRenderer::CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device)
-    : m_device{device},
+CollideMeshRenderer::CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device) :
       m_collision_mesh_vertex_uniform_buffer(device, sizeof(CollisionMeshVertexUniformShaderData), 1,
           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
           1),
@@ -33,6 +32,20 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
     settings.planes[i] = render_state->camera_planes[i];
   }
   auto& shader = render_state->shaders[ShaderId::COLLISION];
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Collision Fragment";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Collision Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+
   m_collision_mesh_vertex_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
       "camera", 1, GL_FALSE,
                      settings.math_camera.data());
@@ -91,7 +104,6 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       //imageView.aspectView &= ~VK_IMAGE_ASPECT_DEPTH_BIT;
 
-      VkPipelineRasterizationStateCreateInfo rasterizer{};
       m_pipeline_config_info.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
       m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
@@ -102,7 +114,7 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
 
       //CreateVertexBuffer(lev->level->collision.vertices);
       //glDrawArrays(GL_TRIANGLES, 0, lev->level->collision.vertices.size());
-      rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       colorBlendAttachment.blendEnable = VK_TRUE;
       //imageView.aspectView |= VK_IMAGE_ASPECT_DEPTH_BIT;
     }
@@ -112,7 +124,7 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
   }
 }
 
-void CollideMeshRenderer::InitializeInputVertexAttribute() {    
+void CollideMeshRenderer::InitializeInputVertexAttribute() {
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
     bindingDescription.stride = sizeof(tfrag3::CollisionMesh::Vertex);

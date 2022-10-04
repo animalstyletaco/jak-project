@@ -2,10 +2,22 @@
 
 CommonOceanRenderer::CommonOceanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device)
     : m_pipeline_layout{device} {
+  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
+
   m_vertices.resize(4096 * 10);  // todo decrease
   for (auto& buf : m_indices) {
     buf.resize(4096 * 10);
   }
+
+  // set up the vertex array
+  for (int i = 0; i < NUM_BUCKETS; i++) {
+    m_ogl.index_buffers[i] = std::make_unique<IndexBuffer>(
+        device, sizeof(u32), m_indices[i].size(),
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+  }
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
+      device, sizeof(Vertex), m_vertices.size(),
+      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 
   InitializeVertexInputAttributes();
 }
@@ -254,9 +266,10 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
   inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   inputAssembly.primitiveRestartEnable = VK_TRUE;
 
-  //CreateVertexBuffer(m_vertices);
-  //glBufferData(GL_ARRAY_BUFFER, m_next_free_vertex * sizeof(Vertex), m_vertices.data(),
-  //             GL_STREAM_DRAW);
+  m_ogl.vertex_buffer->map(m_next_free_vertex * sizeof(Vertex));
+  m_ogl.vertex_buffer->writeToBuffer(m_vertices.data());
+  m_ogl.vertex_buffer->unmap();
+
   uniform_fragment_shader_buffer->SetUniform4f(
       "fog_color",
               render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
@@ -264,48 +277,42 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
 
   //glDepthMask(GL_FALSE);
 
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_TRUE;
-  depthStencil.depthBoundsTestEnable = VK_FALSE;
-  depthStencil.stencilTestEnable = VK_FALSE;
-  depthStencil.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
-
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
-  colorBlendAttachment.blendEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-  colorBlending.logicOpEnable = VK_TRUE;
-  colorBlending.attachmentCount = 1;
-  colorBlending.pAttachments = &colorBlendAttachment;
+  m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendInfo.attachmentCount = 1;
+  m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
 
   VkSamplerCreateInfo sampler_info{};
 
-  for (int bucket = 0; bucket < 3; bucket++) {
+  for (int bucket = 0; bucket < NUM_BUCKETS; bucket++) {
     switch (bucket) {
       case 0: {
         //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
         //glBlendEquation(GL_FUNC_ADD);
 
-        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+        m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+        m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
         auto tex = render_state->texture_pool->lookup(8160);
         if (!tex) {
@@ -325,11 +332,11 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
       case 1:
         //glBlendFuncSeparate(GL_ZERO, GL_ONE, GL_ONE, GL_ZERO);
 
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
         uniform_fragment_shader_buffer->SetUniform1f("alpha_mult", 1.f);
         uniform_vertex_shader_buffer->SetUniform1i("bucket", 1);
@@ -343,15 +350,18 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
         //glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
         //glBlendEquation(GL_FUNC_ADD);
 
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         uniform_vertex_shader_buffer->SetUniform1i("bucket", 2);
         break;
     }
-    //CreateIndexBuffer(m_indices[bucket]);
+    m_ogl.index_buffers[bucket]->map(m_next_free_index[bucket] * sizeof(u32));
+    m_ogl.index_buffers[bucket]->writeToBuffer(m_indices[bucket].data());
+    m_ogl.index_buffers[bucket]->unmap();
+
     //glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
     prof.add_draw_call();
     prof.add_tri(m_next_free_index[bucket]);
@@ -468,10 +478,9 @@ void CommonOceanRenderer::flush_mid(
     ScopedProfilerNode& prof,
     std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_shader_buffer,
     std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_shader_buffer) {
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
   //CreateVertexBuffer(m_vertices);
 
@@ -502,30 +511,26 @@ void CommonOceanRenderer::flush_mid(
   // draw it in reverse
   reverse_indices(m_indices[1].data(), m_next_free_index[1]);
 
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_TRUE;
-  depthStencil.depthBoundsTestEnable = VK_FALSE;
-  depthStencil.stencilTestEnable = VK_FALSE;
-  depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  colorBlendAttachment.blendEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
-  colorBlending.logicOpEnable = VK_TRUE;
-  colorBlending.attachmentCount = 1;
-  colorBlending.pAttachments = &colorBlendAttachment;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
+
+  m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendInfo.attachmentCount = 1;
+  m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
 
   VkSamplerCreateInfo sampler_info{};
 
@@ -556,16 +561,16 @@ void CommonOceanRenderer::flush_mid(
 
         //glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
         //glBlendEquation(GL_FUNC_ADD);
-        colorBlending.logicOpEnable = VK_TRUE;
+        m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_TRUE;
 
-        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
+        m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+        m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
         uniform_vertex_shader_buffer->SetUniform1i("bucket", 4);
         sampler_info.magFilter = VK_FILTER_LINEAR;
@@ -573,8 +578,12 @@ void CommonOceanRenderer::flush_mid(
         sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         break;
     }
-    //CreateIndexBuffer(m_indices[bucket]);
+
+    m_ogl.index_buffers[bucket]->map(m_next_free_index[bucket] * sizeof(u32));
+    m_ogl.index_buffers[bucket]->writeToBuffer(m_indices[bucket].data());
+    m_ogl.index_buffers[bucket]->unmap();
     //glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
+
     prof.add_draw_call();
     prof.add_tri(m_next_free_index[bucket]);
   }

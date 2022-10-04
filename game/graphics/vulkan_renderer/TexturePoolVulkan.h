@@ -142,7 +142,7 @@ class TextureMap {
  * The lowest level reference to texture data.
  */
 struct TextureData {
-  VkImage image = VK_NULL_HANDLE;        // the Vulkan Image texture pointer - FIXME: This is pretty weird
+  TextureInfo* texture_data;
   const u8* data = nullptr;  // pointer to texture data (owned by the loader)
 };
 
@@ -198,7 +198,7 @@ struct GpuTexture {
  * source will be non-null and the gpu_texture will be a placeholder that is safe to use.
  */
 struct TextureVRAMReference {
-  VkImage gpu_texture = VK_NULL_HANDLE;  // the Vulkan texture to use when rendering.
+  TextureInfo* gpu_texture;  // the Vulkan texture to use when rendering.
   GpuTexture* source = nullptr;
 };
 
@@ -314,16 +314,16 @@ class TexturePool {
    * Look up an OpenGL texture by vram address. Return std::nullopt if the game hasn't loaded
    * anything to this address.
    */
- VkImage lookup(u32 location) {
+ TextureInfo* lookup(u32 location) {
     auto& t = m_textures[location];
     if (t.source) {
       if constexpr (EXTRA_TEX_DEBUG) {
         if (t.source->is_placeholder) {
-          ASSERT(t.gpu_texture == m_placeholder_texture_id);
+          ASSERT(t.gpu_texture == &m_placeholder_texture);
         } else {
           bool fnd = false;
           for (auto& tt : t.source->gpu_textures) {
-            if (tt.image == t.gpu_texture) {
+            if (tt.texture_data == t.gpu_texture) {
               fnd = true;
               break;
             }
@@ -345,8 +345,8 @@ class TexturePool {
    * handle_upload_now.
    */
   GpuTexture* lookup_gpu_texture(u32 location) { return m_textures[location].source; }
-  VkImage lookup_mt4hh(u32 location);
-  VkImage get_placeholder_texture() { return m_placeholder_texture_id; }
+  TextureInfo* lookup_mt4hh(u32 location);
+  TextureInfo* get_placeholder_texture() { return &m_placeholder_texture; }
   void draw_debug_window();
   void relocate(u32 destination, u32 source, u32 format);
   void draw_debug_for_tex(const std::string& name, GpuTexture* tex, u32 slot);
@@ -361,7 +361,7 @@ class TexturePool {
   std::string get_debug_texture_name(PcTextureId id);
 
  private:
-  std::unique_ptr<TextureInfo> upload_to_gpu(const u8* data, u16 w, u16 h);
+  void upload_to_gpu(const u8* data, u16 w, u16 h, TextureInfo&);
   void refresh_links(GpuTexture& texture);
   GpuTexture* get_gpu_texture_for_slot(PcTextureId id, u32 slot);
 
@@ -374,7 +374,7 @@ class TexturePool {
   std::vector<Mt4hhTexture> m_mt4hh_textures;
 
   std::vector<u32> m_placeholder_data;
-  VkImage m_placeholder_texture_id = 0;
+  TextureInfo m_placeholder_texture;
 
   TextureMap<GpuTexture> m_loaded_textures;
 
@@ -387,5 +387,4 @@ class TexturePool {
 
   std::mutex m_mutex;
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  std::unique_ptr<TextureInfo> m_placeholder_texture;
 };

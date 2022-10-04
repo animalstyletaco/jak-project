@@ -20,6 +20,7 @@ struct LevelVis {
   u8 data[2048];
 };
 
+
 class EyeRenderer;
 /*!
  * The main renderer will contain a single SharedRenderState that's passed to all bucket renderers.
@@ -83,7 +84,7 @@ struct SharedRenderState {
 };
 
 struct VulkanInitializationInfo {
-  std::unique_ptr<DescriptorLayout> descriptor_layout;
+  std::unique_ptr<DescriptorPool> descriptor_pool;
   VkRenderPass render_pass;
 };
 
@@ -113,10 +114,19 @@ class BucketRenderer {
   std::string m_name;
   BucketId m_my_id;
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  VulkanInitializationInfo& m_vulkan_info;
-  GraphicsPipelineLayout m_pipeline_layout;
 
+  VulkanInitializationInfo& m_vulkan_info;
+
+  GraphicsPipelineLayout m_pipeline_layout;
   PipelineConfigInfo m_pipeline_config_info;
+
+  std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+
+  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+
+  std::vector<VkDescriptorSet> m_descriptor_sets;
   bool m_enabled = true;
 };
 

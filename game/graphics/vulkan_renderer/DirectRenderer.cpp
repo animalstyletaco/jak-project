@@ -25,7 +25,19 @@ DirectRenderer::DirectRenderer(const std::string& name,
 }
 
 void DirectRenderer::SetShaderModule(Shader& shader) {
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Direct Renderer Vertex";
 
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Direct Renderer Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
 
 void DirectRenderer::InitializeInputVertexAttribute() {
@@ -304,7 +316,7 @@ void DirectRenderer::update_vulkan_prim(SharedRenderState* render_state) {
 }
 
 void DirectRenderer::update_vulkan_texture(SharedRenderState* render_state, int unit) {
-  VkImage tex;
+  TextureInfo* tex;
   auto& state = m_buffered_tex_state[unit];
   if (!state.used) {
     // nothing used this state, don't bother binding the texture.

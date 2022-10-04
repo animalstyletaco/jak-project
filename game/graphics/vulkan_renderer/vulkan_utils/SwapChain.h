@@ -20,7 +20,7 @@ class SwapChain {
   VkRenderPass getRenderPass() { return renderPass; }
   VkImage getImage(int index) { return swapChainImages[index].GetImage(); }
   VkImageView getImageView(int index) { return swapChainImages[index].GetImageView(); }
-  size_t imageCount() { return swapChainSourceImages.size(); }
+  size_t imageCount() { return swapChainImages.size(); }
   VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
   void setSwapChainExtent(VkExtent2D extents) { swapChainExtent = extents; };
   void setSwapChainOffsetExtent(VkOffset2D offset) { offsetSwapChainExtent = offset; };
@@ -78,7 +78,6 @@ class SwapChain {
 
   std::vector<TextureInfo> depthImages;
   std::vector<TextureInfo> swapChainImages;
-  std::vector<VkImage> swapChainSourceImages; //FIXME: Bad name
 
   std::unique_ptr<GraphicsDeviceVulkan>& device;
   VkExtent2D windowExtent;

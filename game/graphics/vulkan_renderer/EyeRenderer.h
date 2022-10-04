@@ -86,15 +86,15 @@ class EyeRenderer : public BucketRenderer {
     u32 clear_color;
     EyeDraw iris;
     GpuTexture* iris_tex = nullptr;
-    VkImage iris_gl_tex = VK_NULL_HANDLE;
+    TextureInfo* iris_gl_tex = VK_NULL_HANDLE;
 
     EyeDraw pupil;
     GpuTexture* pupil_tex = nullptr;
-    VkImage pupil_gl_tex = VK_NULL_HANDLE;
+    TextureInfo* pupil_gl_tex = VK_NULL_HANDLE;
 
     EyeDraw lid;
     GpuTexture* lid_tex = nullptr;
-    VkImage lid_gl_tex = VK_NULL_HANDLE;
+    TextureInfo* lid_gl_tex = VK_NULL_HANDLE;
   };
 
   std::vector<SingleEyeDraws> get_draws(DmaFollower& dma, SharedRenderState* render_state);

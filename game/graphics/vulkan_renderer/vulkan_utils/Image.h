@@ -25,23 +25,20 @@ class TextureInfo {
   void writeToBuffer(void* data, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkResult invalidate(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
-
-  void writeToIndex(void* data, int index);
-  VkResult flushIndex(int index);
-  VkDescriptorBufferInfo descriptorInfoForIndex(int index);
-  VkResult invalidateIndex(int index);
+  VkDescriptorImageInfo descriptorInfo(VkImageLayout image_layout);
 
   void* getMappedMemory() const { return mapped_memory; }
 
-  template <class T>
-  void UpdateTexture(VkDeviceSize memory_offset, T* data, uint64_t element_count);
-  uint32_t FindMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-
   void DestroyTexture();
   void CreateTextureSampler();
+  VkSamplerCreateInfo& getSamplerInfo(){ return m_sampler_info; };
   VkFormat findDepthFormat();
   VkImage GetImage() { return m_image; };
   VkImageView GetImageView() { return m_image_view; };
+  bool IsInitialized() { return m_initialized; };
+  VkSampleCountFlagBits getMsaaCount() const {
+    return m_device->getMsaaCount();
+  }
 
   ~TextureInfo() { DestroyTexture(); };
 
@@ -55,4 +52,5 @@ class TextureInfo {
   VkSampler m_sampler = VK_NULL_HANDLE;
   void* mapped_memory = nullptr;
   VkExtent3D m_extents;
+  bool m_initialized = false;
 };

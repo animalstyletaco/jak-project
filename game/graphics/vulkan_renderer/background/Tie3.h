@@ -88,7 +88,7 @@ class Tie3 : public BucketRenderer {
 
   std::array<std::vector<Tree>, 4> m_trees;  // includes 4 lods!
   std::string m_level_name;
-  const std::vector<TextureInfo>* m_textures;
+  std::vector<TextureInfo>* m_textures;
   u64 m_load_id = -1;
 
   struct Cache {
@@ -121,7 +121,8 @@ class Tie3 : public BucketRenderer {
   float m_wind_multiplier = 1.f;
 
   int m_level_id;
-  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
+  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color;
   std::vector<TextureInfo> textures[tfrag3::TIE_GEOS];
 
   static_assert(sizeof(WindWork) == 84 * 16);

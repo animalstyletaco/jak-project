@@ -9,7 +9,8 @@
 
 class DirectRenderer2 {
  public:
-  DirectRenderer2(u32 max_verts,
+  DirectRenderer2(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                  u32 max_verts,
                   u32 max_inds,
                   u32 max_draws,
                   const std::string& name,
@@ -81,7 +82,7 @@ class DirectRenderer2 {
   };
   static_assert(sizeof(Vertex) == 32);
 
-  struct VertexBuffer {
+  struct RendererVertexBuffer {
     std::vector<Vertex> vertices;
     std::vector<u32> indices;
     u32 next_vertex = 0;
@@ -100,9 +101,8 @@ class DirectRenderer2 {
   } m_vertices;
 
   struct {
-    GLuint vertex_buffer;
-    GLuint index_buffer;
-    GLuint vao;
+    std::unique_ptr<::VertexBuffer> vertex_buffer;
+    std::unique_ptr<IndexBuffer> index_buffer;
     GLuint alpha_reject, color_mult, fog_color;
   } m_ogl;
 
@@ -152,4 +152,7 @@ class DirectRenderer2 {
                                SharedRenderState* render_state,
                                ScopedProfilerNode& prof,
                                UniformBuffer& uniform_buffer);
+
+  GraphicsPipelineLayout m_pipeline_layout;
+  PipelineConfigInfo m_pipeline_config_info;
 };

@@ -23,6 +23,30 @@ Merc2::Merc2(const std::string& name,
       m_device, sizeof(MercUniformBufferFragmentData), 1,
       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
+    m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
+                                                                    m_vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(2);
+  auto vertex_buffer_descriptor_info = m_vertex_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  auto fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
+
   for (int i = 0; i < MAX_LEVELS; i++) {
     auto& draws = m_level_draw_buckets.emplace_back();
     draws.draws.resize(MAX_DRAWS_PER_LEVEL);
@@ -402,7 +426,7 @@ void Merc2::flush_pending_model(SharedRenderState* render_state, ScopedProfilerN
     return;
   }
 
-  const LevelData* lev = m_current_model->level;
+  LevelData* lev = m_current_model->level;
   const tfrag3::MercModel* model = m_current_model->model;
 
   int bone_count = model->max_bones + 1;
@@ -486,8 +510,8 @@ void Merc2::flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNo
   InitializeVertexBuffer(render_state);
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
-    const auto& lev_bucket = m_level_draw_buckets[li];
-    const auto* lev = lev_bucket.level;
+    auto& lev_bucket = m_level_draw_buckets[li];
+    auto* lev = lev_bucket.level;
 
     int last_tex = -1;
     int last_light = -1;
@@ -513,7 +537,7 @@ void Merc2::flush_draw_buckets(SharedRenderState* render_state, ScopedProfilerNo
         m_vertex_uniform_buffer->SetUniformMathVector3f("light_ambient", m_lights_buffer[draw.light_idx].ambient);
         last_light = draw.light_idx;
       }
-      setup_vulkan_from_draw_mode(draw.mode, textureInfo, m_pipeline_config_info, true);
+      vk_common_background_renderer::setup_vulkan_from_draw_mode(draw.mode, textureInfo, m_pipeline_config_info, true);
 
       m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
 
@@ -553,7 +577,7 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
   fragShaderStageInfo.module = shader.GetFragmentShader();
   fragShaderStageInfo.pName = "Merc2 Fragment";
 
-  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
   VkVertexInputBindingDescription mercVertexBindingDescription{};
   mercVertexBindingDescription.binding = 0;
@@ -564,6 +588,7 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
   mercMatrixBindingDescription.binding = 1;
   mercMatrixBindingDescription.stride = 128 * sizeof(ShaderMercMat);
   mercMatrixBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions = {mercVertexBindingDescription, mercMatrixBindingDescription};
 
   std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
@@ -596,6 +621,9 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
   attributeDescriptions[5].location = 5;
   attributeDescriptions[5].format = VK_FORMAT_R4G4_UNORM_PACK8;
   attributeDescriptions[5].offset = offsetof(tfrag3::MercVertex, mats[0]);
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 
   std::array<VkVertexInputAttributeDescription, 2> matrixAttributeDescriptions{};
   matrixAttributeDescriptions[0].binding = 1;
@@ -607,37 +635,15 @@ void Merc2::InitializeVertexBuffer(SharedRenderState* render_state) {
   matrixAttributeDescriptions[1].location = 1;
   matrixAttributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
   matrixAttributeDescriptions[1].offset = offsetof(ShaderMercMat, nmat[0]);
-
-  std::array<VkVertexInputBindingDescription, 2> bindingDescriptions = {
-      mercVertexBindingDescription, mercMatrixBindingDescription};
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = bindingDescriptions.size();
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size() + matrixAttributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = bindingDescriptions.data();
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), matrixAttributeDescriptions.begin(),
+      matrixAttributeDescriptions.end());
   
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_TRUE;
-  depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
-
-  // FIXME: Added necessary configuration back to shrub pipeline
-  VkGraphicsPipelineCreateInfo pipelineInfo{};
-  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipelineInfo.stageCount = 2;
-  pipelineInfo.pStages = shaderStages;
-  pipelineInfo.pVertexInputState = &vertexInputInfo;
-
-  // TODO: Should shaders be deleted now?
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 }
 
 MercVertexUniformBuffer::MercVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,

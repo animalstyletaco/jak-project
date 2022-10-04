@@ -10,6 +10,34 @@ Tie3::Tie3(const std::string& name,
            int level_id)
     : BucketRenderer(name, my_id, device, vulkan_info),
       m_level_id(level_id) {
+  m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(
+      device, 1, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+  m_time_of_day_color = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
+      device, 1, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(2);
+  auto vertex_buffer_descriptor_info = m_vertex_shader_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  auto fragment_buffer_descriptor_info = m_vertex_shader_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
@@ -65,7 +93,7 @@ void Tie3::update_load(const LevelData* loader_data) {
       lod_tree[l_tree].instance_info = &tree.wind_instance_info;
       lod_tree[l_tree].wind_draws = &tree.instanced_wind_draws;
       vis_temp_len = std::max(vis_temp_len, tree.bvh.vis_nodes.size());
-      lod_tree[l_tree].tod_cache = swizzle_time_of_day(tree.colors);
+      lod_tree[l_tree].tod_cache = vk_common_background_renderer::swizzle_time_of_day(tree.colors);
 
       // todo: move to loader, this will probably be quite slow.
       //CreateVertexBuffer(tree.unpacked.indices);
@@ -321,7 +349,7 @@ void Tie3::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfi
     settings.occlusion_culling = render_state->occlusion_vis[m_level_id].data;
   }
 
-  update_render_state_from_pc_settings(render_state, m_pc_port_data);
+  vk_common_background_renderer::update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
   for (int i = 0; i < 4; i++) {
     settings.planes[i] = m_pc_port_data.planes[i];
@@ -417,7 +445,9 @@ void Tie3::render_tree_wind(int idx,
 
   for (size_t draw_idx = 0; draw_idx < tree.wind_draws->size(); draw_idx++) {
     const auto& draw = tree.wind_draws->operator[](draw_idx);
-    auto double_draw = setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id), m_pipeline_config_info, m_uniform_buffer);
+    auto double_draw = vk_common_background_renderer::setup_tfrag_shader(
+        render_state, draw.mode, m_textures->at(draw.tree_tex_id), m_pipeline_config_info,
+        m_time_of_day_color);
 
     int off = 0;
     for (auto& grp : draw.instance_groups) {
@@ -426,7 +456,8 @@ void Tie3::render_tree_wind(int idx,
         continue;  // invisible, skip.
       }
 
-      m_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1,
+      m_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+          "camera", 1,
                                              GL_FALSE, (float*)tree.wind_matrix_cache.at(grp.instance_idx)[0].data());
 
       prof.add_draw_call();
@@ -447,8 +478,8 @@ void Tie3::render_tree_wind(int idx,
           tree.perf.wind_draws++;
           prof.add_draw_call();
           prof.add_tri(grp.num);
-          m_uniform_buffer->SetUniform1f("alpha_min", -10.f);
-          m_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
+          m_time_of_day_color->SetUniform1f("alpha_min", -10.f);
+          m_time_of_day_color->SetUniform1f("alpha_max", double_draw.aref_second);
           //glDepthMask(GL_FALSE);
           //glDrawElements(GL_TRIANGLE_STRIP, draw.vertex_index_stream.size(), GL_UNSIGNED_INT, (void*)0);
           break;
@@ -482,9 +513,9 @@ void Tie3::render_tree(int idx,
 
   Timer interp_timer;
   if (m_use_fast_time_of_day) {
-    interp_time_of_day_fast(settings.time_of_day_weights, tree.tod_cache, m_color_result.data());
+    vk_common_background_renderer::interp_time_of_day_fast(settings.time_of_day_weights, tree.tod_cache, m_color_result.data());
   } else {
-    interp_time_of_day_slow(settings.time_of_day_weights, *tree.colors, m_color_result.data());
+    vk_common_background_renderer::interp_time_of_day_slow(settings.time_of_day_weights, *tree.colors, m_color_result.data());
   }
   tree.perf.tod_time.add(interp_timer.getSeconds());
 
@@ -506,7 +537,7 @@ void Tie3::render_tree(int idx,
   timeOfDayTexture.unmap();
 
   // setup Vulkan shader
-  first_tfrag_draw_setup(settings, render_state, timeOfDayTexture, m_uniform_buffer);
+  vk_common_background_renderer::first_tfrag_draw_setup(settings, render_state, m_vertex_shader_uniform_buffer);
 
   tree.perf.tod_time.add(setup_timer.getSeconds());
 
@@ -515,7 +546,7 @@ void Tie3::render_tree(int idx,
   if (!m_debug_all_visible) {
     // need culling data
     Timer cull_timer;
-    cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
+    vk_common_background_renderer::cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
                         m_cache.vis_temp.data());
     tree.perf.cull_time.add(cull_timer.getSeconds());
   } else {
@@ -529,10 +560,10 @@ void Tie3::render_tree(int idx,
     u32 idx_buffer_size;
     if (m_debug_all_visible) {
       idx_buffer_size =
-          make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(),
+          vk_common_background_renderer::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(),
                                       *tree.draws, tree.index_data, &num_tris);
     } else {
-      idx_buffer_size = make_index_list_from_vis_string(
+      idx_buffer_size = vk_common_background_renderer::make_index_list_from_vis_string(
           m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, m_cache.vis_temp,
           tree.index_data, &num_tris);
     }
@@ -545,13 +576,13 @@ void Tie3::render_tree(int idx,
   } else {
     if (m_debug_all_visible) {
       Timer index_timer;
-      num_tris = make_all_visible_multidraws(
+      num_tris = vk_common_background_renderer::make_all_visible_multidraws(
           m_cache.multidraw_offset_per_stripdraw.data(), m_cache.multidraw_count_buffer.data(),
           m_cache.multidraw_index_offset_buffer.data(), *tree.draws);
       tree.perf.index_time.add(index_timer.getSeconds());
     } else {
       Timer index_timer;
-      num_tris = make_multidraws_from_vis_string(
+      num_tris = vk_common_background_renderer::make_multidraws_from_vis_string(
           m_cache.multidraw_offset_per_stripdraw.data(), m_cache.multidraw_count_buffer.data(),
           m_cache.multidraw_index_offset_buffer.data(), *tree.draws, m_cache.vis_temp);
       tree.perf.index_time.add(index_timer.getSeconds());
@@ -576,15 +607,13 @@ void Tie3::render_tree(int idx,
       }
     }
 
-    auto double_draw = setup_tfrag_shader(render_state, draw.mode,
-                                          m_textures->at(draw.tree_tex_id), m_pipeline_config_info, m_uniform_buffer);
+    auto double_draw = vk_common_background_renderer::setup_tfrag_shader(render_state, draw.mode,
+                                          m_textures->at(draw.tree_tex_id), m_pipeline_config_info, m_time_of_day_color);
 
     prof.add_draw_call();
 
     tree.perf.draws++;
 
-    VkPipelineRasterizationStateCreateInfo rasterization_info{};
-    VkPipelineInputAssemblyStateCreateInfo assembly_info{};
     if (render_state->no_multidraw) {
       //glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
       //               (void*)(singledraw_indices.first * sizeof(u32)));
@@ -601,8 +630,8 @@ void Tie3::render_tree(int idx,
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         tree.perf.draws++;
         prof.add_draw_call();
-        m_uniform_buffer->SetUniform1f("alpha_min", -10.f);
-        m_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
+        m_time_of_day_color->SetUniform1f("alpha_min", -10.f);
+        m_time_of_day_color->SetUniform1f("alpha_max", double_draw.aref_second);
         if (render_state->no_multidraw) {
           //glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
           //               (void*)(singledraw_indices.first * sizeof(u32)));
@@ -618,19 +647,20 @@ void Tie3::render_tree(int idx,
     }
 
     if (m_debug_wireframe && !render_state->no_multidraw) {
-      m_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE, (float*)settings.math_camera.data());
-      m_uniform_buffer->SetUniform4f("hvdf_offset",
+      m_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+          "camera", 1, GL_FALSE, (float*)settings.math_camera.data());
+      m_vertex_shader_uniform_buffer->SetUniform4f("hvdf_offset",
           settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
           settings.hvdf_offset[3]);
-      m_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
-      rasterization_info.polygonMode = VK_POLYGON_MODE_LINE;
-      rasterization_info.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
+      m_vertex_shader_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
+      m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
       //glMultiDrawElements(GL_TRIANGLE_STRIP,
       //                    &m_cache.multidraw_count_buffer[multidraw_indices.first], GL_UNSIGNED_INT,
       //                    &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
       //                    multidraw_indices.second);
-      rasterization_info.polygonMode = VK_POLYGON_MODE_FILL;
-      rasterization_info.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
+      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+      m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
       prof.add_draw_call();
     }
   }
@@ -674,10 +704,8 @@ void Tie3::draw_debug_window() {
 }
 
 void Tie3::InitializeVertexBuffer(SharedRenderState* render_state) {
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
   auto& shader = render_state->shaders[ShaderId::TFRAG3];
 
@@ -693,14 +721,13 @@ void Tie3::InitializeVertexBuffer(SharedRenderState* render_state) {
   fragShaderStageInfo.module = shader.GetFragmentShader();
   fragShaderStageInfo.pName = "Tie3 Fragment";
 
-  VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
-  //            glBufferData(GL_ARRAY_BUFFER, verts * sizeof(tfrag3::PreloadedVertex),
-  //            nullptr,
-  //                         GL_STREAM_DRAW);
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(tfrag3::PreloadedVertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions = {bindingDescription};
 
   std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
@@ -717,32 +744,10 @@ void Tie3::InitializeVertexBuffer(SharedRenderState* render_state) {
   attributeDescriptions[2].location = 2;
   attributeDescriptions[2].format = VK_FORMAT_R16_UINT;
   attributeDescriptions[2].offset = offsetof(tfrag3::PreloadedVertex, color_index);
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-
-  VkPipelineDepthStencilStateCreateInfo depthStencil{};
-  depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-  depthStencil.depthTestEnable = VK_TRUE;
-  depthStencil.depthCompareOp = VK_COMPARE_OP_EQUAL;
-
-  // FIXME: Added necessary configuration back to shrub pipeline
-  VkGraphicsPipelineCreateInfo pipelineInfo{};
-  pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-  pipelineInfo.stageCount = 2;
-  pipelineInfo.pStages = shaderStages;
-  pipelineInfo.pVertexInputState = &vertexInputInfo;
-
-  // if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-  //                              &graphicsPipeline) != VK_SUCCESS) {
-  //  throw std::runtime_error("failed to create graphics pipeline!");
-  //}
-
-  // TODO: Should shaders be deleted now?
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 }

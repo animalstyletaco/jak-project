@@ -52,7 +52,8 @@ Sprite3::Sprite3(const std::string& name,
                  BucketId my_id,
                  std::unique_ptr<GraphicsDeviceVulkan>& device,
                  VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, device, vulkan_info), m_direct(name, my_id, device, vulkan_info, 1024) {
+    : BucketRenderer(name, my_id, device, vulkan_info), m_direct(name, my_id, device, vulkan_info, 1024),
+  m_distorted_pipeline_layout(device), m_distorted_instance_pipeline_layout(device) {
   m_sprite_3d_vertex_uniform_buffer = std::make_unique<Sprite3dVertexUniformBuffer>(
       m_device, sizeof(Sprite3dVertexUniformShaderData), 1,
       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
@@ -79,6 +80,22 @@ void Sprite3::vulkan_setup() {
 
   // Set up OpenGL for distort sprites
   vulkan_setup_distort();
+}
+
+void Sprite3::set_shader(Shader& shader) {
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Sprite 3 Vertex";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Sprite 3 Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
 
 void Sprite3::vulkan_setup_normal() {
@@ -121,11 +138,11 @@ void Sprite3::vulkan_setup_distort() {
   VkExtent3D extents{m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, 1};
   m_distort_ogl.fbo_texture->CreateImage(
     extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), 
-    VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_OPTIMAL,
-    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+    VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_LINEAR,
+    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
-  m_distort_ogl.fbo_texture->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  m_distort_ogl.fbo_texture->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
   VkSamplerCreateInfo samplerInfo{};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -549,7 +566,7 @@ void Sprite3::distort_draw(SharedRenderState* render_state, ScopedProfilerNode& 
   distort_draw_common(render_state, prof);
 
   // Set up shader
-  auto shader = &render_state->shaders[ShaderId::SPRITE_DISTORT];
+  set_shader(render_state->shaders[ShaderId::SPRITE_DISTORT]);
 
   Vector4f colorf = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
                              m_sprite_distorter_sine_tables.color.y() / 255.0f,
@@ -601,7 +618,7 @@ void Sprite3::distort_draw_instanced(SharedRenderState* render_state, ScopedProf
   distort_draw_common(render_state, prof);
 
   // Set up shader
-  auto shader = &render_state->shaders[ShaderId::SPRITE_DISTORT_INSTANCED];
+  set_shader(render_state->shaders[ShaderId::SPRITE_DISTORT_INSTANCED]);
 
   Vector4f colorf = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
                              m_sprite_distorter_sine_tables.color.y() / 255.0f,
@@ -681,7 +698,7 @@ void Sprite3::distort_draw_common(SharedRenderState* render_state, ScopedProfile
   update_mode_from_alpha1(
       m_sprite_distorter_setup.alpha.data,
       m_current_mode);  // alpha1
-  setup_vulkan_from_draw_mode(m_current_mode, *m_distort_ogl.fbo_texture, m_pipeline_config_info, false);
+  vk_common_background_renderer::setup_vulkan_from_draw_mode(m_current_mode, *m_distort_ogl.fbo_texture, m_pipeline_config_info, false);
 }
 
 void Sprite3::distort_setup_framebuffer_dims(SharedRenderState* render_state) {
@@ -918,7 +935,7 @@ void Sprite3::render(DmaFollower& dma, SharedRenderState* render_state, ScopedPr
     render_distorter(dma, render_state, child);
   }
 
-  //render_state->shaders[ShaderId::SPRITE3].activate();
+  set_shader(render_state->shaders[ShaderId::SPRITE3]);
 
   // next, sprite frame setup.
   handle_sprite_frame_setup(dma);
@@ -1025,7 +1042,7 @@ void Sprite3::flush_sprites(SharedRenderState* render_state,
     DrawMode mode;
     mode.as_int() = bucket->key & 0xffffffff;
 
-    VkImage tex = render_state->texture_pool->lookup(tbp);
+    TextureInfo* tex = render_state->texture_pool->lookup(tbp);
 
     if (!tex) {
       fmt::print("Failed to find texture at {}, using random\n", tbp);
@@ -1034,7 +1051,7 @@ void Sprite3::flush_sprites(SharedRenderState* render_state,
     ASSERT(tex);
 
     TextureInfo texture_info{m_device};
-    auto settings = setup_vulkan_from_draw_mode(mode, texture_info, m_pipeline_config_info, false);
+    auto settings = vk_common_background_renderer::setup_vulkan_from_draw_mode(mode, texture_info, m_pipeline_config_info, false);
 
     m_sprite_3d_fragment_uniform_buffer->SetUniform1f("alpha_min", double_draw ? settings.aref_first : 0.016);
     m_sprite_3d_fragment_uniform_buffer->SetUniform1f("alpha_max", 10.f);
@@ -1195,7 +1212,7 @@ void Sprite3::do_block_common(SpriteMode mode,
       // it's probably possible to do this for 3D as well.
       auto bsphere = m_vec_data_2d[sprite_idx].xyz_sx;
       bsphere.w() = std::max(bsphere.w(), m_vec_data_2d[sprite_idx].sy());
-      if (bsphere.w() == 0 || !sphere_in_view_ref(bsphere, render_state->camera_planes)) {
+      if (bsphere.w() == 0 || !vk_common_background_renderer::sphere_in_view_ref(bsphere, render_state->camera_planes)) {
         continue;
       }
     }

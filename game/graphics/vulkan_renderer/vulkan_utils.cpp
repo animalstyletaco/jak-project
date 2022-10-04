@@ -11,21 +11,22 @@ FramebufferTexturePair::FramebufferTexturePair(int w,
                                                int h,
                                                VkFormat format,
                                                std::unique_ptr<GraphicsDeviceVulkan>& device, int num_levels)
-    : m_w(w), m_h(h), m_device(device) {
+    : m_device(device), m_w(w), m_h(h) {
   VkSamplerCreateInfo samplerInfo{};
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
   samplerInfo.magFilter = VK_FILTER_LINEAR;
   samplerInfo.minFilter = VK_FILTER_NEAREST;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
+  textures.resize(num_levels, TextureInfo{device});
   for (int i = 0; i < num_levels; i++) {
-    TextureInfo textureInfo{m_device};
     VkExtent3D extents{m_w >> i, m_h >> i, 1};
 
-    textureInfo.CreateImage(extents, num_levels, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT, format, VK_IMAGE_TILING_OPTIMAL,
+    textures[i].CreateImage(extents, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(), format, VK_IMAGE_TILING_OPTIMAL,
                             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-    textures.push_back(std::move(textureInfo));
+
+    textures[i].CreateImageView(VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
 
   for (int i = 0; i < num_levels; i++) {
@@ -65,7 +66,7 @@ FramebufferTexturePairContext::~FramebufferTexturePairContext() {
   //m_fb->m_device->recreateSwapChains(m_old_viewport);
 }
 
-FullScreenDraw::FullScreenDraw(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+FullScreenDraw::FullScreenDraw(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_pipeline_layout(device) {
   m_fragment_uniform_buffer = std::make_unique<UniformBuffer>(
       m_device, sizeof(math::Vector4f), 1,
     VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);

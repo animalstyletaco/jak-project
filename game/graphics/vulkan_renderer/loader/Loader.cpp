@@ -16,9 +16,10 @@ std::string uppercase_string(const std::string& s) {
 }
 }  // namespace
 
-Loader::Loader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path) : m_device(device), m_base_path(base_path) {
+Loader::Loader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path)
+    : m_base_path(base_path), m_device(device) {
   m_loader_thread = std::thread(&Loader::loader_thread, this);
-  m_loader_stages = make_loader_stages(m_device);
+  m_loader_stages = vk_loader_stage::make_loader_stages(m_device);
 }
 
 Loader::~Loader() {
@@ -37,7 +38,7 @@ Loader::~Loader() {
  *
  * This is safe to call from the graphics thread
  */
-const LevelData* Loader::get_tfrag3_level(const std::string& level_name) {
+LevelData* Loader::get_tfrag3_level(const std::string& level_name) {
   std::unique_lock<std::mutex> lk(m_loader_mutex);
   const auto& existing = m_loaded_tfrag3_levels.find(level_name);
   if (existing == m_loaded_tfrag3_levels.end()) {
@@ -173,11 +174,9 @@ void Loader::load_common(TexturePool& tex_pool, const std::string& name) {
   Serializer ser(decomp_data.data(), decomp_data.size());
   m_common_level.level = std::make_unique<tfrag3::Level>();
   m_common_level.level->serialize(ser);
-  for (auto& tex : m_common_level.level->textures) {
-    m_common_level.textures.push_back(add_texture(tex_pool, tex, m_device));
-    if (tex.load_to_pool) {
-      load_texture(tex_pool, tex, m_common_level.textures.back(), true);
-    }
+  m_common_level.textures.resize(m_common_level.level->textures.size(), TextureInfo{m_device});
+  for (size_t i = 0; i < m_common_level.level->textures.size(); i++) {
+    vk_loader_stage::update_texture(tex_pool, m_common_level.level->textures.at(i), m_common_level.textures[i], true);
   }
 
   Timer tim;
@@ -202,12 +201,12 @@ bool Loader::upload_textures(Timer& timer, LevelData& data, TexturePool& texture
   if (data.textures.size() < data.level->textures.size()) {
     std::unique_lock<std::mutex> tpool_lock(texture_pool.mutex());
     while (data.textures.size() < data.level->textures.size()) {
-      auto& tex = data.level->textures[data.textures.size()];
-      data.textures.push_back(add_texture(texture_pool, tex, m_device));
-      if (tex.load_to_pool) {
-        load_texture(texture_pool, tex, m_common_level.textures.back(), false);
-      }
-      bytes_this_run += tex.w * tex.h * 4;
+      auto& level_texture = data.level->textures[data.textures.size()];
+      data.textures.emplace_back(TextureInfo{m_device});
+      TextureInfo& texture_to_be_loaded = data.textures.back();
+
+      vk_loader_stage::update_texture(texture_pool, level_texture, texture_to_be_loaded, false);
+      bytes_this_run += level_texture.w * level_texture.h * 4;
       tex_this_run++;
       if (tex_this_run > 20) {
         break;

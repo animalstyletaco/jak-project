@@ -4,7 +4,7 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_pipeline_layout(device) {
   // generate textures for sky blending
 
   // setup the framebuffers
@@ -17,15 +17,13 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_devi
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    m_textures[i]->CreateImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SNORM_PACK32,
+    m_textures[i]->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SNORM_PACK32,
                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
     //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[i], 0);
     //GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
     //glDrawBuffers(1, draw_buffers);
   }
-
-  //glBufferData(GL_ARRAY_BUFFER, sizeof(Vertex) * 6, nullptr, GL_DYNAMIC_DRAW);
 
   VkDeviceSize m_vertex_device_size = sizeof(Vertex) * 6;
   m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, m_vertex_device_size, 1, 
@@ -35,6 +33,7 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_devi
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(Vertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
   std::array<VkVertexInputAttributeDescription, 1> attributeDescriptions{};
   // TODO: This value needs to be normalized
@@ -42,15 +41,7 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_devi
   attributeDescriptions[0].location = 0;
   attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[0].offset = 0;
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount =
-      static_cast<uint32_t>(attributeDescriptions.size());
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+  m_pipeline_config_info.attributeDescriptions.push_back(attributeDescriptions[0]);
 
   // we only draw squares
   m_vertex_data[0].x = 0;
@@ -96,50 +87,24 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
   //GLint old_viewport[4];
   //glGetIntegerv(GL_VIEWPORT, old_viewport);
 
-  VkSamplerCreateInfo samplerInfo{};
-  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.anisotropyEnable = VK_TRUE;
-  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-  samplerInfo.unnormalizedCoordinates = VK_FALSE;
-  samplerInfo.compareEnable = VK_FALSE;
-  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  samplerInfo.minLod = 0.0f;
-  // samplerInfo.maxLod = static_cast<float>(mipLevels);
-  samplerInfo.mipLodBias = 0.0f;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  // ST was used in OpenGL, UV is used in Vulkan
-  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
-  samplerInfo.magFilter = VK_FILTER_NEAREST;
-  samplerInfo.minFilter = VK_FILTER_NEAREST;
+  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
+  m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
-  VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-  colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-  colorBlendAttachment.blendEnable = VK_FALSE;
+  m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-  VkPipelineColorBlendStateCreateInfo colorBlending{};
-  colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  colorBlending.blendConstants[0] = 0.0f;
-  colorBlending.blendConstants[1] = 0.0f;
-  colorBlending.blendConstants[2] = 0.0f;
-  colorBlending.blendConstants[3] = 0.0f;
-
-  colorBlendAttachment.blendEnable = VK_TRUE;
-  colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-  colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-  colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-
-  colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-  colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+  m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+  m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
   while (dma.current_tag().qwc == 6) {
     // assuming that the vif and gif-tag is correct
@@ -181,10 +146,46 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     auto tex = render_state->texture_pool->lookup(adgif.tex0().tbp0());
     ASSERT(tex);
 
+    VkSamplerCreateInfo samplerInfo = tex->getSamplerInfo();
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_TRUE;
+    // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    samplerInfo.minLod = 0.0f;
+    // samplerInfo.maxLod = static_cast<float>(mipLevels);
+    samplerInfo.mipLodBias = 0.0f;
+
+    // ST was used in OpenGL, UV is used in Vulkan
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
+    samplerInfo.magFilter = VK_FILTER_NEAREST;
+    samplerInfo.minFilter = VK_FILTER_NEAREST;
+
     // setup for rendering!
     //glViewport(0, 0, m_sizes[buffer_idx], m_sizes[buffer_idx]);
     //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[buffer_idx], 0);
-    //render_state->shaders[ShaderId::SKY_BLEND].activate();
+    auto& shader = render_state->shaders[ShaderId::SKY_BLEND];
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = shader.GetVertexShader();
+    vertShaderStageInfo.pName = "Sky Blend GPU Vertex";
+
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragShaderStageInfo.module = shader.GetFragmentShader();
+    fragShaderStageInfo.pName = "Sky Blend GPU Fragment";
+
+    m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
     // if the first is set, it disables alpha. we can just clear here, so it's easier to find
     // in renderdoc.

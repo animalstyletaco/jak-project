@@ -41,10 +41,9 @@ SpriteRenderer::SpriteRenderer(const std::string& name,
                                VulkanInitializationInfo& vulkan_info)
     : BucketRenderer(name, my_id, device, vulkan_info) {
   auto verts = SPRITE_RENDERER_MAX_SPRITES * 3 * 2;
-  auto bytes = verts * sizeof(SpriteVertex3D);
 
   m_vertices_3d.resize(verts);
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, bytes, 1,
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, sizeof(SpriteVertex3D), verts,
                VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
 }
 
@@ -620,7 +619,7 @@ void SpriteRenderer::update_vulkan_prim(SharedRenderState* /*render_state*/) {
 }
 
 void SpriteRenderer::update_vulkan_texture(SharedRenderState* render_state, int unit) {
-  VkImage tex;
+  TextureInfo* tex;
   auto& state = m_adgif_state_stack[unit];
   if (!state.used) {
     // nothing used this state, don't bother binding the texture.
@@ -687,7 +686,7 @@ void SpriteRenderer::do_block_common(SpriteMode mode,
       // it's probably possible to do this for 3D as well.
       auto bsphere = m_vec_data_2d[sprite_idx].xyz_sx;
       bsphere.w() = std::max(bsphere.w(), m_vec_data_2d[sprite_idx].sy());
-      if (bsphere.w() == 0 || !sphere_in_view_ref(bsphere, render_state->camera_planes)) {
+      if (bsphere.w() == 0 || !vk_common_background_renderer::sphere_in_view_ref(bsphere, render_state->camera_planes)) {
         continue;
       }
     }

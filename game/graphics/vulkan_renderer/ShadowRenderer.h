@@ -125,7 +125,8 @@ class ShadowRenderer : public BucketRenderer {
 
   struct {
     // index is front, back
-    GLuint vertex_buffer, index_buffer[2], vao;
+    std::unique_ptr<VertexBuffer> vertex_buffer;
+    std::unique_ptr<IndexBuffer> index_buffers[2];
   } m_ogl;
 
   bool m_debug_draw_volume = false;

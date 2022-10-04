@@ -89,6 +89,7 @@ class Sprite3 : public BucketRenderer {
   void handle_alpha(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
 
   void flush_sprites(SharedRenderState* render_state, ScopedProfilerNode& prof, bool double_draw);
+  void set_shader(Shader& shader);
 
   struct SpriteDistorterSetup {
     GifTag gif_tag;
@@ -226,6 +227,9 @@ class Sprite3 : public BucketRenderer {
 
   u64 m_sprite_idx = 0;
   std::vector<u32> m_index_buffer_data;
+
+  GraphicsPipelineLayout m_distorted_pipeline_layout;
+  GraphicsPipelineLayout m_distorted_instance_pipeline_layout;
 
   std::unique_ptr<Sprite3dVertexUniformBuffer> m_sprite_3d_vertex_uniform_buffer;
   std::unique_ptr<Sprite3dFragmentUniformBuffer> m_sprite_3d_fragment_uniform_buffer;

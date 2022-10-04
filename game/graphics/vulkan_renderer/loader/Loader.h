@@ -21,7 +21,7 @@ class Loader {
   ~Loader();
   void update(TexturePool& tex_pool);
   void update_blocking(TexturePool& tex_pool);
-  const LevelData* get_tfrag3_level(const std::string& level_name);
+  LevelData* get_tfrag3_level(const std::string& level_name);
   std::optional<MercRef> get_merc_model(const char* model_name);
   void load_common(TexturePool& tex_pool, const std::string& name);
   void set_want_levels(const std::vector<std::string>& levels);

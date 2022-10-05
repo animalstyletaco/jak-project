@@ -83,6 +83,7 @@ set(RUNTIME_SOURCE
         mips2c/jak1_functions/tie_methods.cpp
         mips2c/jak1_functions/time_of_day.cpp
         mips2c/jak2_functions/collide_func.cpp
+        mips2c/jak2_functions/debug.cpp
         mips2c/jak2_functions/font.cpp
         mips2c/jak2_functions/joint.cpp
         mips2c/jak2_functions/texture.cpp
@@ -227,6 +228,7 @@ else()
         graphics/opengl_renderer/Sprite3.cpp
         graphics/opengl_renderer/SpriteRenderer.cpp
         graphics/opengl_renderer/TextureUploadHandler.cpp
+        graphics/opengl_renderer/VisDataHandler.cpp
         graphics/opengl_renderer/DepthCue.cpp
         graphics/texture/TexturePool.cpp
         graphics/pipelines/opengl.cpp

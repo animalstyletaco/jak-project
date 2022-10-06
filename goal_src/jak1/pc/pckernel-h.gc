@@ -43,7 +43,6 @@
 (defconstant PC_KERNEL_VER_MAJOR (-> PC_KERNEL_VERSION major))
 (defconstant PC_KERNEL_VER_MINOR (-> PC_KERNEL_VERSION minor))
 
-
 (defconstant PS2_VOICE_AMOUNT 48)
 (defconstant PC_VOICE_AMOUNT 256)
 
@@ -189,7 +188,7 @@
 ;; generic device information: name and some ID
 (deftype pc-device-info (structure)
   ((id int)
-   (name pc-cstring-64 :inline)
+   (name string :inline)
    )
   )
 
@@ -197,9 +196,10 @@
 ;; input device information. comes with button mappings!
 (deftype pc-pad-info (structure)
   ((device-info pc-device-info :inline)
-   (buffered? symbol)
-   (valid? symbol)
-   (mapping int 16)
+   ;;(buffered? symbol)
+   ;;(valid? symbol)
+   (button-mapping int 16)
+   ;;(analog-mapping int 6) ;; TODO add analog mapping
    )
   )
 
@@ -261,6 +261,12 @@
    ;(device-pad pc-pad-info 4 :inline) ;; used input devices, like controllers.
    ;(device-keyboard pc-pad-info :inline) ;; keyboard input information. if nothing else, this must be usable.
    (stick-deadzone float) ;; analog stick deadzone. 0-1
+
+   ;; pad remap settings
+   (pad? symbol) ;; whether controller or keyboard binding is currently selected in the remap menu
+   (kb? symbol) ;; is the keyboard enabled?
+   (kb-map pc-pad-info :inline) ;; keyboard mappings
+   (joy-map pc-pad-info :inline) ;; controller mappings
 
    ;; audio settings
    (audio-latency-ms int16) ;; audio latency in milliseconds
@@ -335,7 +341,7 @@
     (update-to-os (_type_) none)
     (reset (_type_) none)
     (reset-audio (_type_) none)
-    (reset-input (_type_) none)
+    (reset-input (_type_ symbol) none)
     (reset-gfx (_type_) none)
     (reset-ps2 (_type_) none)
     (reset-misc (_type_) none)
@@ -424,10 +430,14 @@
   (set! (-> obj speedrunner-mode?) #f)
   (set! (-> obj cutscene-skips?) #t)
   (set! (-> obj window-lock?) #t)
+  (set! (-> obj pad?) #f)
+
+  ;;(copy-string<-string (-> obj kb-map device-info name) "Keyboard")
+  ;;(pc-pad-input-joy-name-get (-> obj joy-map device-info name) 0)
 
   (reset-gfx obj)
   (reset-audio obj)
-  (reset-input obj)
+  (reset-input obj 'all)
   (reset-ps2 obj)
   (reset-misc obj)
   (reset-extra obj)
@@ -467,10 +477,106 @@
 
   (none))
 
-(defmethod reset-input pc-settings ((obj pc-settings))
+(defmethod reset-input pc-settings ((obj pc-settings) (device symbol))
   "Set the default input settings"
 
   (set! (-> obj stick-deadzone) 0.3)
+  (case device
+    (('joy #t)
+      (set! (-> obj joy-map button-mapping 0) 6)
+      (set! (-> obj joy-map button-mapping 1) 9)
+      (set! (-> obj joy-map button-mapping 2) 10)
+      (set! (-> obj joy-map button-mapping 3) 7)
+      (set! (-> obj joy-map button-mapping 4) 11)
+      (set! (-> obj joy-map button-mapping 5) 12)
+      (set! (-> obj joy-map button-mapping 6) 13)
+      (set! (-> obj joy-map button-mapping 7) 14)
+      (set! (-> obj joy-map button-mapping 8) 4) ;; analog
+      (set! (-> obj joy-map button-mapping 9) 5) ;; analog
+      (set! (-> obj joy-map button-mapping 10) 5)
+      (set! (-> obj joy-map button-mapping 11) 4)
+      (set! (-> obj joy-map button-mapping 12) 3)
+      (set! (-> obj joy-map button-mapping 13) 1)
+      (set! (-> obj joy-map button-mapping 14) 0)
+      (set! (-> obj joy-map button-mapping 15) 2)
+      ;;(set! (-> obj joy-map analog-mapping 0) -1)
+      ;;(set! (-> obj joy-map analog-mapping 1) -1)
+      ;;(set! (-> obj joy-map analog-mapping 2) -1)
+      ;;(set! (-> obj joy-map analog-mapping 3) -1)
+      ;;(set! (-> obj joy-map analog-mapping 4) -1)
+      ;;(set! (-> obj joy-map analog-mapping 5) -1)
+      )
+    (('kb #f)
+      (set! (-> obj kb-map button-mapping 0) 259)
+      (set! (-> obj kb-map button-mapping 1) 44)
+      (set! (-> obj kb-map button-mapping 2) 46)
+      (set! (-> obj kb-map button-mapping 3) 257)
+      (set! (-> obj kb-map button-mapping 4) 265)
+      (set! (-> obj kb-map button-mapping 5) 262)
+      (set! (-> obj kb-map button-mapping 6) 264)
+      (set! (-> obj kb-map button-mapping 7) 263)
+      (set! (-> obj kb-map button-mapping 8) 49)
+      (set! (-> obj kb-map button-mapping 9) 80)
+      (set! (-> obj kb-map button-mapping 10) 79)
+      (set! (-> obj kb-map button-mapping 11) 81)
+      (set! (-> obj kb-map button-mapping 12) 82)
+      (set! (-> obj kb-map button-mapping 13) 69)
+      (set! (-> obj kb-map button-mapping 14) 32)
+      (set! (-> obj kb-map button-mapping 15) 70)
+      ;;(set! (-> obj kb-map analog-mapping 0) 87)
+      ;;(set! (-> obj kb-map analog-mapping 1) 83)
+      ;;(set! (-> obj kb-map analog-mapping 2) 65)
+      ;;(set! (-> obj kb-map analog-mapping 3) 68)
+      ;;(set! (-> obj kb-map analog-mapping 4) -1)
+      ;;(set! (-> obj kb-map analog-mapping 5) -1)
+      )
+    (('all)
+      (set! (-> obj joy-map button-mapping 0) 6)
+      (set! (-> obj joy-map button-mapping 1) 9)
+      (set! (-> obj joy-map button-mapping 2) 10)
+      (set! (-> obj joy-map button-mapping 3) 7)
+      (set! (-> obj joy-map button-mapping 4) 11)
+      (set! (-> obj joy-map button-mapping 5) 12)
+      (set! (-> obj joy-map button-mapping 6) 13)
+      (set! (-> obj joy-map button-mapping 7) 14)
+      (set! (-> obj joy-map button-mapping 8) 4) ;; analog
+      (set! (-> obj joy-map button-mapping 9) 5) ;; analog
+      (set! (-> obj joy-map button-mapping 10) 5)
+      (set! (-> obj joy-map button-mapping 11) 4)
+      (set! (-> obj joy-map button-mapping 12) 3)
+      (set! (-> obj joy-map button-mapping 13) 1)
+      (set! (-> obj joy-map button-mapping 14) 0)
+      (set! (-> obj joy-map button-mapping 15) 2)
+      ;;(set! (-> obj joy-map analog-mapping 0) -1)
+      ;;(set! (-> obj joy-map analog-mapping 1) -1)
+      ;;(set! (-> obj joy-map analog-mapping 2) -1)
+      ;;(set! (-> obj joy-map analog-mapping 3) -1)
+      ;;(set! (-> obj joy-map analog-mapping 4) -1)
+      ;;(set! (-> obj joy-map analog-mapping 5) -1)
+      (set! (-> obj kb-map button-mapping 0) 259)
+      (set! (-> obj kb-map button-mapping 1) 44)
+      (set! (-> obj kb-map button-mapping 2) 46)
+      (set! (-> obj kb-map button-mapping 3) 257)
+      (set! (-> obj kb-map button-mapping 4) 265)
+      (set! (-> obj kb-map button-mapping 5) 262)
+      (set! (-> obj kb-map button-mapping 6) 264)
+      (set! (-> obj kb-map button-mapping 7) 263)
+      (set! (-> obj kb-map button-mapping 8) 49)
+      (set! (-> obj kb-map button-mapping 9) 80)
+      (set! (-> obj kb-map button-mapping 10) 79)
+      (set! (-> obj kb-map button-mapping 11) 81)
+      (set! (-> obj kb-map button-mapping 12) 82)
+      (set! (-> obj kb-map button-mapping 13) 69)
+      (set! (-> obj kb-map button-mapping 14) 32)
+      (set! (-> obj kb-map button-mapping 15) 70)
+      ;;(set! (-> obj kb-map analog-mapping 0) 87)
+      ;;(set! (-> obj kb-map analog-mapping 1) 83)
+      ;;(set! (-> obj kb-map analog-mapping 2) 65)
+      ;;(set! (-> obj kb-map analog-mapping 3) 68)
+      ;;(set! (-> obj kb-map analog-mapping 4) -1)
+      ;;(set! (-> obj kb-map analog-mapping 5) -1)
+      )
+    )
   (none))
 
 (defmethod reset-ps2 pc-settings ((obj pc-settings))

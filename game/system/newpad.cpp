@@ -43,7 +43,8 @@ struct GamepadState {
 // input mode for controller mapping
 InputModeStatus input_mode = InputModeStatus::Disabled;
 int input_mode_pad = 0;
-u64 input_mode_key = -1;
+s64 input_mode_key = -1;
+s64 input_mode_joy = -1;
 u64 input_mode_mod = 0;
 u64 input_mode_index = 0;
 MappingInfo g_input_mode_mapping;
@@ -78,6 +79,10 @@ void ForceClearAnalogValue() {
   }
 }
 
+u64 keyboard_enabled = 1;
+u64 joy_enabled = 1;
+
+
 void ForceClearKeys() {
   for (auto& key : g_key_status) {
     key = false;
@@ -93,17 +98,29 @@ void ClearKeys() {
   }
 }
 
-void OnKeyPress(int key) {
+void OnKeyPress(int key, int button) {
   if (ImGui::IsAnyItemActive()) {
     return;
   }
+  if (!keyboard_enabled && g_gamepads.gamepad_idx[0] != -1) {
+    return;
+  }
 
+  if (input_mode == InputModeStatus::Progress_KB) {
+    input_mode_key = key;
+    // if (key == GLFW_KEY_ESCAPE) {
+    //   ExitInputMode(true);
+    //   return;
+    // }
+    MapButton(Gfx::g_settings.pad_mapping_info, (Button)button, input_mode_pad, key);
+    return;
+  }
   if (input_mode == InputModeStatus::Enabled) {
+    input_mode_key = key;
     if (key == GLFW_KEY_ESCAPE) {
       ExitInputMode(true);
       return;
     }
-    input_mode_key = key;
     MapButton(g_input_mode_mapping, (Button)(input_mode_index++), input_mode_pad, key);
     if (input_mode_index >= (u64)Button::Max) {
       ExitInputMode(false);
@@ -118,7 +135,7 @@ void OnKeyPress(int key) {
 }
 
 void OnKeyRelease(int key) {
-  if (input_mode == InputModeStatus::Enabled) {
+  if (input_mode == InputModeStatus::Enabled || input_mode == InputModeStatus::Progress_KB) {
     return;
   }
   ASSERT(key < glfw::NUM_KEYS);
@@ -372,6 +389,9 @@ void DefaultMapping(MappingInfo& mapping) {
   // start for progress
   MapButton(mapping, Button::Start, 0, GLFW_KEY_ENTER);
 
+  // select
+  MapButton(mapping, Button::Select, 0, GLFW_KEY_BACKSPACE);
+
   // l3/r3 for menu
   MapButton(mapping, Button::L3, 0, GLFW_KEY_COMMA);
   MapButton(mapping, Button::R3, 0, GLFW_KEY_PERIOD);
@@ -403,7 +423,13 @@ void DefaultMapping(MappingInfo& mapping) {
   }
 }
 
-void EnterInputMode() {
+void EnterInputMode(int mode) {
+  if (mode != -1) {
+    input_mode = (InputModeStatus)mode;
+    input_mode_index = 0;
+    input_mode_pad = 0;
+    return;
+  }
   input_mode = InputModeStatus::Enabled;
   input_mode_index = 0;
   input_mode_pad = 0;
@@ -421,6 +447,10 @@ u64 input_mode_get_key() {
   return input_mode_key;
 }
 
+void input_mode_set_key(s64 key) {
+  input_mode_key = key;
+}
+
 u64 input_mode_get_index() {
   return input_mode_index;
 }
@@ -429,11 +459,79 @@ void input_mode_pad_set(s64 idx) {
   input_mode_pad = idx;
 }
 
+u64 input_mode_get_joy() {
+  return input_mode_joy;
+}
+
+void input_mode_set_joy(s64 button) {
+  input_mode_joy = button;
+}
+
+void kb_map_set(int key, int button) {
+  OnKeyPress(key, button);
+}
+
+void keyboard_enable(int enable) {
+  keyboard_enabled = enable;
+}
+
+void joy_enable(int enable) {
+  joy_enabled = enable;
+}
+
 /*
 ********************************
 * Gamepad Support
 ********************************
 */
+
+void OnJoyPress(s64 code, int button) {
+  printf("OnJoyPress: %lu, %ld, %d, %d\n", input_mode_joy, code, button, (int)input_mode);
+  if (input_mode == InputModeStatus::Progress_JOY) {
+    input_mode_joy = code;
+    joy_map_set(input_mode_pad, button, input_mode_joy);
+  }
+}
+
+void joy_map_set(int pad, int button, s64 code) {
+  printf("joy_map_set: %d, %ld, %d\n", pad, code, button);
+  if (g_gamepads.gamepad_idx[pad] != -1)
+    Gfx::g_settings.pad_mapping_info.controller_button_mapping[pad][button] = code;
+}
+
+void joy_map_reset(MappingInfo& mapping) {
+  for (int pad = 0; pad < CONTROLLER_COUNT; pad++) {
+    for (int btn = 0; btn < (int)Button::Max; btn++) {
+      mapping.controller_button_mapping[pad][btn] = -1;
+    }
+
+    mapping.controller_button_mapping[pad][(int)Button::L1] = GLFW_GAMEPAD_BUTTON_LEFT_BUMPER;
+    mapping.controller_button_mapping[pad][(int)Button::R1] = GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER;
+
+    mapping.controller_button_mapping[pad][(int)Button::Ecks] = GLFW_GAMEPAD_BUTTON_CROSS;
+    mapping.controller_button_mapping[pad][(int)Button::Square] = GLFW_GAMEPAD_BUTTON_SQUARE;
+    mapping.controller_button_mapping[pad][(int)Button::Circle] = GLFW_GAMEPAD_BUTTON_CIRCLE;
+    mapping.controller_button_mapping[pad][(int)Button::Triangle] = GLFW_GAMEPAD_BUTTON_TRIANGLE;
+
+    mapping.controller_button_mapping[pad][(int)Button::Up] = GLFW_GAMEPAD_BUTTON_DPAD_UP;
+    mapping.controller_button_mapping[pad][(int)Button::Right] = GLFW_GAMEPAD_BUTTON_DPAD_RIGHT;
+    mapping.controller_button_mapping[pad][(int)Button::Down] = GLFW_GAMEPAD_BUTTON_DPAD_DOWN;
+    mapping.controller_button_mapping[pad][(int)Button::Left] = GLFW_GAMEPAD_BUTTON_DPAD_LEFT;
+
+    mapping.controller_button_mapping[pad][(int)Button::Start] = GLFW_GAMEPAD_BUTTON_START;
+    mapping.controller_button_mapping[pad][(int)Button::Select] = GLFW_GAMEPAD_BUTTON_BACK;
+
+    mapping.controller_button_mapping[pad][(int)Button::L3] = GLFW_GAMEPAD_BUTTON_LEFT_THUMB;
+    mapping.controller_button_mapping[pad][(int)Button::R3] = GLFW_GAMEPAD_BUTTON_RIGHT_THUMB;
+  }
+}
+
+const char* joy_name_get(int pad) {
+  if (g_gamepads.gamepad_idx[pad] != -1) {
+    return glfwGetJoystickName(g_gamepads.gamepad_idx[pad]);
+  }
+  return "No pad connected";
+}
 
 void check_gamepads() {
   auto check_pad = [](int pad) {  // -> bool
@@ -480,6 +578,35 @@ void clear_pad(int pad) {
   }
   for (int i = 0; i < (int)Analog::Max; ++i) {
     g_gamepad_analogs[pad][i] = 0;
+  }
+}
+
+void read_pad_state(int pad) {
+  constexpr std::pair<Analog, int> gamepad_analog_map[] = {
+      {Analog::Left_X, GLFW_GAMEPAD_AXIS_LEFT_X},
+      {Analog::Left_Y, GLFW_GAMEPAD_AXIS_LEFT_Y},
+      {Analog::Right_X, GLFW_GAMEPAD_AXIS_RIGHT_X},
+      {Analog::Right_Y, GLFW_GAMEPAD_AXIS_RIGHT_Y}};
+
+  if (!joy_enabled)
+    return;
+
+  GLFWgamepadstate state;
+  glfwGetGamepadState(g_gamepads.gamepad_idx[pad], &state);
+
+  for (int btn = 0; btn < (int)Button::Max; btn++) {
+    int code = Gfx::g_settings.pad_mapping_info.controller_button_mapping[pad][btn];
+    g_gamepad_buttons[pad][btn] = state.buttons[code];
+    if (state.buttons[code]) {
+      OnJoyPress(code, btn);
+    }
+  }
+
+  g_gamepad_buttons[pad][(int)Button::L2] = state.axes[GLFW_GAMEPAD_AXIS_LEFT_TRIGGER] > 0;
+  g_gamepad_buttons[pad][(int)Button::R2] = state.axes[GLFW_GAMEPAD_AXIS_RIGHT_TRIGGER] > 0;
+
+  for (const auto& [analog_vector, idx] : gamepad_analog_map) {
+    g_gamepad_analogs[pad][(int)analog_vector] = state.axes[idx];
   }
 }
 

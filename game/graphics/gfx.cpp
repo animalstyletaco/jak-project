@@ -17,6 +17,7 @@
 #include "common/util/json_util.h"
 
 #include "game/common/file_paths.h"
+#include "game/kernel/common/kmachine.h"
 #include "game/kernel/common/kscheme.h"
 #include "game/kernel/svnrev.h"
 #include "game/runtime.h"
@@ -45,6 +46,10 @@ void InitSettings(GfxSettings& settings) {
   settings.pad_mapping_info.debug = true;
 
   Pad::DefaultMapping(Gfx::g_settings.pad_mapping_info);
+
+  // use a default mapping
+  //Pad::DefaultMapping(settings.pad_mapping_info);
+  Pad::joy_map_reset(settings.pad_mapping_info);
 }
 
 }  // namespace
@@ -453,12 +458,30 @@ void set_msaa(int samples) {
   g_global_settings.msaa_samples = samples;
 }
 
-void input_mode_set(u32 enable) {
-  if (enable == s7.offset + jak1_symbols::FIX_SYM_TRUE) {  // #t
-    Pad::g_input_mode_mapping = g_settings.pad_mapping_info;
-    Pad::EnterInputMode();
-  } else {
-    Pad::ExitInputMode(enable != s7.offset);  // use #f for graceful exit, or 'canceled for abrupt
+void input_mode_set(u32 mode) {
+  switch (mode) {
+    case (int)Pad::InputModeStatus::Disabled:
+      Pad::ExitInputMode(false);
+      break;
+    case (int)Pad::InputModeStatus::Enabled:
+      Pad::g_input_mode_mapping = g_settings.pad_mapping_info;
+      Pad::EnterInputMode();
+      break;
+    case (int)Pad::InputModeStatus::Canceled:
+      Pad::ExitInputMode(true);
+      break;
+    case (int)Pad::InputModeStatus::Progress_KB:
+    case (int)Pad::InputModeStatus::Progress_JOY:
+      Pad::EnterInputMode(mode);
+      break;
+    default:
+      if (mode == s7.offset + jak1_symbols::FIX_SYM_TRUE) {  // #t
+        Pad::g_input_mode_mapping = g_settings.pad_mapping_info;
+        Pad::EnterInputMode();
+      } else {
+        Pad::ExitInputMode(mode != s7.offset);
+      }
+      break;
   }
 }
 
@@ -473,15 +496,42 @@ void input_mode_save() {
   }
 }
 
-s64 get_mapped_button(s64 pad, s64 button) {
+s64 kb_get_mapped_button(s64 pad, s64 button) {
   if (pad < 0 || pad > Pad::CONTROLLER_COUNT || button < 0 || button > 16) {
-    lg::error("Invalid parameters to get_mapped_button({}, {})", pad, button);
+    lg::error("Invalid parameters to kb_get_mapped_button({}, {})", pad, button);
     return -1;
   }
 
   return (Pad::GetGamepadState(pad) > -1)
              ? (s64)g_settings.pad_mapping_info.controller_button_mapping[pad][button]
              : (s64)g_settings.pad_mapping_info.keyboard_button_mapping[pad][button];
+}
+
+s64 kb_has_mapped_button(s64 pad, s64 key) {
+  for (int i = 0; i < (int)Pad::Button::Max; i++) {
+    if (g_settings.pad_mapping_info.keyboard_button_mapping[pad][i] == key ||
+        g_settings.pad_mapping_info.controller_button_mapping[pad][i]) {
+      return s7.offset + jak1_symbols::FIX_SYM_TRUE;
+    }
+  }
+  return s7.offset;
+}
+
+s64 joy_get_mapped_button(s64 pad, s64 button) {
+  if (pad < 0 || pad > Pad::CONTROLLER_COUNT || button < 0 || button > 16) {
+    lg::error("Invalid parameters to joy_get_mapped_button({}, {})", pad, button);
+    return -1;
+  }
+  return (s64)g_settings.pad_mapping_info.controller_button_mapping[pad][button];
+}
+
+s64 joy_has_mapped_button(s64 pad, s64 button) {
+  for (int i = 0; i < (int)Pad::Button::Max; i++) {
+    if (g_settings.pad_mapping_info.controller_button_mapping[pad][i] == button) {
+      return s7.offset + jak1_symbols::FIX_SYM_TRUE;
+    }
+  }
+  return s7.offset;
 }
 
 int PadIsPressed(Pad::Button button, int port) {

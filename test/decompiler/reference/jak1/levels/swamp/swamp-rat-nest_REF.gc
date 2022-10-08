@@ -943,7 +943,7 @@ swamp-rat-nest-default-event-handler
 ;; definition for function swamp-rat-nest-spawn-rat
 ;; INFO: Used lq/sq
 ;; INFO: Return type mismatch (pointer process) vs (pointer swamp-rat).
-;; WARN: Function may read a register that is not set: t2
+;; ERROR: Function may read a register that is not set: t2
 (defbehavior swamp-rat-nest-spawn-rat swamp-rat-nest ()
   (local-vars (t2-0 none))
   (the-as
@@ -1002,8 +1002,8 @@ swamp-rat-nest-default-event-handler
 
 ;; failed to figure out what this is:
 (defstate swamp-rat-nest-idle (swamp-rat-nest)
-  :event (behavior ((arg0 process) (arg1 int) (arg2 symbol) (arg3 event-message-block))
-    (case arg2
+  :event (behavior ((proc process) (arg1 int) (event-type symbol) (event event-message-block))
+    (case event-type
       (('hit)
        (go swamp-rat-nest-active)
        )

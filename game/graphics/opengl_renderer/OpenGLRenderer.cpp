@@ -338,8 +338,12 @@ void OpenGLRenderer::render(DmaFollower dma, const RenderOptions& settings) {
   // Enable scissor test
   glEnable(GL_SCISSOR_TEST);
 
-  for (int i = 0; i < 4; i++) {
-    SplitScreen split_screen = static_cast<SplitScreen>(i);
+  SplitScreenSettings splitscreen_settings;
+  //TODO: Get player(s) info from newpad.cpp?
+  uint8_t controller_count = 1;
+  splitscreen_settings.splitscreen = static_cast<SplitScreenMode>(controller_count);
+  for (int i = 0; i < controller_count; i++) {
+    splitscreen_settings.player_idx = i;
 
     m_profiler.clear();
     m_render_state.reset();
@@ -348,7 +352,7 @@ void OpenGLRenderer::render(DmaFollower dma, const RenderOptions& settings) {
 
     {
       auto prof = m_profiler.root()->make_scoped_child("frame-setup");
-      setup_frame(settings, split_screen);
+      setup_frame(settings, splitscreen_settings);
       if (settings.gpu_sync) {
         glFinish();
       }
@@ -564,7 +568,7 @@ Fbo make_fbo(int w, int h, int msaa, bool make_zbuf_and_stencil) {
 /*!
  * Pre-render frame setup.
  */
-void OpenGLRenderer::setup_frame(const RenderOptions& settings, const SplitScreen split_screen) {
+void OpenGLRenderer::setup_frame(const RenderOptions& settings, const SplitScreenSettings splitscreen_settings) {
   // glfw controls the window framebuffer, so we just update the size:
   auto& window_fb = m_fbo_state.resources.window;
   bool window_resized = window_fb.width != settings.window_framebuffer_width ||
@@ -626,24 +630,7 @@ void OpenGLRenderer::setup_frame(const RenderOptions& settings, const SplitScree
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     int w = m_fbo_state.resources.window.width, h = m_fbo_state.resources.window.height;
 
-    switch (split_screen) {
-      case LowLeft:
-        glViewport(0, 0, w / 2, h / 2);
-        glScissor(0, 0, w / 2, h / 2);
-        break;
-      case LowRight:
-        glViewport(w / 2, 0, w / 2, h / 2);
-        glScissor(w / 2, 0, w / 2, h / 2);
-        break;
-      case TopLeft:
-        glViewport(0, h / 2, w / 2, h / 2);
-        glScissor(0, h / 2, w / 2, h / 2);
-        break;
-      case TopRight:
-        glViewport(w / 2, h / 2, w / 2, h / 2);
-        glScissor(w / 2, h / 2, w / 2, h / 2);
-        break;
-    }
+    setup_splitscreen(splitscreen_settings, w, h);
 
     glClearColor(0.0, 0.0, 0.0, 0.0);
     glClearDepth(0.0);
@@ -701,25 +688,70 @@ void OpenGLRenderer::setup_frame(const RenderOptions& settings, const SplitScree
 
     int w = settings.game_res_w, h = settings.game_res_h;
 
-    switch (split_screen) {
-      case LowLeft:
-        glViewport(0, 0, w / 2, h / 2);
-        glScissor(0, 0, w / 2, h / 2);
+    setup_splitscreen(splitscreen_settings, w, h);
+  }
+}
+
+void OpenGLRenderer::setup_splitscreen(const SplitScreenSettings& split_screen_settings, const double& width, const double& height) {
+  if (split_screen_settings.splitscreen == SplitScreenMode::SinglePlayer) {
+    glViewport(0, 0, width, height);
+    glScissor(0, 0, width, height);
+  } else if (split_screen_settings.splitscreen == SplitScreenMode::TwoPlayers) {
+    switch (split_screen_settings.player_idx) {
+       case 0:
+        glViewport(0, height / 2, width, height / 2);
+        glScissor(0, height / 2, width, height / 2);
         break;
-      case LowRight:
-        glViewport(w / 2, 0, w / 2, h / 2);
-        glScissor(w / 2, 0, w / 2, h / 2);
+       case 1:
+         glViewport(0, 0, width, height / 2);
+         glScissor(0, 0, width, height / 2);
+         break;
+       default:
+         ASSERT(false);
+         break;
+    }
+  } else if (split_screen_settings.splitscreen == SplitScreenMode::ThreePlayers) {
+    switch (split_screen_settings.player_idx) {
+      case 0:
+        glViewport(0, 2 * height / 3, width, height / 3);
+        glScissor(0, 2 * height / 3, width, height / 3);
         break;
-      case TopLeft:
-        glViewport(0, h / 2, w / 2, h / 2);
-        glScissor(0, h / 2, w / 2, h / 2);
+      case 1:
+        //FIXME: This doesn't render unless player 3 doesn't render for some reason
+        glViewport(0, height / 3, width, height / 3); 
+        glScissor(0, height / 3, width, height / 3);
+      case 2:
+        glViewport(0, 0, width, height / 3);
+        glScissor(0, 0, width, height / 3);
         break;
-      case TopRight:
-        glViewport(w / 2, h / 2, w / 2, h / 2);
-        glScissor(w / 2, h / 2, w / 2, h / 2);
+      default:
+        ASSERT(false);
+        break;
+    }
+  } else if (split_screen_settings.splitscreen == SplitScreenMode::FourPlayers) {
+    switch (split_screen_settings.player_idx) {
+      case 0:
+        glViewport(0, height / 2, width / 2, height / 2);
+        glScissor(0, height / 2, width / 2, height / 2);
+        break;
+      case 1:
+        glViewport(width / 2, height / 2, width / 2, height / 2);
+        glScissor(width / 2, height / 2, width / 2, height / 2);
+        break;
+      case 2:
+        glViewport(0, 0, width / 2, height / 2);
+        glScissor(0, 0, width / 2, height / 2);
+        break;
+      case 3:
+        glViewport(width / 2, 0, width / 2, height / 2);
+        glScissor(width / 2, 0, width / 2, height / 2);
+        break;
+      default:
+        ASSERT(false);
         break;
     }
   }
+
 }
 
 void OpenGLRenderer::dispatch_buckets_jak1(DmaFollower dma,

@@ -13,6 +13,12 @@
 #include "game/tools/subtitles/subtitle_editor.h"
 
 enum SplitScreen { LowLeft, LowRight, TopLeft, TopRight, SplitScreenLen };
+enum class SplitScreenMode { SinglePlayer = 1, TwoPlayers = 2, ThreePlayers = 3, FourPlayers = 4, SplitScreenLen = 5 };
+
+struct SplitScreenSettings {
+  SplitScreenMode splitscreen = SplitScreenMode::SinglePlayer;
+  unsigned short player_idx = 0;
+};
 
 struct RenderOptions {
   bool draw_render_debug_window = false;
@@ -109,7 +115,10 @@ class OpenGLRenderer {
   void render(DmaFollower dma, const RenderOptions& settings);
 
  private:
-  void setup_frame(const RenderOptions& settings, const SplitScreen split_screen);
+  void setup_frame(const RenderOptions& settings, const SplitScreenSettings split_screen);
+  void setup_splitscreen(const SplitScreenSettings& split_screen_settings,
+                         const double& width,
+                         const double& height);
   void dispatch_buckets(DmaFollower dma, ScopedProfilerNode& prof, bool sync_after_buckets);
   void dispatch_buckets_jak1(DmaFollower dma, ScopedProfilerNode& prof, bool sync_after_buckets);
   void dispatch_buckets_jak2(DmaFollower dma, ScopedProfilerNode& prof, bool sync_after_buckets);

@@ -21,3 +21,11 @@
 
 ;; TODO - forward declaration for weather-part
 (define-extern matrix-local->world (function symbol symbol matrix))
+(define *camera-list* (new 'static 'boxed-array :type camera-master))
+
+(defun get-camera ((camera-idx int))
+  (if (zero? (-> *camera-list* camera-idx))
+    (the-as camera-master #f)
+    (the-as camera-master (handle->process (-> *camera-list* camera-idx)))
+    )
+  )

@@ -113,9 +113,10 @@ void TFragment::render(DmaFollower& dma,
   {
     m_tfrag3.setup_for_level(m_tree_kinds, level_name, render_state);
     TfragRenderSettings settings;
-    settings.hvdf_offset = m_tfrag_data.hvdf_offset;
+    settings.hvdf_offset[render_state->camera_index] = m_tfrag_data.hvdf_offset;
     settings.fog = m_tfrag_data.fog;
-    memcpy(settings.math_camera.data(), &m_buffered_data[0].pad[TFragDataMem::TFragMatrix0 * 16],
+    memcpy(settings.math_camera[render_state->camera_index].data(),
+           &m_buffered_data[0].pad[TFragDataMem::TFragMatrix0 * 16],
            64);
     settings.tree_idx = 0;
     if (render_state->occlusion_vis[m_level_id].valid) {
@@ -125,7 +126,7 @@ void TFragment::render(DmaFollower& dma,
     update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
     for (int i = 0; i < 4; i++) {
-      settings.planes[i] = m_pc_port_data.planes[i];
+      settings.planes[i] = m_pc_port_data.camera_data[render_state->camera_index].planes[i];
     }
 
     if (m_override_time_of_day) {
@@ -135,7 +136,11 @@ void TFragment::render(DmaFollower& dma,
     } else {
       for (int i = 0; i < 8; i++) {
         settings.time_of_day_weights[i] =
-            2 * (0xff & m_pc_port_data.itimes[i / 2].data()[2 * (i % 2)]) / 127.f;
+            2 *
+            (0xff & m_pc_port_data.camera_data[render_state->camera_index]
+                        .itimes[i / 2]
+                        .data()[2 * (i % 2)]) /
+            127.f;
       }
     }
 

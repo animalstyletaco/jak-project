@@ -343,10 +343,12 @@ void Tie3::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfi
   }
 
   TfragRenderSettings settings;
-  settings.hvdf_offset = m_pc_port_data.hvdf_off;
-  settings.fog = m_pc_port_data.fog;
+  settings.hvdf_offset[render_state->camera_index] =
+      m_pc_port_data.camera_data[render_state->camera_index].hvdf_off;
+  settings.fog = m_pc_port_data.camera_data[render_state->camera_index].fog;
 
-  memcpy(settings.math_camera.data(), m_pc_port_data.camera[0].data(), 64);
+  memcpy(settings.math_camera[render_state->camera_index].data(),
+         m_pc_port_data.camera_data[render_state->camera_index].camera[0].data(), 64);
   settings.tree_idx = 0;
 
   if (render_state->occlusion_vis[m_level_id].valid) {
@@ -356,7 +358,7 @@ void Tie3::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfi
   update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
   for (int i = 0; i < 4; i++) {
-    settings.planes[i] = m_pc_port_data.planes[i];
+    settings.planes[i] = m_pc_port_data.camera_data[render_state->camera_index].planes[i];
   }
 
   if (false) {
@@ -366,7 +368,11 @@ void Tie3::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfi
   } else {
     for (int i = 0; i < 8; i++) {
       settings.time_of_day_weights[i] =
-          2 * (0xff & m_pc_port_data.itimes[i / 2].data()[2 * (i % 2)]) / 127.f;
+          2 *
+          (0xff & m_pc_port_data.camera_data[render_state->camera_index]
+                      .itimes[i / 2]
+                      .data()[2 * (i % 2)]) /
+          127.f;
     }
   }
 
@@ -405,7 +411,7 @@ void Tie3::render_tree_wind(int idx,
   // note: this isn't the most efficient because we might compute wind matrices for invisible
   // instances. TODO: add vis ids to the instance info to avoid this
   memset(tree.wind_matrix_cache.data(), 0, sizeof(float) * 16 * tree.wind_matrix_cache.size());
-  auto& cam_bad = settings.math_camera;
+  auto& cam_bad = settings.math_camera[render_state->camera_index];
   std::array<math::Vector4f, 4> cam;
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
@@ -464,8 +470,12 @@ void Tie3::render_tree_wind(int idx,
         continue;  // invisible, skip.
       }
 
+      glUniform1ui(
+          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), "camera_index"),
+          render_state->camera_index);
+      std::string camera_index = "camera[" + std::to_string(render_state->camera_index) + "]";
       glUniformMatrix4fv(
-          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), "camera"), 1, GL_FALSE,
+          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3].id(), camera_index.c_str()), 1, GL_FALSE,
           tree.wind_matrix_cache.at(grp.instance_idx)[0].data());
 
       prof.add_draw_call();
@@ -663,13 +673,19 @@ void Tie3::render_tree(int idx,
 
     if (m_debug_wireframe && !render_state->no_multidraw) {
       render_state->shaders[ShaderId::TFRAG3_NO_TEX].activate();
+      glUniform1ui(
+          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "camera_index"),
+          render_state->camera_index);
+      std::string camera_index = "camera[" + std::to_string(render_state->camera_index) + "]";
       glUniformMatrix4fv(
-          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "camera"), 1,
-          GL_FALSE, settings.math_camera.data());
+          glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "camera_index"), 1,
+          GL_FALSE, settings.math_camera[render_state->camera_index].data());
       glUniform4f(
           glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "hvdf_offset"),
-          settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
-          settings.hvdf_offset[3]);
+          settings.hvdf_offset[render_state->camera_index][0],
+          settings.hvdf_offset[render_state->camera_index][1],
+          settings.hvdf_offset[render_state->camera_index][2],
+          settings.hvdf_offset[render_state->camera_index][3]);
       glUniform1f(
           glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "fog_constant"),
           settings.fog.x());

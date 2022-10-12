@@ -6,20 +6,24 @@
 
 // data passed from game to PC renderers
 // the GOAL code assumes this memory layout.
-struct TfragPcPortData {
+struct TfragPcCameraData {
   math::Vector4f planes[4];
   math::Vector<s32, 4> itimes[4];
   math::Vector4f camera[4];
   math::Vector4f hvdf_off;
   math::Vector4f fog;
   math::Vector4f cam_trans;
+};
+
+struct TfragPcPortData {
+  TfragPcCameraData camera_data[4];
   char level_name[16];
 };
 
 // inputs to background renderers.
 struct TfragRenderSettings {
-  math::Matrix4f math_camera;
-  math::Vector4f hvdf_offset;
+  math::Matrix4f math_camera[4];
+  math::Vector4f hvdf_offset[4];
   math::Vector4f fog;
   int tree_idx;
   float time_of_day_weights[8] = {0};

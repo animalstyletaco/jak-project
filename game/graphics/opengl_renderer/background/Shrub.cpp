@@ -40,21 +40,24 @@ void Shrub::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProf
   }
 
   TfragRenderSettings settings;
-  settings.hvdf_offset = m_pc_port_data.hvdf_off;
-  settings.fog = m_pc_port_data.fog;
+  settings.hvdf_offset[render_state->camera_index] = m_pc_port_data.camera_data[render_state->camera_index].hvdf_off;
+  settings.fog = m_pc_port_data.camera_data[render_state->camera_index].fog;
 
-  memcpy(settings.math_camera.data(), m_pc_port_data.camera[0].data(), 64);
+  memcpy(settings.math_camera[render_state->camera_index].data(), m_pc_port_data.camera_data[render_state->camera_index].camera[0].data(), 64);
   settings.tree_idx = 0;
 
   for (int i = 0; i < 8; i++) {
     settings.time_of_day_weights[i] =
-        2 * (0xff & m_pc_port_data.itimes[i / 2].data()[2 * (i % 2)]) / 127.f;
+        2 *
+        (0xff &
+         m_pc_port_data.camera_data[render_state->camera_index].itimes[i / 2].data()[2 * (i % 2)]) /
+        127.f;
   }
 
   update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
   for (int i = 0; i < 4; i++) {
-    settings.planes[i] = m_pc_port_data.planes[i];
+    settings.planes[i] = m_pc_port_data.camera_data[render_state->camera_index].planes[i];
   }
 
   m_has_level = setup_for_level(m_pc_port_data.level_name, render_state);

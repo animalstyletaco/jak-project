@@ -5,9 +5,10 @@ layout (location = 1) in uint flags;
 layout (location = 2) in vec3 normal_in;
 layout (location = 3) in uint pat;
 
-uniform vec4 hvdf_offset;
-uniform mat4 camera;
-uniform vec4 camera_position;
+uniform uint camera_index;
+uniform vec4 hvdf_offset[4];
+uniform mat4 camera[4];
+uniform vec4 camera_position[4];
 uniform float fog_constant;
 uniform float fog_min;
 uniform float fog_max;
@@ -38,10 +39,10 @@ bool logtesta(uint a, uint b) { return (a & b) == b; }
 
 void main() {
     // Step 3, the camera transform
-    vec4 transformed = -camera[3].xyzw;
-    transformed += -camera[0] * position_in.x;
-    transformed += -camera[1] * position_in.y;
-    transformed += -camera[2] * position_in.z;
+    vec4 transformed = -camera[camera_index][3].xyzw;
+    transformed += -camera[camera_index][0] * position_in.x;
+    transformed += -camera[camera_index][1] * position_in.y;
+    transformed += -camera[camera_index][2] * position_in.z;
 
     // compute Q
     float Q = fog_constant / transformed[3];
@@ -50,7 +51,7 @@ void main() {
     transformed.xyz *= Q;
 
     // offset
-    transformed.xyz += hvdf_offset.xyz;
+    transformed.xyz += hvdf_offset[camera_index].xyz;
 
     // correct xy offset
     transformed.xy -= (2048.);
@@ -73,7 +74,7 @@ void main() {
     // wireframe check
     if (wireframe == 0) {
         // lighting check
-        vec3 to_cam = camera_position.xyz - position_in;
+        vec3 to_cam = camera_position[camera_index].xyz - position_in;
         float dist_from_cam = length(to_cam);
         vec3 to_cam_n = to_cam / dist_from_cam;
         float cam_dot = abs(dot(to_cam_n, normal_in));

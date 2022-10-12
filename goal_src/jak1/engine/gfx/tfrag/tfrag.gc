@@ -329,6 +329,7 @@
     )
   
   ;; first 4 quadwords are planes, then itimes
+  ;; Loop over math camera(s)
   (let ((data-ptr (the-as (pointer uint128) (-> dma-buf base))))
     (set! (-> data-ptr 0) (-> *math-camera* plane 0 quad))
     (set! (-> data-ptr 1) (-> *math-camera* plane 1 quad))

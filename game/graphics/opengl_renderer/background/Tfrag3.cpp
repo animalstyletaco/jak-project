@@ -445,13 +445,19 @@ void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
                  tree.vis->vis_nodes, m_debug_vert_data);
 
   render_state->shaders[ShaderId::TFRAG3_NO_TEX].activate();
+  glUniform1ui(
+      glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "camera_index"),
+      render_state->camera_index);
+  std::string camera_index = "camera[" + std::to_string(render_state->camera_index) + "]";
   glUniformMatrix4fv(
-      glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "camera"), 1,
-      GL_FALSE, settings.math_camera.data());
+      glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), camera_index.c_str()), 1,
+      GL_FALSE, settings.math_camera[render_state->camera_index].data());
   glUniform4f(
       glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "hvdf_offset"),
-      settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
-      settings.hvdf_offset[3]);
+      settings.hvdf_offset[render_state->camera_index][0],
+      settings.hvdf_offset[render_state->camera_index][1],
+      settings.hvdf_offset[render_state->camera_index][2],
+      settings.hvdf_offset[render_state->camera_index][3]);
   glUniform1f(
       glGetUniformLocation(render_state->shaders[ShaderId::TFRAG3_NO_TEX].id(), "fog_constant"),
       settings.fog.x());

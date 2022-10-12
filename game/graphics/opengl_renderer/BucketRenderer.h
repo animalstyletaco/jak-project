@@ -17,6 +17,15 @@ struct LevelVis {
 };
 
 class EyeRenderer;
+
+struct CameraSettings {
+  math::Vector4f camera_planes[4];
+  math::Vector4f camera_matrix[4];
+  math::Vector4f camera_hvdf_off;
+  math::Vector4f camera_fog;
+  math::Vector4f camera_pos;
+};
+
 /*!
  * The main renderer will contain a single SharedRenderState that's passed to all bucket renderers.
  * This allows bucket renders to share textures and shaders.
@@ -47,11 +56,8 @@ struct SharedRenderState {
   bool has_pc_data = false;
   LevelVis occlusion_vis[6];
 
-  math::Vector4f camera_planes[4];
-  math::Vector4f camera_matrix[4];
-  math::Vector4f camera_hvdf_off;
-  math::Vector4f camera_fog;
-  math::Vector4f camera_pos;
+  uint8_t camera_index = 0;
+  CameraSettings camera_settings[4];
 
   EyeRenderer* eye_renderer = nullptr;
 

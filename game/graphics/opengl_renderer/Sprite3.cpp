@@ -827,7 +827,12 @@ void Sprite3::render_2d_group0(DmaFollower& dma,
   // glUniform4fv(glGetUniformLocation(shid, "hmge_scale"), 1, m_frame_data.hmge_scale.data());
   glUniform1f(glGetUniformLocation(shid, "deg_to_rad"), m_frame_data.deg_to_rad);
   glUniform1f(glGetUniformLocation(shid, "inv_area"), m_frame_data.inv_area);
-  glUniformMatrix4fv(glGetUniformLocation(shid, "camera"), 1, GL_FALSE,
+
+  glUniform1ui(
+    glGetUniformLocation(shid, "camera_index"),
+    render_state->camera_index);
+  std::string camera_index = "camera[" + std::to_string(render_state->camera_index) + "]";
+  glUniformMatrix4fv(glGetUniformLocation(shid, camera_index.c_str()), 1, GL_FALSE,
                      m_3d_matrix_data.camera.data());
   glUniform4fv(glGetUniformLocation(shid, "xy_array"), 8, m_frame_data.xy_array[0].data());
   glUniform4fv(glGetUniformLocation(shid, "xyz_array"), 4, m_frame_data.xyz_array[0].data());
@@ -1246,7 +1251,9 @@ void Sprite3::do_block_common(SpriteMode mode,
       // it's probably possible to do this for 3D as well.
       auto bsphere = m_vec_data_2d[sprite_idx].xyz_sx;
       bsphere.w() = std::max(bsphere.w(), m_vec_data_2d[sprite_idx].sy());
-      if (bsphere.w() == 0 || !sphere_in_view_ref(bsphere, render_state->camera_planes)) {
+      if (bsphere.w() == 0 ||
+          !sphere_in_view_ref(
+              bsphere, render_state->camera_settings[render_state->camera_index].camera_planes)) {
         continue;
       }
     }

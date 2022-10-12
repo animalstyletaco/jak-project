@@ -23,19 +23,26 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
 
   glBindVertexArray(m_vao);
   TfragRenderSettings settings;
-  memcpy(settings.math_camera.data(), render_state->camera_matrix[0].data(), 64);
-  settings.hvdf_offset = render_state->camera_hvdf_off;
-  settings.fog = render_state->camera_fog;
+  memcpy(settings.math_camera[render_state->camera_index].data(),
+         render_state->camera_settings[render_state->camera_index].camera_matrix[0].data(), 64);
+  settings.hvdf_offset[render_state->camera_index] =
+      render_state->camera_settings[render_state->camera_index].camera_hvdf_off;
+  settings.fog = render_state->camera_settings[render_state->camera_index].camera_fog;
   settings.tree_idx = 0;
   for (int i = 0; i < 4; i++) {
-    settings.planes[i] = render_state->camera_planes[i];
+    settings.planes[i] = render_state->camera_settings[render_state->camera_index].camera_planes[i];
   }
   auto shader = render_state->shaders[ShaderId::COLLISION].id();
-  glUniformMatrix4fv(glGetUniformLocation(shader, "camera"), 1, GL_FALSE,
-                     settings.math_camera.data());
-  glUniform4f(glGetUniformLocation(shader, "hvdf_offset"), settings.hvdf_offset[0],
-              settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
-  const auto& trans = render_state->camera_pos;
+  glUniform1ui(glGetUniformLocation(shader, "camera_index"), render_state->camera_index);
+  std::string camera_index = "camera[" + std::to_string(render_state->camera_index) + "]";
+  glUniformMatrix4fv(glGetUniformLocation(shader, camera_index.c_str()), 1, GL_FALSE,
+                     settings.math_camera[render_state->camera_index].data());
+  glUniform4f(glGetUniformLocation(shader, "hvdf_offset"),
+              settings.hvdf_offset[render_state->camera_index][0],
+              settings.hvdf_offset[render_state->camera_index][1],
+              settings.hvdf_offset[render_state->camera_index][2],
+              settings.hvdf_offset[render_state->camera_index][3]);
+  const auto& trans = render_state->camera_settings[render_state->camera_index].camera_pos;
   glUniform4f(glGetUniformLocation(shader, "camera_position"), trans[0], trans[1], trans[2],
               trans[3]);
   glUniform1f(glGetUniformLocation(shader, "fog_constant"), settings.fog.x());

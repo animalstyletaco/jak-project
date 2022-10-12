@@ -115,3 +115,13 @@
 
 
 (define-extern *math-camera* math-camera)
+
+;;For splitscreen
+(define *math-camera-list* (new 'static 'boxed-array :type math-camera))
+
+(defun get-math-camera ((camera-idx int))
+  (if (zero? (-> *math-camera-list* camera-idx))
+    (the-as math-camera #f)
+    (the-as math-camera (handle->process (-> *math-camera-list* camera-idx)))
+    )
+  )

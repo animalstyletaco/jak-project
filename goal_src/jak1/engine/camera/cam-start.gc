@@ -11,6 +11,9 @@
   (kill-by-name 'camera-master *active-pool*)
   (kill-by-name 'camera-slave *active-pool*)
   (kill-by-name 'camera-combiner *active-pool*)
+  (dotimes (camera-index (-> *camera-list* length))
+    (set! (-> *camera-list* camera-index) #f)
+  )
   (set! *camera* #f)
   (set! *camera-combiner* #f)
   (set! *camera-base-mode* cam-string)
@@ -19,14 +22,16 @@
 
 (defun cam-start ((arg0 symbol))
   (cam-stop)
-  (process-spawn camera-combiner :init cam-combiner-init :from *camera-dead-pool* :to *camera-pool*)
-  (set! *camera*
+  (dotimes (camera-index 4)
+    (process-spawn camera-combiner :init cam-combiner-init :from *camera-dead-pool* :to *camera-pool*)
+    (set! (-> *camera-list* camera-index)
         (the-as camera-master
           (ppointer->process
             (process-spawn-function camera-master cam-master-init :from *camera-master-dead-pool* :to *camera-pool*)
             )
           )
         )
+      )
   (if arg0
       (reset-cameras)
       )

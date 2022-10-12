@@ -6,8 +6,9 @@ layout (location = 2) in vec4 rgba;
 layout (location = 3) in uvec2 flags_matrix;
 layout (location = 4) in uvec4 tex_info_in;
 
-uniform vec4 hvdf_offset;
-uniform mat4 camera;
+uniform uint camera_index;
+uniform vec4 hvdf_offset[4];
+uniform mat4 camera[4];
 uniform mat4 hud_matrix;
 uniform vec4 hud_hvdf_offset;
 uniform vec4 hud_hvdf_user[75];
@@ -58,7 +59,7 @@ vec4 sprite_transform2(vec3 root, vec4 off, mat3 sprite_rot, float sx, float sy)
     vec3 offset = sprite_rot[0] * off.x * sx + sprite_rot[1] * off.y + sprite_rot[2] * off.z * sy;
 
     pos += offset;
-    vec4 transformed_pos = -matrix_transform(camera, pos);
+    vec4 transformed_pos = -matrix_transform(camera[camera_index], pos);
     float Q = pfog0 / transformed_pos.w;
     transformed_pos.xyz *= Q;
     transformed_pos.xyz += hvdf_offset.xyz;
@@ -82,7 +83,7 @@ void main() {
     vec4 transformed;
 
     // STEP 2: perspective transform for distance
-    vec4 transformed_pos_vf02 = matrix_transform(rendermode == 2 ? hud_matrix : camera, position);
+    vec4 transformed_pos_vf02 = matrix_transform(rendermode == 2 ? hud_matrix : camera[camera_index], position);
     float Q = pfog0 / transformed_pos_vf02.w;
 
 

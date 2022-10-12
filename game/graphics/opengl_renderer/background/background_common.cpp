@@ -154,9 +154,16 @@ void first_tfrag_draw_setup(const TfragRenderSettings& settings,
   auto id = sh.id();
   glUniform1i(glGetUniformLocation(id, "gfx_hack_no_tex"), Gfx::g_global_settings.hack_no_tex);
   glUniform1i(glGetUniformLocation(id, "tex_T0"), 0);
-  glUniformMatrix4fv(glGetUniformLocation(id, "camera"), 1, GL_FALSE, settings.math_camera.data());
-  glUniform4f(glGetUniformLocation(id, "hvdf_offset"), settings.hvdf_offset[0],
-              settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
+
+  glUniform1ui(glGetUniformLocation(id, "camera_index"), render_state->camera_index);
+  std::string camera_index = "camera[" + std::to_string(render_state->camera_index) + "]";
+  glUniformMatrix4fv(glGetUniformLocation(id, camera_index.c_str()), 1, GL_FALSE,
+                     settings.math_camera[render_state->camera_index].data());
+  glUniform4f(glGetUniformLocation(id, "hvdf_offset"),
+              settings.hvdf_offset[render_state->camera_index][0],
+              settings.hvdf_offset[render_state->camera_index][1],
+              settings.hvdf_offset[render_state->camera_index][2],
+              settings.hvdf_offset[render_state->camera_index][3]);
   glUniform1f(glGetUniformLocation(id, "fog_constant"), settings.fog.x());
   glUniform1f(glGetUniformLocation(id, "fog_min"), settings.fog.y());
   glUniform1f(glGetUniformLocation(id, "fog_max"), settings.fog.z());
@@ -630,12 +637,15 @@ u32 make_all_visible_index_list(std::pair<int, int>* group_out,
 void update_render_state_from_pc_settings(SharedRenderState* state, const TfragPcPortData& data) {
   if (!state->has_pc_data) {
     for (int i = 0; i < 4; i++) {
-      state->camera_planes[i] = data.planes[i];
-      state->camera_matrix[i] = data.camera[i];
+      state->camera_settings[state->camera_index].camera_planes[i] = data.camera_data[state->camera_index].planes[i];
+      state->camera_settings[state->camera_index].camera_matrix[i] = data.camera_data[state->camera_index].camera[i];
     }
-    state->camera_pos = data.cam_trans;
-    state->camera_hvdf_off = data.hvdf_off;
-    state->camera_fog = data.fog;
+    state->camera_settings[state->camera_index].camera_pos =
+        data.camera_data[state->camera_index].cam_trans;
+    state->camera_settings[state->camera_index].camera_hvdf_off =
+        data.camera_data[state->camera_index].hvdf_off;
+    state->camera_settings[state->camera_index].camera_fog =
+        data.camera_data[state->camera_index].fog;
     state->has_pc_data = true;
   }
 }

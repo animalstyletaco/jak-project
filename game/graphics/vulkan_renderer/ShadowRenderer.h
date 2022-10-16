@@ -3,6 +3,14 @@
 #include "game/common/vu.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
+class ShadowRendererUniformBuffer : public UniformBuffer {
+ public:
+  ShadowRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                              uint32_t instanceCount,
+                              VkMemoryPropertyFlags memoryPropertyFlags,
+                              VkDeviceSize minOffsetAlignment = 1);
+};
+
 class ShadowRenderer : public BucketRenderer {
  public:
   ShadowRenderer(const std::string& name,
@@ -130,5 +138,5 @@ class ShadowRenderer : public BucketRenderer {
   } m_ogl;
 
   bool m_debug_draw_volume = false;
-  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+  std::unique_ptr<ShadowRendererUniformBuffer> m_uniform_buffer;
 };

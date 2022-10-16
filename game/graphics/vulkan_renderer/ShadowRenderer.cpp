@@ -21,6 +21,9 @@ ShadowRenderer::ShadowRenderer(
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
   }
 
+  m_uniform_buffer = std::make_unique<ShadowRendererUniformBuffer>(
+      device, 1, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
   // xyz
   InitializeInputVertexAttribute();
 }
@@ -488,4 +491,14 @@ void ShadowRenderer::draw(SharedRenderState* render_state, ScopedProfilerNode& p
   //glDepthMask(GL_TRUE);
 
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
+}
+
+ShadowRendererUniformBuffer::ShadowRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                         uint32_t instanceCount,
+                                                         VkMemoryPropertyFlags memoryPropertyFlags,
+                                                         VkDeviceSize minOffsetAlignment) :
+  UniformBuffer(device, sizeof(math::Vector4f), instanceCount, memoryPropertyFlags, minOffsetAlignment){
+  section_name_to_memory_offset_map = {
+      {"color_uniform", 0}
+  };
 }

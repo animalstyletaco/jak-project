@@ -260,7 +260,7 @@ void UniformBuffer::SetDataInVkDeviceMemory(uint32_t memory_offset,
                                             uint32_t value_size,
                                             uint32_t flags) {
   map(value_size, memory_offset);
-  writeToBuffer(&value);
+  writeToBuffer(&value, value_size, memory_offset);
   unmap();
 }
 
@@ -270,7 +270,7 @@ void UniformBuffer::SetDataInVkDeviceMemory(uint32_t memory_offset,
                                             uint32_t value_size,
                                             uint32_t flags) {
   map(value_size, memory_offset);
-  writeToBuffer(value);
+  writeToBuffer(value, value_size, memory_offset);
   unmap();
 }
 

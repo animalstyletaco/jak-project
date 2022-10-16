@@ -110,6 +110,7 @@ void Tie3::update_load(const LevelData* loader_data) {
         }
       }
 
+      textures[l_geo].emplace_back(TextureInfo{m_device});
       VkDeviceSize size = 0;
       //CreateIndexBuffer(tree.unpacked.indices);
       VkExtent3D extents{TIME_OF_DAY_COLOR_COUNT, 1, 1};
@@ -527,7 +528,7 @@ void Tie3::render_tree(int idx,
   VkExtent3D extents{tree.colors->size(), 1, 1};
   timeOfDayTexture.CreateImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
               VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
   timeOfDayTexture.CreateImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);

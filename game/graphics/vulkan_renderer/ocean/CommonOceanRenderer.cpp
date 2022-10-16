@@ -590,22 +590,25 @@ void CommonOceanRenderer::flush_mid(
 }
 
 CommonOceanVertexUniformBuffer::CommonOceanVertexUniformBuffer(
-   std::unique_ptr<GraphicsDeviceVulkan>& device,
-   VkDeviceSize instanceSize,
-   uint32_t instanceCount,
-   VkMemoryPropertyFlags memoryPropertyFlags,
-   VkDeviceSize minOffsetAlignment)
-    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
- //Only has one uniform variable in ocean_common.vert no need to populate section name map
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    uint32_t instanceCount,
+    VkMemoryPropertyFlags memoryPropertyFlags,
+    VkDeviceSize minOffsetAlignment)
+    : UniformBuffer(device, sizeof(int), instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = 
+    {{"bucket", 0}};
 }
 
 CommonOceanFragmentUniformBuffer::CommonOceanFragmentUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
-    VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkMemoryPropertyFlags memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment )
-    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+    : UniformBuffer(device,
+                    sizeof(CommonOceanFragmentUniformShaderData),
+                    instanceCount,
+                    memoryPropertyFlags,
+                    minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"color_mult", offsetof(CommonOceanFragmentUniformShaderData, color_mult)},
       {"alpha_mult", offsetof(CommonOceanFragmentUniformShaderData, alpha_mult)},

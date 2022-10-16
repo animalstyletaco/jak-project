@@ -11,6 +11,13 @@ constexpr int EYE_BASE_BLOCK = 8160;
 constexpr int NUM_EYE_PAIRS = 11;
 constexpr int SINGLE_EYE_SIZE = 32;
 
+class EyeRendererUniformBuffer : public UniformBuffer {
+ public:
+  EyeRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           VkMemoryPropertyFlags memoryPropertyFlags,
+                           VkDeviceSize minOffsetAlignment = 1);
+};
+
 class EyeRenderer : public BucketRenderer {
  public:
   EyeRenderer(const std::string& name,
@@ -102,5 +109,5 @@ class EyeRenderer : public BucketRenderer {
   void run_gpu(const std::vector<SingleEyeDraws>& draws, SharedRenderState* render_state);
 
   std::unique_ptr<VertexBuffer> m_gpu_vertex_buffer;
-  std::unique_ptr<UniformBuffer> m_uniform_buffer;
+  std::unique_ptr<EyeRendererUniformBuffer> m_uniform_buffer;
 };

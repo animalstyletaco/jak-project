@@ -239,8 +239,10 @@ class ShrubLoadStage : public LoaderStage {
           (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
       data.lev_data->shrub_vertex_data[m_next_tree]->map(upload_size, start_vert_for_chunk *
                                                          sizeof(tfrag3::ShrubGpuVertex));
-      data.lev_data->shrub_vertex_data[m_next_tree]->writeToBuffer((tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data() +
-                                                                   start_vert_for_chunk);
+      data.lev_data->shrub_vertex_data[m_next_tree]->writeToBuffer(
+        (tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data(),
+        tree.unpacked.vertices.size() - start_vert_for_chunk, 
+        start_vert_for_chunk);
       data.lev_data->shrub_vertex_data[m_next_tree]->unmap();
       uploaded_bytes += upload_size;
 
@@ -335,7 +337,8 @@ class TieLoadStage : public LoaderStage {
             upload_size,
             start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
         data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->writeToBuffer(
-            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk);
+            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data(),
+            tree.unpacked.vertices.size() - start_vert_for_chunk, start_vert_for_chunk);
         data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->unmap();
         uploaded_bytes += upload_size;
 
@@ -542,8 +545,8 @@ bool MercLoaderStage::run(Timer& /*timer*/, LoaderInput& data) {
   data.lev_data->merc_vertices->map((m_idx - start) * sizeof(tfrag3::MercVertex),
                                     start * sizeof(tfrag3::MercVertex));
   data.lev_data->merc_vertices->writeToBuffer(
-      (tfrag3::MercVertex*)data.lev_data->level->merc_data.indices.data() +
-                                             start);
+      (tfrag3::MercVertex*)data.lev_data->level->merc_data.vertices.data(),
+      data.lev_data->level->merc_data.vertices.size() - start, start);
   data.lev_data->merc_vertices->unmap();
 
   if (m_idx != data.lev_data->level->merc_data.vertices.size()) {

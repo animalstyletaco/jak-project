@@ -5,7 +5,6 @@
 class CommonOceanVertexUniformBuffer : public UniformBuffer {
  public:
   CommonOceanVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                 VkDeviceSize instanceSize,
                                  uint32_t instanceCount,
                                  VkMemoryPropertyFlags memoryPropertyFlags,
                                  VkDeviceSize minOffsetAlignment = 1);
@@ -22,7 +21,6 @@ struct CommonOceanFragmentUniformShaderData {
 class CommonOceanFragmentUniformBuffer : public UniformBuffer {
  public:
   CommonOceanFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                   VkDeviceSize instanceSize,
                                    uint32_t instanceCount,
                                    VkMemoryPropertyFlags memoryPropertyFlags,
                                    VkDeviceSize minOffsetAlignment = 1);

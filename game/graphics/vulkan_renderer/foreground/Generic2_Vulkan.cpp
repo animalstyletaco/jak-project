@@ -157,7 +157,8 @@ void Generic2::setup_vulkan_for_draw_mode(const DrawMode& draw_mode,
         m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
       default:
-        ASSERT(false);
+        lg::error("Invalid Alpha Blend Value {}", draw_mode.get_alpha_blend());
+        //ASSERT(false);
     }
   }
 
@@ -422,13 +423,17 @@ void Generic2::do_hud_draws(SharedRenderState* render_state, ScopedProfilerNode&
 }
 
 void Generic2::do_draws(SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  m_ogl.vertex_buffer->map(m_next_free_vert * sizeof(Vertex), 0);
-  m_ogl.vertex_buffer->writeToBuffer(m_verts.data());
-  m_ogl.vertex_buffer->unmap();
+  if (m_next_free_vert > 0) {
+    m_ogl.vertex_buffer->map(m_next_free_vert * sizeof(Vertex), 0);
+    m_ogl.vertex_buffer->writeToBuffer(m_verts.data());
+    m_ogl.vertex_buffer->unmap();
+  }
 
-  m_ogl.index_buffer->map(m_next_free_idx * sizeof(u32), 0);
-  m_ogl.index_buffer->writeToBuffer(m_indices.data());
-  m_ogl.index_buffer->unmap();
+  if (m_next_free_idx > 0) {
+    m_ogl.index_buffer->map(m_next_free_idx * sizeof(u32), 0);
+    m_ogl.index_buffer->writeToBuffer(m_indices.data());
+    m_ogl.index_buffer->unmap();
+  }
 
   //glEnable(GL_PRIMITIVE_RESTART);
   //glPrimitiveRestartIndex(UINT32_MAX);

@@ -22,7 +22,7 @@
 #include "game/runtime.h"
 #include "game/system/newpad.h"
 
-#ifdef _APPLE
+#ifdef _WIN32
 #include "pipelines/vulkan_pipeline.h"
 #else
 #include "pipelines/opengl.h"
@@ -247,13 +247,13 @@ const GfxRendererModule* GetRenderer(GfxPipeline pipeline) {
       lg::error("Requested invalid renderer", pipeline);
       return NULL;
     case GfxPipeline::OpenGL:
-#if !_APPLE
+#if _APPLE
       return &gRendererOpenGL;
 #else
       return NULL;
 #endif
     case GfxPipeline::Vulkan:
-#if !_WIN32
+#if !_APPLE
       return &gRendererVulkan;
 #else
       return NULL;
@@ -282,7 +282,7 @@ u32 Init(GameVersion version) {
 
   LoadSettings();
 
-#ifdef _APPLE
+#ifdef _WIN32
   renderers[static_cast<uint32_t>(GfxPipeline::Vulkan)] = &gRendererVulkan;
 #else
   renderers[static_cast<uint32_t>(GfxPipeline::OpenGL)] = &gRendererOpenGL;

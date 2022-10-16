@@ -18,9 +18,8 @@ EyeRenderer::EyeRenderer(const std::string& name,
                          std::unique_ptr<GraphicsDeviceVulkan>& device,
                          VulkanInitializationInfo& vulkan_info)
     : BucketRenderer(name, id, device, vulkan_info) {
-  std::unique_ptr<UniformBuffer> m_uniform_buffer = std::make_unique<UniformBuffer>(
-      m_device, sizeof(int), 1,
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+      m_uniform_buffer = std::make_unique<EyeRendererUniformBuffer>(
+      m_device, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
   for (uint32_t i = 0; i < NUM_EYE_PAIRS * 2; i++) {
     m_gpu_eye_textures[i] = std::make_unique<EyeRenderer::GpuEyeTex>(m_device);
     m_cpu_eye_textures[i].texture = std::make_unique<TextureInfo>(m_device);
@@ -707,4 +706,11 @@ std::string EyeRenderer::ScissorInfo::print() const {
 
 std::string EyeRenderer::EyeDraw::print() const {
   return fmt::format("{}\n{}\n", sprite.print(), scissor.print());
+}
+
+EyeRendererUniformBuffer::EyeRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                   VkMemoryPropertyFlags memoryPropertyFlags,
+                                                   VkDeviceSize minOffsetAlignment) :
+  UniformBuffer(device, sizeof(int), 1, memoryPropertyFlags, minOffsetAlignment) {
+  section_name_to_memory_offset_map = {{"tex_T0", 0}};
 }

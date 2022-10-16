@@ -1,6 +1,8 @@
 #pragma once
 
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/Buffer.h"
 
 class SwapChain {
  public:
@@ -28,6 +30,7 @@ class SwapChain {
   VkOffset2D getOffsetSwapChainExtent() { return offsetSwapChainExtent; }
   uint32_t width() { return swapChainExtent.width; }
   uint32_t height() { return swapChainExtent.height; }
+  std::unique_ptr<GraphicsDeviceVulkan>& getLogicalDevice() { return device; };
 
   void recordCommandBuffer(VkCommandBuffer commandBuffer,
                            std::unique_ptr<VertexBuffer>& vertex_buffer,

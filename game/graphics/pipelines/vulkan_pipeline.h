@@ -9,10 +9,7 @@
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
 
-#include "third-party/glad/include/vulkan/vulkan.h"
-
-#define GLFW_INCLUDE_VULKAN
-#include "third-party/glfw/include/GLFW/glfw3.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/ImguiVulkanHelper.h"
 
 enum GlfwKeyAction {
   Release = GLFW_RELEASE,  // falling edge of key press
@@ -27,7 +24,7 @@ enum GlfwKeyCustomAxis {
 
 class VkDisplay : public GfxDisplay {
  public:
-  VkDisplay(GLFWwindow* window, bool is_main);
+  VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>& device, bool is_main);
   virtual ~VkDisplay();
 
   void* get_window() const override { return m_window; }
@@ -59,6 +56,7 @@ class VkDisplay : public GfxDisplay {
   GLFWwindow* m_window;
   bool m_minimized = false;
   GLFWvidmode m_last_video_mode = {0, 0, 0, 0, 0, 0};
+  ImguiVulkanHelper imgui_helper;
 
   static constexpr int MAX_VMODES = 128;
 

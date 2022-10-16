@@ -113,7 +113,7 @@ set(RUNTIME_SOURCE
         tools/subtitles/subtitle_editor.h
         tools/subtitles/subtitle_editor.cpp)
 
-if(WIN32)
+if(APPLE)
   if (WIN32)
     set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator.exe")
   else()
@@ -145,6 +145,7 @@ if(WIN32)
         graphics/vulkan_renderer/vulkan_utils/Image.cpp
         graphics/vulkan_renderer/vulkan_utils/Buffer.cpp
         graphics/vulkan_renderer/vulkan_utils/SwapChain.cpp
+        graphics/vulkan_renderer/vulkan_utils/ImguiVulkanHelper.cpp
         graphics/vulkan_renderer/background/background_common.cpp
         graphics/vulkan_renderer/background/Shrub.cpp
         graphics/vulkan_renderer/background/Tfrag3.cpp
@@ -278,7 +279,7 @@ else()
     target_link_libraries(runtime pthread dl)
 endif()
 
-if(WIN32)
+if(APPLE)
     add_executable(gk main.cpp ${SHADERS})
     add_dependencies(gk shaders)
 else()

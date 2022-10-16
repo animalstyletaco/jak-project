@@ -27,8 +27,6 @@
 #include "game/system/newpad.h"
 
 #include "third-party/imgui/imgui.h"
-#include "third-party/imgui/imgui_impl_glfw.h"
-#include "third-party/imgui/imgui_impl_vulkan.h"
 #define STBI_WINDOWS_UTF8
 #include "third-party/stb_image/stb_image.h"
 
@@ -62,8 +60,6 @@ struct VulkanGraphicsData {
   Timer engine_timer;
   double last_engine_time = 1. / 60.;
   float pmode_alp = 0.f;
-
-  VkRenderPass render_pass;
 
   std::string imgui_log_filename, imgui_filename;
   GameVersion version;
@@ -199,14 +195,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
     lg::error("vk_make_display error");
     return NULL;
   }
-
-  auto display = std::make_shared<VkDisplay>(window, is_main);
-  display->set_imgui_visible(Gfx::get_debug_menu_visible_on_startup());
-  display->update_cursor_visibility(window, display->is_imgui_visible());
-  // lg::debug("init display #x{:x}", (uintptr_t)display);
-
-  // setup imgui
-
+  
   // check that version of the library is okay
   IMGUI_CHECKVERSION();
 
@@ -214,42 +203,24 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   ImGui::CreateContext();
 
   // Init ImGui settings
-  g_gfx_data->imgui_filename = file_util::get_file_path({"imgui.ini"});
-  g_gfx_data->imgui_log_filename = file_util::get_file_path({"imgui_log.txt"});
+  auto imgui_filename = file_util::get_file_path({"imgui.ini"});
+  auto imgui_log_filename = file_util::get_file_path({"imgui_log.txt"});
   ImGuiIO& io = ImGui::GetIO();
-  io.IniFilename = g_gfx_data->imgui_filename.c_str();
-  io.LogFilename = g_gfx_data->imgui_log_filename.c_str();
+  io.IniFilename = imgui_filename.c_str();
+  io.LogFilename = imgui_log_filename.c_str();
 
   // set up to get inputs for this window
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
-  // NOTE: imgui's setup calls functions that may fail intentionally, and attempts to disable error
-  // reporting so these errors are invisible. But it does not work, and some weird X11 default
-  // cursor error is set here that we clear.
-  glfwGetError(NULL);
-
-  // set up the renderer
-  ImGui_ImplVulkan_InitInfo imgui_vulkan_info = {};
-  imgui_vulkan_info.Instance = g_gfx_data->vulkan_renderer.GetInstance();
-  imgui_vulkan_info.PhysicalDevice = g_gfx_data->vulkan_renderer.GetPhysicalDevice();
-  imgui_vulkan_info.Device = g_gfx_data->vulkan_renderer.GetLogicalDevice();
-  imgui_vulkan_info.QueueFamily = g_gfx_data->vulkan_renderer.GetPhysicalQueueFamilies().presentFamily.value();
-  imgui_vulkan_info.Queue = g_gfx_data->vulkan_renderer.GetPresentQueue();
-  imgui_vulkan_info.PipelineCache = NULL;
-  imgui_vulkan_info.DescriptorPool = g_gfx_data->vulkan_renderer.GetDescriptorPool();
-  imgui_vulkan_info.Subpass = 0;
-  imgui_vulkan_info.MinImageCount = 2; //Minimum image count need for initialization
-  imgui_vulkan_info.ImageCount = 2;
-  imgui_vulkan_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-  imgui_vulkan_info.Allocator = NULL;
-  imgui_vulkan_info.CheckVkResultFn = NULL;
-
-  ImGui_ImplVulkan_Init(&imgui_vulkan_info, g_gfx_data->vulkan_renderer.getSwapChainRenderPass());
+  auto display = std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer.GetSwapChain() , is_main);
+  display->set_imgui_visible(Gfx::get_debug_menu_visible_on_startup());
+  display->update_cursor_visibility(window, display->is_imgui_visible());
+  // lg::debug("init display #x{:x}", (uintptr_t)display);
 
   return std::static_pointer_cast<GfxDisplay>(display);
 }
 
-VkDisplay::VkDisplay(GLFWwindow* window, bool is_main) : m_window(window) {
+VkDisplay::VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>& swap_chain, bool is_main) : m_window(window), imgui_helper(swap_chain) {
   m_main = is_main;
 
   // Get initial state
@@ -299,7 +270,6 @@ VkDisplay::~VkDisplay() {
   glfwSetWindowSizeCallback(m_window, NULL);
   glfwSetWindowIconifyCallback(m_window, NULL);
   glfwSetWindowUserPointer(m_window, nullptr);
-  ImGui_ImplVulkan_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImGui::DestroyContext();
   glfwDestroyWindow(m_window);
@@ -757,16 +727,9 @@ void VkDisplay::render() {
   }
 
   // imgui start of frame
-  VkCommandBuffer command_buffer = g_gfx_data->vulkan_renderer.beginFrame();
   {
     auto p = scoped_prof("imgui-init");
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-
-    if (!ImGui_ImplVulkan_CreateFontsTexture(command_buffer)) {
-      throw std::runtime_error("Failed to create font texture");
-    }
-    ImGui::NewFrame();
+    imgui_helper.InitializeNewFrame();
   }
 
   // framebuffer size
@@ -802,8 +765,7 @@ void VkDisplay::render() {
   }
   {
     auto p = scoped_prof("imgui-render");
-    ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), command_buffer, NULL);
+    imgui_helper.Render();
   }
 
   // actual vsync
@@ -853,7 +815,6 @@ void VkDisplay::render() {
       g_gfx_data->sync_cv.notify_all();
     }
   }
-  g_gfx_data->vulkan_renderer.endFrame();
 }
 
 /*!

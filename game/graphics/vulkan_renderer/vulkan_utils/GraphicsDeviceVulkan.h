@@ -1,9 +1,14 @@
 #pragma once
 
+#include <array>
 #include <optional>
 
 #include "common/log/log.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
+
+#include "third-party/glad/include/vulkan/vulkan.h"
+
+#define GLFW_INCLUDE_VULKAN
+#include "third-party/glfw/include/GLFW/glfw3.h"
 
 struct SwapChainSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;

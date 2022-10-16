@@ -118,7 +118,8 @@ void TextureInfo::unmap() {
 void TextureInfo::writeToBuffer(void* data, VkDeviceSize size, VkDeviceSize offset) {
   assert(mapped_memory && "Cannot copy to unmapped buffer");
 
-  VkDeviceSize image_size = m_extents.width * m_extents.height * m_extents.depth * sizeof(u32);
+  const unsigned rgba_size = sizeof(unsigned);
+  VkDeviceSize image_size = m_extents.width * m_extents.height * m_extents.depth * rgba_size;
 
   if (size == VK_WHOLE_SIZE) {
     memcpy(mapped_memory, data, image_size);

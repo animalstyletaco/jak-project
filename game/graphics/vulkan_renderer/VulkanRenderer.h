@@ -64,15 +64,9 @@ class VulkanRenderer {
   // rendering interface: takes the dma chain from the game, and some size/debug settings from
   // the graphics system.
   void render(DmaFollower dma, const RenderOptions& settings);
-  VkInstance GetInstance() { return m_device->getInstance(); }
-  VkPhysicalDevice GetPhysicalDevice() { return m_device->getPhysicalDevice(); }
-  VkDevice GetLogicalDevice() { return m_device->getLogicalDevice(); }
-  VkDescriptorPool GetDescriptorPool() { return m_vulkan_info.descriptor_pool->getDescriptorPool(); }
-  VkQueue GetPresentQueue() { return m_device->presentQueue(); }
-  QueueFamilyIndices GetPhysicalQueueFamilies() { return m_device->findPhysicalQueueFamilies(); }
   VkSampleCountFlagBits GetMaxUsableSampleCount() { return m_device->GetMaxUsableSampleCount(); }
+  std::unique_ptr<SwapChain>& GetSwapChain() { return m_swap_chain; };
 
-  VkRenderPass getSwapChainRenderPass() const { return m_swap_chain->getRenderPass(); }
   float getAspectRatio() const { return m_swap_chain->extentAspectRatio(); }
   bool isFrameInProgress() const { return isFrameStarted; }
 

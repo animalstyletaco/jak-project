@@ -111,12 +111,49 @@ set(RUNTIME_SOURCE
         graphics/texture/jak2_tpage_dir.cpp
         graphics/texture/TextureConverter.cpp
 
+        graphics/general_renderer/renderer_utils/Buffer.cpp
+        graphics/general_renderer/background/background_common.cpp
+        graphics/general_renderer/background/Shrub.cpp
+        graphics/general_renderer/background/Tfrag3.cpp
+        graphics/general_renderer/background/TFragment.cpp
+        graphics/general_renderer/background/Tie3.cpp
+        graphics/general_renderer/foreground/Generic2.cpp
+        graphics/general_renderer/foreground/Generic2_DMA.cpp
+        graphics/general_renderer/foreground/Generic2_Build.cpp
+        graphics/general_renderer/ocean/CommonOceanRenderer.cpp
+        graphics/general_renderer/ocean/OceanMid.cpp
+        graphics/general_renderer/ocean/OceanMid_PS2.cpp
+        #graphics/general_renderer/ocean/OceanMidAndFar.cpp
+        graphics/general_renderer/ocean/OceanNear.cpp
+        graphics/general_renderer/ocean/OceanNear_PS2.cpp
+        graphics/general_renderer/ocean/OceanTexture.cpp
+        graphics/general_renderer/ocean/OceanTexture_PC.cpp
+        graphics/general_renderer/BucketRenderer.cpp
+        graphics/general_renderer/debug_gui.cpp
+        graphics/general_renderer/DirectRenderer.cpp
+        graphics/general_renderer/DirectRenderer2.cpp
+        graphics/general_renderer/EyeRenderer.cpp
+        graphics/general_renderer/dma_helpers.cpp
+        graphics/general_renderer/Profiler.cpp
+        graphics/general_renderer/Shadow_PS2.cpp
+        graphics/general_renderer/ShadowRenderer.cpp
+        graphics/general_renderer/SkyBlendCPU.cpp
+        graphics/general_renderer/SkyBlendGPU.cpp
+        graphics/general_renderer/SkyRenderer.cpp
+        graphics/general_renderer/Sprite3.cpp
+        graphics/general_renderer/SpriteRenderer.cpp
+        graphics/general_renderer/DepthCue.cpp
+        graphics/general_renderer/TextureUploadHandler.cpp
+        graphics/general_renderer/VisDataHandler.cpp
+        graphics/texture/TexturePool.cpp
+
         system/vm/dmac.cpp
         system/vm/vm.cpp
         tools/subtitles/subtitle_editor.h
-        tools/subtitles/subtitle_editor.cpp)
+        tools/subtitles/subtitle_editor.cpp
+        )
 
-if(APPLE)
+if(WIN32)
   if (WIN32)
     set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator.exe")
   else()
@@ -146,7 +183,7 @@ if(APPLE)
         graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.cpp
         graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.cpp
         graphics/vulkan_renderer/vulkan_utils/Image.cpp
-        graphics/vulkan_renderer/vulkan_utils/Buffer.cpp
+        graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.cpp
         graphics/vulkan_renderer/vulkan_utils/SwapChain.cpp
         graphics/vulkan_renderer/vulkan_utils/ImguiVulkanHelper.cpp
         graphics/vulkan_renderer/background/background_common.cpp
@@ -155,40 +192,28 @@ if(APPLE)
         graphics/vulkan_renderer/background/TFragment.cpp
         graphics/vulkan_renderer/background/Tie3.cpp
         graphics/vulkan_renderer/foreground/Merc2.cpp
-        graphics/vulkan_renderer/foreground/Generic2.cpp
-        graphics/vulkan_renderer/foreground/Generic2_DMA.cpp
-        graphics/vulkan_renderer/foreground/Generic2_Build.cpp
         graphics/vulkan_renderer/foreground/Generic2_Vulkan.cpp
         graphics/vulkan_renderer/ocean/CommonOceanRenderer.cpp
         graphics/vulkan_renderer/ocean/OceanMid.cpp
-        graphics/vulkan_renderer/ocean/OceanMid_PS2.cpp
         graphics/vulkan_renderer/ocean/OceanMidAndFar.cpp
         graphics/vulkan_renderer/ocean/OceanNear.cpp
-        graphics/vulkan_renderer/ocean/OceanNear_PS2.cpp
         graphics/vulkan_renderer/ocean/OceanTexture.cpp
-        graphics/vulkan_renderer/ocean/OceanTexture_PC.cpp
         graphics/vulkan_renderer/loader/Loader.cpp
         graphics/vulkan_renderer/loader/LoaderStages.cpp
         graphics/vulkan_renderer/BucketRenderer.cpp
         graphics/vulkan_renderer/CollideMeshRenderer.cpp
-        graphics/vulkan_renderer/debug_gui.cpp
         graphics/vulkan_renderer/DirectRenderer.cpp
         graphics/vulkan_renderer/DirectRenderer2.cpp
         graphics/vulkan_renderer/EyeRenderer.cpp
-        graphics/vulkan_renderer/dma_helpers.cpp
         graphics/vulkan_renderer/vulkan_utils.cpp
-        graphics/vulkan_renderer/Profiler.cpp
         graphics/vulkan_renderer/Shader.cpp
-        graphics/vulkan_renderer/Shadow_PS2.cpp
         graphics/vulkan_renderer/ShadowRenderer.cpp
         graphics/vulkan_renderer/SkyBlendCPU.cpp
         graphics/vulkan_renderer/SkyBlendGPU.cpp
         graphics/vulkan_renderer/SkyRenderer.cpp
         graphics/vulkan_renderer/Sprite3.cpp
         graphics/vulkan_renderer/SpriteRenderer.cpp
-        graphics/vulkan_renderer/TextureUploadHandler.cpp
         graphics/vulkan_renderer/DepthCue.cpp
-        graphics/vulkan_renderer/TexturePoolVulkan.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
         ../third-party/glad/src/vulkan.c)
 else()
@@ -234,7 +259,7 @@ else()
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/VisDataHandler.cpp
         graphics/opengl_renderer/DepthCue.cpp
-        graphics/texture/TexturePool.cpp
+        graphics/texture/TexturePoolOpenGL.cpp
         graphics/pipelines/opengl.cpp
         ../third-party/glad/src/glad.c)
 endif()
@@ -282,7 +307,7 @@ else()
     target_link_libraries(runtime pthread dl)
 endif()
 
-if(APPLE)
+if(WIN32)
     add_executable(gk main.cpp ${SHADERS})
     add_dependencies(gk shaders)
 else()

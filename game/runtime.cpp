@@ -310,8 +310,8 @@ RuntimeExitStatus exec_runtime(int argc, char** argv) {
 
   // parse opengoal arguments
   g_game_version = GameVersion::Jak1;
-  Gfx::SetRenderer(GfxPipeline::OpenGL);
-  //Gfx::SetRenderer(GfxPipeline::Vulkan); //Temp
+  //Gfx::SetRenderer(GfxPipeline::OpenGL);
+  Gfx::SetRenderer(GfxPipeline::Vulkan); //Temp
 
   bool enable_display = true;
   for (int i = 1; i < argc; i++) {

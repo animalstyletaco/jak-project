@@ -7,58 +7,47 @@
 #include "game/graphics/gfx.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
+#include "game/graphics/general_renderer/background/Tie3.h"
 
-class Tie3 : public BucketRenderer {
+class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
  public:
-  Tie3(const std::string& name,
-       BucketId my_id,
+  Tie3Vulkan(const std::string& name,
+       int my_id,
        std::unique_ptr<GraphicsDeviceVulkan>& device,
        VulkanInitializationInfo& vulkan_info,
        int level_id);
-  void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
-  void draw_debug_window() override;
-  ~Tie3();
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void init_shaders(VulkanShaderLibrary& shaders) override;
+  ~Tie3Vulkan();
 
+  void update_load(const LevelDataVulkan* loader_data);
   void render_all_trees(int geom,
                         const TfragRenderSettings& settings,
-                        SharedRenderState* render_state,
+                        SharedVulkanRenderState* render_state,
                         ScopedProfilerNode& prof);
   void render_tree(int idx,
                    int geom,
                    const TfragRenderSettings& settings,
-                   SharedRenderState* render_state,
+                   SharedVulkanRenderState* render_state,
                    ScopedProfilerNode& prof);
-  bool setup_for_level(const std::string& str, SharedRenderState* render_state);
-
-  struct WindWork {
-    u32 paused;
-    u32 pad[3];
-    math::Vector4f wind_array[64];
-    math::Vector4f wind_normal;
-    math::Vector4f wind_temp;
-    float wind_force[64];
-    u32 wind_time;
-    u32 pad2[3];
-  } m_wind_data;
+  bool setup_for_level(const std::string& str, BaseSharedRenderState* render_state) override;
 
   int lod() const { return Gfx::g_global_settings.lod_tie; }
 
  private:
-  void InitializeVertexBuffer(SharedRenderState* render_state);
-  void update_load(const LevelData* loader_data);
-  void discard_tree_cache();
+  void InitializeInputAttributes();
+  void discard_tree_cache() override;
   void render_tree_wind(int idx,
                         int geom,
                         const TfragRenderSettings& settings,
-                        SharedRenderState* render_state,
+                        SharedVulkanRenderState* render_state,
                         ScopedProfilerNode& prof);
 
   struct Tree {
     VertexBuffer* vertex_buffer = nullptr;
     IndexBuffer* index_buffer = nullptr;
     IndexBuffer* single_draw_index_buffer = nullptr;
-    TextureInfo* time_of_day_texture = nullptr;
+    VulkanTexture* time_of_day_texture = nullptr;
     u32 vert_count;
     const std::vector<tfrag3::StripDraw>* draws = nullptr;
     const std::vector<tfrag3::InstancedStripDraw>* wind_draws = nullptr;
@@ -87,43 +76,9 @@ class Tie3 : public BucketRenderer {
   };
 
   std::array<std::vector<Tree>, 4> m_trees;  // includes 4 lods!
-  std::string m_level_name;
-  std::vector<TextureInfo>* m_textures;
-  u64 m_load_id = -1;
+  std::vector<VulkanTexture>* m_textures;
 
-  struct Cache {
-    std::vector<std::pair<int, int>> draw_idx_temp;
-    std::vector<u32> index_temp;
-    std::vector<u8> vis_temp;
-    std::vector<std::pair<int, int>> multidraw_offset_per_stripdraw;
-    std::vector<GLsizei> multidraw_count_buffer;
-    std::vector<void*> multidraw_index_offset_buffer;
-  } m_cache;
-
-  std::vector<math::Vector<u8, 4>> m_color_result;
-
-  static constexpr int TIME_OF_DAY_COLOR_COUNT = 8192;
-
-  bool m_has_level = false;
-  char m_user_level[255] = "vi1";
-  std::optional<std::string> m_pending_user_level = std::nullopt;
-  bool m_override_level = false;
-  bool m_use_fast_time_of_day = true;
-  bool m_debug_wireframe = false;
-  bool m_debug_all_visible = false;
-  bool m_hide_wind = false;
-  Filtered<float> m_all_tree_time;
-
-  TfragPcPortData m_pc_port_data;
-
-  std::vector<float> m_wind_vectors;  // note: I suspect these are shared with shrub.
-
-  float m_wind_multiplier = 1.f;
-
-  int m_level_id;
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color;
-  std::vector<TextureInfo> textures[tfrag3::TIE_GEOS];
-
-  static_assert(sizeof(WindWork) == 84 * 16);
+  std::vector<VulkanTexture> textures[tfrag3::TIE_GEOS];
 };

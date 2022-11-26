@@ -159,11 +159,11 @@ void SwapChain::createSwapChain() {
   // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
   // retrieve the handles.
   vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, nullptr);
-  swapChainImages.resize(imageCount, TextureInfo{device});
+  swapChainImages.resize(imageCount, VulkanTexture{device});
 
   std::vector<VkImage> images;
   for (uint32_t i = 0; i < imageCount; i++) {
-    images.push_back(swapChainImages[i].GetImage());
+    images.push_back(swapChainImages[i].getImage());
   }
   vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, images.data());
 
@@ -172,16 +172,16 @@ void SwapChain::createSwapChain() {
 
 void SwapChain::createImageViews() {
   for (int i = 0; i < imageCount(); i++) {
-    swapChainImages[i].CreateImage(
+    swapChainImages[i].createImage(
         {
             swapChainExtent.width,
             swapChainExtent.height,
             1,
         },
         1, VK_IMAGE_TYPE_2D, device->getMsaaCount(), swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-    swapChainImages[i].CreateImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat,
+    swapChainImages[i].createImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat,
                                        VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
 }
@@ -250,7 +250,7 @@ void SwapChain::createRenderPass() {
 void SwapChain::createFramebuffers() {
   swapChainFramebuffers.resize(imageCount());
   for (size_t i = 0; i < imageCount(); i++) {
-    std::array<VkImageView, 2> attachments = {swapChainImages[i].GetImageView(), depthImages[i].GetImageView()};
+    std::array<VkImageView, 2> attachments = {swapChainImages[i].getImageView(), depthImages[i].getImageView()};
 
     VkExtent2D swapChainExtent = getSwapChainExtent();
     VkFramebufferCreateInfo framebufferInfo = {};
@@ -274,17 +274,17 @@ void SwapChain::createDepthResources() {
   swapChainDepthFormat = depthFormat;
   VkExtent2D swapChainExtent = getSwapChainExtent();
 
-  depthImages.resize(imageCount(), TextureInfo{device});
+  depthImages.resize(imageCount(), VulkanTexture{device});
   for (int i = 0; i < imageCount(); i++) {
-    depthImages[i].CreateImage({
+    depthImages[i].createImage({
         swapChainExtent.width,
         swapChainExtent.height,
         1,
     }, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(),
     depthFormat, VK_IMAGE_TILING_OPTIMAL,
-    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-   depthImages[i].CreateImageView(
+   depthImages[i].createImageView(
         VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
   }
 }
@@ -359,13 +359,47 @@ VkFormat SwapChain::findDepthFormat() {
       VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
+void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,
+                                  std::unique_ptr<VertexBuffer>& vertex_buffer,
+                                  VkPipelineLayout& pipeline_layout,
+                                  std::vector<VkDescriptorSet>& descriptors,
+                                  uint32_t imageIndex) {
+  VkViewport viewport{};
+  viewport.x = 0.0f;
+  viewport.y = 0.0f;
+  viewport.width = (float)swapChainExtent.width;
+  viewport.height = (float)swapChainExtent.height;
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;
+  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
-void SwapChain::recordCommandBuffer(VkCommandBuffer commandBuffer,
-                                    std::unique_ptr<VertexBuffer>& vertex_buffer,
-                                    std::unique_ptr<IndexBuffer>& index_buffer,
-                                    VkPipelineLayout& pipeline_layout,
-                                    std::vector<VkDescriptorSet>& descriptors,
-                                    uint32_t imageIndex) {
+  VkRect2D scissor{};
+  scissor.offset = {0, 0};
+  scissor.extent = swapChainExtent;
+  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1,
+                          &descriptors[currentFrame], 0, nullptr);
+
+  vkCmdDraw(commandBuffer, vertex_buffer->getBufferSize(), 0, 0, 0);
+
+  vkCmdEndRenderPass(commandBuffer);
+
+  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+    throw std::runtime_error("failed to record command buffer!");
+  }
+}
+
+void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
+                                         std::unique_ptr<VertexBuffer>& vertex_buffer,
+                                         std::unique_ptr<IndexBuffer>& index_buffer,
+                                         VkPipelineLayout& pipeline_layout,
+                                         std::vector<VkDescriptorSet>& descriptors,
+                                         uint32_t imageIndex) {
   VkViewport viewport{};
   viewport.x = 0.0f;
   viewport.y = 0.0f;

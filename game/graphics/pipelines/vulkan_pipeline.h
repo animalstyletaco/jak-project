@@ -9,18 +9,9 @@
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
 
+#include "game/graphics/pipelines/pipeline_common.h"
+
 #include "game/graphics/vulkan_renderer/vulkan_utils/ImguiVulkanHelper.h"
-
-enum GlfwKeyAction {
-  Release = GLFW_RELEASE,  // falling edge of key press
-  Press = GLFW_PRESS,      // rising edge of key press
-  Repeat = GLFW_REPEAT     // repeated input on hold e.g. when typing something
-};
-
-enum GlfwKeyCustomAxis {
-  CURSOR_X_AXIS = GLFW_GAMEPAD_AXIS_LAST + 1,
-  CURSOR_Y_AXIS = GLFW_GAMEPAD_AXIS_LAST + 2
-};
 
 class VkDisplay : public GfxDisplay {
  public:
@@ -95,6 +86,3 @@ class VkDisplay : public GfxDisplay {
 };
 
 extern const GfxRendererModule gRendererVulkan;
-namespace glfw {
-static const int NUM_KEYS = GLFW_KEY_LAST + GLFW_MOUSE_BUTTON_LAST + 1;
-}

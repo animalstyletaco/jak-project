@@ -24,6 +24,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   vec4 xy_array[8];
   vec4 xyz_array[4];
   vec4 st_array[4];
+  float height_scale;
 }ubo;
 
 layout (location = 0) out flat vec4 fragment_color;
@@ -171,7 +172,7 @@ void main() {
     // hack
     transformed.xyz *= transformed.w;
     // scissoring area adjust
-    transformed.y *= SCISSOR_ADJUST;
+    transformed.y *= (SCISSOR_ADJUST * ubo.height_scale);
     gl_Position = transformed;
 
     fragment_color *= 2;

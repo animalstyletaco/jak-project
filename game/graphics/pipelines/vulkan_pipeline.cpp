@@ -20,9 +20,9 @@
 
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
-#include "game/graphics/vulkan_renderer/debug_gui.h"
+#include "game/graphics/general_renderer/debug_gui.h"
 #include "game/graphics/vulkan_renderer/VulkanRenderer.h"
-#include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
+#include "game/graphics/texture/TexturePoolVulkan.h"
 #include "game/runtime.h"
 #include "game/system/newpad.h"
 
@@ -31,8 +31,6 @@
 #include "third-party/stb_image/stb_image.h"
 
 namespace {
-
-constexpr bool run_dma_copy = false;
 
 struct VulkanGraphicsData {
   // vsync
@@ -48,13 +46,13 @@ struct VulkanGraphicsData {
   FixedChunkDmaCopier dma_copier;
 
   // texture pool
-  std::shared_ptr<TexturePool> texture_pool;
+  std::shared_ptr<TexturePoolVulkan> texture_pool;
 
-  std::shared_ptr<Loader> loader;
+  std::shared_ptr<VulkanLoader> loader;
 
   VulkanRenderer vulkan_renderer;
 
-  VulkanDebugGui debug_gui;
+  OpenGlDebugGui debug_gui;
 
   FrameLimiter frame_limiter;
   Timer engine_timer;
@@ -66,10 +64,10 @@ struct VulkanGraphicsData {
 
   VulkanGraphicsData(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& vulkan_device)
       : dma_copier(EE_MAIN_MEM_SIZE),
-        texture_pool(std::make_shared<TexturePool>(vulkan_device)),
-        loader(std::make_shared<Loader>(vulkan_device, file_util::get_jak_project_dir() / "out" /
-                                        game_version_names[version] / "fr3")),
-        vulkan_renderer(texture_pool, loader, vulkan_device),
+        texture_pool(std::make_shared<TexturePoolVulkan>(vulkan_device)),
+        loader(std::make_shared<VulkanLoader>(vulkan_device, file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
+            pipeline_common::fr3_level_count[version])),
+        vulkan_renderer(texture_pool, loader, version, vulkan_device),
         version(version) {}
 };
 
@@ -386,14 +384,14 @@ static bool endsWith(std::string_view str, std::string_view suffix) {
          0 == str.compare(str.size() - suffix.size(), suffix.size(), suffix);
 }
 
-void render_game_frame(int game_width,
-                       int game_height,
-                       int window_fb_width,
-                       int window_fb_height,
-                       int draw_region_width,
-                       int draw_region_height,
-                       int msaa_samples,
-                       bool windows_borderless_hack) {
+void vulkan_render_game_frame(int game_width,
+                              int game_height,
+                              int window_fb_width,
+                              int window_fb_height,
+                              int draw_region_width,
+                              int draw_region_height,
+                              int msaa_samples,
+                              bool windows_borderless_hack) {
   // wait for a copied chain.
   bool got_chain = false;
   {
@@ -419,7 +417,7 @@ void render_game_frame(int game_width,
     options.draw_profiler_window = g_gfx_data->debug_gui.should_draw_profiler();
     options.draw_subtitle_editor_window = g_gfx_data->debug_gui.should_draw_subtitle_editor();
     options.save_screenshot = false;
-    options.gpu_sync = g_gfx_data->debug_gui.should_vk_finish();
+    options.gpu_sync = g_gfx_data->debug_gui.should_gl_finish();
     options.borderless_windows_hacks = windows_borderless_hack;
     if (g_gfx_data->debug_gui.get_screenshot_flag()) {
       options.save_screenshot = true;
@@ -445,14 +443,16 @@ void render_game_frame(int game_width,
       }
       options.screenshot_path = make_output_file_name(temp_path);
     }
-    if constexpr (run_dma_copy) {
+    if constexpr (pipeline_common::run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
-      g_gfx_data->vulkan_renderer.render(DmaFollower(chain.data.data(), chain.start_offset), options);
+      g_gfx_data->vulkan_renderer.render(DmaFollower(chain.data.data(), chain.start_offset),
+                                         options);
     } else {
       auto p = scoped_prof("ogl-render");
-      g_gfx_data->vulkan_renderer.render(DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
-                                                  g_gfx_data->dma_copier.get_last_input_offset()),
-                                      options);
+      g_gfx_data->vulkan_renderer.render(
+          DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
+                      g_gfx_data->dma_copier.get_last_input_offset()),
+          options);
     }
   }
 
@@ -753,9 +753,9 @@ void VkDisplay::render() {
       game_res_w = 640;
       game_res_h = 480;
     }
-    render_game_frame(game_res_w, game_res_h, fbuf_w, fbuf_h, Gfx::g_global_settings.lbox_w,
-                      Gfx::g_global_settings.lbox_h, Gfx::g_global_settings.msaa_samples,
-                      windows_borderless_hacks);
+    vulkan_render_game_frame(game_res_w, game_res_h, fbuf_w, fbuf_h, Gfx::g_global_settings.lbox_w,
+                             Gfx::g_global_settings.lbox_h, Gfx::g_global_settings.msaa_samples,
+                             windows_borderless_hacks);
   }
 
   // render debug
@@ -781,7 +781,7 @@ void VkDisplay::render() {
         Gfx::g_global_settings.sleep_in_frame_limiter, g_gfx_data->last_engine_time);
   }
   // actually wait for vsync
-  if (g_gfx_data->debug_gui.should_vk_finish()) {
+  if (g_gfx_data->debug_gui.should_gl_finish()) {
     //glFinish();
   }
 
@@ -871,7 +871,7 @@ void vk_send_chain(const void* data, u32 offset) {
     // The renderers should just operate on DMA chains, so eliminating this step in the future may
     // be easy.
 
-    g_gfx_data->dma_copier.set_input_data(data, offset, run_dma_copy);
+    g_gfx_data->dma_copier.set_input_data(data, offset, pipeline_common::run_dma_copy);
 
     g_gfx_data->has_data_to_render = true;
     g_gfx_data->dma_cv.notify_all();

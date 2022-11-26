@@ -1,113 +1,39 @@
-#include "BucketRenderer.h"
+#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-std::string BucketRenderer::name_and_id() const {
-  return fmt::format("[{:2d}] {}", (int)m_my_id, m_name);
+EmptyBucketVulkanRenderer::EmptyBucketVulkanRenderer(const std::string& name,
+                                                     int m_my_id,
+                                                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                     VulkanInitializationInfo& vulkan_info)
+    : BaseEmptyBucketRenderer(name, m_my_id), BucketVulkanRenderer(device, vulkan_info) {
 }
 
-EmptyBucketRenderer::EmptyBucketRenderer(const std::string& name,
-                                         BucketId my_id,
-                                         std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                         VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, device, vulkan_info) {}
-
-void EmptyBucketRenderer::render(DmaFollower& dma,
-                                 SharedRenderState* render_state,
-                                 ScopedProfilerNode& /*prof*/) {
-  // an empty bucket should have 4 things:
-  // a NEXT in the bucket buffer
-  // a CALL that calls the default register buffer chain
-  // a CNT then RET to get out of the default register buffer chain
-  // a NEXT to get to the next bucket.
-
-  // NEXT
-  auto first_tag = dma.current_tag();
-  dma.read_and_advance();
-  ASSERT(first_tag.kind == DmaTag::Kind::NEXT && first_tag.qwc == 0);
-
-  // CALL
-  auto call_tag = dma.current_tag();
-  dma.read_and_advance();
-  if (!(call_tag.kind == DmaTag::Kind::CALL && call_tag.qwc == 0)) {
-    fmt::print("Bucket renderer {} ({}) was supposed to be empty, but wasn't\n", m_my_id, m_name);
-  }
-  ASSERT(call_tag.kind == DmaTag::Kind::CALL && call_tag.qwc == 0);
-
-  // in the default reg buffer:
-  ASSERT(dma.current_tag_offset() == render_state->default_regs_buffer);
-  dma.read_and_advance();
-  ASSERT(dma.current_tag().kind == DmaTag::Kind::RET);
-  dma.read_and_advance();
-
-  // NEXT to next buffer
-  auto to_next_buffer = dma.current_tag();
-  ASSERT(to_next_buffer.kind == DmaTag::Kind::NEXT);
-  ASSERT(to_next_buffer.qwc == 0);
-  dma.read_and_advance();
-
-  // and we should now be in the next bucket!
-  ASSERT(dma.current_tag_offset() == render_state->next_bucket);
-}
-
-SkipRenderer::SkipRenderer(const std::string& name,
-                           BucketId my_id,
+SkipVulkanRenderer::SkipVulkanRenderer(const std::string& name,
+                                       int m_my_id,
                            std::unique_ptr<GraphicsDeviceVulkan>& device,
                            VulkanInitializationInfo& vulkan_info)
-    : BucketRenderer(name, my_id, device, vulkan_info) {}
+    : BaseSkipRenderer(name, m_my_id), BucketVulkanRenderer(device, vulkan_info) {}
 
-void SkipRenderer::render(DmaFollower& dma,
-                          SharedRenderState* render_state,
-                          ScopedProfilerNode& /*prof*/) {
-  while (dma.current_tag_offset() != render_state->next_bucket) {
-    dma.read_and_advance();
-  }
-}
-
-void SharedRenderState::reset() {
-  has_pc_data = false;
-  for (auto& x : occlusion_vis) {
-    x.valid = false;
-  }
-  load_status_debug.clear();
-}
-
-RenderMux::RenderMux(const std::string& name,
-                     BucketId my_id,
+RenderVulkanMux::RenderVulkanMux(const std::string& name,
+                                 int m_my_id,
                      std::unique_ptr<GraphicsDeviceVulkan>& device,
                      VulkanInitializationInfo& vulkan_info,
-                     std::vector<std::unique_ptr<BucketRenderer>> renderers)
-    : BucketRenderer(name, my_id, device, vulkan_info), m_renderers(std::move(renderers)) {
-  for (auto& r : m_renderers) {
-    m_name_strs.push_back(r->name_and_id());
-  }
-  for (auto& n : m_name_strs) {
-    m_name_str_ptrs.push_back(n.data());
-  }
+                     std::vector<std::shared_ptr<BucketVulkanRenderer>> renderers,
+                     std::vector<std::shared_ptr<BaseBucketRenderer>> bucket_renderers)
+    : BucketVulkanRenderer(device, vulkan_info), BaseRenderMux(name, m_my_id), m_graphics_renderers(renderers), m_bucket_renderers(bucket_renderers) {
 }
 
-void RenderMux::render(DmaFollower& dma,
-                       SharedRenderState* render_state,
+void RenderVulkanMux::render(DmaFollower& dma,
+                       SharedVulkanRenderState* render_state,
                        ScopedProfilerNode& prof) {
-  m_renderers[m_render_idx]->enabled() = m_enabled;
-  m_renderers[m_render_idx]->render(dma, render_state, prof);
+  m_bucket_renderers[m_render_idx]->enabled() = m_enabled;
+  m_graphics_renderers[m_render_idx]->render(dma, render_state, prof);
 }
 
-void RenderMux::draw_debug_window() {
-  ImGui::ListBox("Pick", &m_render_idx, m_name_str_ptrs.data(), m_renderers.size());
-  ImGui::Separator();
-  m_renderers[m_render_idx]->draw_debug_window();
-}
-
-void RenderMux::init_textures(TexturePool& tp) {
-  for (auto& rend : m_renderers) {
+void RenderVulkanMux::init_textures(TexturePoolVulkan& tp) {
+  for (auto& rend : m_graphics_renderers) {
     rend->init_textures(tp);
-  }
-}
-
-void RenderMux::init_shaders(ShaderLibrary& sl) {
-  for (auto& rend : m_renderers) {
-    rend->init_shaders(sl);
   }
 }

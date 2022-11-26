@@ -3,14 +3,14 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Tfrag3::Tfrag3(VulkanInitializationInfo& vulkan_info,
+Tfrag3Vulkan::Tfrag3Vulkan(VulkanInitializationInfo& vulkan_info,
        PipelineConfigInfo& pipeline_config_info,
        GraphicsPipelineLayout& pipeline_layout,
        std::unique_ptr<DescriptorWriter>& vertex_description_writer,
        std::unique_ptr<DescriptorWriter>& fragment_description_writer,
        std::unique_ptr<BackgroundCommonVertexUniformBuffer>& vertex_shader_uniform_buffer,
        std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& fragment_shader_uniform_buffer) :
-  m_pipeline_config_info(pipeline_config_info), m_pipeline_layout(pipeline_layout),
+  m_pipeline_config_info(pipeline_config_info), m_pipeline_layout(pipeline_layout), m_vulkan_info(vulkan_info),
   m_vertex_descriptor_writer(vertex_description_writer), m_fragment_descriptor_writer(fragment_description_writer),
   m_vertex_shader_uniform_buffer(vertex_shader_uniform_buffer), m_time_of_day_color(fragment_shader_uniform_buffer){
 
@@ -38,12 +38,12 @@ Tfrag3::Tfrag3(VulkanInitializationInfo& vulkan_info,
   m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
 }
 
-Tfrag3::~Tfrag3() {
+Tfrag3Vulkan::~Tfrag3Vulkan() {
   discard_tree_cache();
 }
 
-void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
-                         const LevelData* loader_data) {
+void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
+                         const BaseLevelData* loader_data) {
   const auto* lev_data = loader_data->level.get();
   discard_tree_cache();
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
@@ -76,13 +76,11 @@ void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kind
         time_of_day_count = std::max(tree.colors.size(), time_of_day_count);
         u32 verts = tree.packed_vertices.vertices.size();
 
-        tree_cache.vertex_buffer = loader_data->tfrag_vertex_data[geom][tree_idx].get();
         tree_cache.vert_count = verts;
         tree_cache.draws = &tree.draws;  // todo - should we just copy this?
         tree_cache.colors = &tree.colors;
         tree_cache.vis = &tree.bvh;
-        tree_cache.index_data = tree.unpacked.indices.data();
-        tree_cache.tod_cache = vk_common_background_renderer::swizzle_time_of_day(tree.colors);
+        tree_cache.tod_cache = background_common::swizzle_time_of_day(tree.colors);
         tree_cache.draw_mode = tree.use_strips ? GL_TRIANGLE_STRIP : GL_TRIANGLES;
         vis_temp_len = std::max(vis_temp_len, tree.bvh.vis_nodes.size());
 
@@ -104,13 +102,12 @@ void Tfrag3::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kind
   ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
 }
 
-
-bool Tfrag3::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
+bool Tfrag3Vulkan::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                              const std::string& level,
-                             SharedRenderState* render_state) {
+                             BaseSharedRenderState* render_state) {
   // make sure we have the level data.
   Timer tfrag3_setup_timer;
-  auto lev_data = render_state->loader->get_tfrag3_level(level);
+  auto lev_data = m_vulkan_info.loader->get_tfrag3_level(level);
   if (!lev_data || (m_has_level && lev_data->load_id != m_load_id)) {
     m_has_level = false;
     m_textures = nullptr;
@@ -130,15 +127,16 @@ bool Tfrag3::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_
   }
 
   if (tfrag3_setup_timer.getMs() > 5) {
-    fmt::print("TFRAG setup: {:.1f}ms\n", tfrag3_setup_timer.getMs());
+    lg::info("TFRAG setup: {:.1f}ms", tfrag3_setup_timer.getMs());
   }
 
   return m_has_level;
 }
 
-void Tfrag3::render_tree(int geom,
+
+void Tfrag3Vulkan::render_tree(int geom,
                          const TfragRenderSettings& settings,
-                         SharedRenderState* render_state,
+                         BaseSharedRenderState* render_state,
                          ScopedProfilerNode& prof) {
   if (!m_has_level) {
     return;
@@ -150,43 +148,40 @@ void Tfrag3::render_tree(int geom,
     m_color_result.resize(tree.colors->size());
   }
   if (m_use_fast_time_of_day) {
-    vk_common_background_renderer::interp_time_of_day_fast(settings.time_of_day_weights, tree.tod_cache, m_color_result.data());
+    background_common::interp_time_of_day_fast(settings.itimes, tree.tod_cache, m_color_result.data());
   } else {
-    vk_common_background_renderer::interp_time_of_day_slow(settings.time_of_day_weights, *tree.colors, m_color_result.data());
+    background_common::interp_time_of_day_slow(settings.itimes, *tree.colors, m_color_result.data());
   }
 
-  TextureInfo timeOfDayTexture{m_vertex_shader_uniform_buffer->getDevice()};
+  VulkanTexture timeOfDayTexture{m_vertex_shader_uniform_buffer->getDevice()};
   VkDeviceSize size = m_color_result.size() * sizeof(m_color_result[0]);
 
   VkExtent3D extents{tree.colors->size(), 1, 1};
-  timeOfDayTexture.CreateImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
+  timeOfDayTexture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
                                VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
-                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
-  timeOfDayTexture.CreateImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+  timeOfDayTexture.createImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-  timeOfDayTexture.map();
-  timeOfDayTexture.writeToBuffer(m_color_result.data());
-  timeOfDayTexture.unmap();
+  timeOfDayTexture.writeToImage(m_color_result.data());
 
-  vk_common_background_renderer::first_tfrag_draw_setup(settings, render_state,
+  background_common::first_tfrag_draw_setup(settings, render_state,
                                                         m_vertex_shader_uniform_buffer);
 
-  vk_common_background_renderer::cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
+  background_common::cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
                       m_cache.vis_temp.data());
 
   u32 total_tris;
   if (render_state->no_multidraw) {
-    u32 idx_buffer_size = vk_common_background_renderer::make_index_list_from_vis_string(
+    u32 idx_buffer_size = background_common::make_index_list_from_vis_string(
         m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, m_cache.vis_temp,
         tree.index_data, &total_tris);
     //CreateIndexBuffer(m_cache.index_temp);
     //glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx_buffer_size * sizeof(u32), m_cache.index_temp.data(),
     //             GL_STREAM_DRAW);
   } else {
-    total_tris = vk_common_background_renderer::make_multidraws_from_vis_string(
+    total_tris = background_common::make_multidraws_from_vis_string(
         m_cache.multidraw_offset_per_stripdraw.data(), m_cache.multidraw_count_buffer.data(),
         m_cache.multidraw_index_offset_buffer.data(), *tree.draws, m_cache.vis_temp);
   }
@@ -209,7 +204,7 @@ void Tfrag3::render_tree(int geom,
     }
 
     ASSERT(m_textures);
-    auto double_draw = vk_common_background_renderer::setup_tfrag_shader(render_state, draw.mode, m_textures->at(draw.tree_tex_id), m_pipeline_config_info,
+    auto double_draw = background_common::setup_tfrag_shader(render_state, draw.mode, (VulkanTexture*)&m_textures->at(draw.tree_tex_id), m_pipeline_config_info,
         m_time_of_day_color);
     tree.tris_this_frame += draw.num_triangles;
     tree.draws_this_frame++;
@@ -254,9 +249,9 @@ void Tfrag3::render_tree(int geom,
  * This is intended to be used only for debugging when we can't easily get commands for all trees
  * working.
  */
-void Tfrag3::render_all_trees(int geom,
+void Tfrag3Vulkan::render_all_trees(int geom,
                               const TfragRenderSettings& settings,
-                              SharedRenderState* render_state,
+                              BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
@@ -267,10 +262,10 @@ void Tfrag3::render_all_trees(int geom,
   }
 }
 
-void Tfrag3::render_matching_trees(int geom,
+void Tfrag3Vulkan::render_matching_trees(int geom,
                                    const std::vector<tfrag3::TFragmentTreeKind>& trees,
                                    const TfragRenderSettings& settings,
-                                   SharedRenderState* render_state,
+                                   BaseSharedRenderState* render_state,
                                    ScopedProfilerNode& prof) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
@@ -290,28 +285,7 @@ void Tfrag3::render_matching_trees(int geom,
   }
 }
 
-void Tfrag3::draw_debug_window() {
-  for (int i = 0; i < (int)m_cached_trees.at(lod()).size(); i++) {
-    auto& tree = m_cached_trees.at(lod()).at(i);
-    if (tree.kind == tfrag3::TFragmentTreeKind::INVALID) {
-      continue;
-    }
-    ImGui::PushID(i);
-    ImGui::Text("[%d] %10s", i, tfrag3::tfrag_tree_names[(int)m_cached_trees[lod()][i].kind]);
-    ImGui::SameLine();
-    ImGui::Checkbox("Allow?", &tree.allowed);
-    ImGui::SameLine();
-    ImGui::Checkbox("Force?", &tree.forced);
-    ImGui::SameLine();
-    ImGui::Checkbox("cull debug (slow)", &tree.cull_debug);
-    ImGui::PopID();
-    if (tree.rendered_this_frame) {
-      ImGui::Text("  tris: %d draws: %d", tree.tris_this_frame, tree.draws_this_frame);
-    }
-  }
-}
-
-void Tfrag3::discard_tree_cache() {
+void Tfrag3Vulkan::discard_tree_cache() {
   m_textures = nullptr;
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
     for (auto& tree : m_cached_trees[geom]) {
@@ -323,87 +297,8 @@ void Tfrag3::discard_tree_cache() {
   }
 }
 
-namespace {
-
-float frac(float in) {
-  return in - (int)in;
-}
-
-void debug_vis_draw(int first_root,
-                    int tree,
-                    int num,
-                    int depth,
-                    const std::vector<tfrag3::VisNode>& nodes,
-                    std::vector<Tfrag3::DebugVertex>& verts_out) {
-  for (int ki = 0; ki < num; ki++) {
-    auto& node = nodes.at(ki + tree - first_root);
-    ASSERT(node.child_id != 0xffff);
-    math::Vector4f rgba{frac(0.4 * depth), frac(0.7 * depth), frac(0.2 * depth), 0.06};
-    math::Vector3f center = node.bsphere.xyz();
-    float rad = node.bsphere.w();
-    math::Vector3f corners[8] = {center, center, center, center};
-    corners[0].x() += rad;
-    corners[1].x() += rad;
-    corners[2].x() -= rad;
-    corners[3].x() -= rad;
-
-    corners[0].y() += rad;
-    corners[1].y() -= rad;
-    corners[2].y() += rad;
-    corners[3].y() -= rad;
-
-    for (int i = 0; i < 4; i++) {
-      corners[i + 4] = corners[i];
-      corners[i].z() += rad;
-      corners[i + 4].z() -= rad;
-    }
-
-    if (true) {
-      for (int i : {0, 4}) {
-        verts_out.push_back({corners[0 + i], rgba});
-        verts_out.push_back({corners[1 + i], rgba});
-        verts_out.push_back({corners[2 + i], rgba});
-
-        verts_out.push_back({corners[1 + i], rgba});  // 0
-        verts_out.push_back({corners[3 + i], rgba});
-        verts_out.push_back({corners[2 + i], rgba});
-      }
-
-      for (int i : {2, 6, 7, 2, 3, 7, 0, 4, 5, 0, 5, 1, 0, 6, 4, 0, 6, 2, 1, 3, 7, 1, 5, 7}) {
-        verts_out.push_back({corners[i], rgba});
-      }
-
-      constexpr int border0[12] = {0, 4, 6, 2, 2, 6, 3, 7, 0, 1, 2, 3};
-      constexpr int border1[12] = {1, 5, 7, 3, 0, 4, 1, 5, 4, 5, 6, 7};
-      rgba.w() = 1.0;
-
-      for (int i = 0; i < 12; i++) {
-        auto p0 = corners[border0[i]];
-        auto p1 = corners[border1[i]];
-        auto diff = (p1 - p0).normalized();
-        math::Vector3f px = diff.z() == 0 ? math::Vector3f{1, 0, 1} : math::Vector3f{0, 1, 1};
-        auto off = diff.cross(px) * 2000;
-
-        verts_out.push_back({p0 + off, rgba});
-        verts_out.push_back({p0 - off, rgba});
-        verts_out.push_back({p1 - off, rgba});
-
-        verts_out.push_back({p0 + off, rgba});
-        verts_out.push_back({p1 + off, rgba});
-        verts_out.push_back({p1 - off, rgba});
-      }
-    }
-
-    if (node.flags) {
-      debug_vis_draw(first_root, node.child_id, node.num_kids, depth + 1, nodes, verts_out);
-    }
-  }
-}
-
-}  // namespace
-
-void Tfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
-                                    SharedRenderState* render_state,
+void Tfrag3Vulkan::render_tree_cull_debug(const TfragRenderSettings& settings,
+                                    BaseSharedRenderState* render_state,
                                     ScopedProfilerNode& prof) {
   // generate debug verts:
   m_debug_vert_data.clear();

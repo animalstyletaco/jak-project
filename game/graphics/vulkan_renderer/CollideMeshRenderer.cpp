@@ -1,24 +1,24 @@
 #include "CollideMeshRenderer.h"
 
+#include "game/graphics/display.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-CollideMeshRenderer::CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device) :
-      m_collision_mesh_vertex_uniform_buffer(device, sizeof(CollisionMeshVertexUniformShaderData), 1,
-          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-          1),
-      m_pipeline_layout{device} {
+CollideMeshRenderer::CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+      m_collision_mesh_vertex_uniform_buffer(device, sizeof(CollisionMeshVertexUniformShaderData), 1, 1),
+      m_pipeline_layout{device},
+      m_vulkan_info{vulkan_info} {
   InitializeInputVertexAttribute();
 }
 
 CollideMeshRenderer::~CollideMeshRenderer() {
 }
 
-void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void CollideMeshRenderer::render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
   if (!render_state->has_pc_data) {
     return;
   }
 
-  auto levels = render_state->loader->get_in_use_levels();
+  auto levels = m_vulkan_info.loader->get_in_use_levels();
   if (levels.empty()) {
     return;
   }
@@ -31,7 +31,7 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
   for (int i = 0; i < 4; i++) {
     settings.planes[i] = render_state->camera_planes[i];
   }
-  auto& shader = render_state->shaders[ShaderId::COLLISION];
+  auto& shader = m_vulkan_info.shaders[ShaderId::COLLISION];
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -160,9 +160,8 @@ CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
     VkDeviceSize instanceSize,
     uint32_t instanceCount,
-    VkMemoryPropertyFlags memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment)
-    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+    : UniformVulkanBuffer(device, instanceSize, instanceCount, minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"hvdf_offset", offsetof(CollisionMeshVertexUniformShaderData, hvdf_offset)},
       {"camera", offsetof(CollisionMeshVertexUniformShaderData, camera)},

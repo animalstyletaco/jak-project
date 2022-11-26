@@ -1,6 +1,6 @@
 #include "DepthCue.h"
 
-#include "game/graphics/vulkan_renderer/dma_helpers.h"
+#include "game/graphics/general_renderer/dma_helpers.h"
 
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
@@ -20,40 +20,35 @@ math::Vector2f fixed_to_floating_point(const math::Vector<s32, 2>& fixed_vec) {
 // Total number of loops depth-cue performs to draw to the framebuffer
 constexpr int TOTAL_DRAW_SLICES = 16;
 
-DepthCue::DepthCue(const std::string& name,
-                   BucketId my_id,
+DepthCueVulkan::DepthCueVulkan(const std::string& name,
+                   int my_id,
                    std::unique_ptr<GraphicsDeviceVulkan>& device,
                    VulkanInitializationInfo& vulkan_info)
-    :
-  BucketRenderer(name, my_id, device, vulkan_info) {
-  vulkan_setup();
+    : BaseDepthCue(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
+  graphics_setup();
 
   m_draw_slices.resize(TOTAL_DRAW_SLICES);
 }
 
-void DepthCue::vulkan_setup() {
+void DepthCueVulkan::graphics_setup() {
   m_depth_cue_vertex_uniform_buffer = std::make_unique<DepthCueVertexUniformBuffer>(
-      m_device, sizeof(DepthCueVertexUniformData), 1,
-      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+      m_device, sizeof(DepthCueVertexUniformData), 1, 1);
 
-  m_depth_cue_fragment_uniform_buffer = std::make_unique<UniformBuffer>(
-    m_device, sizeof(uint32_t), 1,
-    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+  m_depth_cue_fragment_uniform_buffer = std::make_unique<UniformVulkanBuffer>(
+    m_device, sizeof(uint32_t), 1, 1);
 
   // Gen texture for sampling the framebuffer
-  m_ogl.framebuffer_sample_fbo = std::make_unique<TextureInfo>(m_device);
-  m_ogl.framebuffer_sample_tex = std::make_unique<TextureInfo>(m_device);
+  m_ogl.framebuffer_sample_fbo = std::make_unique<VulkanTexture>(m_device);
+  m_ogl.framebuffer_sample_tex = std::make_unique<VulkanTexture>(m_device);
 
-  m_ogl.fbo = std::make_unique<TextureInfo>(m_device);
-  m_ogl.fbo_texture = std::make_unique<TextureInfo>(m_device);
+  m_ogl.fbo = std::make_unique<VulkanTexture>(m_device);
+  m_ogl.fbo_texture = std::make_unique<VulkanTexture>(m_device);
 
   m_ogl.depth_cue_page_vertex_buffer = std::make_unique<VertexBuffer>(
-      m_device, sizeof(SpriteVertex), 4,
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+      m_device, sizeof(SpriteVertex), 4, 1);
 
   m_ogl.on_screen_vertex_buffer = std::make_unique<VertexBuffer>(
-      m_device, sizeof(SpriteVertex), 4,
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+      m_device, sizeof(SpriteVertex), 4, 1);
 
   VkSamplerCreateInfo samplerInfo{};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -110,175 +105,29 @@ void DepthCue::vulkan_setup() {
   m_pipeline_config_info.attributeDescriptions.insert(
       m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
       attributeDescriptions.end());
+
+    // Activate shader
+  auto& shader = m_vulkan_info.shaders[ShaderId::DEPTH_CUE];
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Depth Cue Fragment";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Depth Cue Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
 
-void DepthCue::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  // First thing should be a NEXT with two nops. this is a jump from buckets to depth-cue
-  auto data0 = dma.read_and_advance();
-  ASSERT(data0.vif1() == 0);
-  ASSERT(data0.vif0() == 0);
-  ASSERT(data0.size_bytes == 0);
-
-  if (dma.current_tag().kind == DmaTag::Kind::CALL) {
-    // depth-cue renderer didn't run, let's just get out of here.
-    for (int i = 0; i < 4; i++) {
-      dma.read_and_advance();
-    }
-    ASSERT(dma.current_tag_offset() == render_state->next_bucket);
-    return;
-  }
-
-  // Read DMA
-  {
-    auto prof_node = prof.make_scoped_child("dma");
-    read_dma(dma, render_state, prof_node);
-  }
-
-  if (!m_enabled) {
-    // Renderer disabled, stop early
-    return;
-  }
-
-  // Set up draw info
-  {
-    auto prof_node = prof.make_scoped_child("setup");
-    setup(render_state, prof_node);
-  }
-
-  // Draw
-  {
-    auto prof_node = prof.make_scoped_child("drawing");
-    draw(render_state, prof_node);
-  }
+void DepthCueVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  BaseDepthCue::render(dma, render_state, prof);
 }
 
-/*!
- * Reads all depth-cue DMA packets.
- */
-void DepthCue::read_dma(DmaFollower& dma,
-                        SharedRenderState* render_state,
-                        ScopedProfilerNode& /*prof*/) {
-  // First should be general GS register setup
-  {
-    auto gs_setup = dma.read_and_advance();
-    ASSERT(gs_setup.size_bytes == sizeof(DepthCueGsSetup));
-    ASSERT(gs_setup.vifcode0().kind == VifCode::Kind::NOP);
-    ASSERT(gs_setup.vifcode1().kind == VifCode::Kind::DIRECT);
-    memcpy(&m_gs_setup, gs_setup.data, sizeof(DepthCueGsSetup));
-
-    ASSERT(m_gs_setup.gif_tag.nreg() == 6);
-    ASSERT(m_gs_setup.gif_tag.reg(0) == GifTag::RegisterDescriptor::AD);
-
-    ASSERT(m_gs_setup.test1.ztest() == GsTest::ZTest::ALWAYS);
-    ASSERT(m_gs_setup.zbuf1.zmsk() == true);
-    ASSERT(m_gs_setup.tex1.mmag() == true);
-    ASSERT(m_gs_setup.tex1.mmin() == 1);
-    ASSERT(m_gs_setup.miptbp1 == 0);
-    ASSERT(m_gs_setup.alpha1.b_mode() == GsAlpha::BlendMode::DEST);
-    ASSERT(m_gs_setup.alpha1.d_mode() == GsAlpha::BlendMode::DEST);
-  }
-
-  // Next is 64 DMAs to draw to the depth-cue-base-page and back to the on-screen framebuffer
-  // We'll group these by each slice of the framebuffer being drawn to
-  for (int i = 0; i < TOTAL_DRAW_SLICES; i++) {
-    // Each 'slice' should be:
-    // 1. GS setup for drawing from on-screen framebuffer to depth-cue-base-page
-    // 2. Draw to depth-cue-base-page
-    // 3. GS setup for drawing from depth-cue-base-page back to on-screen framebuffer
-    // 4. Draw to on-screen framebuffer
-    DrawSlice& slice = m_draw_slices.at(i);
-
-    // depth-cue-base-page setup
-    {
-      auto depth_cue_page_setup = dma.read_and_advance();
-      ASSERT(depth_cue_page_setup.size_bytes == sizeof(DepthCuePageGsSetup));
-      ASSERT(depth_cue_page_setup.vifcode0().kind == VifCode::Kind::NOP);
-      ASSERT(depth_cue_page_setup.vifcode1().kind == VifCode::Kind::DIRECT);
-      memcpy(&slice.depth_cue_page_setup, depth_cue_page_setup.data, sizeof(DepthCuePageGsSetup));
-
-      ASSERT(slice.depth_cue_page_setup.gif_tag.nreg() == 5);
-      ASSERT(slice.depth_cue_page_setup.gif_tag.reg(0) == GifTag::RegisterDescriptor::AD);
-
-      ASSERT(slice.depth_cue_page_setup.tex01.tcc() == 1);
-      ASSERT(slice.depth_cue_page_setup.test1.ztest() == GsTest::ZTest::ALWAYS);
-      ASSERT(slice.depth_cue_page_setup.alpha1.b_mode() == GsAlpha::BlendMode::SOURCE);
-      ASSERT(slice.depth_cue_page_setup.alpha1.d_mode() == GsAlpha::BlendMode::SOURCE);
-    }
-
-    // depth-cue-base-page draw
-    {
-      auto depth_cue_page_draw = dma.read_and_advance();
-      ASSERT(depth_cue_page_draw.size_bytes == sizeof(DepthCuePageDraw));
-      ASSERT(depth_cue_page_draw.vifcode0().kind == VifCode::Kind::NOP);
-      ASSERT(depth_cue_page_draw.vifcode1().kind == VifCode::Kind::DIRECT);
-      memcpy(&slice.depth_cue_page_draw, depth_cue_page_draw.data, sizeof(DepthCuePageDraw));
-
-      ASSERT(slice.depth_cue_page_draw.gif_tag.nloop() == 1);
-      ASSERT(slice.depth_cue_page_draw.gif_tag.pre() == true);
-      ASSERT(slice.depth_cue_page_draw.gif_tag.prim() == 6);
-      ASSERT(slice.depth_cue_page_draw.gif_tag.flg() == GifTag::Format::PACKED);
-      ASSERT(slice.depth_cue_page_draw.gif_tag.nreg() == 5);
-      ASSERT(slice.depth_cue_page_draw.gif_tag.reg(0) == GifTag::RegisterDescriptor::RGBAQ);
-    }
-
-    // on-screen setup
-    {
-      auto on_screen_setup = dma.read_and_advance();
-      ASSERT(on_screen_setup.size_bytes == sizeof(OnScreenGsSetup));
-      ASSERT(on_screen_setup.vifcode0().kind == VifCode::Kind::NOP);
-      ASSERT(on_screen_setup.vifcode1().kind == VifCode::Kind::DIRECT);
-      memcpy(&slice.on_screen_setup, on_screen_setup.data, sizeof(OnScreenGsSetup));
-
-      ASSERT(slice.on_screen_setup.gif_tag.nreg() == 5);
-      ASSERT(slice.on_screen_setup.gif_tag.reg(0) == GifTag::RegisterDescriptor::AD);
-
-      ASSERT(slice.on_screen_setup.tex01.tcc() == 0);
-      ASSERT(slice.on_screen_setup.texa.ta0() == 0x80);
-      ASSERT(slice.on_screen_setup.texa.ta1() == 0x80);
-      ASSERT(slice.on_screen_setup.alpha1.b_mode() == GsAlpha::BlendMode::DEST);
-      ASSERT(slice.on_screen_setup.alpha1.d_mode() == GsAlpha::BlendMode::DEST);
-    }
-
-    // on-screen draw
-    {
-      auto on_screen_draw = dma.read_and_advance();
-      ASSERT(on_screen_draw.size_bytes == sizeof(OnScreenDraw));
-      ASSERT(on_screen_draw.vifcode0().kind == VifCode::Kind::NOP);
-      ASSERT(on_screen_draw.vifcode1().kind == VifCode::Kind::DIRECT);
-      memcpy(&slice.on_screen_draw, on_screen_draw.data, sizeof(OnScreenDraw));
-
-      ASSERT(slice.on_screen_draw.gif_tag.nloop() == 1);
-      ASSERT(slice.on_screen_draw.gif_tag.pre() == true);
-      ASSERT(slice.on_screen_draw.gif_tag.prim() == 6);
-      ASSERT(slice.on_screen_draw.gif_tag.flg() == GifTag::Format::PACKED);
-      ASSERT(slice.on_screen_draw.gif_tag.nreg() == 5);
-      ASSERT(slice.on_screen_draw.gif_tag.reg(0) == GifTag::RegisterDescriptor::RGBAQ);
-    }
-  }
-
-  // Finally, a packet to restore GS state
-  {
-    auto gs_restore = dma.read_and_advance();
-    ASSERT(gs_restore.size_bytes == sizeof(DepthCueGsRestore));
-    ASSERT(gs_restore.vifcode0().kind == VifCode::Kind::NOP);
-    ASSERT(gs_restore.vifcode1().kind == VifCode::Kind::DIRECT);
-    memcpy(&m_gs_restore, gs_restore.data, sizeof(DepthCueGsRestore));
-
-    ASSERT(m_gs_restore.gif_tag.nreg() == 2);
-    ASSERT(m_gs_restore.gif_tag.reg(0) == GifTag::RegisterDescriptor::AD);
-  }
-
-  // End with 'NEXT'
-  {
-    ASSERT(dma.current_tag().kind == DmaTag::Kind::NEXT);
-
-    while (dma.current_tag_offset() != render_state->next_bucket) {
-      dma.read_and_advance();
-    }
-  }
-}
-
-void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof*/) {
+void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNode& /*prof*/) {
   if (m_debug.cache_setup && (m_ogl.last_draw_region_w == render_state->draw_region_w &&
                               m_ogl.last_draw_region_h == render_state->draw_region_h &&
                               // Also recompute when certain debug settings change
@@ -360,12 +209,11 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
   m_ogl.framebuffer_sample_height = pc_fb_sample_height;
 
   VkExtent3D extents{m_ogl.framebuffer_sample_width, m_ogl.framebuffer_sample_height, 1};
-  m_ogl.framebuffer_sample_tex->CreateImage(
+  m_ogl.framebuffer_sample_tex->createImage(
       extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), VK_FORMAT_R8G8B8_UINT,
-      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-  m_ogl.framebuffer_sample_tex->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_UINT,
+  m_ogl.framebuffer_sample_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_UINT,
                                                 VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
   // DEPTH CUE BASE PAGE FRAMEBUFFER
@@ -389,12 +237,11 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
   m_ogl.fbo_height = pc_depth_cue_fb_height;
 
   VkExtent3D depth_extents{m_ogl.fbo_width, m_ogl.fbo_height, 1};
-  m_ogl.framebuffer_sample_tex->CreateImage(
+  m_ogl.framebuffer_sample_tex->createImage(
       depth_extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), VK_FORMAT_R8G8B8_USCALED,
-      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-  m_ogl.framebuffer_sample_tex->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_USCALED,
+  m_ogl.framebuffer_sample_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_USCALED,
                                                 VK_IMAGE_ASPECT_DEPTH_BIT, 1);
   // DEPTH CUE BASE PAGE VERTEX DATA
   // --------------------------
@@ -453,9 +300,8 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
                  uv2.y() / slice_height          // t2
     );
   }
-  m_ogl.depth_cue_page_vertex_buffer->map();
-  m_ogl.depth_cue_page_vertex_buffer->writeToBuffer(depth_cue_page_vertices.data());
-  m_ogl.depth_cue_page_vertex_buffer->unmap();
+
+  m_ogl.depth_cue_page_vertex_buffer->writeToGpuBuffer(depth_cue_page_vertices.data());
 
   // ON SCREEN VERTEX DATA
   // --------------------------
@@ -508,32 +354,14 @@ void DepthCue::setup(SharedRenderState* render_state, ScopedProfilerNode& /*prof
     );
   }
 
-  m_ogl.depth_cue_page_vertex_buffer->map();
-  m_ogl.depth_cue_page_vertex_buffer->writeToBuffer(on_screen_vertices.data());
-  m_ogl.depth_cue_page_vertex_buffer->unmap();
+  m_ogl.depth_cue_page_vertex_buffer->writeToGpuBuffer(on_screen_vertices.data());
 }
 
-void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
-
-  // Activate shader
-  auto shader = &render_state->shaders[ShaderId::DEPTH_CUE];
-  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertShaderStageInfo.module = shader->GetVertexShader();
-  vertShaderStageInfo.pName = "Depth Cue Fragment";
-
-  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragShaderStageInfo.module = shader->GetFragmentShader();
-  fragShaderStageInfo.pName = "Depth Cue Fragment";
-
-  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
   m_depth_cue_fragment_uniform_buffer->SetUniform1f("tex", 0);
 
@@ -645,71 +473,11 @@ void DepthCue::draw(SharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_TRUE;
 }
 
-void DepthCue::build_sprite(std::vector<SpriteVertex>& vertices,
-                            float x1,
-                            float y1,
-                            float s1,
-                            float t1,
-                            float x2,
-                            float y2,
-                            float s2,
-                            float t2) {
-  // First triangle
-  // -------------
-  // Top-left
-  vertices.push_back(SpriteVertex(x1, y1, s1, t1));
-
-  // Top-right
-  vertices.push_back(SpriteVertex(x2, y1, s2, t1));
-
-  // Bottom-left
-  vertices.push_back(SpriteVertex(x1, y2, s1, t2));
-
-  // Second triangle
-  // -------------
-  // Top-right
-  vertices.push_back(SpriteVertex(x2, y1, s2, t1));
-
-  // Bottom-left
-  vertices.push_back(SpriteVertex(x1, y2, s1, t2));
-
-  // Bottom-right
-  vertices.push_back(SpriteVertex(x2, y2, s2, t2));
-}
-
-void DepthCue::draw_debug_window() {
-  ImGui::Text("NOTE: depth-cue may be disabled by '*vu1-enable-user-menu*'!");
-
-  ImGui::Checkbox("Cache setup", &m_debug.cache_setup);
-  ImGui::Checkbox("Force original resolution", &m_debug.force_original_res);
-
-  ImGui::Checkbox("Override alpha", &m_debug.override_alpha);
-  if (m_debug.override_alpha) {
-    ImGui::SliderFloat("Alpha", &m_debug.draw_alpha, 0.0f, 1.0f);
-  }
-
-  ImGui::Checkbox("Override sharpness", &m_debug.override_sharpness);
-  if (m_debug.override_sharpness) {
-    ImGui::SliderFloat("Sharpness", &m_debug.sharpness, 0.001f, 1.0f);
-  }
-
-  ImGui::SliderFloat("Depth", &m_debug.depth, 0.0f, 1.0f);
-  ImGui::SliderFloat("Resolution scale", &m_debug.res_scale, 0.001f, 2.0f);
-
-  if (ImGui::Button("Reset")) {
-    m_debug.draw_alpha = 0.4f;
-    m_debug.sharpness = 0.999f;
-    m_debug.depth = 1.0f;
-    m_debug.res_scale = 1.0f;
-  }
-}
-
 DepthCueVertexUniformBuffer::DepthCueVertexUniformBuffer(
    std::unique_ptr<GraphicsDeviceVulkan>& device,
    VkDeviceSize instanceSize,
    uint32_t instanceCount,
-   VkMemoryPropertyFlags memoryPropertyFlags,
-   VkDeviceSize minOffsetAlignment) : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment){
+   VkDeviceSize minOffsetAlignment) : UniformVulkanBuffer(device, instanceSize, instanceCount, minOffsetAlignment){
   section_name_to_memory_offset_map = {
       {"u_color", offsetof(DepthCueVertexUniformData, u_color)},
       {"u_depth", offsetof(DepthCueVertexUniformData, u_depth)}};

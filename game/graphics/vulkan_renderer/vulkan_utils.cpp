@@ -7,7 +7,7 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
-FramebufferTexturePair::FramebufferTexturePair(int w,
+FramebufferVulkanTexturePair::FramebufferVulkanTexturePair(int w,
                                                int h,
                                                VkFormat format,
                                                std::unique_ptr<GraphicsDeviceVulkan>& device, int num_levels)
@@ -18,15 +18,14 @@ FramebufferTexturePair::FramebufferTexturePair(int w,
   samplerInfo.minFilter = VK_FILTER_NEAREST;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-  textures.resize(num_levels, TextureInfo{device});
+  textures.resize(num_levels, VulkanTexture{device});
   for (int i = 0; i < num_levels; i++) {
     VkExtent3D extents{m_w >> i, m_h >> i, 1};
 
-    textures[i].CreateImage(extents, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(), format, VK_IMAGE_TILING_OPTIMAL,
-                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    textures[i].createImage(extents, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(), format, VK_IMAGE_TILING_OPTIMAL,
+                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
-    textures[i].CreateImageView(VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    textures[i].createImageView(VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
 
   for (int i = 0; i < num_levels; i++) {
@@ -38,10 +37,10 @@ FramebufferTexturePair::FramebufferTexturePair(int w,
   }
 }
 
-FramebufferTexturePair::~FramebufferTexturePair() {
+FramebufferVulkanTexturePair::~FramebufferVulkanTexturePair() {
 }
 
-FramebufferTexturePairContext::FramebufferTexturePairContext(FramebufferTexturePair& fb, int level)
+FramebufferVulkanTexturePairContext::FramebufferVulkanTexturePairContext(FramebufferVulkanTexturePair& fb, int level)
     : m_fb(&fb) {
   //TODO: store previous viewport settings
   //glViewport(0, 0, m_fb->m_w, m_fb->m_h);
@@ -51,7 +50,7 @@ FramebufferTexturePairContext::FramebufferTexturePairContext(FramebufferTextureP
   //TODO: CopyImageToBuffer
 }
 
-void FramebufferTexturePairContext::switch_to(FramebufferTexturePair& fb) {
+void FramebufferVulkanTexturePairContext::switch_to(FramebufferVulkanTexturePair& fb) {
   if (&fb != m_fb) {
     m_fb = &fb;
     // swapChainExtent.width = m_fb->m_w;
@@ -61,15 +60,14 @@ void FramebufferTexturePairContext::switch_to(FramebufferTexturePair& fb) {
   }
 }
 
-FramebufferTexturePairContext::~FramebufferTexturePairContext() {
+FramebufferVulkanTexturePairContext::~FramebufferVulkanTexturePairContext() {
   //m_old_viewport;
   //m_fb->m_device->recreateSwapChains(m_old_viewport);
 }
 
-FullScreenDraw::FullScreenDraw(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_pipeline_layout(device) {
-  m_fragment_uniform_buffer = std::make_unique<UniformBuffer>(
-      m_device, sizeof(math::Vector4f), 1,
-    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+FullScreenDrawVulkan::FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_pipeline_layout(device) {
+  m_fragment_uniform_buffer = std::make_unique<UniformVulkanBuffer>(
+      m_device, sizeof(math::Vector4f), 1, 1);
 
   struct Vertex {
     float x, y;
@@ -83,10 +81,8 @@ FullScreenDraw::FullScreenDraw(std::unique_ptr<GraphicsDeviceVulkan>& device) : 
   };
 
   VkDeviceSize device_size = sizeof(Vertex) * 4;
-  m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, device_size, 1, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
-  m_vertex_buffer->map();
-  m_vertex_buffer->writeToBuffer(vertices.data());
-  m_vertex_buffer->unmap();
+  m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, device_size, 1, 1);
+  m_vertex_buffer->writeToGpuBuffer(vertices.data());
 
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
@@ -109,11 +105,11 @@ FullScreenDraw::FullScreenDraw(std::unique_ptr<GraphicsDeviceVulkan>& device) : 
   vertexInputInfo.pVertexAttributeDescriptions = &attributeDescription;
 }
 
-FullScreenDraw::~FullScreenDraw() {
+FullScreenDrawVulkan::~FullScreenDrawVulkan() {
 }
 
-void FullScreenDraw::draw(const math::Vector4f& color,
-                          SharedRenderState* render_state,
+void FullScreenDrawVulkan::draw(const math::Vector4f& color,
+                          SharedVulkanRenderState* render_state,
                           ScopedProfilerNode& prof) {
   m_fragment_uniform_buffer->SetUniform4f("fragment_color", color[0], color[1], color[2],
               color[3]);

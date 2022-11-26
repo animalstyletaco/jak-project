@@ -4,20 +4,20 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_pipeline_layout(device) {
+SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+  m_device(device), m_vulkan_info(vulkan_info), m_pipeline_layout(device) {
   // generate textures for sky blending
 
   // setup the framebuffers
   for (int i = 0; i < 2; i++) {
-    m_textures[i] = std::make_unique<TextureInfo>(m_device);
+    m_textures[i] = std::make_unique<VulkanTexture>(m_device);
     VkExtent3D extents{m_sizes[i], m_sizes[i], 1};
-    m_textures[i]->CreateImage(
+    m_textures[i]->createImage(
         extents, 1, VK_IMAGE_TYPE_2D,
         device->getMsaaCount(), VK_FORMAT_A8B8G8R8_SNORM_PACK32, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
-    m_textures[i]->CreateImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SNORM_PACK32,
+    m_textures[i]->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SNORM_PACK32,
                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
     //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[i], 0);
@@ -26,8 +26,7 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_devi
   }
 
   VkDeviceSize m_vertex_device_size = sizeof(Vertex) * 6;
-  m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, m_vertex_device_size, 1, 
-                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+  m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, m_vertex_device_size, 1, 1);
 
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
@@ -61,15 +60,16 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_devi
 
   m_vertex_data[5].x = 1;
   m_vertex_data[5].y = 1;
+  m_vertex_buffer->writeToGpuBuffer(m_vertex_data);
 }
 
 SkyBlendGPU::~SkyBlendGPU() {
 }
 
-void SkyBlendGPU::init_textures(TexturePool& tex_pool) {
+void SkyBlendGPU::init_textures(TexturePoolVulkan& tex_pool) {
   for (int i = 0; i < 2; i++) {
     TextureInput in;
-    in.gpu_texture = m_textures[i].get();
+    in.gpu_texture = (u64)m_textures[i].get();
     in.w = m_sizes[i];
     in.h = in.w;
     in.debug_name = fmt::format("PC-SKY-GPU-{}", i);
@@ -80,7 +80,7 @@ void SkyBlendGPU::init_textures(TexturePool& tex_pool) {
 }
 
 SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
-                                         SharedRenderState* render_state,
+                                         BaseSharedRenderState* render_state,
                                          ScopedProfilerNode& prof) {
   SkyBlendStats stats;
 
@@ -143,7 +143,7 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     }
 
     // look up the source texture
-    auto tex = render_state->texture_pool->lookup(adgif.tex0().tbp0());
+    auto tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(adgif.tex0().tbp0());
     ASSERT(tex);
 
     VkSamplerCreateInfo samplerInfo = tex->getSamplerInfo();
@@ -172,7 +172,7 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     // setup for rendering!
     //glViewport(0, 0, m_sizes[buffer_idx], m_sizes[buffer_idx]);
     //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[buffer_idx], 0);
-    auto& shader = render_state->shaders[ShaderId::SKY_BLEND];
+    auto& shader = m_vulkan_info.shaders[ShaderId::SKY_BLEND];
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -210,7 +210,7 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     if (m_vertex_buffer->map() != VK_SUCCESS) {
       lg::error("Failed to get mapped Sky Blend GPU memory");
     }
-    m_vertex_buffer->writeToBuffer(m_vertex_data);
+    m_vertex_buffer->writeToGpuBuffer(m_vertex_data);
     m_vertex_buffer->unmap();
 
     // Draw a sqaure
@@ -220,7 +220,7 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     prof.add_draw_call(1);
     prof.add_tri(2);
 
-    render_state->texture_pool->move_existing_to_vram(m_tex_info[buffer_idx].tex,
+    m_vulkan_info.texture_pool->move_existing_to_vram(m_tex_info[buffer_idx].tex,
                                                       m_tex_info[buffer_idx].tbp);
 
     if (buffer_idx == 0) {

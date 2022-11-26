@@ -69,6 +69,14 @@ class GraphicsDeviceVulkan {
                          int32_t y_offset,
                          uint32_t layerCount);
 
+  void copyImageToBuffer(VkImage image,
+                         uint32_t width,
+                         uint32_t height,
+                         int32_t x_offset,
+                         int32_t y_offset,
+                         uint32_t layer_count,
+                         VkBuffer buffer);
+
   void GenerateMipmaps(VkImage image,
                        VkFormat imageFormat,
                        int32_t texWidth,

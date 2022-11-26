@@ -1,0 +1,48 @@
+#pragma once
+
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+
+#include "common/custom_data/Tfrag3Data.h"
+#include "common/util/FileUtil.h"
+#include "common/util/Timer.h"
+
+#include "game/graphics/general_renderer/loader/common.h"
+#include "game/graphics/texture/TexturePool.h"
+
+class BaseLoader {
+ public:
+  static constexpr float TIE_LOAD_BUDGET = 1.5f;
+  static constexpr float SHARED_TEXTURE_LOAD_BUDGET = 3.f;
+  static constexpr unsigned MAX_LEVELS_LOADED = 3;
+  BaseLoader(const fs::path& base_path, int max_levels);
+  ~BaseLoader();
+  void update(BaseTexturePool& tex_pool);
+  void update_blocking(BaseTexturePool& tex_pool);
+  const BaseLevelData* get_tfrag3_level(const std::string& level_name);
+  std::optional<BaseMercRef> get_merc_model(const char* model_name);
+  void load_common(BaseTexturePool& tex_pool, const std::string& name);
+  void set_want_levels(const std::vector<std::string>& levels);
+  std::vector<BaseLevelData*> get_in_use_levels();
+
+ protected:
+  void loader_thread();
+  bool upload_textures(Timer& timer, BaseLevelData& data, BaseTexturePool& texture_pool);
+
+  // used by game and loader thread
+  std::string m_level_to_load;
+
+  std::thread m_loader_thread;
+  std::mutex m_loader_mutex;
+  std::condition_variable m_loader_cv;
+  std::condition_variable m_file_load_done_cv;
+  bool m_want_shutdown = false;
+  uint64_t m_id = 0;
+
+  // used only by game thread
+  std::vector<std::string> m_desired_levels;
+
+  fs::path m_base_path;
+  int m_max_levels = 0;
+};

@@ -2,7 +2,7 @@
 
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/Buffer.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 
 class SwapChain {
  public:
@@ -20,8 +20,8 @@ class SwapChain {
 
   VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
   VkRenderPass getRenderPass() { return renderPass; }
-  VkImage getImage(int index) { return swapChainImages[index].GetImage(); }
-  VkImageView getImageView(int index) { return swapChainImages[index].GetImageView(); }
+  VkImage getImage(int index) { return swapChainImages[index].getImage(); }
+  VkImageView getImageView(int index) { return swapChainImages[index].getImageView(); }
   size_t imageCount() { return swapChainImages.size(); }
   VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
   void setSwapChainExtent(VkExtent2D extents) { swapChainExtent = extents; };
@@ -32,12 +32,18 @@ class SwapChain {
   uint32_t height() { return swapChainExtent.height; }
   std::unique_ptr<GraphicsDeviceVulkan>& getLogicalDevice() { return device; };
 
-  void recordCommandBuffer(VkCommandBuffer commandBuffer,
-                           std::unique_ptr<VertexBuffer>& vertex_buffer,
-                           std::unique_ptr<IndexBuffer>& index_buffer,
-                           VkPipelineLayout& pipeline_layout,
-                           std::vector<VkDescriptorSet>& descriptors,
-                           uint32_t imageIndex);
+  void drawCommandBuffer(VkCommandBuffer commandBuffer,
+                       std::unique_ptr<VertexBuffer>& vertex_buffer,
+                       VkPipelineLayout& pipeline_layout,
+                       std::vector<VkDescriptorSet>& descriptors,
+                       uint32_t imageIndex);
+
+  void drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
+                                std::unique_ptr<VertexBuffer>& vertex_buffer,
+                                std::unique_ptr<IndexBuffer>& index_buffer,
+                                VkPipelineLayout& pipeline_layout,
+                                std::vector<VkDescriptorSet>& descriptors,
+                                uint32_t imageIndex);
   
   void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);
   void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
@@ -79,8 +85,8 @@ class SwapChain {
   std::vector<VkFramebuffer> swapChainFramebuffers;
   VkRenderPass renderPass;
 
-  std::vector<TextureInfo> depthImages;
-  std::vector<TextureInfo> swapChainImages;
+  std::vector<VulkanTexture> depthImages;
+  std::vector<VulkanTexture> swapChainImages;
 
   std::unique_ptr<GraphicsDeviceVulkan>& device;
   VkExtent2D windowExtent;

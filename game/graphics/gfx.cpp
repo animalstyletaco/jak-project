@@ -61,7 +61,8 @@ GfxGlobalSettings g_global_settings;
 GfxSettings g_settings;
 
 //Attempting to future proof for os-specific renderers like DirectX and Metal
-std::array<const GfxRendererModule*, static_cast<uint32_t>(GfxPipeline::Count)> renderers{NULL};
+std::array<const GfxRendererModule*, static_cast<uint32_t>(GfxPipeline::Count)> renderers{
+    NULL, &gRendererOpenGL, &gRendererVulkan};
 
 Pad::MappingInfo& get_button_mapping() {
   return g_settings.pad_mapping_info;
@@ -282,11 +283,6 @@ u32 Init(GameVersion version) {
 
   LoadSettings();
 
-#ifdef _WIN32
-  renderers[static_cast<uint32_t>(GfxPipeline::Vulkan)] = &gRendererVulkan;
-#else
-  renderers[static_cast<uint32_t>(GfxPipeline::OpenGL)] = &gRendererOpenGL;
-#endif
   SetRenderer(g_settings.renderer);
 
   if (GetCurrentRenderer()->init(g_settings)) {

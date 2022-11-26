@@ -2,55 +2,66 @@
 
 #include "GraphicsDeviceVulkan.h"
 
-class TextureInfo {
+class VulkanTexture {
  public:
-  TextureInfo(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device){};
-  void CreateImage(VkExtent3D extents,
+  VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  VulkanTexture(const VulkanTexture& image);
+  void createImage(VkExtent3D extents,
                    uint32_t mip_levels,
                    VkImageType image_type,
                    VkSampleCountFlagBits num_samples,
                    VkFormat format,
                    VkImageTiling tiling,
-                   uint32_t usage,
-                   uint32_t properties);
+                   uint32_t usage);
 
-  void CreateImageView(VkImageViewType image_view_type,
+  void createImageView(VkImageViewType image_view_type,
                        VkFormat format,
                        VkImageAspectFlags aspectFlags,
                        uint32_t mipLevels);
 
-  VkResult map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
-  void unmap();
-
-  void writeToBuffer(void* data, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
+  void writeToImage(void* data, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
+  void getImageData(VkBuffer buffer,
+                    uint32_t width,
+                    uint32_t height,
+                    double x_offset,
+                    double y_offset);
   VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkResult invalidate(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkDescriptorImageInfo descriptorInfo(VkImageLayout image_layout);
 
-  void* getMappedMemory() const { return mapped_memory; }
-
-  void DestroyTexture();
-  void CreateTextureSampler();
+  void destroyTexture();
+  void createTextureSampler();
   VkSamplerCreateInfo& getSamplerInfo(){ return m_sampler_info; };
   VkFormat findDepthFormat();
-  VkImage GetImage() { return m_image; };
-  VkImageView GetImageView() { return m_image_view; };
-  bool IsInitialized() { return m_initialized; };
+  VkImage getImage() const { return m_image; };
+  VkDeviceSize getMemorySize() const { return m_device_size; };
+  VkImageView getImageView() const { return m_image_view; };
+  uint32_t getWidth() const { return m_image_create_info.extent.width; };
+  uint32_t getHeight() const { return m_image_create_info.extent.height; };
+  uint32_t getDepth() const { return m_image_create_info.extent.depth; };
+  bool isInitialized() { return m_initialized; };
   VkSampleCountFlagBits getMsaaCount() const {
     return m_device->getMsaaCount();
   }
 
-  ~TextureInfo() { DestroyTexture(); };
+  void SetSamplerCreateInfo(VkSamplerCreateInfo samplerCreateInfo) { m_sampler_info = samplerCreateInfo; }
+  VkSamplerCreateInfo GetSamplerCreateInfo() { return m_sampler_info; }
+
+  ~VulkanTexture() { destroyTexture(); };
 
   private:
+  void AllocateVulkanImageMemory();
+
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  VkImage m_image = VK_NULL_HANDLE; //TODO: Should this be a vector since image views can support multiple images?
+  VkImage m_image = VK_NULL_HANDLE; 
   VkImageView m_image_view = VK_NULL_HANDLE;
   VkDeviceMemory m_device_memory = VK_NULL_HANDLE;
   VkDeviceSize m_device_size = 0;
   VkSamplerCreateInfo m_sampler_info;
   VkSampler m_sampler = VK_NULL_HANDLE;
-  void* mapped_memory = nullptr;
-  VkExtent3D m_extents;
+
+  VkImageCreateInfo m_image_create_info;
+  VkImageViewCreateInfo m_image_view_create_info;
+
   bool m_initialized = false;
 };

@@ -323,6 +323,32 @@ void GraphicsDeviceVulkan::copyBufferToImage(VkBuffer buffer,
   endSingleTimeCommands(commandBuffer);
 }
 
+void GraphicsDeviceVulkan::copyImageToBuffer(VkImage image,
+                                             uint32_t width,
+                                             uint32_t height,
+                                             int32_t x_offset,
+                                             int32_t y_offset,
+                                             uint32_t layer_count,
+                                             VkBuffer buffer) {
+  VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+  VkBufferImageCopy region{};
+  region.bufferOffset = 0;
+  region.bufferRowLength = 0;
+  region.bufferImageHeight = 0;
+  region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  region.imageSubresource.mipLevel = 0;
+  region.imageSubresource.baseArrayLayer = 0;
+  region.imageSubresource.layerCount = layer_count;
+  region.imageOffset = {x_offset, y_offset, 0};
+  region.imageExtent = {width, height, 1};
+
+  vkCmdCopyImageToBuffer(commandBuffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, buffer, 1,
+                         &region);
+
+  endSingleTimeCommands(commandBuffer);
+}
+
 std::vector<const char*> GraphicsDeviceVulkan::getRequiredExtensions() {
   uint32_t glfwExtensionCount = 0;
   const char** glfwExtensions;

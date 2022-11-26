@@ -9,50 +9,32 @@
 #include "common/util/Timer.h"
 
 #include "game/graphics/vulkan_renderer/loader/common.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
-#include "game/graphics/vulkan_renderer/TexturePoolVulkan.h"
+#include "game/graphics/general_renderer/loader/Loader.h"
+#include "game/graphics/texture/TexturePoolVulkan.h"
 
-class Loader {
+class VulkanLoader : public BaseLoader {
  public:
-  static constexpr uint16_t MAX_LEVELS_LOADED = 2;
-  static constexpr float TIE_LOAD_BUDGET = 1.5f;
-  static constexpr float SHARED_TEXTURE_LOAD_BUDGET = 3.f;
-  Loader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path);
-  ~Loader();
-  void update(TexturePool& tex_pool);
-  void update_blocking(TexturePool& tex_pool);
-  LevelData* get_tfrag3_level(const std::string& level_name);
-  std::optional<MercRef> get_merc_model(const char* model_name);
-  void load_common(TexturePool& tex_pool, const std::string& name);
+  VulkanLoader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path, int max_levels);
+  ~VulkanLoader();
+  void update(TexturePoolVulkan& tex_pool);
+  void update_blocking(TexturePoolVulkan& tex_pool);
+  void load_common(TexturePoolVulkan& tex_pool, const std::string& name);
   void set_want_levels(const std::vector<std::string>& levels);
-  std::vector<LevelData*> get_in_use_levels();
+  LevelDataVulkan* get_tfrag3_level(const std::string& level_name);
+  std::optional<MercRefVulkan> get_merc_model(const char* model_name);
+  std::vector<LevelDataVulkan*> get_in_use_levels();
+  bool upload_textures(Timer& timer,
+                       LevelDataVulkan& data,
+                       TexturePoolVulkan& texture_pool);
 
  private:
-  void loader_thread();
-  bool upload_textures(Timer& timer, LevelData& data, TexturePool& texture_pool);
-
-  // used by game and loader thread
-  std::unordered_map<std::string, std::unique_ptr<LevelData>> m_initializing_tfrag3_levels;
-
-  LevelData m_common_level;
-
-  std::string m_level_to_load;
-
-  std::thread m_loader_thread;
-  std::mutex m_loader_mutex;
-  std::condition_variable m_loader_cv;
-  std::condition_variable m_file_load_done_cv;
-  bool m_want_shutdown = false;
-  uint64_t m_id = 0;
-
   // used only by game thread
-  std::unordered_map<std::string, std::unique_ptr<LevelData>> m_loaded_tfrag3_levels;
+  std::unordered_map<std::string, std::unique_ptr<LevelDataVulkan>> m_loaded_tfrag3_levels;
+  std::unordered_map<std::string, std::unique_ptr<LevelDataVulkan>> m_initializing_tfrag3_levels;
 
-  std::unordered_map<std::string, std::vector<MercRef>> m_all_merc_models;
+  std::unordered_map<std::string, std::vector<MercRefVulkan>> m_all_merc_models;
+  std::vector<std::unique_ptr<LoaderStageVulkan>> m_loader_stages;
 
-  std::vector<std::string> m_desired_levels;
-  std::vector<std::unique_ptr<LoaderStage>> m_loader_stages;
-
-  fs::path m_base_path;
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  LevelDataVulkan m_common_level;
 };

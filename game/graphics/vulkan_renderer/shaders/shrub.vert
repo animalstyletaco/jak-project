@@ -11,6 +11,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float fog_constant;
   float fog_min;
   float fog_max;
+  float height_scale;
 } ubo;
 
 layout (binding = 10) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
@@ -65,7 +66,7 @@ void main() {
     // hack
     transformed.xyz *= transformed.w;
     // scissoring area adjust
-    transformed.y *= SCISSOR_ADJUST;
+    transformed.y *= (SCISSOR_ADJUST * ubo.height_scale);
     gl_Position = transformed;
 
     // time of day lookup

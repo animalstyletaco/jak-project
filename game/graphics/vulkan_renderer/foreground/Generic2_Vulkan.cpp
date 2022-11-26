@@ -1,20 +1,44 @@
 #include "Generic2.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-void Generic2::vulkan_setup() {
+GenericVulkan2::GenericVulkan2(const std::string& name,
+                               int my_id,
+                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+                               VulkanInitializationInfo& vulkan_info,
+                               u32 num_verts,
+                               u32 num_frags,
+                               u32 num_adgif,
+                               u32 num_buckets)
+    : BaseGeneric2(name, my_id, num_verts, num_frags, num_adgif, num_buckets), BucketVulkanRenderer(device, vulkan_info) {
+  graphics_setup();
+}
+
+GenericVulkan2::~GenericVulkan2() {
+  graphics_cleanup();
+}
+
+/*!
+ * Main render function for GenericVulkan2. This will be passed a DMA "follower" from the main
+ * OpenGLRenderer that can read a DMA chain, starting at the DMA "bucket" that was filled by the
+ * generic renderer. This renderer is expected to follow the chain until it reaches "next_bucket"
+ * and then return.
+ */
+void GenericVulkan2::render(DmaFollower& dma,
+                            SharedVulkanRenderState* render_state,
+                            ScopedProfilerNode& prof) {
+  GenericVulkan2::render(dma, render_state, prof);
+}
+
+void GenericVulkan2::graphics_setup() {
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
-    m_device, sizeof(Vertex), m_verts.size(),
-    VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+    m_device, sizeof(Vertex), m_verts.size(), 1);
   m_ogl.index_buffer = std::make_unique<IndexBuffer>(
-      m_device, sizeof(u32), m_indices.size(),
-      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 1);
+      m_device, sizeof(u32), m_indices.size(), 1);
 
   m_vertex_uniform_buffer = std::make_unique<GenericCommonVertexUniformBuffer>(
-    m_device, sizeof(GenericCommonVertexUniformShaderData),
-    1, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+    m_device, 1, 1);
   m_fragment_uniform_buffer = std::make_unique<GenericCommonFragmentUniformBuffer>(
-      m_device, sizeof(GenericCommonFragmentUniformShaderData), 1,
-      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 1);
+      m_device, 1, 1);
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -39,16 +63,32 @@ void Generic2::vulkan_setup() {
   auto fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
   m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
       .build(m_descriptor_sets[1]);
+  InitializeInputAttributes();
 }
 
-void Generic2::vulkan_cleanup() {
+void GenericVulkan2::graphics_cleanup() {
 
 }
 
-void Generic2::init_shaders(ShaderLibrary& shaders) {
+void GenericVulkan2::init_shaders(VulkanShaderLibrary& shaders) {
+  auto& shader = shaders[ShaderId::GENERIC];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Vertex Fragment";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Shrub Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
 
-void Generic2::vulkan_bind_and_setup_proj(SharedRenderState* render_state) {
+void GenericVulkan2::graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) {
   m_fragment_uniform_buffer->SetUniform4f(
               "fog_color", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
@@ -67,9 +107,9 @@ void Generic2::vulkan_bind_and_setup_proj(SharedRenderState* render_state) {
               m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]);
 }
 
-void Generic2::setup_vulkan_for_draw_mode(const DrawMode& draw_mode,
+void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
                                           u8 fix,
-                                          SharedRenderState* render_state) {
+                                          BaseSharedRenderState* render_state) {
   // compute alpha_reject:
   float alpha_reject = 0.f;
   if (draw_mode.get_at_enable()) {
@@ -311,21 +351,21 @@ void Generic2::setup_vulkan_for_draw_mode(const DrawMode& draw_mode,
               render_state->fog_intensity / 255);
 }
 
-void Generic2::setup_vulkan_tex(u16 unit,
+void GenericVulkan2::setup_graphics_tex(u16 unit,
                                 u16 tbp,
                                 bool filter,
                                 bool clamp_s,
                                 bool clamp_t,
-                                SharedRenderState* render_state) {
+                                BaseSharedRenderState* render_state) {
   // look up the texture
-  TextureInfo* texture = NULL;
+  VulkanTexture* texture = NULL;
   u32 tbp_to_lookup = tbp & 0x7fff;
   bool use_mt4hh = tbp & 0x8000;
 
   if (use_mt4hh) {
-    texture = render_state->texture_pool->lookup_mt4hh(tbp_to_lookup);
+    texture = m_vulkan_info.texture_pool->lookup_mt4hh_texture(tbp_to_lookup);
   } else {
-    texture = render_state->texture_pool->lookup(tbp_to_lookup);
+    texture = m_vulkan_info.texture_pool->lookup_vulkan_texture(tbp_to_lookup);
   }
 
   if (!texture) {
@@ -333,10 +373,10 @@ void Generic2::setup_vulkan_tex(u16 unit,
     if (tbp_to_lookup >= 8160 && tbp_to_lookup <= 8600) {
       fmt::print("Failed to find texture at {}, using random (eye zone)\n", tbp_to_lookup);
 
-      texture = render_state->texture_pool->get_placeholder_texture();
+      texture = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
     } else {
       fmt::print("Failed to find texture at {}, using random\n", tbp_to_lookup);
-      texture = render_state->texture_pool->get_placeholder_texture();
+      texture = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
     }
   }
 
@@ -387,32 +427,13 @@ void Generic2::setup_vulkan_tex(u16 unit,
   }
 }
 
-void Generic2::do_draws_for_alpha(SharedRenderState* render_state,
-                                  ScopedProfilerNode& prof,
-                                  DrawMode::AlphaBlend alpha,
-                                  bool hud) {
-  for (u32 i = 0; i < m_next_free_bucket; i++) {
-    auto& bucket = m_buckets[i];
-    auto& first = m_adgifs[bucket.start];
-    if (first.mode.get_alpha_blend() == alpha && first.uses_hud == hud) {
-      setup_vulkan_for_draw_mode(first.mode, first.fix, render_state);
-      setup_vulkan_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
-                       first.mode.get_clamp_t_enable(), render_state);
-      //glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
-      //               (void*)(sizeof(u32) * bucket.idx_idx));
-      prof.add_draw_call();
-      prof.add_tri(bucket.tri_count);
-    }
-  }
-}
-
-void Generic2::do_hud_draws(SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void GenericVulkan2::do_hud_draws(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
   for (u32 i = 0; i < m_next_free_bucket; i++) {
     auto& bucket = m_buckets[i];
     auto& first = m_adgifs[bucket.start];
     if (first.uses_hud) {
-      setup_vulkan_for_draw_mode(first.mode, first.fix, render_state);
-      setup_vulkan_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
+      setup_graphics_for_draw_mode(first.mode, first.fix, render_state);
+      setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
                        first.mode.get_clamp_t_enable(), render_state);
       //glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
       //               (void*)(sizeof(u32) * bucket.idx_idx));
@@ -422,23 +443,19 @@ void Generic2::do_hud_draws(SharedRenderState* render_state, ScopedProfilerNode&
   }
 }
 
-void Generic2::do_draws(SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void GenericVulkan2::do_draws(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
   if (m_next_free_vert > 0) {
-    m_ogl.vertex_buffer->map(m_next_free_vert * sizeof(Vertex), 0);
-    m_ogl.vertex_buffer->writeToBuffer(m_verts.data());
-    m_ogl.vertex_buffer->unmap();
+    m_ogl.vertex_buffer->writeToGpuBuffer(m_verts.data(), m_next_free_vert * sizeof(Vertex), 0);
   }
 
   if (m_next_free_idx > 0) {
-    m_ogl.index_buffer->map(m_next_free_idx * sizeof(u32), 0);
-    m_ogl.index_buffer->writeToBuffer(m_indices.data());
-    m_ogl.index_buffer->unmap();
+    m_ogl.index_buffer->writeToGpuBuffer(m_indices.data(), m_next_free_idx * sizeof(u32), 0);
   }
 
   //glEnable(GL_PRIMITIVE_RESTART);
   //glPrimitiveRestartIndex(UINT32_MAX);
 
-  vulkan_bind_and_setup_proj(render_state);
+  graphics_bind_and_setup_proj(render_state);
   constexpr DrawMode::AlphaBlend alpha_order[ALPHA_MODE_COUNT] = {
       DrawMode::AlphaBlend::SRC_0_FIX_DST,    DrawMode::AlphaBlend::SRC_SRC_SRC_SRC,
       DrawMode::AlphaBlend::SRC_DST_SRC_DST,  DrawMode::AlphaBlend::SRC_0_SRC_DST,
@@ -464,23 +481,7 @@ void Generic2::do_draws(SharedRenderState* render_state, ScopedProfilerNode& pro
   }
 }
 
-void Generic2::InitializeVertexBuffer(SharedRenderState* render_state) {
-  auto& shader = render_state->shaders[ShaderId::SHRUB];
-
-  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Vertex Fragment";
-
-  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Shrub Fragment";
-
-  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
-
+void GenericVulkan2::InitializeInputAttributes() {
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(Vertex);
@@ -514,11 +515,12 @@ void Generic2::InitializeVertexBuffer(SharedRenderState* render_state) {
 
 GenericCommonVertexUniformBuffer::GenericCommonVertexUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
-    VkDeviceSize instanceSize,
     uint32_t instanceCount,
-    uint32_t memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment)
-    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+    : UniformVulkanBuffer(device,
+                          sizeof(GenericCommonVertexUniformShaderData),
+                          instanceCount,
+                          minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"mat_32", offsetof(GenericCommonVertexUniformShaderData, mat_32)},
       {"fog_constants", offsetof(GenericCommonVertexUniformShaderData, fog_constants)},
@@ -530,11 +532,12 @@ GenericCommonVertexUniformBuffer::GenericCommonVertexUniformBuffer(
 
 GenericCommonFragmentUniformBuffer::GenericCommonFragmentUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
-    VkDeviceSize instanceSize,
     uint32_t instanceCount,
-    uint32_t memoryPropertyFlags,
     VkDeviceSize minOffsetAlignment)
-    : UniformBuffer(device, instanceSize, instanceCount, memoryPropertyFlags, minOffsetAlignment) {
+    : UniformVulkanBuffer(device,
+                    sizeof(GenericCommonFragmentUniformShaderData),
+                    instanceCount,
+                    minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"alpha_reject", offsetof(GenericCommonFragmentUniformShaderData, alpha_reject)},
       {"color_mult", offsetof(GenericCommonFragmentUniformShaderData, color_mult)},

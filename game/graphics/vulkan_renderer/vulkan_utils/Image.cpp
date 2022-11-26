@@ -1,31 +1,47 @@
 #include "Image.h"
+#include "VulkanBuffer.h"
+
 #include <cassert>
 #include <stdexcept>
 
-void TextureInfo::CreateImage(VkExtent3D extents,
-                              uint32_t mipLevels,
-                              VkImageType image_type,
-                              VkSampleCountFlagBits numSamples,
-                              VkFormat format,
-                              VkImageTiling tiling,
-                              uint32_t usage,
-                              uint32_t properties) {
-  m_extents = extents;
+VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+  VkPhysicalDeviceProperties properties{};
+  vkGetPhysicalDeviceProperties(m_device->getPhysicalDevice(), &properties);
 
-  VkImageCreateInfo imageInfo{};
-  imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-  imageInfo.imageType = image_type;
-  imageInfo.extent = extents;
-  imageInfo.mipLevels = mipLevels;
-  imageInfo.arrayLayers = 1;
-  imageInfo.format = format;
-  imageInfo.tiling = tiling;
-  imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  imageInfo.usage = usage;
-  imageInfo.samples = numSamples;
-  imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+  m_sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  m_sampler_info.anisotropyEnable = VK_TRUE;
+  m_sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  m_sampler_info.unnormalizedCoordinates = VK_FALSE;
+  m_sampler_info.minLod = 0.0f;
+  // m_sampler_info.maxLod = static_cast<float>(mipLevels);
+  m_sampler_info.mipLodBias = 0.0f;
 
-  if (vkCreateImage(m_device->getLogicalDevice(), &imageInfo, nullptr, &m_image) != VK_SUCCESS) {
+  m_sampler_info.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+}
+
+VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_device) {
+  m_image_create_info = texture.m_image_create_info;
+  if (texture.m_image) {
+    AllocateVulkanImageMemory();
+  }
+  m_image_view_create_info = texture.m_image_view_create_info;
+  if (m_image_view) {
+    if (vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
+                          &m_image_view) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create texture image view!");
+    }
+  }
+
+  m_sampler_info = texture.m_sampler_info;
+  if (texture.m_sampler) {
+    createTextureSampler();
+  }
+}
+
+
+void VulkanTexture::AllocateVulkanImageMemory() {
+  if (vkCreateImage(m_device->getLogicalDevice(), &m_image_create_info, nullptr, &m_image) !=
+      VK_SUCCESS) {
     throw std::runtime_error("failed to create image!");
   }
 
@@ -35,9 +51,11 @@ void TextureInfo::CreateImage(VkExtent3D extents,
   VkMemoryAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
   allocInfo.allocationSize = memRequirements.size;
-  allocInfo.memoryTypeIndex = m_device->findMemoryType(memRequirements.memoryTypeBits, properties);
+  allocInfo.memoryTypeIndex =
+      m_device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  if (vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &m_device_memory) != VK_SUCCESS) {
+  if (vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &m_device_memory) !=
+      VK_SUCCESS) {
     throw std::runtime_error("failed to allocate image memory!");
   }
 
@@ -45,27 +63,49 @@ void TextureInfo::CreateImage(VkExtent3D extents,
   m_initialized = true;
 }
 
-void TextureInfo::CreateImageView(VkImageViewType image_view_type,
+void VulkanTexture::createImage(VkExtent3D extents,
+                              uint32_t mipLevels,
+                              VkImageType image_type,
+                              VkSampleCountFlagBits numSamples,
+                              VkFormat format,
+                              VkImageTiling tiling,
+                              uint32_t usage) {
+  m_image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+  m_image_create_info.imageType = image_type;
+  m_image_create_info.extent = extents;
+  m_image_create_info.mipLevels = mipLevels;
+  m_image_create_info.arrayLayers = 1;
+  m_image_create_info.format = format;
+  m_image_create_info.tiling = tiling;
+  m_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  m_image_create_info.usage = usage;
+  m_image_create_info.samples = numSamples;
+  m_image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+  AllocateVulkanImageMemory();
+}
+
+void VulkanTexture::createImageView(VkImageViewType image_view_type,
                                   VkFormat format,
                                   VkImageAspectFlags aspectFlags,
                                   uint32_t mipLevels) {
-  VkImageViewCreateInfo viewInfo{};
-  viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-  viewInfo.image = m_image;
-  viewInfo.viewType = image_view_type;
-  viewInfo.format = format;
-  viewInfo.subresourceRange.aspectMask = aspectFlags;
-  viewInfo.subresourceRange.baseMipLevel = 0;
-  viewInfo.subresourceRange.levelCount = mipLevels;
-  viewInfo.subresourceRange.baseArrayLayer = 0;
-  viewInfo.subresourceRange.layerCount = 1;
+  m_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  m_image_view_create_info.image = m_image;
+  m_image_view_create_info.viewType = image_view_type;
+  m_image_view_create_info.format = format;
+  m_image_view_create_info.subresourceRange.aspectMask = aspectFlags;
+  m_image_view_create_info.subresourceRange.baseMipLevel = 0;
+  m_image_view_create_info.subresourceRange.levelCount = mipLevels;
+  m_image_view_create_info.subresourceRange.baseArrayLayer = 0;
+  m_image_view_create_info.subresourceRange.layerCount = 1;
 
-  if (vkCreateImageView(m_device->getLogicalDevice(), &viewInfo, nullptr, &m_image_view) != VK_SUCCESS) {
+  if (vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
+                        &m_image_view) != VK_SUCCESS) {
     throw std::runtime_error("failed to create texture image view!");
   }
 }
 
-void TextureInfo::DestroyTexture() {
+void VulkanTexture::destroyTexture() {
   if (m_image_view) {
     vkDestroyImageView(m_device->getLogicalDevice(), m_image_view, nullptr);
     m_image_view = VK_NULL_HANDLE;
@@ -81,29 +121,26 @@ void TextureInfo::DestroyTexture() {
 };
 
 /**
- * Map a memory range of this buffer. If successful, mapped points to the specified buffer range.
+ * Copies the specified data to the mapped buffer. Default value writes whole buffer range
  *
- * @param size (Optional) Size of the memory range to map. Pass VK_WHOLE_SIZE to map the complete
- * buffer range.
- * @param offset (Optional) Byte offset from beginning
+ * @param data Pointer to the data to copy
+ * @param size (Optional) Size of the data to copy. Pass VK_WHOLE_SIZE to flush the complete buffer
+ * range.
+ * @param offset (Optional) Byte offset from beginning of mapped region
  *
- * @return VkResult of the buffer mapping call
  */
-VkResult TextureInfo::map(VkDeviceSize size, VkDeviceSize offset) {
-  assert(m_image && m_device_memory && "Called map on buffer before create");
-  return vkMapMemory(m_device->getLogicalDevice(), m_device_memory, offset, size, 0, &mapped_memory);
-}
+void VulkanTexture::writeToImage(void* data, VkDeviceSize size, VkDeviceSize offset) {
+  StagingBuffer stagingBuffer(m_device,
+                              m_image_create_info.extent.width * m_image_create_info.extent.height *
+                                  m_image_create_info.extent.depth * 4, 1,
+                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-/**
- * Unmap a mapped memory range
- *
- * @note Does not return a result as vkUnmapMemory can't fail
- */
-void TextureInfo::unmap() {
-  if (mapped_memory) {
-    vkUnmapMemory(m_device->getLogicalDevice(), m_device_memory);
-    mapped_memory = nullptr;
-  }
+  stagingBuffer.map();
+  stagingBuffer.writeToCpuBuffer(data);
+
+  m_device->copyBufferToImage(stagingBuffer.getBuffer(), m_image, m_image_create_info.extent.width, m_image_create_info.extent.height,
+                              0, 0, 1);
+  stagingBuffer.unmap();
 }
 
 /**
@@ -115,19 +152,8 @@ void TextureInfo::unmap() {
  * @param offset (Optional) Byte offset from beginning of mapped region
  *
  */
-void TextureInfo::writeToBuffer(void* data, VkDeviceSize size, VkDeviceSize offset) {
-  assert(mapped_memory && "Cannot copy to unmapped buffer");
-
-  const unsigned rgba_size = sizeof(unsigned);
-  VkDeviceSize image_size = m_extents.width * m_extents.height * m_extents.depth * rgba_size;
-
-  if (size == VK_WHOLE_SIZE) {
-    memcpy(mapped_memory, data, image_size);
-  } else {
-    char* memOffset = (char*)mapped_memory;
-    memOffset += offset;
-    memcpy(memOffset, data, size);
-  }
+void VulkanTexture::getImageData(VkBuffer buffer, uint32_t width, uint32_t height, double x_offset, double y_offset) {
+  m_device->copyImageToBuffer(m_image, width, height, x_offset, y_offset, 1, buffer);
 }
 
 /**
@@ -141,7 +167,7 @@ void TextureInfo::writeToBuffer(void* data, VkDeviceSize size, VkDeviceSize offs
  *
  * @return VkResult of the flush call
  */
-VkResult TextureInfo::flush(VkDeviceSize size, VkDeviceSize offset) {
+VkResult VulkanTexture::flush(VkDeviceSize size, VkDeviceSize offset) {
   VkMappedMemoryRange mappedRange = {};
   mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
   mappedRange.memory = m_device_memory;
@@ -161,7 +187,7 @@ VkResult TextureInfo::flush(VkDeviceSize size, VkDeviceSize offset) {
  *
  * @return VkResult of the invalidate call
  */
-VkResult TextureInfo::invalidate(VkDeviceSize size, VkDeviceSize offset) {
+VkResult VulkanTexture::invalidate(VkDeviceSize size, VkDeviceSize offset) {
   VkMappedMemoryRange mappedRange = {};
   mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
   mappedRange.memory = m_device_memory;
@@ -170,7 +196,7 @@ VkResult TextureInfo::invalidate(VkDeviceSize size, VkDeviceSize offset) {
   return vkInvalidateMappedMemoryRanges(m_device->getLogicalDevice(), 1, &mappedRange);
 }
 
-VkFormat TextureInfo::findDepthFormat() {
+VkFormat VulkanTexture::findDepthFormat() {
   return m_device->findSupportedFormat(
       {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
       VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
@@ -180,24 +206,11 @@ bool hasStencilComponent(VkFormat format) {
   return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-void TextureInfo::CreateTextureSampler() {
+void VulkanTexture::createTextureSampler() {
   if (m_sampler) {
     vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
     m_sampler = VK_NULL_HANDLE;
   }
-
-  VkPhysicalDeviceProperties properties{};
-  vkGetPhysicalDeviceProperties(m_device->getPhysicalDevice(), &properties);
-
-  m_sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  m_sampler_info.anisotropyEnable = VK_TRUE;
-  m_sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-  m_sampler_info.unnormalizedCoordinates = VK_FALSE;
-  m_sampler_info.minLod = 0.0f;
-  // m_sampler_info.maxLod = static_cast<float>(mipLevels);
-  m_sampler_info.mipLodBias = 0.0f;
-
-  m_sampler_info.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
 
   if (vkCreateSampler(m_device->getLogicalDevice(), &m_sampler_info, nullptr, &m_sampler) !=
       VK_SUCCESS) {
@@ -213,7 +226,7 @@ void TextureInfo::CreateTextureSampler() {
  *
  * @return VkDescriptorBufferInfo of specified offset and range
  */
-VkDescriptorImageInfo TextureInfo::descriptorInfo(VkImageLayout image_layout) {
+VkDescriptorImageInfo VulkanTexture::descriptorInfo(VkImageLayout image_layout) {
   return VkDescriptorImageInfo{
       m_sampler,
       m_image_view,

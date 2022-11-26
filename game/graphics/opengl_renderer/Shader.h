@@ -4,6 +4,7 @@
 
 #include "common/common_types.h"
 #include "common/versions.h"
+#include "game/graphics/general_renderer/ShaderCommon.h"
 
 class Shader {
  public:
@@ -19,35 +20,6 @@ class Shader {
   u64 m_vert_shader = 0;
   u64 m_program = 0;
   bool m_is_okay = false;
-};
-
-// note: update the constructor in Shader.cpp
-enum class ShaderId {
-  SOLID_COLOR = 0,
-  DIRECT_BASIC = 1,
-  DIRECT_BASIC_TEXTURED = 2,
-  DEBUG_RED = 3,
-  SKY = 4,
-  SKY_BLEND = 5,
-  TFRAG3 = 6,
-  TFRAG3_NO_TEX = 7,
-  SPRITE = 8,
-  SPRITE3 = 9,
-  DIRECT2 = 10,
-  EYE = 11,
-  GENERIC = 12,
-  OCEAN_TEXTURE = 13,
-  OCEAN_TEXTURE_MIPMAP = 14,
-  OCEAN_COMMON = 15,
-  SHADOW = 16,
-  SHRUB = 17,
-  COLLISION = 18,
-  MERC2 = 19,
-  SPRITE_DISTORT = 20,
-  SPRITE_DISTORT_INSTANCED = 21,
-  POST_PROCESSING = 22,
-  DEPTH_CUE = 23,
-  MAX_SHADERS
 };
 
 class ShaderLibrary {

@@ -1,5 +1,7 @@
 
 #pragma once
+
+#include "game/graphics/general_renderer/SkyRenderer.h"
 #include "game/graphics/vulkan_renderer/SkyBlendCPU.h"
 #include "game/graphics/vulkan_renderer/SkyBlendGPU.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
@@ -10,43 +12,75 @@
  * Handles texture blending for the sky.
  * Will insert the result texture into the texture pool.
  */
-class SkyBlendHandler : public BucketRenderer {
+
+class SkyBlendVulkanHandler : public BaseSkyBlendHandler, public BucketVulkanRenderer {
  public:
-  SkyBlendHandler(const std::string& name,
-                  BucketId my_id,
+  SkyBlendVulkanHandler(const std::string& name,
+                  int my_id,
                   std::unique_ptr<GraphicsDeviceVulkan>& device,
                   VulkanInitializationInfo& vulkan_info,
                   int level_id,
                   std::shared_ptr<SkyBlendGPU> shared_gpu_blender,
                   std::shared_ptr<SkyBlendCPU> shared_cpu_blender);
-  void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
-  void draw_debug_window() override;
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+
+ protected:
+  void tfrag_renderer_draw_debug_window() override;
 
  private:
   void handle_sky_copies(DmaFollower& dma,
-                         SharedRenderState* render_state,
+                         SharedVulkanRenderState* render_state,
                          ScopedProfilerNode& prof);
+
+  SkyBlendStats cpu_blender_do_sky_blends(DmaFollower& dma,
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) override;
+
+  SkyBlendStats gpu_blender_do_sky_blends(DmaFollower& dma,
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) override;
+
+  void tfrag_renderer_render(DmaFollower& dma,
+                             BaseSharedRenderState* render_state,
+                             ScopedProfilerNode& tfrag_prof) override;
 
   std::shared_ptr<SkyBlendGPU> m_shared_gpu_blender;
   std::shared_ptr<SkyBlendCPU> m_shared_cpu_blender;
   SkyBlendStats m_gpu_stats;
-  TFragment m_tfrag_renderer;
+  TFragmentVulkan m_tfrag_renderer;
 };
 
 /*!
  * Handles sky drawing.
  */
-class SkyRenderer : public BucketRenderer {
+class SkyVulkanRenderer : public BaseSkyRenderer, public BucketVulkanRenderer {
  public:
-  SkyRenderer(const std::string& name,
-              BucketId my_id,
+  SkyVulkanRenderer(const std::string& name,
+              int my_id,
               std::unique_ptr<GraphicsDeviceVulkan>& device,
               VulkanInitializationInfo& vulkan_info);
-  void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
-  void draw_debug_window() override;
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+
+  protected:
+   void direct_renderer_reset_state() override;
+   void direct_renderer_draw_debug_window() override;
+   void direct_renderer_flush_pending(BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode& prof) override;
+   void direct_renderer_render_gif(
+             const u8* data,
+             u32 size,
+             BaseSharedRenderState* render_state,
+             ScopedProfilerNode& prof) override;
+
+   void direct_renderer_render_vif(u32 vif0,
+                                   u32 vif1,
+                                   const u8* data,
+                                   u32 size,
+                                   BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) override;
 
  private:
-  DirectRenderer m_direct_renderer;
+  DirectVulkanRenderer m_direct_renderer;
 
   struct FrameStats {
     int gif_packets = 0;

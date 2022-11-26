@@ -140,7 +140,7 @@ class TextureMap {
  * The lowest level reference to texture data.
  */
 struct TextureData {
-  u64 gl = -1;               // the OpenGL texture ID
+  u64 imageId = -1;               // the Graphics texture ID (can be treated like memory address in some instances)
   const u8* data = nullptr;  // pointer to texture data (owned by the loader)
 };
 
@@ -299,16 +299,16 @@ struct GoalTexturePage {
  * (note that the above property is only true because we never make a VRAM slot invalid after
  *  it has been loaded once)
  */
-class TexturePool {
+class BaseTexturePool {
  public:
-  TexturePool(GameVersion version);
+  BaseTexturePool(GameVersion version);
   void handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr);
   GpuTexture* give_texture(const TextureInput& in);
   GpuTexture* give_texture_and_load_to_vram(const TextureInput& in, u32 vram_slot);
   void unload_texture(PcTextureId tex_id, u64 gpu_id);
 
-  /*!
-   * Look up an OpenGL texture by vram address. Return std::nullopt if the game hasn't loaded
+    /*!
+   * Look up an Graphics texture by vram address. Return std::nullopt if the game hasn't loaded
    * anything to this address.
    */
   std::optional<u64> lookup(u32 location) {
@@ -320,7 +320,7 @@ class TexturePool {
         } else {
           bool fnd = false;
           for (auto& tt : t.source->gpu_textures) {
-            if (tt.gl == t.gpu_texture) {
+            if (tt.imageId == t.gpu_texture) {
               fnd = true;
               break;
             }
@@ -342,9 +342,9 @@ class TexturePool {
    * handle_upload_now.
    */
   GpuTexture* lookup_gpu_texture(u32 location) { return m_textures[location].source; }
-  std::optional<u64> lookup_mt4hh(u32 location);
   u64 get_placeholder_texture() { return m_placeholder_texture_id; }
   void draw_debug_window();
+  std::optional<u64> lookup_mt4hh(u32 location);
   void relocate(u32 destination, u32 source, u32 format);
   void draw_debug_for_tex(const std::string& name, GpuTexture* tex, u32 slot);
   const std::array<TextureVRAMReference, 1024 * 1024 * 4 / 256> all_textures() const {
@@ -355,11 +355,10 @@ class TexturePool {
   std::mutex& mutex() { return m_mutex; }
   PcTextureId allocate_pc_port_texture();
 
-  std::string get_debug_texture_name(PcTextureId id);
-
- private:
+ protected:
   void refresh_links(GpuTexture& texture);
   GpuTexture* get_gpu_texture_for_slot(PcTextureId id, u32 slot);
+  std::string get_debug_texture_name(PcTextureId id);
 
   char m_regex_input[256] = "";
   std::array<TextureVRAMReference, 1024 * 1024 * 4 / 256> m_textures;
@@ -371,7 +370,7 @@ class TexturePool {
 
   std::vector<u32> m_placeholder_data;
   u64 m_placeholder_texture_id = 0;
-
+  
   TextureMap<GpuTexture> m_loaded_textures;
 
   // we maintain a mapping of all textures/ids we've seen so far.

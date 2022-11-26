@@ -2,31 +2,28 @@
 
 #include "common/dma/dma_chain_read.h"
 
+#include "game/graphics/general_renderer/SkyBlendCommon.h"
+#include "game/graphics/general_renderer/SkyBlendCPU.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/vulkan_renderer/SkyBlendCommon.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
 
-class SkyBlendCPU {
+class SkyBlendCPU : public BaseSkyBlendCPU {
  public:
-  SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   ~SkyBlendCPU();
 
-  SkyBlendStats do_sky_blends(DmaFollower& dma,
-                              SharedRenderState* render_state,
-                              ScopedProfilerNode& prof);
-  void init_textures(TexturePool& tex_pool);
+  void init_textures(TexturePoolVulkan& tex_pool);
 
  private:
+  void setup_gpu_texture(u32, bool, u32, u32, int, SkyBlendStats&) override;
   static constexpr int m_sizes[2] = {32, 64};
-  std::vector<u8> m_texture_data[2];
 
   struct TexInfo {
-    GLuint gl;
+    std::unique_ptr<VulkanTexture> texture;
     u32 tbp;
     GpuTexture* tex;
   } m_textures[2];
 
-  std::unique_ptr<TextureInfo> textures[2];
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  VulkanInitializationInfo& m_vulkan_info;
 };

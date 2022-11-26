@@ -87,7 +87,9 @@ void ImguiVulkanHelper::InitializeNewFrame() {
 void ImguiVulkanHelper::Render() {
   ImGui::Render();
   VkCommandBuffer commandBuffer = m_swap_chain->getLogicalDevice()->beginSingleTimeCommands();
+  m_swap_chain->beginSwapChainRenderPass(commandBuffer, m_current_image_index++ % m_swap_chain->imageCount());
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer, NULL);
+  m_swap_chain->endSwapChainRenderPass(commandBuffer);
   m_swap_chain->getLogicalDevice()->endSingleTimeCommands(commandBuffer);
 }
 

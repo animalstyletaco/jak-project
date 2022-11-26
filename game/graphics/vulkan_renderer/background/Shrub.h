@@ -4,41 +4,36 @@
 
 #include "common/util/FilteredValue.h"
 
-#include "game/graphics/gfx.h"
+#include "game/graphics/general_renderer/background/Shrub.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
 
-class Shrub : public BucketRenderer {
+class ShrubVulkan : public BucketVulkanRenderer, public BaseShrub {
  public:
-  Shrub(const std::string& name,
-        BucketId my_id,
+  ShrubVulkan(const std::string& name,
+        int my_id,
         std::unique_ptr<GraphicsDeviceVulkan>& device,
         VulkanInitializationInfo& vulkan_info);
-  ~Shrub();
-  bool setup_for_level(const std::string& level, SharedRenderState* render_state);
+  ~ShrubVulkan();
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+
+ protected:
   void render_all_trees(const TfragRenderSettings& settings,
-                        SharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
+                        BaseSharedRenderState* render_state,
+                        ScopedProfilerNode& prof) override;
   void render_tree(int idx,
                    const TfragRenderSettings& settings,
-                   SharedRenderState* render_state,
+                   BaseSharedRenderState* render_state,
                    ScopedProfilerNode& prof);
-  void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
-  void draw_debug_window() override;
-
-protected:
-  void InitializeVertexBuffer(SharedRenderState* render_state);
+  void InitializeVertexBuffer();
 
  private:
-  void update_load(const LevelData* loader_data);
-  void discard_tree_cache();
+  void update_load(const LevelDataVulkan* loader_data);
+  bool setup_for_level(const std::string& level, BaseSharedRenderState* render_state) override;
+  void discard_tree_cache() override;
 
   struct Tree {
-    std::unique_ptr<Buffer> vertex_buffer;
-    std::unique_ptr<Buffer> index_buffer;
-    std::unique_ptr<Buffer> single_draw_index_buffer;
-    std::unique_ptr<TextureInfo> time_of_day_texture;
+    std::unique_ptr<VulkanTexture> time_of_day_texture;
     u32 vert_count;
     const std::vector<tfrag3::ShrubDraw>* draws = nullptr;
     const std::vector<tfrag3::TieWindInstance>* instance_info = nullptr;
@@ -60,7 +55,7 @@ protected:
 
   std::vector<Tree> m_trees;
   std::string m_level_name;
-  std::vector<TextureInfo>* m_textures;
+  std::vector<VulkanTexture>* m_textures;
   u64 m_load_id = -1;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
@@ -72,11 +67,16 @@ protected:
     std::vector<std::pair<int, int>> draw_idx_temp;
     std::vector<u32> index_temp;
     std::vector<std::pair<int, int>> multidraw_offset_per_stripdraw;
-    std::vector<GLsizei> multidraw_count_buffer;
+    std::vector<u32> multidraw_count_buffer;
     std::vector<void*> multidraw_index_offset_buffer;
   } m_cache;
   TfragPcPortData m_pc_port_data;
 
+  std::unique_ptr<VertexBuffer> m_vertex_buffer;
+  std::unique_ptr<IndexBuffer>  m_index_buffer;
+  std::unique_ptr<IndexBuffer>  m_single_draw_index_buffer;
+
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_buffer;
 };
+

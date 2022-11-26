@@ -3,6 +3,8 @@
 #include "common/log/log.h"
 #include "common/util/FileUtil.h"
 
+#include "game/graphics/general_renderer/TextureUploadHandler.h"
+#include "game/graphics/general_renderer/VisDataHandler.h"
 #include "game/graphics/vulkan_renderer/DepthCue.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
 #include "game/graphics/vulkan_renderer/EyeRenderer.h"
@@ -10,7 +12,6 @@
 #include "game/graphics/vulkan_renderer/SkyRenderer.h"
 #include "game/graphics/vulkan_renderer/Sprite3.h"
 #include "game/graphics/vulkan_renderer/SpriteRenderer.h"
-#include "game/graphics/vulkan_renderer/TextureUploadHandler.h"
 #include "game/graphics/vulkan_renderer/background/Shrub.h"
 #include "game/graphics/vulkan_renderer/background/TFragment.h"
 #include "game/graphics/vulkan_renderer/background/Tie3.h"
@@ -18,7 +19,6 @@
 #include "game/graphics/vulkan_renderer/foreground/Merc2.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanMidAndFar.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanNear.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
 
 #include "third-party/imgui/imgui.h"
 
@@ -26,18 +26,62 @@
 #include "game/kernel/common/kmachine.h"
 #include "game/runtime.h"
 
-namespace {
+namespace vulkan_renderer {
 std::string g_current_render;
 
 }
 
+class VulkanTextureUploadHandler : public BaseTextureUploadHandler, public BucketVulkanRenderer {
+ public:
+  VulkanTextureUploadHandler(const std::string& name,
+                            int my_id,
+                            std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            VulkanInitializationInfo& vulkan_info)
+      : BaseTextureUploadHandler(name, my_id), BucketVulkanRenderer(device, vulkan_info){};
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override {
+    m_eye_renderer = render_state->eye_renderer;
+    BaseTextureUploadHandler::render(dma, render_state, prof);
+  };
+
+ private:
+  void texture_pool_handle_upload_now(const u8* tpage,
+                                      int mode,
+                                      const u8* memory_base,
+                                      u32 s7_ptr) override {
+    m_vulkan_info.texture_pool->handle_upload_now(tpage, mode, memory_base, s7_ptr);
+  }
+  void eye_renderer_handle_eye_dma2(DmaFollower& dma,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) override {
+    m_eye_renderer->handle_eye_dma2(dma, render_state, prof);
+  }
+
+  EyeVulkanRenderer* m_eye_renderer = nullptr;
+};
+
+class VisDataVulkanHandler : public BaseVisDataHandler, public BucketVulkanRenderer {
+ public:
+  VisDataVulkanHandler(const std::string& name,
+                       int my_id,
+                       std::unique_ptr<GraphicsDeviceVulkan>& device,
+                       VulkanInitializationInfo& vulkan_info)
+      : BaseVisDataHandler(name, my_id), BucketVulkanRenderer(device, vulkan_info){};
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override {
+    BaseVisDataHandler::render(dma, render_state, prof);
+  };
+};
+
+
+using namespace vulkan_renderer;
+
 VulkanRenderer::~VulkanRenderer() {
 }
 
-VulkanRenderer::VulkanRenderer(std::shared_ptr<TexturePool> texture_pool,
-                               std::shared_ptr<Loader> loader,
+VulkanRenderer::VulkanRenderer(std::shared_ptr<TexturePoolVulkan> texture_pool,
+                               std::shared_ptr<VulkanLoader> loader,
+                               GameVersion version,
                                std::unique_ptr<GraphicsDeviceVulkan>& device)
-    : m_render_state(texture_pool, loader, device), m_device(device) {
+    : m_version(version), m_render_state(version, device), m_device(device), m_vulkan_info(device, version) {
   createCommandBuffers();
 
   m_extents = {640, 480};
@@ -65,20 +109,33 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<TexturePool> texture_pool,
   m_vulkan_info.descriptor_pool = std::make_unique<DescriptorPool>(m_device, maxSets, 0, poolSizes);
 
   // initialize all renderers
-  init_bucket_renderers();
+  // initialize all renderers
+  switch (m_version) {
+    case GameVersion::Jak1:
+      init_bucket_renderers_jak1();
+      break;
+    case GameVersion::Jak2:
+      init_bucket_renderers_jak2();
+      break;
+    default:
+      ASSERT(false);
+  }
 }
 
 /*!
  * Construct bucket renderers.  We can specify different renderers for different buckets
  */
-void VulkanRenderer::init_bucket_renderers() {
-  m_bucket_categories.fill(BucketCategory::OTHER);
+void VulkanRenderer::init_bucket_renderers_jak1() {
+  using namespace jak1;
+  m_bucket_renderers.resize((int)BucketId::MAX_BUCKETS);
+  m_bucket_categories.resize((int)BucketId::MAX_BUCKETS, BucketCategory::OTHER);
+
   std::vector<tfrag3::TFragmentTreeKind> normal_tfrags = {tfrag3::TFragmentTreeKind::NORMAL,
                                                           tfrag3::TFragmentTreeKind::LOWRES};
   std::vector<tfrag3::TFragmentTreeKind> dirt_tfrags = {tfrag3::TFragmentTreeKind::DIRT};
   std::vector<tfrag3::TFragmentTreeKind> ice_tfrags = {tfrag3::TFragmentTreeKind::ICE};
-  auto sky_gpu_blender = std::make_shared<SkyBlendGPU>(m_device);
-  auto sky_cpu_blender = std::make_shared<SkyBlendCPU>(m_device);
+  auto sky_gpu_blender = std::make_shared<SkyBlendGPU>(m_device, m_vulkan_info);
+  auto sky_cpu_blender = std::make_shared<SkyBlendCPU>(m_device, m_vulkan_info);
 
   //-------------
   // PRE TEXTURE
@@ -87,7 +144,7 @@ void VulkanRenderer::init_bucket_renderers() {
   // 1 : ??
   // 2 : ??
   // 3 : SKY_DRAW
-  init_bucket_renderer<SkyRenderer>("sky", BucketCategory::OTHER, BucketId::SKY_DRAW, m_device, m_vulkan_info);
+  init_bucket_renderer<SkyVulkanRenderer>("sky", BucketCategory::OTHER, BucketId::SKY_DRAW, m_device, m_vulkan_info);
   // 4 : OCEAN_MID_AND_FAR
   init_bucket_renderer<OceanMidAndFar>("ocean-mid-far", BucketCategory::OCEAN,
                                        BucketId::OCEAN_MID_AND_FAR, m_device, m_vulkan_info);
@@ -96,50 +153,50 @@ void VulkanRenderer::init_bucket_renderers() {
   // LEVEL 0 tfrag texture
   //-----------------------
   // 5 : TFRAG_TEX_LEVEL0
-  init_bucket_renderer<TextureUploadHandler>("l0-tfrag-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l0-tfrag-tex", BucketCategory::TEX,
                                              BucketId::TFRAG_TEX_LEVEL0, m_device, m_vulkan_info);
   // 6 : TFRAG_LEVEL0
-  init_bucket_renderer<TFragment>("l0-tfrag-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_LEVEL0, m_device, m_vulkan_info,
+  init_bucket_renderer<TFragmentVulkan>("l0-tfrag-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_LEVEL0, m_device, m_vulkan_info,
                                   normal_tfrags, false, 0);
   // 7 : TFRAG_NEAR_LEVEL0
   // 8 : TIE_NEAR_LEVEL0
   // 9 : TIE_LEVEL0
-  init_bucket_renderer<Tie3>("l0-tfrag-tie", BucketCategory::TIE, BucketId::TIE_LEVEL0, m_device, m_vulkan_info, 0);
+  init_bucket_renderer<Tie3Vulkan>("l0-tfrag-tie", BucketCategory::TIE, BucketId::TIE_LEVEL0, m_device, m_vulkan_info, 0);
   // 10 : MERC_TFRAG_TEX_LEVEL0
-  init_bucket_renderer<Merc2>("l0-tfrag-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("l0-tfrag-merc", BucketCategory::MERC,
                               BucketId::MERC_TFRAG_TEX_LEVEL0, m_device, m_vulkan_info);
   // 11 : GMERC_TFRAG_TEX_LEVEL0
-  init_bucket_renderer<Generic2>("l0-tfrag-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("l0-tfrag-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_TFRAG_TEX_LEVEL0, m_device, m_vulkan_info, 1500000, 10000, 10000, 800);
 
   //-----------------------
   // LEVEL 1 tfrag texture
   //-----------------------
   // 12 : TFRAG_TEX_LEVEL1
-  init_bucket_renderer<TextureUploadHandler>("l1-tfrag-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l1-tfrag-tex", BucketCategory::TEX,
                                              BucketId::TFRAG_TEX_LEVEL1, m_device, m_vulkan_info);
   // 13 : TFRAG_LEVEL1
-  init_bucket_renderer<TFragment>("l1-tfrag-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_LEVEL1, m_device, m_vulkan_info,
+  init_bucket_renderer<TFragmentVulkan>("l1-tfrag-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_LEVEL1, m_device, m_vulkan_info,
                                   normal_tfrags, false, 1);
   // 14 : TFRAG_NEAR_LEVEL1
   // 15 : TIE_NEAR_LEVEL1
   // 16 : TIE_LEVEL1
-  init_bucket_renderer<Tie3>("l1-tfrag-tie", BucketCategory::TIE, BucketId::TIE_LEVEL1, m_device, m_vulkan_info, 1);
+  init_bucket_renderer<Tie3Vulkan>("l1-tfrag-tie", BucketCategory::TIE, BucketId::TIE_LEVEL1, m_device, m_vulkan_info, 1);
   // 17 : MERC_TFRAG_TEX_LEVEL1
-  init_bucket_renderer<Merc2>("l1-tfrag-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("l1-tfrag-merc", BucketCategory::MERC,
                               BucketId::MERC_TFRAG_TEX_LEVEL1, m_device, m_vulkan_info);
   // 18 : GMERC_TFRAG_TEX_LEVEL1
-  init_bucket_renderer<Generic2>("l1-tfrag-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("l1-tfrag-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_TFRAG_TEX_LEVEL1, m_device, m_vulkan_info, 1500000, 10000, 10000, 800);
 
   //-----------------------
   // LEVEL 0 shrub texture
   //-----------------------
   // 19 : SHRUB_TEX_LEVEL0
-  init_bucket_renderer<TextureUploadHandler>("l0-shrub-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l0-shrub-tex", BucketCategory::TEX,
                                              BucketId::SHRUB_TEX_LEVEL0, m_device, m_vulkan_info);
   // 20 : SHRUB_NORMAL_LEVEL0
-  init_bucket_renderer<Shrub>("l0-shrub", BucketCategory::SHRUB, BucketId::SHRUB_NORMAL_LEVEL0, m_device, m_vulkan_info);
+  init_bucket_renderer<ShrubVulkan>("l0-shrub", BucketCategory::SHRUB, BucketId::SHRUB_NORMAL_LEVEL0, m_device, m_vulkan_info);
   // 21 : ???
   // 22 : SHRUB_BILLBOARD_LEVEL0
   // 23 : SHRUB_TRANS_LEVEL0
@@ -149,148 +206,271 @@ void VulkanRenderer::init_bucket_renderers() {
   // LEVEL 1 shrub texture
   //-----------------------
   // 25 : SHRUB_TEX_LEVEL1
-  init_bucket_renderer<TextureUploadHandler>("l1-shrub-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l1-shrub-tex", BucketCategory::TEX,
                                              BucketId::SHRUB_TEX_LEVEL1, m_device, m_vulkan_info);
   // 26 : SHRUB_NORMAL_LEVEL1
-  init_bucket_renderer<Shrub>("l1-shrub", BucketCategory::SHRUB, BucketId::SHRUB_NORMAL_LEVEL1, m_device, m_vulkan_info);
+  init_bucket_renderer<ShrubVulkan>("l1-shrub", BucketCategory::SHRUB, BucketId::SHRUB_NORMAL_LEVEL1, m_device, m_vulkan_info);
   // 27 : ???
   // 28 : SHRUB_BILLBOARD_LEVEL1
   // 29 : SHRUB_TRANS_LEVEL1
   // 30 : SHRUB_GENERIC_LEVEL1
-  init_bucket_renderer<Generic2>("mystery-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("mystery-generic", BucketCategory::GENERIC,
                                  BucketId::SHRUB_GENERIC_LEVEL1, m_device, m_vulkan_info);
 
   //-----------------------
   // LEVEL 0 alpha texture
   //-----------------------
-  init_bucket_renderer<TextureUploadHandler>("l0-alpha-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l0-alpha-tex", BucketCategory::TEX,
                                              BucketId::ALPHA_TEX_LEVEL0, m_device, m_vulkan_info);  // 31
-  init_bucket_renderer<SkyBlendHandler>("l0-alpha-sky-blend-and-tfrag-trans", BucketCategory::OTHER,
+  init_bucket_renderer<SkyBlendVulkanHandler>("l0-alpha-sky-blend-and-tfrag-trans", BucketCategory::OTHER,
                                         BucketId::TFRAG_TRANS0_AND_SKY_BLEND_LEVEL0, m_device, m_vulkan_info, 0,
                                         sky_gpu_blender, sky_cpu_blender);  // 32
   // 33
-  init_bucket_renderer<TFragment>("l0-alpha-tfrag", BucketCategory::TFRAG,
+  init_bucket_renderer<TFragmentVulkan>("l0-alpha-tfrag", BucketCategory::TFRAG,
                                   BucketId::TFRAG_DIRT_LEVEL0, m_device, m_vulkan_info, dirt_tfrags, false,
                                   0);  // 34
   // 35
-  init_bucket_renderer<TFragment>("l0-alpha-tfrag-ice", BucketCategory::TFRAG,
+  init_bucket_renderer<TFragmentVulkan>("l0-alpha-tfrag-ice", BucketCategory::TFRAG,
                                   BucketId::TFRAG_ICE_LEVEL0, m_device, m_vulkan_info, ice_tfrags, false, 0);
   // 37
 
   //-----------------------
   // LEVEL 1 alpha texture
   //-----------------------
-  init_bucket_renderer<TextureUploadHandler>("l1-alpha-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l1-alpha-tex", BucketCategory::TEX,
                                              BucketId::ALPHA_TEX_LEVEL1, m_device, m_vulkan_info);  // 38
-  init_bucket_renderer<SkyBlendHandler>("l1-alpha-sky-blend-and-tfrag-trans", BucketCategory::OTHER,
+  init_bucket_renderer<SkyBlendVulkanHandler>("l1-alpha-sky-blend-and-tfrag-trans", BucketCategory::OTHER,
                                         BucketId::TFRAG_TRANS1_AND_SKY_BLEND_LEVEL1, m_device, m_vulkan_info, 1,
                                         sky_gpu_blender, sky_cpu_blender);  // 39
   // 40
-  init_bucket_renderer<TFragment>("l1-alpha-tfrag-dirt", BucketCategory::TFRAG,
+  init_bucket_renderer<TFragmentVulkan>("l1-alpha-tfrag-dirt", BucketCategory::TFRAG,
                                   BucketId::TFRAG_DIRT_LEVEL1, m_device, m_vulkan_info, dirt_tfrags, false,
                                   1);  // 41
   // 42
-  init_bucket_renderer<TFragment>("l1-alpha-tfrag-ice", BucketCategory::TFRAG,
+  init_bucket_renderer<TFragmentVulkan>("l1-alpha-tfrag-ice", BucketCategory::TFRAG,
                                   BucketId::TFRAG_ICE_LEVEL1, m_device, m_vulkan_info, ice_tfrags, false, 1);
   // 44
 
-  init_bucket_renderer<Merc2>("common-alpha-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("common-alpha-merc", BucketCategory::MERC,
                               BucketId::MERC_AFTER_ALPHA, m_device, m_vulkan_info);
 
-  init_bucket_renderer<Generic2>("common-alpha-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("common-alpha-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_ALPHA, m_device, m_vulkan_info);                                  // 46
-  init_bucket_renderer<ShadowRenderer>("shadow", BucketCategory::OTHER, BucketId::SHADOW, m_device, m_vulkan_info);  // 47
+  init_bucket_renderer<ShadowVulkanRenderer>("shadow", BucketCategory::OTHER, BucketId::SHADOW, m_device, m_vulkan_info);  // 47
 
   //-----------------------
   // LEVEL 0 pris texture
   //-----------------------
-  init_bucket_renderer<TextureUploadHandler>("l0-pris-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l0-pris-tex", BucketCategory::TEX,
                                              BucketId::PRIS_TEX_LEVEL0, m_device, m_vulkan_info);  // 48
-  init_bucket_renderer<Merc2>("l0-pris-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("l0-pris-merc", BucketCategory::MERC,
                               BucketId::MERC_PRIS_LEVEL0, m_device, m_vulkan_info);  // 49
-  init_bucket_renderer<Generic2>("l0-pris-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("l0-pris-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_PRIS_LEVEL0, m_device, m_vulkan_info);  // 50
 
   //-----------------------
   // LEVEL 1 pris texture
   //-----------------------
-  init_bucket_renderer<TextureUploadHandler>("l1-pris-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l1-pris-tex", BucketCategory::TEX,
                                              BucketId::PRIS_TEX_LEVEL1, m_device, m_vulkan_info);  // 51
-  init_bucket_renderer<Merc2>("l1-pris-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("l1-pris-merc", BucketCategory::MERC,
                               BucketId::MERC_PRIS_LEVEL1, m_device, m_vulkan_info);  // 52
-  init_bucket_renderer<Generic2>("l1-pris-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("l1-pris-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_PRIS_LEVEL1, m_device, m_vulkan_info);  // 53
 
   // other renderers may output to the eye renderer
-  m_render_state.eye_renderer = init_bucket_renderer<EyeRenderer>(
+  m_render_state.eye_renderer = init_bucket_renderer<EyeVulkanRenderer>(
       "common-pris-eyes", BucketCategory::OTHER, BucketId::MERC_EYES_AFTER_PRIS, m_device, m_vulkan_info);  // 54
 
   // hack: set to merc2 for debugging
-  init_bucket_renderer<Merc2>("common-pris-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("common-pris-merc", BucketCategory::MERC,
                               BucketId::MERC_AFTER_PRIS, m_device, m_vulkan_info);  // 55
-  init_bucket_renderer<Generic2>("common-pris-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("common-pris-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_PRIS, m_device, m_vulkan_info);  // 56
 
   //-----------------------
   // LEVEL 0 water texture
   //-----------------------
-  init_bucket_renderer<TextureUploadHandler>("l0-water-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l0-water-tex", BucketCategory::TEX,
                                              BucketId::WATER_TEX_LEVEL0, m_device, m_vulkan_info);  // 57
-  init_bucket_renderer<Merc2>("l0-water-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("l0-water-merc", BucketCategory::MERC,
                               BucketId::MERC_WATER_LEVEL0, m_device, m_vulkan_info);  // 58
-  init_bucket_renderer<Generic2>("l0-water-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("l0-water-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_WATER_LEVEL0, m_device, m_vulkan_info);  // 59
 
   //-----------------------
   // LEVEL 1 water texture
   //-----------------------
-  init_bucket_renderer<TextureUploadHandler>("l1-water-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("l1-water-tex", BucketCategory::TEX,
                                              BucketId::WATER_TEX_LEVEL1, m_device, m_vulkan_info);  // 60
-  init_bucket_renderer<Merc2>("l1-water-merc", BucketCategory::MERC,
+  init_bucket_renderer<MercVulkan2>("l1-water-merc", BucketCategory::MERC,
                               BucketId::MERC_WATER_LEVEL1, m_device, m_vulkan_info);  // 61
-  init_bucket_renderer<Generic2>("l1-water-generic", BucketCategory::GENERIC,
+  init_bucket_renderer<GenericVulkan2>("l1-water-generic", BucketCategory::GENERIC,
                                  BucketId::GENERIC_WATER_LEVEL1, m_device, m_vulkan_info);  // 62
 
-  init_bucket_renderer<OceanNear>("ocean-near", BucketCategory::OCEAN, BucketId::OCEAN_NEAR, m_device, m_vulkan_info);  // 63
+  init_bucket_renderer<OceanNearVulkan>("ocean-near", BucketCategory::OCEAN, BucketId::OCEAN_NEAR, m_device, m_vulkan_info);  // 63
 
   //-----------------------
   // DEPTH CUE
   //-----------------------
-  init_bucket_renderer<DepthCue>("depth-cue", BucketCategory::OTHER, BucketId::DEPTH_CUE, m_device, m_vulkan_info);  // 64
+  init_bucket_renderer<DepthCueVulkan>("depth-cue", BucketCategory::OTHER, BucketId::DEPTH_CUE, m_device, m_vulkan_info);  // 64
 
   //-----------------------
   // COMMON texture
   //-----------------------
-  init_bucket_renderer<TextureUploadHandler>("common-tex", BucketCategory::TEX,
+  init_bucket_renderer<VulkanTextureUploadHandler>("common-tex", BucketCategory::TEX,
                                              BucketId::PRE_SPRITE_TEX, m_device, m_vulkan_info);  // 65
 
-  std::vector<std::unique_ptr<BucketRenderer>> sprite_renderers;
   // the first renderer added will be the default for sprite.
-  sprite_renderers.push_back(std::make_unique<Sprite3>("sprite-3", BucketId::SPRITE, m_device, m_vulkan_info));
-  sprite_renderers.push_back(std::make_unique<SpriteRenderer>("sprite-renderer", BucketId::SPRITE, m_device, m_vulkan_info));
-  init_bucket_renderer<RenderMux>("sprite", BucketCategory::SPRITE, BucketId::SPRITE, m_device, m_vulkan_info,
-                                  std::move(sprite_renderers));  // 66
+  auto sprite_3d = std::make_shared<SpriteVulkan3>("sprite-3", (int)BucketId::SPRITE, m_device, m_vulkan_info);
+  auto sprite_renderer = std::make_shared<SpriteVulkanRenderer>("sprite-renderer", (int)BucketId::SPRITE, m_device, m_vulkan_info);
 
-  init_bucket_renderer<DirectRenderer>("debug", BucketCategory::OTHER, BucketId::DEBUG, m_device, m_vulkan_info, 0x20000);
-  init_bucket_renderer<DirectRenderer>("debug-no-zbuf", BucketCategory::OTHER,
+  std::vector<std::shared_ptr<BaseBucketRenderer>> base_sprite_renderers{sprite_3d, sprite_renderer};
+  std::vector<std::shared_ptr<BucketVulkanRenderer>> graphics_sprite_renderers{sprite_3d, sprite_renderer};
+
+  init_bucket_renderer<RenderVulkanMux>("sprite", BucketCategory::SPRITE, BucketId::SPRITE,
+                                        m_device, m_vulkan_info, graphics_sprite_renderers,
+                                        base_sprite_renderers);  // 66
+
+  init_bucket_renderer<DirectVulkanRenderer>("debug", BucketCategory::OTHER, BucketId::DEBUG, m_device, m_vulkan_info, 0x20000);
+  init_bucket_renderer<DirectVulkanRenderer>("debug-no-zbuf", BucketCategory::OTHER,
                                        BucketId::DEBUG_NO_ZBUF, m_device, m_vulkan_info, 0x8000);
   // an extra custom bucket!
-  init_bucket_renderer<DirectRenderer>("subtitle", BucketCategory::OTHER, BucketId::SUBTITLE, m_device, m_vulkan_info, 6000);
+  init_bucket_renderer<DirectVulkanRenderer>("subtitle", BucketCategory::OTHER, BucketId::SUBTITLE, m_device, m_vulkan_info, 6000);
 
   // for now, for any unset renderers, just set them to an EmptyBucketRenderer.
   for (size_t i = 0; i < m_bucket_renderers.size(); i++) {
     if (!m_bucket_renderers[i]) {
-      init_bucket_renderer<EmptyBucketRenderer>(fmt::format("bucket{}", i), BucketCategory::OTHER,
+      init_bucket_renderer<EmptyBucketVulkanRenderer>(fmt::format("bucket{}", i), BucketCategory::OTHER,
                                                 (BucketId)i, m_device, m_vulkan_info);
     }
 
-    m_bucket_renderers[i]->init_shaders(m_render_state.shaders);
-    m_bucket_renderers[i]->init_textures(*m_render_state.texture_pool);
+    m_graphics_bucket_renderers[i]->init_shaders(m_vulkan_info.shaders);
+    m_graphics_bucket_renderers[i]->init_textures(*m_vulkan_info.texture_pool);
   }
-  sky_cpu_blender->init_textures(*m_render_state.texture_pool);
-  sky_gpu_blender->init_textures(*m_render_state.texture_pool);
-  m_render_state.loader->load_common(*m_render_state.texture_pool, "GAME");
+  sky_cpu_blender->init_textures(*m_vulkan_info.texture_pool);
+  sky_gpu_blender->init_textures(*m_vulkan_info.texture_pool);
+  m_vulkan_info.loader->load_common(*m_vulkan_info.texture_pool, "GAME");
 }
+
+void VulkanRenderer::init_bucket_renderers_jak2() {
+  using namespace jak2;
+  m_bucket_renderers.resize((int)BucketId::MAX_BUCKETS);
+  m_bucket_categories.resize((int)BucketId::MAX_BUCKETS, BucketCategory::OTHER);
+  // 0
+  init_bucket_renderer<VisDataVulkanHandler>("vis", BucketCategory::OTHER, BucketId::SPECIAL_BUCKET_2, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-sky-pre", BucketCategory::TEX,
+                                             BucketId::TEX_LCOM_SKY_PRE, m_device, m_vulkan_info);
+  init_bucket_renderer<DirectVulkanRenderer>("sky-draw", BucketCategory::OTHER, BucketId::SKY_DRAW,
+                                             m_device, m_vulkan_info, 1024);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-tfrag", BucketCategory::TEX,
+                                             BucketId::TEX_L0_TFRAG, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-l0-tfrag", BucketCategory::TFRAG,
+                                        BucketId::TFRAG_L0_TFRAG, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::NORMAL}, false, 0);
+  init_bucket_renderer<Tie3Vulkan>("tie-l0-tfrag", BucketCategory::TIE, BucketId::TIE_L0_TFRAG,
+                                   m_device, m_vulkan_info, 0);
+  // 10
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-tfrag", BucketCategory::TEX,
+                                                   BucketId::TEX_L1_TFRAG, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>(
+      "tfrag-l1-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_L1_TFRAG, m_device,
+      m_vulkan_info, std::vector{tfrag3::TFragmentTreeKind::NORMAL}, false, 1);
+  // 20
+  init_bucket_renderer<Tie3Vulkan>("tie-l1-tfrag", BucketCategory::TIE, BucketId::TIE_L1_TFRAG,
+                                   m_device, m_vulkan_info, 1);
+  // 30
+  // 40
+  // 50
+  // 60
+  // 70
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-shrub", BucketCategory::TEX,
+                                                   BucketId::TEX_L0_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<ShrubVulkan>("shrub-l0-shrub", BucketCategory::SHRUB,
+                                    BucketId::SHRUB_L0_SHRUB, m_device, m_vulkan_info);
+  // 80
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-shrub", BucketCategory::TEX,
+                                                   BucketId::TEX_L1_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<ShrubVulkan>("shrub-l1-shrub", BucketCategory::SHRUB,
+                                    BucketId::SHRUB_L1_SHRUB, m_device, m_vulkan_info);
+  // 90
+  // 100
+  // 110
+  // 120
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-alpha", BucketCategory::TEX,
+                                                   BucketId::TEX_L0_ALPHA, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-t-l0-alpha", BucketCategory::TFRAG, BucketId::TFRAG_T_L0_ALPHA, m_device,
+      m_vulkan_info, std::vector{tfrag3::TFragmentTreeKind::TRANS}, false, 0);
+  // 130
+  // 140
+  // 150
+  // 160
+  // 170
+  // 180
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-tfrag", BucketCategory::TEX, BucketId::TEX_LCOM_TFRAG, m_device, m_vulkan_info);
+  // 190
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-shrub", BucketCategory::TEX, BucketId::TEX_LCOM_SHRUB, m_device, m_vulkan_info);
+
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-pris", BucketCategory::TEX,
+                                                   BucketId::TEX_L0_PRIS, m_device, m_vulkan_info);
+  // 200
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-pris", BucketCategory::TEX,
+                                                   BucketId::TEX_L2_PRIS, m_device, m_vulkan_info);
+  // 210
+  // 220
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-pris", BucketCategory::TEX, BucketId::TEX_LCOM_PRIS, m_device, m_vulkan_info);
+  // 230
+  // 240
+  // 250
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-water", BucketCategory::TEX,
+                                                   BucketId::TEX_L0_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-w-l0-alpha", BucketCategory::TFRAG, BucketId::TFRAG_W_L0_WATER, m_device,
+      m_vulkan_info, std::vector{tfrag3::TFragmentTreeKind::WATER}, false, 0);
+  // 260
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-water", BucketCategory::TEX,
+                                                   BucketId::TEX_L1_WATER, m_device, m_vulkan_info);
+  // 270
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-water", BucketCategory::TEX,
+                                                   BucketId::TEX_L2_WATER, m_device, m_vulkan_info);
+  // 280
+  // 290
+  // 300
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-water", BucketCategory::TEX, BucketId::TEX_LCOM_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-sky-post", BucketCategory::TEX,
+                                                   BucketId::TEX_LCOM_SKY_POST, m_device,
+                                                   m_vulkan_info);
+  // 310
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-sprite", BucketCategory::TEX, BucketId::TEX_ALL_SPRITE, m_device, m_vulkan_info);
+  init_bucket_renderer<SpriteVulkan3>("particles", BucketCategory::SPRITE, BucketId::PARTICLES, m_device,
+                                m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-warp", BucketCategory::TEX,
+                                                   BucketId::TEX_ALL_WARP, m_device, m_vulkan_info);
+  init_bucket_renderer<DirectVulkanRenderer>("debug-no-zbuf1", BucketCategory::OTHER,
+                                             BucketId::DEBUG_NO_ZBUF1, m_device,
+                                             m_vulkan_info, 0x8000);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-map", BucketCategory::TEX,
+                                                   BucketId::TEX_ALL_MAP, m_device, m_vulkan_info);
+  // 320
+  init_bucket_renderer<DirectVulkanRenderer>("debug2", BucketCategory::OTHER, BucketId::DEBUG2,
+                                             m_device, m_vulkan_info, 0x8000);
+  init_bucket_renderer<DirectVulkanRenderer>("debug-no-zbuf2", BucketCategory::OTHER,
+                                             BucketId::DEBUG_NO_ZBUF2, m_device,
+                                             m_vulkan_info, 0x8000);
+  init_bucket_renderer<DirectVulkanRenderer>("debug3", BucketCategory::OTHER, BucketId::DEBUG3,
+                                             m_device, m_vulkan_info, 0x8000);
+
+  // for now, for any unset renderers, just set them to an EmptyBucketRenderer.
+  for (size_t i = 0; i < m_bucket_renderers.size(); i++) {
+    if (!m_bucket_renderers[i]) {
+      init_bucket_renderer<EmptyBucketVulkanRenderer>(fmt::format("bucket{}", i), BucketCategory::OTHER, i, m_device, m_vulkan_info);
+    }
+
+    m_graphics_bucket_renderers[i]->init_shaders(m_vulkan_info.shaders);
+    m_graphics_bucket_renderers[i]->init_textures(*m_vulkan_info.texture_pool);
+  }
+  m_vulkan_info.loader->load_common(*m_vulkan_info.texture_pool, "GAME");
+}
+
 
 /*!
  * Main render function. This is called from the gfx loop with the chain passed from the game.
@@ -314,17 +494,17 @@ void VulkanRenderer::render(DmaFollower dma, const RenderOptions& settings) {
     auto prof = m_profiler.root()->make_scoped_child("loader");
     if (m_last_pmode_alp == 0 && settings.pmode_alp_register != 0 && m_enable_fast_blackout_loads) {
       // blackout, load everything and don't worry about frame rate
-      m_render_state.loader->update_blocking(*m_render_state.texture_pool);
+      m_vulkan_info.loader->update_blocking(*m_vulkan_info.texture_pool);
 
     } else {
-      m_render_state.loader->update(*m_render_state.texture_pool);
+      m_vulkan_info.loader->update(*m_vulkan_info.texture_pool);
     }
   }
 
   // render the buckets!
   {
     auto prof = m_profiler.root()->make_scoped_child("buckets");
-    dispatch_buckets(dma, prof, settings.gpu_sync);
+    dispatch_buckets_jak1(dma, prof, settings.gpu_sync);
   }
 
   // apply effects done with PCRTC registers
@@ -391,7 +571,6 @@ void VulkanRenderer::draw_renderer_selection_window() {
   ImGui::SliderFloat("Fog Adjust", &m_render_state.fog_intensity, 0, 10);
   ImGui::Checkbox("Sky CPU", &m_render_state.use_sky_cpu);
   ImGui::Checkbox("Occlusion Cull", &m_render_state.use_occlusion_culling);
-  ImGui::Checkbox("Merc XGKICK", &m_render_state.enable_merc_xgkick);
   ImGui::Checkbox("Blackout Loads", &m_enable_fast_blackout_loads);
 
   for (size_t i = 0; i < m_bucket_renderers.size(); i++) {
@@ -407,7 +586,7 @@ void VulkanRenderer::draw_renderer_selection_window() {
     }
   }
   if (ImGui::TreeNode("Texture Pool")) {
-    m_render_state.texture_pool->draw_debug_window();
+    m_vulkan_info.texture_pool->draw_debug_window();
     ImGui::TreePop();
   }
   ImGui::End();
@@ -418,8 +597,8 @@ void VulkanRenderer::draw_renderer_selection_window() {
  */
 void VulkanRenderer::setup_frame(const RenderOptions& settings) {
   // glfw controls the window framebuffer, so we just update the size:
-  bool window_changed = m_swap_chain->width() != settings.window_framebuffer_width ||
-                        m_swap_chain->height() != settings.window_framebuffer_height ||
+  bool window_changed = m_vulkan_info.swap_chain->width() != settings.window_framebuffer_width ||
+                        m_vulkan_info.swap_chain->height() != settings.window_framebuffer_height ||
                         m_device->getMsaaCount() != settings.msaa_samples;
   bool isValidWindow = true;
 
@@ -467,26 +646,27 @@ void VulkanRenderer::setup_frame(const RenderOptions& settings) {
     m_render_state.render_fb_y = m_render_state.draw_offset_y;
     m_render_state.render_fb_w = m_render_state.draw_region_w;
     m_render_state.render_fb_h = m_render_state.draw_region_h;
-    m_swap_chain->setSwapChainOffsetExtent(
+    m_vulkan_info.swap_chain->setSwapChainOffsetExtent(
         {m_render_state.draw_offset_x, -1 * m_render_state.draw_offset_y}); //Y-axis is inverse in Vulkan compared to OpenGL
-    m_swap_chain->setSwapChainOffsetExtent(
+    m_vulkan_info.swap_chain->setSwapChainOffsetExtent(
         {m_render_state.draw_region_w, m_render_state.draw_region_h});
   } else {
     m_render_state.render_fb_x = 0;
     m_render_state.render_fb_y = 0;
     m_render_state.render_fb_w = settings.game_res_w;
     m_render_state.render_fb_h = settings.game_res_h;
-    m_swap_chain->setSwapChainOffsetExtent({0, 0});
-    m_swap_chain->setSwapChainOffsetExtent({settings.game_res_w, settings.game_res_h});
+    m_vulkan_info.swap_chain->setSwapChainOffsetExtent({0, 0});
+    m_vulkan_info.swap_chain->setSwapChainOffsetExtent({settings.game_res_w, settings.game_res_h});
   }
 }
 
 /*!
  * This function finds buckets and dispatches them to the appropriate part.
  */
-void VulkanRenderer::dispatch_buckets(DmaFollower dma,
+void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
                                       ScopedProfilerNode& prof,
                                       bool sync_after_buckets) {
+  using namespace jak1;
   // The first thing the DMA chain should be a call to a common default-registers chain.
   // this chain resets the state of the GS. After this is buckets
   m_category_times.fill(0);
@@ -520,10 +700,12 @@ void VulkanRenderer::dispatch_buckets(DmaFollower dma,
   // loop over the buckets!
   for (int bucket_id = 0; bucket_id < (int)BucketId::MAX_BUCKETS; bucket_id++) {
     auto& renderer = m_bucket_renderers[bucket_id];
+    auto& graphics_renderer = m_graphics_bucket_renderers[bucket_id];
+
     auto bucket_prof = prof.make_scoped_child(renderer->name_and_id());
     g_current_render = renderer->name_and_id();
     // lg::info("Render: {} start", g_current_render);
-    renderer->render(dma, &m_render_state, bucket_prof);
+    graphics_renderer->render(dma, &m_render_state, bucket_prof);
     if (sync_after_buckets) {
       auto pp = scoped_prof("finish");
       //glFinish();
@@ -549,6 +731,44 @@ void VulkanRenderer::dispatch_buckets(DmaFollower dma,
   // TODO ending data.
 }
 
+void VulkanRenderer::dispatch_buckets_jak2(DmaFollower dma,
+                                           ScopedProfilerNode& prof,
+                                           bool sync_after_buckets) {
+  // The first thing the DMA chain should be a call to a common default-registers chain.
+  // this chain resets the state of the GS. After this is buckets
+  m_category_times.fill(0);
+
+  m_render_state.buckets_base = dma.current_tag_offset();  // starts at 0 in jak 2
+  m_render_state.next_bucket = m_render_state.buckets_base + 16;
+  m_render_state.bucket_for_vis_copy = (int)jak2::BucketId::SPECIAL_BUCKET_2;
+  m_render_state.num_vis_to_copy = 6;
+
+  for (size_t bucket_id = 0; bucket_id < m_bucket_renderers.size(); bucket_id++) {
+    auto& renderer = m_bucket_renderers[bucket_id];
+    auto& graphics_renderer = m_graphics_bucket_renderers[bucket_id];
+
+    auto bucket_prof = prof.make_scoped_child(renderer->name_and_id());
+    g_current_render = renderer->name_and_id();
+    // lg::info("Render: {} start", g_current_render);
+    graphics_renderer->render(dma, &m_render_state, bucket_prof);
+    if (sync_after_buckets) {
+      auto pp = scoped_prof("finish");
+      glFinish();
+    }
+
+    // lg::info("Render: {} end", g_current_render);
+    //  should have ended at the start of the next chain
+    ASSERT(dma.current_tag_offset() == m_render_state.next_bucket);
+    m_render_state.next_bucket += 16;
+    vif_interrupt_callback(bucket_id + 1);
+    m_category_times[(int)m_bucket_categories[bucket_id]] += bucket_prof.get_elapsed_time();
+  }
+  vif_interrupt_callback(m_bucket_renderers.size());
+
+  // TODO ending data.
+}
+
+
 void VulkanRenderer::finish_screenshot(const std::string& output_name,
                                        int width,
                                        int height,
@@ -557,9 +777,9 @@ void VulkanRenderer::finish_screenshot(const std::string& output_name,
   VkDeviceSize device_memory_size = sizeof(u32) * width * height;
   std::vector<u32> buffer(width * height);
 
-  VkImage srcImage = m_swap_chain->getImage(currentImageIndex);
+  VkImage srcImage = m_vulkan_info.swap_chain->getImage(currentImageIndex);
 
-  Buffer screenshotBuffer(m_device, device_memory_size, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+  VulkanBuffer screenshotBuffer(m_device, device_memory_size, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
   if (screenshotBuffer.map() != VK_SUCCESS) {
@@ -590,7 +810,7 @@ void VulkanRenderer::finish_screenshot(const std::string& output_name,
 }
 
 void VulkanRenderer::do_pcrtc_effects(float alp,
-                                      SharedRenderState* render_state,
+                                      SharedVulkanRenderState* render_state,
                                       ScopedProfilerNode& prof) {
   VkPipelineColorBlendAttachmentState colorBlendAttachment{};
   colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
@@ -620,7 +840,7 @@ void VulkanRenderer::do_pcrtc_effects(float alp,
 
     colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    m_swap_chain->setSwapChainOffsetExtent({0, 0});
+    m_vulkan_info.swap_chain->setSwapChainOffsetExtent({0, 0});
 
     //m_blackout_renderer.draw(Vector4f(0, 0, 0, 1.f - alp), render_state, prof);
 
@@ -649,13 +869,13 @@ void VulkanRenderer::recreateSwapChain() {
   }
   vkDeviceWaitIdle(m_device->getLogicalDevice());
 
-  if (m_swap_chain == nullptr) {
-    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents);
+  if (m_vulkan_info.swap_chain == nullptr) {
+    m_vulkan_info.swap_chain = std::make_unique<SwapChain>(m_device, m_extents);
   } else {
-    std::shared_ptr<SwapChain> oldSwapChain = std::move(m_swap_chain);
-    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents, oldSwapChain);
+    std::shared_ptr<SwapChain> oldSwapChain = std::move(m_vulkan_info.swap_chain);
+    m_vulkan_info.swap_chain = std::make_unique<SwapChain>(m_device, m_extents, oldSwapChain);
 
-    if (!oldSwapChain->compareSwapFormats(*m_swap_chain.get())) {
+    if (!oldSwapChain->compareSwapFormats(*m_vulkan_info.swap_chain.get())) {
       throw std::runtime_error("Swap chain image(or depth) format has changed!");
     }
   }
@@ -664,7 +884,7 @@ void VulkanRenderer::recreateSwapChain() {
 VkCommandBuffer VulkanRenderer::beginFrame() {
   assert(!isFrameStarted && "Can't call beginFrame while already in progress");
 
-  auto result = m_swap_chain->acquireNextImage(&currentImageIndex);
+  auto result = m_vulkan_info.swap_chain->acquireNextImage(&currentImageIndex);
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     recreateSwapChain();
     return nullptr;
@@ -693,7 +913,7 @@ void VulkanRenderer::endFrame() {
     throw std::runtime_error("failed to record command buffer!");
   }
 
-  if(m_swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex) != VK_SUCCESS){
+  if(m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex) != VK_SUCCESS){
     throw std::runtime_error("failed to present swap chain image!");
   }
 

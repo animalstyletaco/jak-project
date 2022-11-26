@@ -1,24 +1,26 @@
 
 #include "common/dma/dma_chain_read.h"
 
+#include "game/graphics/general_renderer/SkyBlendGPU.h"
+#include "game/graphics/general_renderer/SkyBlendCommon.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/vulkan_renderer/SkyBlendCommon.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
+
 
 class SkyBlendGPU {
  public:
-  SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   ~SkyBlendGPU();
-  void init_textures(TexturePool& tex_pool);
+  void init_textures(TexturePoolVulkan& tex_pool);
   SkyBlendStats do_sky_blends(DmaFollower& dma,
-                              SharedRenderState* render_state,
+                              BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof);
 
  private:
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
-  std::unique_ptr<TextureInfo> m_textures[2];
+  std::unique_ptr<VulkanTexture> m_textures[2];
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   GraphicsPipelineLayout m_pipeline_layout;
+  VulkanInitializationInfo& m_vulkan_info;
   PipelineConfigInfo m_pipeline_config_info;
 
   int m_sizes[2] = {32, 64};

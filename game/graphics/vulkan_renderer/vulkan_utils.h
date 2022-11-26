@@ -3,67 +3,72 @@
 #include "common/math/Vector.h"
 #include "common/log/log.h"
 
-#include "game/graphics/vulkan_renderer/vulkan_utils/Buffer.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
 
-struct SharedRenderState;
+struct SharedVulkanRenderState;
 class ScopedProfilerNode;
+
 
 /*!
  * This is a wrapper around a framebuffer and texture to make it easier to render to a texture.
  */
-class FramebufferTexturePair {
+class FramebufferVulkanTexturePair {
  public:
-  FramebufferTexturePair(int w, int h, VkFormat format, std::unique_ptr<GraphicsDeviceVulkan>& device, int num_levels = 1);
-  ~FramebufferTexturePair();
+  FramebufferVulkanTexturePair(int w,
+                         int h,
+                         VkFormat format,
+                         std::unique_ptr<GraphicsDeviceVulkan>& device,
+                         int num_levels = 1);
+  ~FramebufferVulkanTexturePair();
 
-  TextureInfo* texture() const { return (TextureInfo*)textures.data(); }
+  VulkanTexture* texture() const { return (VulkanTexture*)textures.data(); }
 
-  FramebufferTexturePair(const FramebufferTexturePair&) = delete;
-  FramebufferTexturePair& operator=(const FramebufferTexturePair&) = delete;
+  FramebufferVulkanTexturePair(const FramebufferVulkanTexturePair&) = delete;
+  FramebufferVulkanTexturePair& operator=(const FramebufferVulkanTexturePair&) = delete;
 
  private:
-  friend class FramebufferTexturePairContext;
+  friend class FramebufferVulkanTexturePairContext;
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  std::vector<TextureInfo> textures;
+  std::vector<VulkanTexture> textures;
 
   int m_w, m_h;
-
 };
 
-class FramebufferTexturePairContext {
+class FramebufferVulkanTexturePairContext {
  public:
-  FramebufferTexturePairContext(FramebufferTexturePair& fb, int level = 0);
-  ~FramebufferTexturePairContext();
+  FramebufferVulkanTexturePairContext(FramebufferVulkanTexturePair& fb, int level = 0);
+  ~FramebufferVulkanTexturePairContext();
 
-  void switch_to(FramebufferTexturePair& fb);
+  void switch_to(FramebufferVulkanTexturePair& fb);
 
-  FramebufferTexturePairContext(const FramebufferTexturePairContext&) = delete;
-  FramebufferTexturePairContext& operator=(const FramebufferTexturePairContext&) = delete;
+  FramebufferVulkanTexturePairContext(const FramebufferVulkanTexturePairContext&) = delete;
+  FramebufferVulkanTexturePairContext& operator=(const FramebufferVulkanTexturePairContext&) = delete;
 
  private:
-  FramebufferTexturePair* m_fb;
+  FramebufferVulkanTexturePair* m_fb;
   VkViewport m_old_viewport;
-  GLint m_old_framebuffer;
+  VkFramebuffer m_old_framebuffer;
 };
 
 // draw over the full screen.
 // you must set alpha/ztest/etc.
-class FullScreenDraw {
+class FullScreenDrawVulkan {
  public:
-  FullScreenDraw(std::unique_ptr<GraphicsDeviceVulkan>& device);
-  ~FullScreenDraw();
-  FullScreenDraw(const FullScreenDraw&) = delete;
-  FullScreenDraw& operator=(const FullScreenDraw&) = delete;
-  void draw(const math::Vector4f& color, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  ~FullScreenDrawVulkan();
+  FullScreenDrawVulkan(const FullScreenDrawVulkan&) = delete;
+  FullScreenDrawVulkan& operator=(const FullScreenDrawVulkan&) = delete;
+  void draw(const math::Vector4f& color,
+            SharedVulkanRenderState* render_state,
+            ScopedProfilerNode& prof);
 
  private:
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
-  std::unique_ptr<UniformBuffer> m_fragment_uniform_buffer;
+  std::unique_ptr<UniformVulkanBuffer> m_fragment_uniform_buffer;
   GraphicsPipelineLayout m_pipeline_layout;
   PipelineConfigInfo m_pipeline_config_info;
 };

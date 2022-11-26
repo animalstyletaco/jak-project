@@ -83,9 +83,9 @@
                                      :bolt-spec (new 'static 'lightning-spec
                                        :name #f
                                        :flags (lightning-spec-flags lsf2)
-                                       :start-color #x80ffffff
-                                       :end-color #x80000000
-                                       :fade-to-color #x58f00bf
+                                       :start-color (new 'static 'rgba :r #xff :g #xff :b #xff :a #x80)
+                                       :end-color (new 'static 'rgba :a #x80)
+                                       :fade-to-color (new 'static 'rgba :r #xbf :b #x8f :a #x5)
                                        :fade-start-factor 0.2
                                        :fade-time 120.0
                                        :texture #xc08300
@@ -102,9 +102,9 @@
                                        :name #f
                                        :flags (lightning-spec-flags lsf2)
                                        :rand-func #x3
-                                       :start-color #x80ffffff
-                                       :end-color #x80ffffff
-                                       :fade-to-color #x58f00bf
+                                       :start-color (new 'static 'rgba :r #xff :g #xff :b #xff :a #x80)
+                                       :end-color (new 'static 'rgba :r #xff :g #xff :b #xff :a #x80)
+                                       :fade-to-color (new 'static 'rgba :r #xbf :b #x8f :a #x5)
                                        :fade-start-factor 0.2
                                        :fade-time 120.0
                                        :texture #xc08300
@@ -344,7 +344,9 @@
     )
   :trans (behavior ()
     (local-vars
-      (sv-176 (function lightning-spec time-frame symbol process-drawable vector vector none))
+      (sv-176
+        (function lightning-spec time-frame symbol process-drawable vector vector none :behavior lightning-tracker)
+        )
       (sv-192 lightning-spec)
       (sv-208 int)
       (sv-224 symbol)
@@ -971,9 +973,9 @@
                                     :bolt-spec (new 'static 'lightning-spec
                                       :name #f
                                       :flags (lightning-spec-flags lsf2)
-                                      :start-color #x80ffffff
-                                      :end-color #x80000000
-                                      :fade-to-color #x58f00bf
+                                      :start-color (new 'static 'rgba :r #xff :g #xff :b #xff :a #x80)
+                                      :end-color (new 'static 'rgba :a #x80)
+                                      :fade-to-color (new 'static 'rgba :r #xbf :b #x8f :a #x5)
                                       :fade-start-factor 0.2
                                       :fade-time 120.0
                                       :texture #xc08300
@@ -990,9 +992,9 @@
                                       :name #f
                                       :flags (lightning-spec-flags lsf2)
                                       :rand-func #x3
-                                      :start-color #x80ffffff
-                                      :end-color #x80ffffff
-                                      :fade-to-color #x58f00bf
+                                      :start-color (new 'static 'rgba :r #xff :g #xff :b #xff :a #x80)
+                                      :end-color (new 'static 'rgba :r #xff :g #xff :b #xff :a #x80)
+                                      :fade-to-color (new 'static 'rgba :r #xbf :b #x8f :a #x5)
                                       :fade-start-factor 0.2
                                       :fade-time 120.0
                                       :texture #xc08300

@@ -828,6 +828,25 @@ struct ExecutionContext {
     }
   }
 
+  void vmr32(DEST mask, int dest, int src) {
+    auto s = vf_src(src);
+    if ((u64)mask & 1) {
+      vfs[dest].f[0] = s.f[1];
+    }
+
+    if ((u64)mask & 2) {
+      vfs[dest].f[1] = s.f[2];
+    }
+
+    if ((u64)mask & 4) {
+      vfs[dest].f[2] = s.f[3];
+    }
+
+    if ((u64)mask & 8) {
+      vfs[dest].f[3] = s.f[0];
+    }
+  }
+
   void vsub(DEST mask, int dest, int src0, int src1) {
     auto s0 = vf_src(src0);
     auto s1 = vf_src(src1);
@@ -890,6 +909,17 @@ struct ExecutionContext {
     for (int i = 0; i < 4; i++) {
       if ((u64)mask & (1 << i)) {
         acc.f[i] += s0.f[i] * s1.f[i];
+      }
+    }
+  }
+
+  void vmsuba(DEST mask, int src0, int src1) {
+    auto s0 = vf_src(src0);
+    auto s1 = vf_src(src1);
+
+    for (int i = 0; i < 4; i++) {
+      if ((u64)mask & (1 << i)) {
+        acc.f[i] -= s0.f[i] * s1.f[i];
       }
     }
   }
@@ -1064,6 +1094,9 @@ struct ExecutionContext {
   void dsllv(int dst, int src, int sa) {
     gprs[dst].ds64[0] = gpr_src(src).ds64[0] << (gpr_src(sa).du32[0] & 0b111111);
   }
+  void sllv(int dst, int src, int sa) {
+    gprs[dst].ds64[0] = gpr_src(src).ds32[0] << (gpr_src(sa).du32[0] & 0b11111);
+  }
   void dsra32(int dst, int src, int sa) { gprs[dst].ds64[0] = gpr_src(src).ds64[0] >> (32 + sa); }
   void dsrl32(int dst, int src, int sa) { gprs[dst].du64[0] = gpr_src(src).du64[0] >> (32 + sa); }
   void sra(int dst, int src, int sa) { gprs[dst].ds64[0] = gpr_src(src).ds32[0] >> sa; }
@@ -1093,6 +1126,7 @@ struct ExecutionContext {
   }
   void xor_(int dst, int src0, int src1) { gprs[dst].du64[0] = sgpr64(src0) ^ sgpr64(src1); }
   void or_(int dst, int src0, int src1) { gprs[dst].du64[0] = sgpr64(src0) | sgpr64(src1); }
+  void nor(int dst, int src0, int src1) { gprs[dst].du64[0] = ~(sgpr64(src0) | sgpr64(src1)); }
 
   void movz(int dst, int src0, int src1) {
     if (sgpr64(src1) == 0) {
@@ -1515,9 +1549,13 @@ inline void spad_to_dma(void* spad_sym_addr, u32 madr, u32 sadr, u32 qwc) {
   memcpy(spad_addr_c, g_ee_main_mem + madr, qwc * 16);
 }
 
+inline void* align4_ptr(void* spad_sym_addr) {
+  return (void*)align4(((uintptr_t)spad_sym_addr - 3));
+}
+
 inline void spad_to_dma_no_sadr_off(void* spad_sym_addr, u32 madr, u32 sadr, u32 qwc) {
   u32 spad_addr_goal;
-  memcpy(&spad_addr_goal, spad_sym_addr, 4);
+  memcpy(&spad_addr_goal, align4_ptr(spad_sym_addr), 4);
 
   ASSERT((madr & 0xf) == 0);
   ASSERT((sadr & 0xf) == 0);

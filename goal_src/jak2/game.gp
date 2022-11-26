@@ -504,6 +504,7 @@
   "target/collide-reaction-target.gc"
   "target/logic-target.gc"
   "target/sidekick.gc"
+  "game/effect-control.gc"
   "common_objs/voicebox.gc"
   "common_objs/collectables-part.gc"
   "debug/debug-part.gc"
@@ -836,6 +837,27 @@
   "hide-door-a-ag"
   "ctysluma-vis"
 )
+
+;;;;;;;;;;;;;;;;;;;;;
+;; CITY INDUSTRIAL B
+;;;;;;;;;;;;;;;;;;;;;
+
+(cgo "CIB.DGO" "cib.gd")
+
+(goal-src-sequence
+  "levels/city/industrial/"
+  :deps ("$OUT/obj/los-control.o")
+  "ctyindb-part.gc"
+  "ctyindb-obs.gc"
+  )
+
+(copy-textures 1565 1577 1601 1614 1642)
+
+(copy-gos
+  "com-airlock-outer-ag"
+  "ctyindb-vis"
+)
+
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;; VILLAGE 1
@@ -1967,50 +1989,50 @@
 ;; ;; FOR
 ;; ;;;;;;;;;;;;;;;;;;;;;
 
-;; (cgo "FOR.DGO" "for.gd")
+(cgo "FOR.DGO" "for.gd")
 
-;; (goal-src-sequence
-;;   ""
-;;   :deps ("$OUT/obj/los-control.o")
-;;   "levels/common/enemy/spyder.gc"
-;;   "levels/common/enemy/guards/crimson-guard-level.gc"
-;;   "levels/common/enemy/guards/guard-conversation.gc"
-;;   "levels/common/enemy/guards/transport-level.gc"
-;;   "levels/common/enemy/hover/hover-formation-h.gc"
-;;   "levels/common/enemy/hover/hover-nav-control-h.gc"
-;;   "levels/common/enemy/hover/hover-enemy-h.gc"
-;;   "levels/common/enemy/hover/hover-nav-network.gc"
-;;   "levels/common/enemy/hover/hover-nav-control.gc"
-;;   "levels/common/enemy/hover/hover-enemy.gc"
-;;   "levels/common/enemy/hover/hover-enemy-battle.gc"
-;;   "levels/common/enemy/hover/hover-formation.gc"
-;;   "levels/common/enemy/hover/hover-nav-edit.gc"
-;;   "levels/common/enemy/hover/wasp-part.gc"
-;;   "levels/common/enemy/hover/wasp.gc"
-;;   "levels/common/enemy/hover/crimson-guard-hover.gc"
-;;   "levels/common/enemy/hover/flamer.gc"
-;;   "levels/forest/forest-part.gc"
-;;   "levels/forest/forest-obs.gc"
-;;   "levels/forest/pegasus.gc"
-;;   "levels/forest/wren.gc"
-;;   "levels/forest/fish.gc"
-;;   "levels/forest/predator-h.gc"
-;;   "levels/forest/predator-graph.gc"
-;;   "levels/forest/predator.gc"
-;;   "levels/forest/forest-scenes.gc"
-;;   )
+(goal-src-sequence
+  ""
+  :deps ("$OUT/obj/los-control.o")
+  "levels/common/enemy/spyder.gc"
+  "levels/common/enemy/guards/crimson-guard-level.gc"
+  "levels/common/enemy/guards/guard-conversation.gc"
+  "levels/common/enemy/guards/transport-level.gc"
+  "levels/common/enemy/hover/hover-formation-h.gc"
+  "levels/common/enemy/hover/hover-nav-control-h.gc"
+  "levels/common/enemy/hover/hover-enemy-h.gc"
+  "levels/common/enemy/hover/hover-nav-network.gc"
+  "levels/common/enemy/hover/hover-nav-control.gc"
+  "levels/common/enemy/hover/hover-enemy.gc"
+  "levels/common/enemy/hover/hover-enemy-battle.gc"
+  "levels/common/enemy/hover/hover-formation.gc"
+  "levels/common/enemy/hover/hover-nav-edit.gc"
+  "levels/common/enemy/hover/wasp-part.gc"
+  "levels/common/enemy/hover/wasp.gc"
+  "levels/common/enemy/hover/crimson-guard-hover.gc"
+  "levels/common/enemy/hover/flamer.gc"
+  "levels/forest/forest-part.gc"
+  "levels/forest/forest-obs.gc"
+  "levels/forest/pegasus.gc"
+  "levels/forest/wren.gc"
+  "levels/forest/fish.gc"
+  "levels/forest/predator-h.gc"
+  "levels/forest/predator-graph.gc"
+  "levels/forest/predator.gc"
+  "levels/forest/forest-scenes.gc"
+  )
 
-;; (copy-textures 1414 1416 1415 1413 2335 1411 2845)
+(copy-textures 1414 1416 1415 1413 2335 1411 2845)
 
-;; (copy-gos
-;;   "jak-pegasus+0-ag"
-;;   "pegasus-ag"
-;;   "predator-ag"
-;;   "spyder-ag"
-;;   "wren-ag"
-;;   "minnow-ag"
-;;   "forest-vis"
-;;   )
+(copy-gos
+  "jak-pegasus+0-ag"
+  "pegasus-ag"
+  "predator-ag"
+  "spyder-ag"
+  "wren-ag"
+  "minnow-ag"
+  "forest-vis"
+  )
 
 ;; ;;;;;;;;;;;;;;;;;;;;;
 ;; ;; FORDUMPC

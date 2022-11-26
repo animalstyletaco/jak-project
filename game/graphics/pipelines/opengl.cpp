@@ -81,10 +81,6 @@ std::unique_ptr<GraphicsData> g_gfx_data;
 
 static bool want_hotkey_screenshot = false;
 
-bool is_cursor_position_valid = false;
-double last_cursor_x_position = 0;
-double last_cursor_y_position = 0;
-
 struct {
   bool callbacks_registered = false;
   GLFWmonitor** monitors;
@@ -356,6 +352,8 @@ void GLDisplay::on_mouse_key(GLFWwindow* /*window*/, int button, int action, int
 }
 
 void GLDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, double yposition) {
+  last_cursor_x_position = xposition;
+  last_cursor_y_position = yposition;
   Pad::MappingInfo mapping_info = Gfx::get_button_mapping();
   if (is_imgui_visible() || !mapping_info.use_mouse) {
     if (is_cursor_position_valid == true) {
@@ -367,8 +365,6 @@ void GLDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, dou
   }
 
   if (is_cursor_position_valid == false) {
-    last_cursor_x_position = xposition;
-    last_cursor_y_position = yposition;
     is_cursor_position_valid = true;
     return;
   }
@@ -378,9 +374,6 @@ void GLDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, dou
 
   Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_X_AXIS, xoffset);
   Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_Y_AXIS, yoffset);
-
-  last_cursor_x_position = xposition;
-  last_cursor_y_position = yposition;
 }
 
 void GLDisplay::on_window_pos(GLFWwindow* /*window*/, int xpos, int ypos) {
@@ -695,6 +688,10 @@ GLFWmonitor* GLDisplay::get_monitor(int index) {
 
 int GLDisplay::get_monitor_count() {
   return g_glfw_state.monitor_count;
+}
+
+std::tuple<double, double> GLDisplay::get_mouse_pos() {
+  return {last_cursor_x_position, last_cursor_y_position};
 }
 
 bool GLDisplay::minimized() {

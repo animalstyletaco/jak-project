@@ -24,12 +24,14 @@
 
 #ifdef _WIN32
 #include "pipelines/vulkan_pipeline.h"
+extern const GfxRendererModule gRendererVulkan;
 #else
 #include "pipelines/opengl.h"
+extern const GfxRendererModule gRendererOpenGL;
 #endif
 
-extern const GfxRendererModule gRendererOpenGL;
-extern const GfxRendererModule gRendererVulkan;
+
+
 
 namespace {
 // initializes a gfx settings.
@@ -59,10 +61,6 @@ namespace Gfx {
 std::function<void()> vsync_callback;
 GfxGlobalSettings g_global_settings;
 GfxSettings g_settings;
-
-//Attempting to future proof for os-specific renderers like DirectX and Metal
-std::array<const GfxRendererModule*, static_cast<uint32_t>(GfxPipeline::Count)> renderers{
-    NULL, &gRendererOpenGL, &gRendererVulkan};
 
 Pad::MappingInfo& get_button_mapping() {
   return g_settings.pad_mapping_info;

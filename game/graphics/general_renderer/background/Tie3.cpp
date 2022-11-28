@@ -17,7 +17,7 @@ BaseTie3::~BaseTie3() {
   discard_tree_cache();
 }
 
-void vector_min_in_place(math::Vector4f& v, float val) {
+void BaseTie3::vector_min_in_place(math::Vector4f& v, float val) {
   for (int i = 0; i < 4; i++) {
     if (v[i] > val) {
       v[i] = val;
@@ -25,7 +25,7 @@ void vector_min_in_place(math::Vector4f& v, float val) {
   }
 }
 
-math::Vector4f vector_max(const math::Vector4f& v, float val) {
+math::Vector4f BaseTie3::vector_max(const math::Vector4f& v, float val) {
   math::Vector4f result;
   for (int i = 0; i < 4; i++) {
     result[i] = std::max(val, v[i]);
@@ -33,7 +33,7 @@ math::Vector4f vector_max(const math::Vector4f& v, float val) {
   return result;
 }
 
-void do_wind_math(u16 wind_idx,
+void BaseTie3::do_wind_math(u16 wind_idx,
                   float* wind_vector_data,
                   const BaseTie3::WindWork& wind_work,
                   float stiffness,

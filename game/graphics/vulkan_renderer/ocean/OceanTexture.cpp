@@ -22,8 +22,22 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
   m_tbuf_y = m_tbuf_b;
 
   init_pc();
-  SetupShader();
+  SetupShader(ShaderId::OCEAN_TEXTURE);
 
+  m_common_uniform_vertex_buffer =
+      std::make_unique<CommonOceanVertexUniformBuffer>(m_device, 1, 1);
+  m_common_uniform_fragment_buffer =
+      std::make_unique<CommonOceanFragmentUniformBuffer>(m_device, 1, 1);
+
+  m_ocean_mipmap_uniform_vertex_buffer =
+      std::make_unique<OceanMipMapVertexUniformBuffer>(m_device, 1, 1);
+  m_ocean_mipmap_uniform_fragment_buffer =
+      std::make_unique<OceanMipMapFragmentUniformBuffer>(m_device, 1, 1);
+
+  m_vulkan_pc.dynamic_vertex_buffer =
+      std::make_unique<VertexBuffer>(m_device, sizeof(Vertex), NUM_VERTS, 1);
+  m_vulkan_pc.graphics_index_buffer =
+      std::make_unique<IndexBuffer>(m_device, sizeof(u32), NUM_VERTS, 1);
   // initialize the mipmap drawing
 }
 
@@ -43,10 +57,8 @@ void OceanVulkanTexture::init_textures(TexturePoolVulkan& pool) {
 }
 
 void OceanVulkanTexture::handle_ocean_texture(DmaFollower& dma,
-                                        SharedVulkanRenderState* render_state,
-                                        ScopedProfilerNode& prof,
-                                        std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
-                                        std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer) {
+                                        BaseSharedRenderState* render_state,
+                                        ScopedProfilerNode& prof) {
 
   InitializeVertexBuffer();
   BaseOceanTexture::handle_ocean_texture(dma, render_state, prof);
@@ -57,22 +69,53 @@ void OceanVulkanTexture::handle_ocean_texture(DmaFollower& dma,
  * There's a trick here - we reduce the intensity of alpha on the lower lods. This lets texture
  * filtering slowly fade the alpha value out to 0 with distance.
  */
-void OceanVulkanTexture::make_texture_with_mipmaps(SharedVulkanRenderState* render_state,
-                                             ScopedProfilerNode& prof,
-                                             std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_buffer) {
-  uniform_buffer->SetUniform1f("alpha_intensity", 1.0);
-  uniform_buffer->SetUniform1f("tex_T0", 0);
+void OceanVulkanTexture::make_texture_with_mipmaps(BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) {
+  m_ocean_mipmap_uniform_fragment_buffer->SetUniform1f("alpha_intensity", 1.0);
+  m_ocean_mipmap_uniform_vertex_buffer->SetUniform1f("tex_T0", 0);
 
   for (int i = 0; i < NUM_MIPS; i++) {
     FramebufferVulkanTexturePairContext ctxt(m_result_texture, i);
-    uniform_buffer->SetUniform1f("alpha_intensity", std::max(0.f, 1.f - 0.51f * i));
-    uniform_buffer->SetUniform1f("scale", 1.f / (1 << i));
+    m_ocean_mipmap_uniform_fragment_buffer->SetUniform1f("alpha_intensity", std::max(0.f, 1.f - 0.51f * i));
+    m_ocean_mipmap_uniform_vertex_buffer->SetUniform1f("scale", 1.f / (1 << i));
     //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     prof.add_draw_call();
     prof.add_tri(2);
   }
 
   //FIXME: Draw here
+}
+
+void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  ASSERT(m_pc.vtx_idx == 2112);
+
+  m_vulkan_pc.dynamic_vertex_buffer->writeToGpuBuffer(m_pc.vertex_dynamic.data());
+  m_vulkan_pc.graphics_index_buffer->writeToGpuBuffer(m_pc.index_buffer.data());
+
+  SetupShader(ShaderId::OCEAN_TEXTURE);
+
+  GsTex0 tex0(m_envmap_adgif.tex0_data);
+  auto lookup = m_vulkan_info.texture_pool->lookup_vulkan_texture(tex0.tbp0());
+  if (!lookup) {
+    lookup = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
+  }
+  // no decal
+  // yes tcc
+  auto sampler_info = lookup->GetSamplerCreateInfo();
+  sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  sampler_info.magFilter = VK_FILTER_LINEAR;
+  sampler_info.minFilter = VK_FILTER_LINEAR;
+  lookup->SetSamplerCreateInfo(sampler_info);
+
+  // glDrawArrays(GL_TRIANGLE_STRIP, 0, NUM_VERTS);
+  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  inputAssembly.primitiveRestartEnable = VK_TRUE;
+  //glDrawElements(GL_TRIANGLE_STRIP, m_pc.index_buffer.size(), GL_UNSIGNED_INT, (void*)0);
+
+  prof.add_draw_call();
+  prof.add_tri(NUM_STRIPS * NUM_STRIPS * 2);
 }
 
 void OceanVulkanTexture::InitializeMipmapVertexInputAttributes() {
@@ -102,8 +145,8 @@ void OceanVulkanTexture::InitializeMipmapVertexInputAttributes() {
   vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 }
 
-void OceanVulkanTexture::SetupShader() {
-  auto& shader = m_vulkan_info.shaders[ShaderId::OCEAN_TEXTURE_MIPMAP];
+void OceanVulkanTexture::SetupShader(ShaderId shaderId) {
+  auto& shader = m_vulkan_info.shaders[shaderId];
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -173,3 +216,17 @@ void OceanVulkanTexture::move_existing_to_vram(GpuTexture* tex, u32 slot_addr) {
 
 void OceanVulkanTexture::setup_framebuffer_context(int) {
 }
+
+OceanMipMapVertexUniformBuffer::OceanMipMapVertexUniformBuffer(
+  std::unique_ptr<GraphicsDeviceVulkan>& device,
+  uint32_t instanceCount,
+  VkDeviceSize minOffsetAlignment) : UniformVulkanBuffer(device, sizeof(float), instanceCount, minOffsetAlignment){
+  section_name_to_memory_offset_map = {{"scale", 0}};
+}
+
+OceanMipMapFragmentUniformBuffer::OceanMipMapFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                   uint32_t instanceCount,
+                                   VkDeviceSize minOffsetAlignment) : UniformVulkanBuffer(device, sizeof(float), instanceCount, minOffsetAlignment){
+  section_name_to_memory_offset_map = {
+      {"alpha_intensity", 0}};
+};

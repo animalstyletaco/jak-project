@@ -50,7 +50,7 @@ void CommonOceanVulkanRenderer::InitializeVertexInputAttributes() {
 CommonOceanVulkanRenderer::~CommonOceanVulkanRenderer() {
 }
 
-void CommonOceanVulkanRenderer::flush_near(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof,
+void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, ScopedProfilerNode& prof,
                                      std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_shader_buffer,
                                      std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_shader_buffer) {
   VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -158,7 +158,7 @@ void CommonOceanVulkanRenderer::flush_near(SharedVulkanRenderState* render_state
 }
 
 void CommonOceanVulkanRenderer::flush_mid(
-    SharedVulkanRenderState* render_state,
+    BaseSharedRenderState* render_state,
     ScopedProfilerNode& prof,
     std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_shader_buffer,
     std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_shader_buffer) {

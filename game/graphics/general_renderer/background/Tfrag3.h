@@ -22,15 +22,15 @@ class BaseTfrag3 {
                              BaseSharedRenderState* render_state,
                              ScopedProfilerNode& prof);
 
-  void render_tree(int geom,
-                   const TfragRenderSettings& settings,
-                   BaseSharedRenderState* render_state,
-                   ScopedProfilerNode& prof);
+  virtual void render_tree(int geom,
+                           const TfragRenderSettings& settings,
+                           BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof) = 0;
 
   virtual bool setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                        const std::string& level,
                        BaseSharedRenderState* render_state) = 0;
-  void discard_tree_cache();
+  virtual void discard_tree_cache() = 0;
 
   void render_tree_cull_debug(const TfragRenderSettings& settings,
                               BaseSharedRenderState* render_state,

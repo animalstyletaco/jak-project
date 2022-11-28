@@ -56,90 +56,93 @@ class BaseCommonOceanRenderer {
   u32 m_envmap_tex = 0;
 };
 
-namespace common_ocean_renderer_error {
-void report_error(const char* description) {
-  lg::error(description);
-  throw std::exception(description);
-}
-}
+class CommonOceanRendererErrorReporter {
+ protected:
+  void report_error(const char* description) {
+    lg::error(description);
+    throw std::exception(description);
+  }
+};
 
-class CommonOceanRendererInterface {
+class CommonOceanRendererInterface : public CommonOceanRendererErrorReporter {
  public:
   virtual void common_ocean_renderer_init_for_near() {
-    common_ocean_renderer_error::report_error("Call to incomplete common_ocean_renderer_init_for_near made\n");
+    report_error("Call to incomplete common_ocean_renderer_init_for_near made\n");
   };
   virtual void common_ocean_renderer_kick_from_near(const u8* data) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_kick_from_near made\n");
   }
 
   virtual void common_ocean_renderer_init_for_mid() {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_mid made\n");
   }
   virtual void common_ocean_renderer_kick_from_mid(const u8* data) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_kick_from_mid made\n");
   }
 
   virtual void common_ocean_renderer_flush_near(BaseSharedRenderState* render_state,
                                                 ScopedProfilerNode& prof) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
   virtual void common_ocean_renderer_flush_mid(BaseSharedRenderState* render_state,
                                                ScopedProfilerNode& prof) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
 };
 
-class CommonOceanTextureRendererInterface {
+class CommonOceanTextureRendererInterface : public CommonOceanRendererErrorReporter {
  public:
   virtual void texture_renderer_draw_debug_window() {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
   virtual void direct_renderer_draw_debug_window() {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
 
-  virtual void texture_renderer_initialize_textures(BaseTexturePool&) {
-    common_ocean_renderer_error::report_error(
-        "Call to incomplete common_ocean_renderer_init_for_near made\n");
-  }
   virtual void ocean_mid_renderer_run(DmaFollower& dma,
                                       BaseSharedRenderState* render_state,
                                       ScopedProfilerNode& prof) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
+  }
+  virtual void direct_renderer_render_gif(const u8* data,
+                                          u32 size,
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) {
+    report_error("Call to incomplete direct_renderer_render_gif made\n");
   }
   virtual void texture_renderer_handle_ocean_texture(DmaFollower& dma,
                                                      BaseSharedRenderState* render_state,
                                                      ScopedProfilerNode& prof) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
 
   virtual void direct_renderer_reset_state() {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
   virtual void direct_render_gif(const u8* data,
                                  u32 size,
                                  BaseSharedRenderState* render_state,
                                  ScopedProfilerNode& prof) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
   virtual void direct_renderer_flush_pending(BaseSharedRenderState* render_state,
                                              ScopedProfilerNode& prof) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
   virtual void direct_renderer_set_mipmap(bool) {
-    common_ocean_renderer_error::report_error(
+    report_error(
         "Call to incomplete common_ocean_renderer_init_for_near made\n");
   }
 };

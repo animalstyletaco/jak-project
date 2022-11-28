@@ -136,68 +136,6 @@ void SpriteVulkanRenderer::render_2d_group0(DmaFollower& dma,
   }
 }
 
-/*!
- * Handle DMA data for group1 2d's (HUD)
- */
-void SpriteVulkanRenderer::render_2d_group1(DmaFollower& dma,
-                                      BaseSharedRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
-  // one time matrix data upload
-  auto mat_upload = dma.read_and_advance();
-  bool mat_ok = verify_unpack_with_stcycl(mat_upload, VifCode::Kind::UNPACK_V4_32, 4, 4, 80,
-                                          SpriteDataMem::Matrix, false, false);
-  ASSERT(mat_ok);
-  ASSERT(mat_upload.size_bytes == sizeof(m_hud_matrix_data));
-  memcpy(&m_hud_matrix_data, mat_upload.data, sizeof(m_hud_matrix_data));
-
-  // opengl sprite frame setup
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat(
-      "hud_hvdf_offset",
-      1,
-      m_hud_matrix_data.hvdf_offset.data());
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat(
-      "hud_hvdf_user",
-               75, m_hud_matrix_data.user_hvdf[0].data());
-  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "hud_matrix", 1, GL_FALSE,
-      m_hud_matrix_data.matrix.data());
-
-  m_prim_graphics_state.from_register(m_frame_data.sprite_2d_giftag2.prim());
-
-  // loop through chunks.
-  while (sprite_common::looks_like_2d_chunk_start(dma)) {
-    m_debug_stats.blocks_2d_grp1++;
-    // 4 packets per chunk
-
-    // first is the header
-    u32 sprite_count = sprite_common::process_sprite_chunk_header(dma);
-    m_debug_stats.count_2d_grp1 += sprite_count;
-
-    // second is the vector data
-    u32 expected_vec_size = sizeof(SpriteVecData2d) * sprite_count;
-    auto vec_data = dma.read_and_advance();
-    ASSERT(expected_vec_size <= sizeof(m_vec_data_2d));
-    unpack_to_no_stcycl(&m_vec_data_2d, vec_data, VifCode::Kind::UNPACK_V4_32, expected_vec_size,
-                        SpriteDataMem::Vector, false, true);
-
-    // third is the adgif data
-    u32 expected_adgif_size = sizeof(AdGifData) * sprite_count;
-    auto adgif_data = dma.read_and_advance();
-    ASSERT(expected_adgif_size <= sizeof(m_adgif));
-    unpack_to_no_stcycl(&m_adgif, adgif_data, VifCode::Kind::UNPACK_V4_32, expected_adgif_size,
-                        SpriteDataMem::Adgif, false, true);
-
-    // fourth is the actual run!!!!!
-    auto run = dma.read_and_advance();
-    ASSERT(run.vifcode0().kind == VifCode::Kind::NOP);
-    ASSERT(run.vifcode1().kind == VifCode::Kind::MSCAL);
-    ASSERT(run.vifcode1().immediate == SpriteProgMem::Sprites2dHud);
-    if (m_enabled && m_2d_enable) {
-      do_block_common(SpriteMode::ModeHUD, sprite_count, render_state, prof);
-    }
-  }
-}
-
 void SpriteVulkanRenderer::render(DmaFollower& dma,
                                   SharedVulkanRenderState* render_state,
                                   ScopedProfilerNode& prof) {
@@ -378,3 +316,11 @@ void SpriteVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
   state.used = false;
 }
 
+void SpriteVulkanRenderer::graphics_sprite_frame_setup() {
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat(
+      "hud_hvdf_offset", 1, m_hud_matrix_data.hvdf_offset.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat(
+      "hud_hvdf_user", 75, m_hud_matrix_data.user_hvdf[0].data());
+  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+      "hud_matrix", 1, GL_FALSE, m_hud_matrix_data.matrix.data());
+}

@@ -44,6 +44,10 @@ TFragmentVulkan::TFragmentVulkan(const std::string& name,
                                       m_vertex_shader_uniform_buffer, m_time_of_day_color);
 }
 
+void TFragmentVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  BaseTFragment::render(dma, render_state, prof);
+}
+
 void TFragmentVulkan::InitializeDebugInputVertexAttribute() {
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;

@@ -33,6 +33,7 @@ class VkDisplay : public GfxDisplay {
   bool fullscreen_pending() override;
   void fullscreen_flush() override;
   void set_lock(bool lock) override;
+  virtual std::tuple<double, double> get_mouse_pos() override;
   void on_key(GLFWwindow* window, int key, int scancode, int action, int mods);
   void on_window_pos(GLFWwindow* window, int xpos, int ypos);
   void on_window_size(GLFWwindow* window, int width, int height);
@@ -47,6 +48,7 @@ class VkDisplay : public GfxDisplay {
   GLFWwindow* m_window;
   bool m_minimized = false;
   GLFWvidmode m_last_video_mode = {0, 0, 0, 0, 0, 0};
+
   ImguiVulkanHelper imgui_helper;
 
   static constexpr int MAX_VMODES = 128;

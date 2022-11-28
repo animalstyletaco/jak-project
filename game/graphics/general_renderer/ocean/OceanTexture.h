@@ -15,7 +15,7 @@ class BaseOceanTexture {
       ScopedProfilerNode& prof);
   void init_textures(BaseTexturePool& pool);
   void draw_debug_window();
-  ~BaseOceanTexture();
+  virtual ~BaseOceanTexture();
 
  protected:
   virtual void move_existing_to_vram(GpuTexture* tex, u32 slot_addr) = 0;
@@ -27,14 +27,14 @@ class BaseOceanTexture {
 
   virtual void set_gpu_texture(TextureInput&) = 0;
   void setup_renderer();
-  void flush(BaseSharedRenderState* render_state,
-             ScopedProfilerNode& prof);
+  virtual void flush(BaseSharedRenderState* render_state,
+                     ScopedProfilerNode& prof) = 0;
 
   void init_pc();
   void destroy_pc();
 
-  void make_texture_with_mipmaps(BaseSharedRenderState* render_state,
-                                 ScopedProfilerNode& prof);
+  virtual void make_texture_with_mipmaps(BaseSharedRenderState* render_state,
+                                         ScopedProfilerNode& prof) = 0;
 
   bool m_generate_mipmaps;
 
@@ -133,13 +133,9 @@ class BaseOceanTexture {
     std::vector<Vertex> vertex_dynamic;
     std::vector<u32> index_buffer;
     u32 vtx_idx = 0;
-
-    std::unique_ptr<VertexBuffer> static_vertex_buffer, dynamic_vertex_buffer;
-    std::unique_ptr<IndexBuffer> gl_index_buffer;
   } m_pc;
 
   struct MipMap {
-    GLuint vao, vtx_buffer;
     struct Vertex {
       float x, y;
       float s, t;

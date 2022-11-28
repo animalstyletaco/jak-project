@@ -21,9 +21,9 @@ class BaseSpriteRenderer : public BaseBucketRenderer {
                         ScopedProfilerNode& prof);
   void handle_sprite_frame_setup(DmaFollower& dma);
   void render_3d(DmaFollower& dma);
-  void render_2d_group0(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
+  virtual void render_2d_group0(DmaFollower& dma,
+                                BaseSharedRenderState* render_state,
+                                ScopedProfilerNode& prof) = 0;
   void render_fake_shadow(DmaFollower& dma);
   void render_2d_group1(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
@@ -41,9 +41,9 @@ class BaseSpriteRenderer : public BaseBucketRenderer {
   void handle_clamp(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_alpha(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
 
-  virtual void update_graphics_prim(BaseSharedRenderState* render_state) = 0;
+  void update_graphics_prim(BaseSharedRenderState* render_state);
   virtual void update_graphics_texture(BaseSharedRenderState* render_state, int unit) = 0;
-  void flush_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  virtual void flush_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
 
   static constexpr int SPRITE_RENDERER_MAX_SPRITES = 8000;
 

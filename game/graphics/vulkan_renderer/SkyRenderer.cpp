@@ -39,6 +39,12 @@ SkyBlendVulkanHandler::SkyBlendVulkanHandler(const std::string& name,
                        true,
                        level_id) {}
 
+void SkyBlendVulkanHandler::render(DmaFollower& dma,
+                               SharedVulkanRenderState* render_state,
+                               ScopedProfilerNode& prof) {
+  BaseSkyBlendHandler::render(dma, render_state, prof);
+}
+
 void SkyBlendVulkanHandler::handle_sky_copies(DmaFollower& dma,
                                         SharedVulkanRenderState* render_state,
                                         ScopedProfilerNode& prof) {
@@ -86,6 +92,10 @@ SkyVulkanRenderer::SkyVulkanRenderer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
     VulkanInitializationInfo& vulkan_info)
     : BaseSkyRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info), m_direct_renderer("sky-direct", my_id, device, vulkan_info, 100) {}
+
+void SkyVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  BaseSkyRenderer::render(dma, render_state, prof);
+}
 
 void SkyVulkanRenderer::direct_renderer_reset_state() {
   m_direct_renderer.reset_state();

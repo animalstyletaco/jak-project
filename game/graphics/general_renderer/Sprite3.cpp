@@ -291,10 +291,10 @@ void BaseSprite3::distort_setup(ScopedProfilerNode& /*prof*/) {
  * Required sprite-specific frame data is kept as is and is grouped by resolution.
  */
 void BaseSprite3::distort_setup_instanced(ScopedProfilerNode& /*prof*/) {
-  if (get_distort_instanced_ogl_last_aspect_x() != m_sprite_distorter_sine_tables_aspect.x() ||
-      get_distort_instanced_ogl_last_aspect_y() != m_sprite_distorter_sine_tables_aspect.y()) {
-    set_distort_instanced_ogl_last_aspect_x(m_sprite_distorter_sine_tables_aspect.x());
-    set_distort_instanced_ogl_last_aspect_y(m_sprite_distorter_sine_tables_aspect.y());
+  if (m_distort_instanced_ogl.last_aspect_x != m_sprite_distorter_sine_tables_aspect.x() ||
+      m_distort_instanced_ogl.last_aspect_y != m_sprite_distorter_sine_tables_aspect.y()) {
+    m_distort_instanced_ogl.last_aspect_x = m_sprite_distorter_sine_tables_aspect.x();
+    m_distort_instanced_ogl.last_aspect_y = m_sprite_distorter_sine_tables_aspect.y();
     // Aspect ratio changed, which means we have a new sine table
     m_sprite_distorter_vertices_instanced.clear();
 
@@ -322,7 +322,7 @@ void BaseSprite3::distort_setup_instanced(ScopedProfilerNode& /*prof*/) {
       }
     }
 
-    set_distort_instanced_ogl_vertex_data_changed(true);
+    m_distort_instanced_ogl.vertex_data_changed = true;
   }
 
   // Set up instance data for each sprite

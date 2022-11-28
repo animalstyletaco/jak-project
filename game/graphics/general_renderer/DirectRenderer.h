@@ -21,7 +21,7 @@ class BaseDirectRenderer : public BaseBucketRenderer {
  public:
   BaseDirectRenderer(const std::string& name, int my_id, int batch_size);
   ~BaseDirectRenderer();
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
   /*!
    * Render directly from _VIF_ data.

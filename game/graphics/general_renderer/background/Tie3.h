@@ -13,17 +13,17 @@ class BaseTie3 : public BaseBucketRenderer {
    BaseTie3(const std::string& name, int my_id, int level);
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
-  ~BaseTie3();
+  virtual ~BaseTie3();
 
   void render_all_trees(int geom,
                         const TfragRenderSettings& settings,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
-  void render_tree(int idx,
-                   int geom,
-                   const TfragRenderSettings& settings,
-                   BaseSharedRenderState* render_state,
-                   ScopedProfilerNode& prof);
+  virtual void render_tree(int idx,
+                           int geom,
+                           const TfragRenderSettings& settings,
+                           BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof) = 0;
   virtual bool setup_for_level(const std::string& str, BaseSharedRenderState* render_state) = 0;
 
   struct WindWork {
@@ -40,11 +40,7 @@ class BaseTie3 : public BaseBucketRenderer {
   int lod() const { return Gfx::g_global_settings.lod_tie; }
 
  protected:
-  virtual const BaseLevelData* get_general_tfrag3_level(const std::string& level_name) {
-    return nullptr;
-  };
-  virtual void update_load(const BaseLevelData* loader_data);
-  virtual void discard_tree_cache();
+  virtual void discard_tree_cache() = 0;
 
   struct Tree {
     u32 vert_count;
@@ -109,5 +105,13 @@ class BaseTie3 : public BaseBucketRenderer {
   int m_level_id;
 
   static_assert(sizeof(WindWork) == 84 * 16);
+
+  void vector_min_in_place(math::Vector4f& v, float val);
+  math::Vector4f vector_max(const math::Vector4f& v, float val);
+  void do_wind_math(u16 wind_idx,
+                    float* wind_vector_data,
+                    const BaseTie3::WindWork& wind_work,
+                    float stiffness,
+                    std::array<math::Vector4f, 4>& mat);
 };
 

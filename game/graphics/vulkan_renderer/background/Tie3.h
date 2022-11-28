@@ -21,15 +21,11 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   ~Tie3Vulkan();
 
   void update_load(const LevelDataVulkan* loader_data);
-  void render_all_trees(int geom,
-                        const TfragRenderSettings& settings,
-                        SharedVulkanRenderState* render_state,
-                        ScopedProfilerNode& prof);
   void render_tree(int idx,
                    int geom,
                    const TfragRenderSettings& settings,
-                   SharedVulkanRenderState* render_state,
-                   ScopedProfilerNode& prof);
+                   BaseSharedRenderState* render_state,
+                   ScopedProfilerNode& prof) override;
   bool setup_for_level(const std::string& str, BaseSharedRenderState* render_state) override;
 
   int lod() const { return Gfx::g_global_settings.lod_tie; }
@@ -40,7 +36,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   void render_tree_wind(int idx,
                         int geom,
                         const TfragRenderSettings& settings,
-                        SharedVulkanRenderState* render_state,
+                        BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
 
   struct Tree {

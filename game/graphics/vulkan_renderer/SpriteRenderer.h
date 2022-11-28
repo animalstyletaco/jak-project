@@ -21,13 +21,9 @@ class SpriteVulkanRenderer : public BaseSpriteRenderer, public BucketVulkanRende
   void InitializeInputVertexAttribute();
   void render_2d_group0(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
-  void render_2d_group1(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
+                        ScopedProfilerNode& prof) override;
 
   void graphics_sprite_frame_setup() override;
-  void update_graphics_prim(BaseSharedRenderState* render_state) override;
   void update_graphics_texture(BaseSharedRenderState* render_state, int unit) override;
   void flush_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void update_graphics_blend(AdGifState& state) override;

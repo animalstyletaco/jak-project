@@ -41,6 +41,10 @@ OceanNearVulkan::OceanNearVulkan(const std::string& name,
   }
 }
 
+void OceanNearVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  BaseOceanNear::render(dma, render_state, prof);
+}
+
 void OceanNearVulkan::init_textures(TexturePoolVulkan& pool) {
   m_texture_renderer.init_textures(pool);
 }

@@ -10,11 +10,21 @@ EmptyBucketVulkanRenderer::EmptyBucketVulkanRenderer(const std::string& name,
     : BaseEmptyBucketRenderer(name, m_my_id), BucketVulkanRenderer(device, vulkan_info) {
 }
 
+void EmptyBucketVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  BaseEmptyBucketRenderer::render(dma, render_state, prof);
+}
+
 SkipVulkanRenderer::SkipVulkanRenderer(const std::string& name,
                                        int m_my_id,
                            std::unique_ptr<GraphicsDeviceVulkan>& device,
                            VulkanInitializationInfo& vulkan_info)
     : BaseSkipRenderer(name, m_my_id), BucketVulkanRenderer(device, vulkan_info) {}
+
+void SkipVulkanRenderer::render(DmaFollower& dma,
+                                SharedVulkanRenderState* render_state,
+                                ScopedProfilerNode& prof) {
+  BaseSkipRenderer::render(dma, render_state, prof);
+}
 
 RenderVulkanMux::RenderVulkanMux(const std::string& name,
                                  int m_my_id,

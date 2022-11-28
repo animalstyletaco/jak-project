@@ -106,7 +106,7 @@ void DirectVulkanRenderer::reset_state() {
   m_stats = {};
 }
 
-void DirectVulkanRenderer::flush_pending(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;

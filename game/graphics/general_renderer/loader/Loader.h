@@ -16,18 +16,19 @@ class BaseLoader {
   static constexpr float TIE_LOAD_BUDGET = 1.5f;
   static constexpr float SHARED_TEXTURE_LOAD_BUDGET = 3.f;
   static constexpr unsigned MAX_LEVELS_LOADED = 3;
-  BaseLoader(const fs::path& base_path, int max_levels);
-  ~BaseLoader();
-  void update(BaseTexturePool& tex_pool);
-  void update_blocking(BaseTexturePool& tex_pool);
-  const BaseLevelData* get_tfrag3_level(const std::string& level_name);
-  std::optional<BaseMercRef> get_merc_model(const char* model_name);
-  void load_common(BaseTexturePool& tex_pool, const std::string& name);
-  void set_want_levels(const std::vector<std::string>& levels);
-  std::vector<BaseLevelData*> get_in_use_levels();
+  BaseLoader(const fs::path& base_path, int max_levels) : m_base_path(base_path), m_max_levels(max_levels){};
+  virtual ~BaseLoader() = default;
+  virtual void set_want_levels(const std::vector<std::string>& levels) = 0;
+
+  std::string uppercase_string(const std::string& s) {
+    std::string result;
+    for (auto c : s) {
+      result.push_back(toupper(c));
+    }
+    return result;
+  }
 
  protected:
-  void loader_thread();
   bool upload_textures(Timer& timer, BaseLevelData& data, BaseTexturePool& texture_pool);
 
   // used by game and loader thread

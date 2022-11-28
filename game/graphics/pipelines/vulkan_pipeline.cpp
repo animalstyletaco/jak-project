@@ -64,7 +64,7 @@ struct VulkanGraphicsData {
 
   VulkanGraphicsData(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& vulkan_device)
       : dma_copier(EE_MAIN_MEM_SIZE),
-        texture_pool(std::make_shared<TexturePoolVulkan>(vulkan_device)),
+        texture_pool(std::make_shared<TexturePoolVulkan>(version, vulkan_device)),
         loader(std::make_shared<VulkanLoader>(vulkan_device, file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
             pipeline_common::fr3_level_count[version])),
         vulkan_renderer(texture_pool, loader, version, vulkan_device),
@@ -75,10 +75,6 @@ std::unique_ptr<VulkanGraphicsData> g_gfx_data;
 std::unique_ptr<GraphicsDeviceVulkan> g_vulkan_device;
 
 static bool want_hotkey_screenshot = false;
-
-bool is_cursor_position_valid = false;
-double last_cursor_x_position = 0;
-double last_cursor_y_position = 0;
 
 struct {
   bool callbacks_registered = false;
@@ -324,6 +320,8 @@ void VkDisplay::on_mouse_key(GLFWwindow* /*window*/, int button, int action, int
 }
 
 void VkDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, double yposition) {
+  last_cursor_x_position = xposition;
+  last_cursor_y_position = yposition;
   Pad::MappingInfo mapping_info = Gfx::get_button_mapping();
   if (is_imgui_visible() || !mapping_info.use_mouse) {
     if (is_cursor_position_valid == true) {
@@ -335,8 +333,6 @@ void VkDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, dou
   }
 
   if (is_cursor_position_valid == false) {
-    last_cursor_x_position = xposition;
-    last_cursor_y_position = yposition;
     is_cursor_position_valid = true;
     return;
   }
@@ -346,13 +342,12 @@ void VkDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, dou
 
   Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_X_AXIS, xoffset);
   Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_Y_AXIS, yoffset);
-
-  last_cursor_x_position = xposition;
-  last_cursor_y_position = yposition;
 }
 
 void VkDisplay::on_window_pos(GLFWwindow* /*window*/, int xpos, int ypos) {
-  if (m_fullscreen_target_mode == GfxDisplayMode::Windowed) {
+  // only change them on a legit change, not on the initial update
+  if (m_fullscreen_mode != GfxDisplayMode::ForceUpdate &&
+      m_fullscreen_target_mode == GfxDisplayMode::Windowed) {
     m_last_windowed_xpos = xpos;
     m_last_windowed_ypos = ypos;
   }
@@ -373,11 +368,24 @@ void VkDisplay::on_iconify(GLFWwindow* window, int iconified) {
 }
 
 namespace {
-std::string make_output_file_name(const std::string& file_name) {
-  file_util::create_dir_if_needed(file_util::get_file_path({"gfx_dumps"}));
-  return file_util::get_file_path({"gfx_dumps", file_name});
+std::string make_full_screenshot_output_file_path(const std::string& file_name) {
+  file_util::create_dir_if_needed(file_util::get_file_path({"screenshots"}));
+  return file_util::get_file_path({"screenshots", file_name});
 }
 }  // namespace
+
+static std::string get_current_timestamp() {
+  auto current_time = std::time(0);
+  auto local_current_time = *std::localtime(&current_time);
+  // Remember to increase size of result if the date format is changed
+  char result[20];
+  std::strftime(result, sizeof(result), "%Y_%m_%d_%H_%M_%S", &local_current_time);
+  return std::string(result);
+}
+
+static std::string make_hotkey_screenshot_file_name() {
+  return version_to_game_name(g_game_version) + "_" + get_current_timestamp() + ".png";
+}
 
 static bool endsWith(std::string_view str, std::string_view suffix) {
   return str.size() >= suffix.size() &&
@@ -419,6 +427,15 @@ void vulkan_render_game_frame(int game_width,
     options.save_screenshot = false;
     options.gpu_sync = g_gfx_data->debug_gui.should_gl_finish();
     options.borderless_windows_hacks = windows_borderless_hack;
+
+    want_hotkey_screenshot =
+        want_hotkey_screenshot && g_gfx_data->debug_gui.screenshot_hotkey_enabled;
+    if (want_hotkey_screenshot) {
+      want_hotkey_screenshot = false;
+      options.save_screenshot = true;
+      std::string screenshot_file_name = make_hotkey_screenshot_file_name();
+      options.screenshot_path = make_full_screenshot_output_file_path(screenshot_file_name);
+    }
     if (g_gfx_data->debug_gui.get_screenshot_flag()) {
       options.save_screenshot = true;
       options.game_res_w = g_gfx_data->debug_gui.screenshot_width;
@@ -426,6 +443,11 @@ void vulkan_render_game_frame(int game_width,
       options.draw_region_width = options.game_res_w;
       options.draw_region_height = options.game_res_h;
       options.msaa_samples = g_gfx_data->debug_gui.screenshot_samples;
+      std::string screenshot_file_name = g_gfx_data->debug_gui.screenshot_name();
+      if (!endsWith(screenshot_file_name, ".png")) {
+        screenshot_file_name += ".png";
+      }
+      options.screenshot_path = make_full_screenshot_output_file_path(screenshot_file_name);
     }
     options.draw_small_profiler_window = g_gfx_data->debug_gui.small_profiler;
     options.pmode_alp_register = g_gfx_data->pmode_alp;
@@ -435,14 +457,6 @@ void vulkan_render_game_frame(int game_width,
       options.msaa_samples = msaa_max;
     }
 
-    if (options.save_screenshot) {
-      // ensure the screenshot has an extension
-      std::string temp_path = g_gfx_data->debug_gui.screenshot_name();
-      if (!endsWith(temp_path, ".png")) {
-        temp_path += ".png";
-      }
-      options.screenshot_path = make_output_file_name(temp_path);
-    }
     if constexpr (pipeline_common::run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
       g_gfx_data->vulkan_renderer.render(DmaFollower(chain.data.data(), chain.start_offset),
@@ -512,6 +526,7 @@ void VkDisplay::update_fullscreen(GfxDisplayMode mode, int screen) {
   switch (mode) {
     case GfxDisplayMode::Windowed: {
       // windowed
+      // TODO - display mode doesn't re-position the window
       int x, y, width, height;
 
       if (m_last_fullscreen_mode == GfxDisplayMode::Windowed) {
@@ -520,39 +535,53 @@ void VkDisplay::update_fullscreen(GfxDisplayMode mode, int screen) {
         height = m_last_windowed_height;
         x = m_last_windowed_xpos;
         y = m_last_windowed_ypos;
+        lg::debug("Windowed -> Windowed - x:{} | y:{}", x, y);
       } else {
         // fullscreen -> windowed, use last windowed size but on the monitor previously fullscreened
+        //
+        // glfwGetMonitorWorkarea will return the width/height of the scaled fullscreen window
+        // - for example, you full screened a 1280x720 game on a 4K monitor -- you won't get the 4k
+        // resolution!
+        //
+        // Additionally, the coordinates for the top left seem very weird in stacked displays (you
+        // get a negative Y coordinate)
         int monitorX, monitorY, monitorWidth, monitorHeight;
         glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
 
         width = m_last_windowed_width;
         height = m_last_windowed_height;
-        x = monitorX + (monitorWidth / 2) - (width / 2);
-        y = monitorY + (monitorHeight / 2) - (height / 2);
+        if (monitorX < 0) {
+          x = monitorX - 50;
+        } else {
+          x = monitorX + 50;
+        }
+        if (monitorY < 0) {
+          y = monitorY - 50;
+        } else {
+          y = monitorY + 50;
+        }
+        lg::debug("FS -> Windowed screen: {} - x:{}:{}/{} | y:{}:{}/{}", screen, monitorX, x, width,
+                  monitorY, y, height);
       }
 
       glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_TRUE);
       glfwSetWindowFocusCallback(m_window, NULL);
       glfwSetWindowAttrib(m_window, GLFW_FLOATING, GLFW_FALSE);
       glfwSetWindowMonitor(m_window, NULL, x, y, width, height, GLFW_DONT_CARE);
-      set_imgui_visible(true);
-
-      // these might have changed
-      m_last_windowed_width = width;
-      m_last_windowed_height = height;
-      m_last_windowed_xpos = x;
-      m_last_windowed_ypos = y;
     } break;
     case GfxDisplayMode::Fullscreen: {
+      // TODO - when transitioning from fullscreen to windowed, it will use the old primary display
+      // which is to say, dragging the window to a different monitor won't update the used display
       // fullscreen
       const GLFWvidmode* vmode = glfwGetVideoMode(monitor);
       glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_FALSE);
       glfwSetWindowFocusCallback(m_window, NULL);
       glfwSetWindowAttrib(m_window, GLFW_FLOATING, GLFW_FALSE);
       glfwSetWindowMonitor(m_window, monitor, 0, 0, vmode->width, vmode->height, GLFW_DONT_CARE);
-      set_imgui_visible(false);
     } break;
     case GfxDisplayMode::Borderless: {
+      // TODO - when transitioning from fullscreen to windowed, it will use the old primary display
+      // which is to say, dragging the window to a different monitor won't update the used display
       // borderless fullscreen
       int x, y;
       glfwGetMonitorPos(monitor, &x, &y);
@@ -565,54 +594,53 @@ void VkDisplay::update_fullscreen(GfxDisplayMode mode, int screen) {
 #else
       glfwSetWindowMonitor(m_window, NULL, x, y, vmode->width, vmode->height, GLFW_DONT_CARE);
 #endif
-      set_imgui_visible(false);
     } break;
+    default: {
+      break;
+    }
   }
 }
 
 int VkDisplay::get_screen_vmode_count() {
-  int count = 0;
-  glfwGetVideoModes(get_monitor(fullscreen_screen()), &count);
-  return count;
+  std::lock_guard<std::mutex> lk(m_lock);
+  return m_display_state.num_vmodes;
 }
 
 void VkDisplay::get_screen_size(int vmode_idx, s32* w_out, s32* h_out) {
-  GLFWmonitor* monitor = get_monitor(fullscreen_screen());
-  auto vmode = glfwGetVideoMode(monitor);
-  int count = 0;
-  auto vmodes = glfwGetVideoModes(monitor, &count);
-  if (vmode_idx >= 0) {
-    vmode = &vmodes[vmode_idx];
-  } else if (fullscreen_mode() == GfxDisplayMode::Fullscreen) {
-    for (int i = 0; i < count; ++i) {
-      if (!vmode || vmode->height < vmodes[i].height) {
-        vmode = &vmodes[i];
-      }
+  std::lock_guard<std::mutex> lk(m_lock);
+  if (vmode_idx >= 0 && vmode_idx < MAX_VMODES) {
+    if (w_out) {
+      *w_out = m_display_state.vmodes[vmode_idx].width;
     }
-  }
-  if (w_out) {
-    *w_out = vmode->width;
-  }
-  if (h_out) {
-    *h_out = vmode->height;
+    if (h_out) {
+      *h_out = m_display_state.vmodes[vmode_idx].height;
+    }
+  } else if (fullscreen_mode() == Fullscreen) {
+    if (w_out) {
+      *w_out = m_display_state.largest_vmode_width;
+    }
+    if (h_out) {
+      *h_out = m_display_state.largest_vmode_height;
+    }
+  } else {
+    if (w_out) {
+      *w_out = m_display_state.current_vmode.width;
+    }
+    if (h_out) {
+      *h_out = m_display_state.current_vmode.height;
+    }
   }
 }
 
 int VkDisplay::get_screen_rate(int vmode_idx) {
-  GLFWmonitor* monitor = get_monitor(fullscreen_screen());
-  auto vmode = glfwGetVideoMode(monitor);
-  int count = 0;
-  auto vmodes = glfwGetVideoModes(monitor, &count);
-  if (vmode_idx >= 0) {
-    vmode = &vmodes[vmode_idx];
+  std::lock_guard<std::mutex> lk(m_lock);
+  if (vmode_idx >= 0 && vmode_idx < MAX_VMODES) {
+    return m_display_state.vmodes[vmode_idx].refresh_rate;
   } else if (fullscreen_mode() == GfxDisplayMode::Fullscreen) {
-    for (int i = 0; i < count; ++i) {
-      if (!vmode || vmode->refreshRate < vmodes[i].refreshRate) {
-        vmode = &vmodes[i];
-      }
-    }
+    return m_display_state.largest_vmode_refresh_rate;
+  } else {
+    return m_display_state.current_vmode.refresh_rate;
   }
-  return vmode->refreshRate;
 }
 
 GLFWmonitor* VkDisplay::get_monitor(int index) {
@@ -622,6 +650,10 @@ GLFWmonitor* VkDisplay::get_monitor(int index) {
   }
 
   return g_glfw_state.monitors[index];
+}
+
+std::tuple<double, double> VkDisplay::get_mouse_pos() {
+  return {last_cursor_x_position, last_cursor_y_position};
 }
 
 int VkDisplay::get_monitor_count() {
@@ -637,8 +669,17 @@ void VkDisplay::set_lock(bool lock) {
 }
 
 bool VkDisplay::fullscreen_pending() {
-  GLFWmonitor* monitor = get_monitor(fullscreen_screen());
-  auto vmode = glfwGetVideoMode(monitor);
+  GLFWmonitor* monitor;
+  {
+    auto _ = scoped_prof("get_monitor");
+    monitor = get_monitor(fullscreen_screen());
+  }
+
+  const GLFWvidmode* vmode;
+  {
+    auto _ = scoped_prof("get-video-mode");
+    vmode = glfwGetVideoMode(monitor);
+  }
 
   return GfxDisplay::fullscreen_pending() ||
          (vmode->width != m_last_video_mode.width || vmode->height != m_last_video_mode.height ||
@@ -717,14 +758,7 @@ void VkDisplay::update_glfw() {
  * Main function called to render graphics frames. This is called in a loop.
  */
 void VkDisplay::render() {
-  // poll events
-  {
-    auto p = scoped_prof("poll-gamepads");
-    glfwPollEvents();
-
-    auto& mapping_info = Gfx::get_button_mapping();
-    Pad::update_gamepads(mapping_info);
-  }
+  update_glfw();
 
   // imgui start of frame
   {

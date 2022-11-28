@@ -17,7 +17,6 @@ class BaseOceanMidAndFar : public BaseBucketRenderer, public CommonOceanTextureR
   BaseOceanMidAndFar(const std::string& name,
                  int my_id);
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
-  void draw_debug_window() override;
 
  protected:
   void handle_ocean_far(DmaFollower& dma,

@@ -19,7 +19,6 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
                     int my_id,
                     std::unique_ptr<GraphicsDeviceVulkan>& device,
                     VulkanInitializationInfo& vulkan_info);
-  ~EyeVulkanRenderer();
   void init_textures(TexturePoolVulkan& texture_pool) override;
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,

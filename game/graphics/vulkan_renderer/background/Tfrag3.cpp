@@ -244,24 +244,6 @@ void Tfrag3Vulkan::render_tree(int geom,
   }
 }
 
-/*!
- * Render all trees with settings for the given tree.
- * This is intended to be used only for debugging when we can't easily get commands for all trees
- * working.
- */
-void Tfrag3Vulkan::render_all_trees(int geom,
-                              const TfragRenderSettings& settings,
-                              BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof) {
-  TfragRenderSettings settings_copy = settings;
-  for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
-    if (m_cached_trees[geom][i].kind != tfrag3::TFragmentTreeKind::INVALID) {
-      settings_copy.tree_idx = i;
-      render_tree(geom, settings_copy, render_state, prof);
-    }
-  }
-}
-
 void Tfrag3Vulkan::render_matching_trees(int geom,
                                    const std::vector<tfrag3::TFragmentTreeKind>& trees,
                                    const TfragRenderSettings& settings,

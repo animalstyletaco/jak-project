@@ -15,9 +15,9 @@
  * - ocean-mid (handled by the C++ OceanMid class)
  */
 
-class OceanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRenderer {
+class OceanVulkanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRenderer {
  public:
-  OceanMidAndFar(const std::string& name,
+  OceanVulkanMidAndFar(const std::string& name,
                  int my_id,
                  std::unique_ptr<GraphicsDeviceVulkan>& device,
                  VulkanInitializationInfo& vulkan_info);
@@ -26,17 +26,22 @@ class OceanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRenderer {
   void draw_debug_window() override;
 
  private:
-  void handle_ocean_far(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
-  void handle_ocean_mid(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
+  void ocean_mid_renderer_run(DmaFollower& dma,
+                              BaseSharedRenderState* render_state,
+                              ScopedProfilerNode& prof) override;
+  void direct_renderer_render_gif(const u8* data,
+                                  u32 size,
+                                  BaseSharedRenderState* render_state,
+                                  ScopedProfilerNode& prof) override;
+  void direct_renderer_flush_pending(BaseSharedRenderState* render_state,
+                                     ScopedProfilerNode& prof) override;
+  void direct_renderer_set_mipmap(bool isMipmapEnabled) override;
+  void direct_renderer_reset_state() override;
+  void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) override;
 
   DirectVulkanRenderer m_direct;
   OceanVulkanTexture m_texture_renderer;
   OceanMidVulkan m_mid_renderer;
-
-  std::unique_ptr<CommonOceanVertexUniformBuffer> m_ocean_uniform_vertex_buffer;
-  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_ocean_uniform_fragment_buffer;
 };

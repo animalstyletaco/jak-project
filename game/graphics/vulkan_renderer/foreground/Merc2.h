@@ -38,6 +38,7 @@ struct MercUniformBufferFragmentData {
   math::Vector4f fog_color;
   int ignore_alpha;
   int decal_enable;
+  int gfx_hack_no_tex;
 };
 
 class MercFragmentUniformBuffer : public UniformVulkanBuffer {
@@ -54,16 +55,19 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
         std::unique_ptr<GraphicsDeviceVulkan>& device,
         VulkanInitializationInfo& vulkan_info);
   ~MercVulkan2();
-  void init_shaders(VulkanShaderLibrary& shaders);
+  void init_shaders();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void handle_merc_chain(DmaFollower& dma,
                          SharedVulkanRenderState* render_state,
                          ScopedProfilerNode& prof);
 
   protected:
-    void flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-    void handle_setup_dma(DmaFollower& dma,
-                          BaseSharedRenderState* render_state);
+    void init_for_frame(BaseSharedRenderState* render_state) override;
+    void init_pc_model(const DmaTransfer& setup,
+                       BaseSharedRenderState* render_state) override;
+    void flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+    void flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+    void set_merc_uniform_buffer_data(const DmaTransfer& dma) override;
 
   private:
   void InitializeInputAttributes();
@@ -78,6 +82,8 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
       next_free_draw = 0;
     }
   };
+
+  std::optional<MercRefVulkan> m_current_model = std::nullopt;
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
 

@@ -55,7 +55,7 @@ struct GpuTextureVulkan : GpuTexture {
  */
 class TexturePoolVulkan : public BaseTexturePool {
  public:
-  TexturePoolVulkan(std::unique_ptr<GraphicsDeviceVulkan>& m_device);
+  TexturePoolVulkan(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& device);
   GpuTexture* give_texture(const TextureInput& in);
   GpuTexture* give_texture_and_load_to_vram(const TextureInput& in, u32 vram_slot);
   void unload_texture(PcTextureId tex_id, VulkanTexture& texture);
@@ -78,7 +78,6 @@ class TexturePoolVulkan : public BaseTexturePool {
   VulkanTexture* lookup_mt4hh_texture(u32 location);
 
   VulkanTexture* get_placeholder_vulkan_texture() { return &m_placeholder_texture; }
-  void relocate(u32 destination, u32 source, u32 format);
   void draw_debug_for_tex(const std::string& name, GpuTexture* tex, u32 slot);
 
  protected:
@@ -86,9 +85,10 @@ class TexturePoolVulkan : public BaseTexturePool {
   void refresh_links(GpuTexture& texture);
   GpuTexture* get_gpu_texture_for_slot(PcTextureId id, u32 slot);
 
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+
   std::vector<u32> m_placeholder_data;
   VulkanTexture m_placeholder_texture;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unordered_map<u64, VulkanTexture*> m_vulkan_textures;
 };

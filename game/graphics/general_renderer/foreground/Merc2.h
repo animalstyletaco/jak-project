@@ -11,6 +11,13 @@ class BaseMerc2 : public BaseBucketRenderer {
                          ScopedProfilerNode& prof);
 
  protected:
+  virtual void flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+  virtual void flush_draw_buckets(BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) = 0;
+  virtual void init_pc_model(const DmaTransfer& setup, BaseSharedRenderState* render_state) = 0;
+  virtual void set_merc_uniform_buffer_data(const DmaTransfer& dma) = 0;
+  virtual void init_for_frame(BaseSharedRenderState* render_state) = 0;
+
   enum MercDataMemory {
     LOW_MEMORY = 0,
     BUFFER_BASE = 442,
@@ -44,8 +51,6 @@ class BaseMerc2 : public BaseBucketRenderer {
     u32 w6;
   };
 
-  void init_for_frame(BaseSharedRenderState* render_state);
-  void init_pc_model(const DmaTransfer& setup, BaseSharedRenderState* render_state);
   void handle_all_dma(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_setup_dma(DmaFollower& dma);
   u32 alloc_lights(const VuLights& lights);
@@ -54,7 +59,6 @@ class BaseMerc2 : public BaseBucketRenderer {
 
   u32 alloc_bones(int count);
 
-  std::optional<BaseMercRef> m_current_model = std::nullopt;
   u16 m_current_effect_enable_bits = 0;
   u16 m_current_ignore_alpha_bits = 0;
 

@@ -44,8 +44,12 @@ class GenericVulkan2 : public BaseGeneric2, public BucketVulkanRenderer {
                  u32 num_buckets = 800);
   ~GenericVulkan2();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void do_hud_draws(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void do_draws(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
+  void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void do_draws_for_alpha(BaseSharedRenderState* render_state,
+                          ScopedProfilerNode& prof,
+                          DrawMode::AlphaBlend alpha,
+                          bool hud) override;
   void init_shaders(VulkanShaderLibrary& shaders);
 
   struct Vertex {

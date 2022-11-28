@@ -13,6 +13,13 @@ class BaseDepthCue : public BaseBucketRenderer {
   void draw_debug_window() override;
 
  protected:
+  virtual void graphics_setup() = 0;
+
+  virtual void setup(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+  virtual void draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+
+  void read_dma(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+
   float fixed_to_floating_point(int fixed) { return fixed / 16.0f; }
 
   math::Vector2f fixed_to_floating_point(const math::Vector<s32, 2>& fixed_vec) {
@@ -146,10 +153,6 @@ class BaseDepthCue : public BaseBucketRenderer {
     float res_scale = 1.0f;
   } m_debug;
 
-  virtual void graphics_setup() = 0;
-  void read_dma(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void setup(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void build_sprite(std::vector<SpriteVertex>& vertices,
                     float x1,
                     float y1,

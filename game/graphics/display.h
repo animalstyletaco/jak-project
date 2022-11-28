@@ -38,6 +38,10 @@ class GfxDisplay {
   int m_last_windowed_width = 640;
   int m_last_windowed_height = 480;
 
+  bool is_cursor_position_valid = false;
+  double last_cursor_x_position = 0;
+  double last_cursor_y_position = 0;
+
  public:
   virtual ~GfxDisplay() {}
 

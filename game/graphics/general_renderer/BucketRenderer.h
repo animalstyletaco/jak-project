@@ -80,7 +80,7 @@ class BaseBucketRenderer {
   BaseBucketRenderer(const std::string& name, int my_id) : m_name(name), m_my_id(my_id) {}
   virtual void render(DmaFollower& dma,
                       BaseSharedRenderState* render_state,
-                      ScopedProfilerNode& prof){};
+                      ScopedProfilerNode& prof) = 0;
   std::string name_and_id() const;
   virtual ~BaseBucketRenderer() = default;
   bool& enabled() { return m_enabled; }
@@ -98,6 +98,9 @@ class BaseRenderMux : public BaseBucketRenderer {
  public:
   BaseRenderMux(const std::string& name,
             int my_id);
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override {};
   void draw_debug_window() override;
   void set_idx(u32 i) { m_render_idx = i; };
 

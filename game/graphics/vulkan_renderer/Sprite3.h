@@ -40,40 +40,25 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void graphics_setup_normal() override;
   void graphics_setup_distort() override;
 
+  void distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void distort_draw_instanced(BaseSharedRenderState* render_state,
+                              ScopedProfilerNode& prof) override;
+  void distort_draw_common(BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof) override;
+  void distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) override;
+  void render_2d_group0(DmaFollower& dma,
+                        BaseSharedRenderState* render_state,
+                        ScopedProfilerNode& prof) override;
+  void flush_sprites(BaseSharedRenderState* render_state,
+                     ScopedProfilerNode& prof,
+                     bool double_draw) override;
+
   void render_distorter(DmaFollower& dma,
                         SharedVulkanRenderState* render_state,
                         ScopedProfilerNode& prof);
-  void distort_dma(DmaFollower& dma, ScopedProfilerNode& prof);
-  void distort_setup(ScopedProfilerNode& prof);
-  void distort_setup_instanced(ScopedProfilerNode& prof);
-  void distort_draw(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void distort_draw_instanced(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void distort_draw_common(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void distort_setup_framebuffer_dims(SharedVulkanRenderState* render_state);
-  void handle_sprite_frame_setup(DmaFollower& dma);
-  void render_3d(DmaFollower& dma);
-  void render_2d_group0(DmaFollower& dma,
-                        SharedVulkanRenderState* render_state,
-                        ScopedProfilerNode& prof);
-  void render_fake_shadow(DmaFollower& dma);
-  void render_2d_group1(DmaFollower& dma,
-                        SharedVulkanRenderState* render_state,
-                        ScopedProfilerNode& prof);
-  enum SpriteMode { Mode2D = 1, ModeHUD = 2, Mode3D = 3 };
-  void do_block_common(SpriteMode mode,
-                       u32 count,
-                       SharedVulkanRenderState* render_state,
-                       ScopedProfilerNode& prof);
 
-  void update_mode_from_alpha1(u64 val, DrawMode& mode);
-  void handle_tex0(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_tex1(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
   // void handle_mip(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_zbuf(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
   void handle_clamp(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_alpha(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-
-  void flush_sprites(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof, bool double_draw);
 
   struct VulkanDistortOgl : BaseSprite3::GraphicsDistortOgl {
     std::unique_ptr<VertexBuffer>
@@ -86,23 +71,15 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   };
   VulkanDistortOgl m_distort_ogl;
 
-  struct VulkanDistortInstancedOgl : BaseSprite3::GraphicsDistortInstancedOgl {
+  struct VulkanDistortInstancedOgl {
     std::unique_ptr<VertexBuffer>
         vertex_buffer;  // contains vertex data for each possible sprite resolution (3-11)
     std::unique_ptr<VertexBuffer>
         instance_buffer;  // contains all instance specific data for each sprite per frame
 
-  } m_distort_instanced_ogl;
+  } m_vulkan_distort_instanced_ogl;
 
-  float get_distort_instanced_ogl_last_aspect_x() override;
-  float get_distort_instanced_ogl_last_aspect_y() override;
-  void set_distort_instanced_ogl_last_aspect_x(float) override;
-  void set_distort_instanced_ogl_last_aspect_y(float) override;
-
-  void set_distort_instanced_ogl_vertex_data_changed(bool) override;
-  bool get_distort_instanced_ogl_vertex_data_changed() override;
   void direct_renderer_reset_state() override;
-
   void direct_renderer_render_vif(u32 vif0,
                                   u32 vif1,
                                   const u8* data,

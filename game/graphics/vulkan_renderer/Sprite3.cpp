@@ -186,11 +186,11 @@ void SpriteVulkan3::graphics_setup_distort() {
       attributeDescriptions.end());
 
   VkDeviceSize instanced_vertex_device_size = distort_max_sprite_slices * 5 * sizeof(SpriteDistortVertex);
-  m_distort_instanced_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, instanced_vertex_device_size, 1,
+  m_vulkan_distort_instanced_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, instanced_vertex_device_size, 1,
                                                                      1);
 
   VkDeviceSize instanced_device_size = SPRITE_RENDERER_MAX_DISTORT_SPRITES * sizeof(SpriteDistortInstanceData);
-  m_distort_instanced_ogl.instance_buffer = std::make_unique<VertexBuffer>(
+  m_vulkan_distort_instanced_ogl.instance_buffer = std::make_unique<VertexBuffer>(
       m_device, instanced_device_size, 1, 1);
 
   m_sprite_distorter_vertices_instanced.resize(instanced_device_size);
@@ -207,7 +207,7 @@ void SpriteVulkan3::graphics_setup_distort() {
 /*!
  * Draws each distort sprite.
  */
-void SpriteVulkan3::distort_draw(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   // First, make sure the distort framebuffer is the correct size
   distort_setup_framebuffer_dims(render_state);
 
@@ -255,7 +255,7 @@ void SpriteVulkan3::distort_draw(SharedVulkanRenderState* render_state, ScopedPr
 /*!
  * Draws each distort sprite using instanced rendering.
  */
-void SpriteVulkan3::distort_draw_instanced(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   // First, make sure the distort framebuffer is the correct size
   distort_setup_framebuffer_dims(render_state);
 
@@ -281,7 +281,7 @@ void SpriteVulkan3::distort_draw_instanced(SharedVulkanRenderState* render_state
   if (m_distort_instanced_ogl.vertex_data_changed) {
     m_distort_instanced_ogl.vertex_data_changed = false;
 
-    m_distort_instanced_ogl.vertex_buffer->writeToGpuBuffer(
+    m_vulkan_distort_instanced_ogl.vertex_buffer->writeToGpuBuffer(
         m_sprite_distorter_vertices_instanced.data(),
         m_sprite_distorter_vertices_instanced.size() * sizeof(SpriteDistortVertex));
   }
@@ -297,7 +297,7 @@ void SpriteVulkan3::distort_draw_instanced(SharedVulkanRenderState* render_state
 
     if (instances.size() > 0) {
       // Upload instance data
-      m_distort_instanced_ogl.instance_buffer->writeToGpuBuffer(instances.data(),
+      m_vulkan_distort_instanced_ogl.instance_buffer->writeToGpuBuffer(instances.data(),
           instances.size() * sizeof(SpriteDistortInstanceData));
 
       // Draw
@@ -310,7 +310,7 @@ void SpriteVulkan3::distort_draw_instanced(SharedVulkanRenderState* render_state
   }
 }
 
-void SpriteVulkan3::distort_draw_common(SharedVulkanRenderState* render_state, ScopedProfilerNode& /*prof*/) {
+void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state, ScopedProfilerNode& /*prof*/) {
   // The distort effect needs to read the current framebuffer, so copy what's been rendered so far
   // to a texture that we can then pass to the shader
  
@@ -347,7 +347,7 @@ void SpriteVulkan3::distort_draw_common(SharedVulkanRenderState* render_state, S
   background_common::setup_vulkan_from_draw_mode(m_current_mode, m_distort_ogl.fbo_texture.get(), m_pipeline_config_info, false);
 }
 
-void SpriteVulkan3::distort_setup_framebuffer_dims(SharedVulkanRenderState* render_state) {
+void SpriteVulkan3::distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) {
   // Distort framebuffer must be the same dimensions as the default window framebuffer
   if (m_distort_ogl.fbo_width != render_state->render_fb_w ||
       m_distort_ogl.fbo_height != render_state->render_fb_h) {
@@ -366,7 +366,7 @@ void SpriteVulkan3::distort_setup_framebuffer_dims(SharedVulkanRenderState* rend
 }
 
 void SpriteVulkan3::render_2d_group0(DmaFollower& dma,
-                               SharedVulkanRenderState* render_state,
+                               BaseSharedRenderState* render_state,
                                ScopedProfilerNode& prof) {
   // opengl sprite frame setup
   //auto shid = render_state->shaders[ShaderId::SPRITE3].id();
@@ -440,7 +440,7 @@ void SpriteVulkan3::render_2d_group0(DmaFollower& dma,
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Render (for real)
 
-void SpriteVulkan3::flush_sprites(SharedVulkanRenderState* render_state,
+void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
                             ScopedProfilerNode& prof,
                             bool double_draw) {
   // Enable prim restart, we need this to break up the triangle strips

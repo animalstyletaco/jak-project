@@ -24,21 +24,16 @@ class Tfrag3Vulkan : public BaseTfrag3 {
                              BaseSharedRenderState* render_state,
                              ScopedProfilerNode& prof);
 
-  void render_all_trees(int geom,
-                        const TfragRenderSettings& settings,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
-
   void render_tree(int geom,
                    const TfragRenderSettings& settings,
                    BaseSharedRenderState* render_state,
-                   ScopedProfilerNode& prof);
+                   ScopedProfilerNode& prof) override;
 
   bool setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                        const std::string& level,
                        BaseSharedRenderState* render_state) override;
 
-  void discard_tree_cache();
+  void discard_tree_cache() override;
 
   void render_tree_cull_debug(const TfragRenderSettings& settings,
                               BaseSharedRenderState* render_state,

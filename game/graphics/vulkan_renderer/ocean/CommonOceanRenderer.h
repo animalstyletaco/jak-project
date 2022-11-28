@@ -29,16 +29,12 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
   CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   ~CommonOceanVulkanRenderer();
 
-  void init_for_near();
-  void kick_from_near(const u8* data);
-  void flush_near(SharedVulkanRenderState* render_state,
+  void flush_near(BaseSharedRenderState* render_state,
                   ScopedProfilerNode& prof,
                   std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
                   std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
 
-  void init_for_mid();
-  void kick_from_mid(const u8* data);
-  void flush_mid(SharedVulkanRenderState* render_state,
+  void flush_mid(BaseSharedRenderState* render_state,
                  ScopedProfilerNode& prof,
                  std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
                  std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
@@ -58,13 +54,6 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
   void InitializeVertexInputAttributes();
 
  private:
-  void handle_near_vertex_gif_data_fan(const u8* data, u32 offset, u32 loop);
-  void handle_near_vertex_gif_data_strip(const u8* data, u32 offset, u32 loop);
-
-  void handle_near_adgif(const u8* data, u32 offset, u32 count);
-
-  void handle_mid_adgif(const u8* data, u32 offset);
-
   enum VertexBucket {
     RGB_TEXTURE = 0,
     ALPHA = 1,

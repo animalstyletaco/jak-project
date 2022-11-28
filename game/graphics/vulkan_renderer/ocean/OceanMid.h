@@ -11,10 +11,29 @@ class OceanMidVulkan : public BaseOceanMid {
   OceanMidVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   void run(DmaFollower& dma,
            BaseSharedRenderState* render_state,
-           ScopedProfilerNode& prof,
-           std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
-           std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
+           ScopedProfilerNode& prof);
+  VkDescriptorBufferInfo GetUniformVertexBufferDescriptorInfo() const {
+    return m_ocean_uniform_vertex_buffer->descriptorInfo();
+  }
+
+  VkDescriptorBufferInfo GetUniformFragmentBufferDescriptorInfo() const {
+    return m_ocean_uniform_fragment_buffer->descriptorInfo();
+  }
 
  private:
+  void common_ocean_renderer_init_for_near() override;
+  void common_ocean_renderer_kick_from_near(const u8* data) override;
+  void common_ocean_renderer_init_for_mid() override;
+  void common_ocean_renderer_kick_from_mid(const u8* data) override;
+  void common_ocean_renderer_flush_near(BaseSharedRenderState* render_state,
+                                        ScopedProfilerNode& prof) override;
+  void common_ocean_renderer_flush_mid(BaseSharedRenderState* render_state,
+                                       ScopedProfilerNode& prof) override;
+
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+
+  std::unique_ptr<CommonOceanVertexUniformBuffer> m_ocean_uniform_vertex_buffer;
+  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_ocean_uniform_fragment_buffer;
+
   CommonOceanVulkanRenderer m_common_ocean_renderer;
 };

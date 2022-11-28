@@ -42,21 +42,31 @@ class BaseSprite3 : public BaseBucketRenderer {
   virtual void graphics_setup_normal() = 0;
   virtual void graphics_setup_distort() = 0;
 
+  virtual void distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+  virtual void distort_draw_instanced(BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode& prof) = 0;
+  virtual void distort_draw_common(BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) = 0;
+  virtual void distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) = 0;
+  virtual void render_2d_group0(DmaFollower& dma,
+                                BaseSharedRenderState* render_state,
+                                ScopedProfilerNode& prof) = 0;
+  virtual void flush_sprites(BaseSharedRenderState* render_state,
+                             ScopedProfilerNode& prof,
+                             bool double_draw) = 0;
+  virtual void EnableSprite3GraphicsBlending() = 0;  // TODO: May need to have game version passed
+                                                     // in as parameter
+
   void render_distorter(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
   void distort_dma(DmaFollower& dma, ScopedProfilerNode& prof);
   void distort_setup(ScopedProfilerNode& prof);
   void distort_setup_instanced(ScopedProfilerNode& prof);
-  void distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void distort_draw_instanced(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void distort_draw_common(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void distort_setup_framebuffer_dims(BaseSharedRenderState* render_state);
+
   void handle_sprite_frame_setup(DmaFollower& dma, GameVersion version);
   void render_3d(DmaFollower& dma);
-  void render_2d_group0(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
+
   void render_fake_shadow(DmaFollower& dma);
   void render_2d_group1(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
@@ -75,7 +85,6 @@ class BaseSprite3 : public BaseBucketRenderer {
   void handle_clamp(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_alpha(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
 
-  void flush_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof, bool double_draw);
 
   struct SpriteDistorterSetup {
     GifTag gif_tag;
@@ -136,20 +145,7 @@ class BaseSprite3 : public BaseBucketRenderer {
     float last_aspect_x = -1.0;
     float last_aspect_y = -1.0;
     bool vertex_data_changed = false;
-  };
-
-  virtual float get_distort_instanced_ogl_last_aspect_x() = 0;
-  virtual float get_distort_instanced_ogl_last_aspect_y() = 0;
-  virtual void set_distort_instanced_ogl_last_aspect_x(float) = 0;
-  virtual void set_distort_instanced_ogl_last_aspect_y(float) = 0;
-
-  virtual void set_distort_instanced_ogl_vertex_data_changed(bool) = 0;
-  virtual bool get_distort_instanced_ogl_vertex_data_changed() = 0;
-
-  virtual void EnableSprite3GraphicsBlending() = 0; //TODO: May need to have game version passed in as parameter
-  //glEnable(GL_BLEND);
-  //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  //glBlendEquation(GL_FUNC_ADD);
+  } m_distort_instanced_ogl;
 
   std::vector<SpriteDistortVertex> m_sprite_distorter_vertices;
   std::vector<u32> m_sprite_distorter_indices;

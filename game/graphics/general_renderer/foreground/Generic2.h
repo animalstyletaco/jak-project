@@ -35,12 +35,12 @@ class BaseGeneric2 : public BaseBucketRenderer {
   void process_matrices();
   void process_dma(DmaFollower& dma, u32 next_bucket);
   void setup_draws();
-  void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void do_draws_for_alpha(BaseSharedRenderState* render_state,
-                          ScopedProfilerNode& prof,
-                          DrawMode::AlphaBlend alpha,
-                          bool hud);
-  void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  virtual void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+  virtual void do_draws_for_alpha(BaseSharedRenderState* render_state,
+                                  ScopedProfilerNode& prof,
+                                  DrawMode::AlphaBlend alpha,
+                                  bool hud) = 0;
+  virtual void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
   bool check_for_end_of_generic_data(DmaFollower& dma, u32 next_bucket);
   void final_vertex_update();
   bool handle_bucket_setup_dma(DmaFollower& dma, u32 next_bucket);

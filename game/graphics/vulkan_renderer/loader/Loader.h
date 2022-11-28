@@ -28,6 +28,7 @@ class VulkanLoader : public BaseLoader {
                        TexturePoolVulkan& texture_pool);
 
  private:
+  void loader_thread();
   // used only by game thread
   std::unordered_map<std::string, std::unique_ptr<LevelDataVulkan>> m_loaded_tfrag3_levels;
   std::unordered_map<std::string, std::unique_ptr<LevelDataVulkan>> m_initializing_tfrag3_levels;

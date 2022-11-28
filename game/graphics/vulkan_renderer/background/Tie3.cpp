@@ -49,6 +49,12 @@ Tie3Vulkan::~Tie3Vulkan() {
   discard_tree_cache();
 }
 
+void Tie3Vulkan::render(DmaFollower& dma,
+                        SharedVulkanRenderState* render_state,
+                        ScopedProfilerNode& prof) {
+  BaseTie3::render(dma, render_state, prof);
+}
+
 void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
   const tfrag3::Level* lev_data = loader_data->level.get();
   m_wind_vectors.clear();
@@ -164,116 +170,6 @@ bool Tie3Vulkan::setup_for_level(const std::string& level, BaseSharedRenderState
   return m_has_level;
 }
 
-void vector_min_in_place(math::Vector4f& v, float val) {
-  for (int i = 0; i < 4; i++) {
-    if (v[i] > val) {
-      v[i] = val;
-    }
-  }
-}
-
-math::Vector4f vector_max(const math::Vector4f& v, float val) {
-  math::Vector4f result;
-  for (int i = 0; i < 4; i++) {
-    result[i] = std::max(val, v[i]);
-  }
-  return result;
-}
-
-void do_wind_math(u16 wind_idx,
-                  float* wind_vector_data,
-                  const Tie3Vulkan::WindWork& wind_work,
-                  float stiffness,
-                  std::array<math::Vector4f, 4>& mat) {
-  float* my_vector = wind_vector_data + (4 * wind_idx);
-  const auto& work_vector = wind_work.wind_array[(wind_work.wind_time + wind_idx) & 63];
-  constexpr float cx = 0.5;
-  constexpr float cy = 100.0;
-  constexpr float cz = 0.0166;
-  constexpr float cw = -1.0;
-
-  // ld s1, 8(s5)                    # load wind vector 1
-  // pextlw s1, r0, s1               # convert to 2x 64 bits, by shifting left
-  // qmtc2.i vf18, s1                # put in vf
-  float vf18_x = my_vector[2];
-  float vf18_z = my_vector[3];
-
-  // ld s2, 0(s5)                    # load wind vector 0
-  // pextlw s3, r0, s2               # convert to 2x 64 bits, by shifting left
-  // qmtc2.i vf17, s3                # put in vf
-  float vf17_x = my_vector[0];
-  float vf17_z = my_vector[1];
-
-  // lqc2 vf16, 12(s3)               # load wind vector
-  math::Vector4f vf16 = work_vector;
-
-  // vmula.xyzw acc, vf16, vf1       # acc = vf16
-  // vmsubax.xyzw acc, vf18, vf19    # acc = vf16 - vf18 * wind_const.x
-  // vmsuby.xyzw vf16, vf17, vf19
-  //# vf16 -= (vf18 * wind_const.x) + (vf17 * wind_const.y)
-  vf16.x() -= cx * vf18_x + cy * vf17_x;
-  vf16.z() -= cx * vf18_z + cy * vf17_z;
-
-  // vmulaz.xyzw acc, vf16, vf19     # acc = vf16 * wind_const.z
-  // vmadd.xyzw vf18, vf1, vf18
-  //# vf18 += vf16 * wind_const.z
-  math::Vector4f vf18(vf18_x, 0.f, vf18_z, 0.f);
-  vf18 += vf16 * cz;
-
-  // vmulaz.xyzw acc, vf18, vf19    # acc = vf18 * wind_const.z
-  // vmadd.xyzw vf17, vf17, vf1
-  //# vf17 += vf18 * wind_const.z
-  math::Vector4f vf17(vf17_x, 0.f, vf17_z, 0.f);
-  vf17 += vf18 * cz;
-
-  // vitof12.xyzw vf11, vf11 # normal convert
-  // vitof12.xyzw vf12, vf12 # normal convert
-
-  // vminiw.xyzw vf17, vf17, vf0
-  vector_min_in_place(vf17, 1.f);
-
-  // qmfc2.i s3, vf18
-  // ppacw s3, r0, s3
-
-  // vmaxw.xyzw vf27, vf17, vf19
-  auto vf27 = vector_max(vf17, cw);
-
-  // vmulw.xyzw vf27, vf27, vf15
-  vf27 *= stiffness;
-
-  // vmulax.yw acc, vf0, vf0
-  // vmulay.xz acc, vf27, vf10
-  // vmadd.xyzw vf10, vf1, vf10
-  mat[0].x() += vf27.x() * mat[0].y();
-  mat[0].z() += vf27.z() * mat[0].y();
-
-  // qmfc2.i s2, vf27
-  if (!wind_work.paused) {
-    my_vector[0] = vf27.x();
-    my_vector[1] = vf27.z();
-    my_vector[2] = vf18.x();
-    my_vector[3] = vf18.z();
-  }
-
-  // vmulax.yw acc, vf0, vf0
-  // vmulay.xz acc, vf27, vf11
-  // vmadd.xyzw vf11, vf1, vf11
-  mat[1].x() += vf27.x() * mat[1].y();
-  mat[1].z() += vf27.z() * mat[1].y();
-
-  // ppacw s2, r0, s2
-  // vmulax.yw acc, vf0, vf0
-  // vmulay.xz acc, vf27, vf12
-  // vmadd.xyzw vf12, vf1, vf12
-  mat[2].x() += vf27.x() * mat[2].y();
-  mat[2].z() += vf27.z() * mat[2].y();
-
-  //
-  // if not paused
-  // sd s3, 8(s5)
-  // sd s2, 0(s5)
-}
-
 void Tie3Vulkan::discard_tree_cache() {
   for (int geo = 0; geo < 4; ++geo) {
     for (auto& tree : m_trees[geo]) {
@@ -284,25 +180,10 @@ void Tie3Vulkan::discard_tree_cache() {
   }
 }
 
-void Tie3Vulkan::render_all_trees(int geom,
-                            const TfragRenderSettings& settings,
-                            SharedVulkanRenderState* render_state,
-                            ScopedProfilerNode& prof) {
-  Timer all_tree_timer;
-  if (m_override_level && m_pending_user_level) {
-    m_has_level = setup_for_level(*m_pending_user_level, render_state);
-    m_pending_user_level = {};
-  }
-  for (u32 i = 0; i < m_trees[geom].size(); i++) {
-    render_tree(i, geom, settings, render_state, prof);
-  }
-  m_all_tree_time.add(all_tree_timer.getSeconds());
-}
-
 void Tie3Vulkan::render_tree_wind(int idx,
                             int geom,
                             const TfragRenderSettings& settings,
-                            SharedVulkanRenderState* render_state,
+                            BaseSharedRenderState* render_state,
                             ScopedProfilerNode& prof) {
   auto& tree = m_trees.at(geom).at(idx);
   if (tree.wind_draws->empty()) {
@@ -405,7 +286,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
 void Tie3Vulkan::render_tree(int idx,
                        int geom,
                        const TfragRenderSettings& settings,
-                       SharedVulkanRenderState* render_state,
+                       BaseSharedRenderState* render_state,
                        ScopedProfilerNode& prof) {
   // reset perf
   Timer tree_timer;

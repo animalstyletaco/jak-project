@@ -1,52 +1,10 @@
-#include "BaseMerc2.h"
+#include "Merc2.h"
 
-#include "game/graphics/opengl_renderer/background/background_common.h"
+#include "game/graphics/general_renderer/background/background_common.h"
 
 #include "third-party/imgui/imgui.h"
 
-BaseMerc2::BaseMerc2(const std::string& name, int my_id) : BucketRenderer(name, my_id) {
-}
-
-/*!
- * Handle the merc renderer switching to a different model.
- */
-void BaseMerc2::init_pc_model(const DmaTransfer& setup, SharedRenderState* render_state) {
-  // determine the name. We've packed this in a separate PC-port specific packet.
-  char name[128];
-  strcpy(name, (const char*)setup.data);
-
-  // get the model from the loader
-  m_current_model = render_state->loader->get_merc_model(name);
-
-  // update stats
-  m_stats.num_models++;
-  if (m_current_model) {
-    for (const auto& effect : m_current_model->model->effects) {
-      m_stats.num_effects++;
-      m_stats.num_predicted_draws += effect.draws.size();
-      for (const auto& draw : effect.draws) {
-        m_stats.num_predicted_tris += draw.num_triangles;
-      }
-    }
-  }
-}
-
-/*!
- * Once-per-frame initialization
- */
-void BaseMerc2::init_for_frame(SharedRenderState* render_state) {
-  // reset state
-  m_current_model = std::nullopt;
-  m_stats = {};
-
-  // activate the merc shader used for all draws
-  render_state->shaders[ShaderId::BaseMerc2].activate();
-
-  // set uniforms that we know from render_state
-  glUniform4f(m_uniforms.fog_color, render_state->fog_color[0] / 255.f,
-              render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
-              render_state->fog_intensity / 255);
-  glUniform1i(m_uniforms.gfx_hack_no_tex, Gfx::g_global_settings.hack_no_tex);
+BaseMerc2::BaseMerc2(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
 }
 
 void BaseMerc2::draw_debug_window() {
@@ -59,38 +17,10 @@ void BaseMerc2::draw_debug_window() {
   ImGui::Text("Dflush   : %d", m_stats.num_draw_flush);
 }
 
-void BaseMerc2::init_shaders(ShaderLibrary& shaders) {
-  const auto& shader = shaders[ShaderId::BaseMerc2];
-  auto id = shader.id();
-  shaders[ShaderId::BaseMerc2].activate();
-  m_uniforms.light_direction[0] = glGetUniformLocation(id, "light_dir0");
-  m_uniforms.light_direction[1] = glGetUniformLocation(id, "light_dir1");
-  m_uniforms.light_direction[2] = glGetUniformLocation(id, "light_dir2");
-  m_uniforms.light_color[0] = glGetUniformLocation(id, "light_col0");
-  m_uniforms.light_color[1] = glGetUniformLocation(id, "light_col1");
-  m_uniforms.light_color[2] = glGetUniformLocation(id, "light_col2");
-  m_uniforms.light_ambient = glGetUniformLocation(id, "light_ambient");
-
-  m_uniforms.hvdf_offset = glGetUniformLocation(id, "hvdf_offset");
-  m_uniforms.perspective[0] = glGetUniformLocation(id, "perspective0");
-  m_uniforms.perspective[1] = glGetUniformLocation(id, "perspective1");
-  m_uniforms.perspective[2] = glGetUniformLocation(id, "perspective2");
-  m_uniforms.perspective[3] = glGetUniformLocation(id, "perspective3");
-
-  m_uniforms.fog = glGetUniformLocation(id, "fog_constants");
-  m_uniforms.decal = glGetUniformLocation(id, "decal_enable");
-
-  m_uniforms.fog_color = glGetUniformLocation(id, "fog_color");
-  m_uniforms.perspective_matrix = glGetUniformLocation(id, "perspective_matrix");
-  m_uniforms.ignore_alpha = glGetUniformLocation(id, "ignore_alpha");
-
-  m_uniforms.gfx_hack_no_tex = glGetUniformLocation(id, "gfx_hack_no_tex");
-}
-
 /*!
  * Main BaseMerc2 rendering.
  */
-void BaseMerc2::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseMerc2::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   // skip if disabled
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -136,7 +66,7 @@ void BaseMerc2::handle_matrix_dma(const DmaTransfer& dma) {
  * Main BaseMerc2 function to handle DMA
  */
 void BaseMerc2::handle_all_dma(DmaFollower& dma,
-                           SharedRenderState* render_state,
+                           BaseSharedRenderState* render_state,
                            ScopedProfilerNode& prof) {
   // process the first tag. this is just jumping to the merc-specific dma.
   auto data0 = dma.read_and_advance();
@@ -165,15 +95,6 @@ void BaseMerc2::handle_all_dma(DmaFollower& dma,
   }
   ASSERT(dma.current_tag_offset() == render_state->next_bucket);
 }
-
-namespace {
-void set_uniform(GLuint uniform, const math::Vector3f& val) {
-  glUniform3f(uniform, val.x(), val.y(), val.z());
-}
-void set_uniform(GLuint uniform, const math::Vector4f& val) {
-  glUniform4f(uniform, val.x(), val.y(), val.z(), val.w());
-}
-}  // namespace
 
 void BaseMerc2::handle_setup_dma(DmaFollower& dma) {
   auto first = dma.read_and_advance();
@@ -216,15 +137,8 @@ void BaseMerc2::handle_setup_dma(DmaFollower& dma) {
     ASSERT(vif3.num == 8);
   }
 
-  // 8 qw's of low memory data
-  memcpy(&m_low_memory, first.data + 16, sizeof(LowMemory));
-  set_uniform(m_uniforms.hvdf_offset, m_low_memory.hvdf_offset);
-  set_uniform(m_uniforms.fog, m_low_memory.fog);
-  for (int i = 0; i < 4; i++) {
-    set_uniform(m_uniforms.perspective[i], m_low_memory.perspective[i]);
-  }
-  // todo rm.
-  glUniformMatrix4fv(m_uniforms.perspective_matrix, 1, GL_FALSE, &m_low_memory.perspective[0].x());
+   // 8 qw's of low memory data
+  set_merc_uniform_buffer_data(first);
 
   // 1 qw with another 4 vifcodes.
   u32 vifcode_final_data[4];
@@ -260,7 +174,7 @@ bool tag_is_nothing_cnt(const DmaFollower& dma) {
 }  // namespace
 
 void BaseMerc2::handle_merc_chain(DmaFollower& dma,
-                              SharedRenderState* render_state,
+                              BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof) {
   while (tag_is_nothing_next(dma)) {
     auto nothing = dma.read_and_advance();
@@ -397,95 +311,10 @@ u32 BaseMerc2::alloc_bones(int count) {
   }
 
   auto b0 = m_next_free_bone_vector;
-  m_next_free_bone_vector += m_opengl_buffer_alignment - 1;
-  m_next_free_bone_vector /= m_opengl_buffer_alignment;
-  m_next_free_bone_vector *= m_opengl_buffer_alignment;
+  m_next_free_bone_vector += m_graphics_buffer_alignment - 1;
+  m_next_free_bone_vector /= m_graphics_buffer_alignment;
+  m_next_free_bone_vector *= m_graphics_buffer_alignment;
   ASSERT(b0 <= m_next_free_bone_vector);
   ASSERT(first_bone_vector + count * 8 <= m_next_free_bone_vector);
   return first_bone_vector;
-}
-/*!
- * Flush a model to draw buckets
- */
-void BaseMerc2::flush_pending_model(SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  if (!m_current_model) {
-    return;
-  }
-
-  const LevelData* lev = m_current_model->level;
-  const tfrag3::MercModel* model = m_current_model->model;
-
-  int bone_count = model->max_bones + 1;
-
-  if (m_next_free_light >= MAX_LIGHTS) {
-    fmt::print("BaseMerc2 out of lights, consider increasing MAX_LIGHTS\n");
-    flush_draw_buckets(render_state, prof);
-  }
-
-  if (m_next_free_bone_vector + m_opengl_buffer_alignment + bone_count * 8 >
-      MAX_SHADER_BONE_VECTORS) {
-    fmt::print("BaseMerc2 out of bones, consider increasing MAX_SHADER_BONE_VECTORS\n");
-    flush_draw_buckets(render_state, prof);
-  }
-
-  // find a level bucket
-  LevelDrawBucket* lev_bucket = nullptr;
-  for (u32 i = 0; i < m_next_free_level_bucket; i++) {
-    if (m_level_draw_buckets[i].level == lev) {
-      lev_bucket = &m_level_draw_buckets[i];
-      break;
-    }
-  }
-
-  if (!lev_bucket) {
-    // no existing bucket
-    if (m_next_free_level_bucket >= m_level_draw_buckets.size()) {
-      // out of room, flush
-      // fmt::print("BaseMerc2 out of levels, consider increasing MAX_LEVELS\n");
-      flush_draw_buckets(render_state, prof);
-      // and retry the whole thing.
-      flush_pending_model(render_state, prof);
-      return;
-    }
-    // alloc a new one
-    lev_bucket = &m_level_draw_buckets[m_next_free_level_bucket++];
-    lev_bucket->reset();
-    lev_bucket->level = lev;
-  }
-
-  if (lev_bucket->next_free_draw + model->max_draws >= lev_bucket->draws.size()) {
-    // out of room, flush
-    fmt::print("BaseMerc2 out of draws, consider increasing MAX_DRAWS_PER_LEVEL\n");
-    flush_draw_buckets(render_state, prof);
-    // and retry the whole thing.
-    flush_pending_model(render_state, prof);
-    return;
-  }
-
-  u32 first_bone = alloc_bones(bone_count);
-
-  // allocate lights
-  u32 lights = alloc_lights(m_current_lights);
-  //
-  for (size_t ei = 0; ei < model->effects.size(); ei++) {
-    if (!(m_current_effect_enable_bits & (1 << ei))) {
-      continue;
-    }
-
-    u8 ignore_alpha = (m_current_ignore_alpha_bits & (1 << ei));
-    auto& effect = model->effects[ei];
-    for (auto& mdraw : effect.draws) {
-      Draw* draw = &lev_bucket->draws[lev_bucket->next_free_draw++];
-      draw->first_index = mdraw.first_index;
-      draw->index_count = mdraw.index_count;
-      draw->mode = mdraw.mode;
-      draw->texture = mdraw.tree_tex_id;
-      draw->first_bone = first_bone;
-      draw->light_idx = lights;
-      draw->num_triangles = mdraw.num_triangles;
-      draw->ignore_alpha = ignore_alpha;
-    }
-  }
-
-  m_current_model = std::nullopt;
 }

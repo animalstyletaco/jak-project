@@ -26,11 +26,6 @@ struct SharedRenderState : BaseSharedRenderState {
   std::shared_ptr<TexturePool> texture_pool;
   std::shared_ptr<Loader> loader;
 
-  //BaseLoader* GetLoader() override { return loader.get(); };
-  BaseTexturePool* GetTexturePool() override {
-    return texture_pool.get();
-  };
-
   void reset() override;
   EyeRenderer* eye_renderer = nullptr;
 

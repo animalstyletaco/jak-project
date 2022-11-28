@@ -427,7 +427,7 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
   }
 }
 
-void GenericVulkan2::do_hud_draws(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   for (u32 i = 0; i < m_next_free_bucket; i++) {
     auto& bucket = m_buckets[i];
     auto& first = m_adgifs[bucket.start];
@@ -443,7 +443,7 @@ void GenericVulkan2::do_hud_draws(SharedVulkanRenderState* render_state, ScopedP
   }
 }
 
-void GenericVulkan2::do_draws(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   if (m_next_free_vert > 0) {
     m_ogl.vertex_buffer->writeToGpuBuffer(m_verts.data(), m_next_free_vert * sizeof(Vertex), 0);
   }
@@ -480,6 +480,26 @@ void GenericVulkan2::do_draws(SharedVulkanRenderState* render_state, ScopedProfi
     do_hud_draws(render_state, prof);
   }
 }
+
+void GenericVulkan2::do_draws_for_alpha(BaseSharedRenderState* render_state,
+                                        ScopedProfilerNode& prof,
+                                        DrawMode::AlphaBlend alpha,
+                                        bool hud) {
+  for (u32 i = 0; i < m_next_free_bucket; i++) {
+    auto& bucket = m_buckets[i];
+    auto& first = m_adgifs[bucket.start];
+    if (first.mode.get_alpha_blend() == alpha && first.uses_hud == hud) {
+      setup_graphics_for_draw_mode(first.mode, first.fix, render_state);
+      setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
+                       first.mode.get_clamp_t_enable(), render_state);
+      //glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
+      //               (void*)(sizeof(u32) * bucket.idx_idx));
+      prof.add_draw_call();
+      prof.add_tri(bucket.tri_count);
+    }
+  }
+}
+
 
 void GenericVulkan2::InitializeInputAttributes() {
   VkVertexInputBindingDescription bindingDescription{};

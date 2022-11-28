@@ -4,6 +4,7 @@
 
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/gfx.h"
 
 MercVulkan2::MercVulkan2(const std::string& name,
              int my_id,
@@ -58,81 +59,6 @@ MercVulkan2::MercVulkan2(const std::string& name,
  */
 void MercVulkan2::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
   BaseMerc2::render(dma, render_state, prof);
-}
-
-void MercVulkan2::handle_setup_dma(DmaFollower& dma, BaseSharedRenderState* render_state) {
-  auto first = dma.read_and_advance();
-
-  // 10 quadword setup packet
-  ASSERT(first.size_bytes == 10 * 16);
-  // m_stats.str += fmt::format("Setup 0: {} {} {}", first.size_bytes / 16,
-  // first.vifcode0().print(), first.vifcode1().print());
-
-  // transferred vifcodes
-  {
-    auto vif0 = first.vifcode0();
-    auto vif1 = first.vifcode1();
-    // STCYCL 4, 4
-    ASSERT(vif0.kind == VifCode::Kind::STCYCL);
-    auto vif0_st = VifCodeStcycl(vif0);
-    ASSERT(vif0_st.cl == 4 && vif0_st.wl == 4);
-    // STMOD
-    ASSERT(vif1.kind == VifCode::Kind::STMOD);
-    ASSERT(vif1.immediate == 0);
-  }
-
-  // 1 qw with 4 vifcodes.
-  u32 vifcode_data[4];
-  memcpy(vifcode_data, first.data, 16);
-  {
-    auto vif0 = VifCode(vifcode_data[0]);
-    ASSERT(vif0.kind == VifCode::Kind::BASE);
-    ASSERT(vif0.immediate == MercDataMemory::BUFFER_BASE);
-    auto vif1 = VifCode(vifcode_data[1]);
-    ASSERT(vif1.kind == VifCode::Kind::OFFSET);
-    ASSERT((s16)vif1.immediate == MercDataMemory::BUFFER_OFFSET);
-    auto vif2 = VifCode(vifcode_data[2]);
-    ASSERT(vif2.kind == VifCode::Kind::NOP);
-    auto vif3 = VifCode(vifcode_data[3]);
-    ASSERT(vif3.kind == VifCode::Kind::UNPACK_V4_32);
-    VifCodeUnpack up(vif3);
-    ASSERT(up.addr_qw == MercDataMemory::LOW_MEMORY);
-    ASSERT(!up.use_tops_flag);
-    ASSERT(vif3.num == 8);
-  }
-
-  // 8 qw's of low memory data
-  memcpy(&m_low_memory, first.data + 16, sizeof(LowMemory));
-  m_vertex_uniform_buffer->SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
-  m_vertex_uniform_buffer->SetUniformMathVector4f("fog_constants", m_low_memory.fog);
-  for (int i = 0; i < 4; i++) {
-    m_vertex_uniform_buffer->SetUniformMathVector4f((std::string("perspective") + std::to_string(i)).c_str(), //Ugly declaration
-                                                                  m_low_memory.perspective[i]);
-  }
-  // todo rm.
-  m_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "perspective_matrix", 1, GL_FALSE, &m_low_memory.perspective[0].x());
-
-  // 1 qw with another 4 vifcodes.
-  u32 vifcode_final_data[4];
-  memcpy(vifcode_final_data, first.data + 16 + sizeof(LowMemory), 16);
-  {
-    ASSERT(VifCode(vifcode_final_data[0]).kind == VifCode::Kind::FLUSHE);
-    ASSERT(vifcode_final_data[1] == 0);
-    ASSERT(vifcode_final_data[2] == 0);
-    VifCode mscal(vifcode_final_data[3]);
-    ASSERT(mscal.kind == VifCode::Kind::MSCAL);
-    ASSERT(mscal.immediate == 0);
-  }
-
-  // TODO: process low memory initialization
-
-  auto second = dma.read_and_advance();
-  ASSERT(second.size_bytes == 32);  // setting up test register.
-  auto nothing = dma.read_and_advance();
-  ASSERT(nothing.size_bytes == 0);
-  ASSERT(nothing.vif0() == 0);
-  ASSERT(nothing.vif1() == 0);
 }
 
 void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
@@ -191,8 +117,148 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, Scoped
   m_next_free_level_bucket = 0;
 }
 
-void MercVulkan2::init_shaders(VulkanShaderLibrary& shaders) {
-  auto& shader = shaders[ShaderId::MERC2];
+/*!
+ * Flush a model to draw buckets
+ */
+void MercVulkan2::flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  if (!m_current_model) {
+    return;
+  }
+
+  const LevelDataVulkan* lev = m_current_model->level;
+  const tfrag3::MercModel* model = m_current_model->model;
+
+  int bone_count = model->max_bones + 1;
+
+  if (m_next_free_light >= MAX_LIGHTS) {
+    fmt::print("MERC2 out of lights, consider increasing MAX_LIGHTS\n");
+    flush_draw_buckets(render_state, prof);
+  }
+
+  if (m_next_free_bone_vector + m_graphics_buffer_alignment + bone_count * 8 >
+      MAX_SHADER_BONE_VECTORS) {
+    fmt::print("MERC2 out of bones, consider increasing MAX_SHADER_BONE_VECTORS\n");
+    flush_draw_buckets(render_state, prof);
+  }
+
+  // find a level bucket
+  LevelDrawBucketVulkan* lev_bucket = nullptr;
+  for (u32 i = 0; i < m_next_free_level_bucket; i++) {
+    if (m_level_draw_buckets[i].level == lev) {
+      lev_bucket = &m_level_draw_buckets[i];
+      break;
+    }
+  }
+
+  if (!lev_bucket) {
+    // no existing bucket
+    if (m_next_free_level_bucket >= m_level_draw_buckets.size()) {
+      // out of room, flush
+      // fmt::print("MERC2 out of levels, consider increasing MAX_LEVELS\n");
+      flush_draw_buckets(render_state, prof);
+      // and retry the whole thing.
+      flush_pending_model(render_state, prof);
+      return;
+    }
+    // alloc a new one
+    lev_bucket = &m_level_draw_buckets[m_next_free_level_bucket++];
+    lev_bucket->reset();
+    lev_bucket->level = lev;
+  }
+
+  if (lev_bucket->next_free_draw + model->max_draws >= lev_bucket->draws.size()) {
+    // out of room, flush
+    fmt::print("MERC2 out of draws, consider increasing MAX_DRAWS_PER_LEVEL\n");
+    flush_draw_buckets(render_state, prof);
+    // and retry the whole thing.
+    flush_pending_model(render_state, prof);
+    return;
+  }
+
+  u32 first_bone = alloc_bones(bone_count);
+
+  // allocate lights
+  u32 lights = alloc_lights(m_current_lights);
+  //
+  for (size_t ei = 0; ei < model->effects.size(); ei++) {
+    if (!(m_current_effect_enable_bits & (1 << ei))) {
+      continue;
+    }
+
+    u8 ignore_alpha = (m_current_ignore_alpha_bits & (1 << ei));
+    auto& effect = model->effects[ei];
+    for (auto& mdraw : effect.draws) {
+      Draw* draw = &lev_bucket->draws[lev_bucket->next_free_draw++];
+      draw->first_index = mdraw.first_index;
+      draw->index_count = mdraw.index_count;
+      draw->mode = mdraw.mode;
+      draw->texture = mdraw.tree_tex_id;
+      draw->first_bone = first_bone;
+      draw->light_idx = lights;
+      draw->num_triangles = mdraw.num_triangles;
+      draw->ignore_alpha = ignore_alpha;
+    }
+  }
+
+  m_current_model = std::nullopt;
+}
+
+
+/*!
+ * Once-per-frame initialization
+ */
+void MercVulkan2::init_for_frame(BaseSharedRenderState* render_state) {
+  // reset state
+  m_current_model = std::nullopt;
+  m_stats = {};
+
+  // set uniforms that we know from render_state
+  m_vertex_uniform_buffer->SetUniform4f("fog_constants", render_state->fog_color[0] / 255.f,
+              render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
+              render_state->fog_intensity / 255);
+  m_vertex_uniform_buffer->SetUniform1ui("gfx_hack_no_tex", Gfx::g_global_settings.hack_no_tex);
+}
+
+void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
+  memcpy(&m_low_memory, dma.data + 16, sizeof(LowMemory));
+  m_vertex_uniform_buffer->SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
+  m_vertex_uniform_buffer->SetUniformMathVector4f("fog_constants", m_low_memory.fog);
+  for (int i = 0; i < 4; i++) {
+    m_vertex_uniform_buffer->SetUniformMathVector4f(
+        (std::string("perspective") + std::to_string(i)).c_str(),  // Ugly declaration
+        m_low_memory.perspective[i]);
+  }
+  // todo rm.
+  m_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("perspective_matrix", 1, GL_FALSE,
+                                                            &m_low_memory.perspective[0].x());
+}
+
+/*!
+ * Handle the merc renderer switching to a different model.
+ */
+void MercVulkan2::init_pc_model(const DmaTransfer& setup, BaseSharedRenderState* render_state) {
+  // determine the name. We've packed this in a separate PC-port specific packet.
+  char name[128];
+  strcpy(name, (const char*)setup.data);
+
+  // get the model from the loader
+  m_current_model = m_vulkan_info.loader->get_merc_model(name);
+
+  // update stats
+  m_stats.num_models++;
+  if (m_current_model) {
+    for (const auto& effect : m_current_model->model->effects) {
+      m_stats.num_effects++;
+      m_stats.num_predicted_draws += effect.draws.size();
+      for (const auto& draw : effect.draws) {
+        m_stats.num_predicted_tris += draw.num_triangles;
+      }
+    }
+  }
+}
+
+void MercVulkan2::init_shaders() {
+  auto& shader = m_vulkan_info.shaders[ShaderId::MERC2];
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -312,7 +378,8 @@ MercFragmentUniformBuffer::MercFragmentUniformBuffer(std::unique_ptr<GraphicsDev
   section_name_to_memory_offset_map = {
       {"fog_color", offsetof(MercUniformBufferFragmentData, fog_color)},
       {"ignore_alpha", offsetof(MercUniformBufferFragmentData, ignore_alpha)},
-      {"decal_enable", offsetof(MercUniformBufferFragmentData, decal_enable)}};
+      {"decal_enable", offsetof(MercUniformBufferFragmentData, decal_enable)},
+      {"gfx_hack_no_tex", offsetof(MercUniformBufferFragmentData, gfx_hack_no_tex)}};
 }
 
 

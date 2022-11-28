@@ -47,10 +47,6 @@ class GLDisplay : public GfxDisplay {
   bool m_minimized = false;
   GLFWvidmode m_last_video_mode = {0, 0, 0, 0, 0, 0};
 
-  bool is_cursor_position_valid = false;
-  double last_cursor_x_position = 0;
-  double last_cursor_y_position = 0;
-
   static constexpr int MAX_VMODES = 128;
 
   struct VMode {

@@ -7,6 +7,21 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/vulkan_renderer/ocean/CommonOceanRenderer.h"
 
+class OceanMipMapVertexUniformBuffer : public UniformVulkanBuffer {
+ public:
+  OceanMipMapVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                 uint32_t instanceCount,
+                                 VkDeviceSize minOffsetAlignment = 1);
+};
+
+class OceanMipMapFragmentUniformBuffer : public UniformVulkanBuffer {
+ public:
+  OceanMipMapFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                   uint32_t instanceCount,
+                                   VkDeviceSize minOffsetAlignment = 1);
+};
+
+
 class OceanVulkanTexture : public BaseOceanTexture {
  public:
   OceanVulkanTexture(bool generate_mipmaps,
@@ -14,32 +29,41 @@ class OceanVulkanTexture : public BaseOceanTexture {
                VulkanInitializationInfo& vulkan_info);
   void handle_ocean_texture(
       DmaFollower& dma,
-      SharedVulkanRenderState* render_state,
-      ScopedProfilerNode& prof,
-      std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
-      std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
+      BaseSharedRenderState* render_state,
+      ScopedProfilerNode& prof);
   void init_textures(TexturePoolVulkan& pool);
   void set_gpu_texture(TextureInput&) override;
   ~OceanVulkanTexture();
 
  private:
   void InitializeVertexBuffer();
-  void SetupShader();
+  void SetupShader(ShaderId);
   void InitializeMipmapVertexInputAttributes();
 
   void move_existing_to_vram(GpuTexture* tex, u32 slot_addr) override;
   void setup_framebuffer_context(int) override;
 
   void flush(BaseSharedRenderState* render_state,
-             ScopedProfilerNode& prof);
+             ScopedProfilerNode& prof) override;
 
-  void make_texture_with_mipmaps(SharedVulkanRenderState* render_state,
-                                 ScopedProfilerNode& prof,
-                                 std::unique_ptr<CommonOceanFragmentUniformBuffer>&);
+  void make_texture_with_mipmaps(BaseSharedRenderState* render_state,
+                                 ScopedProfilerNode& prof) override;
 
   GpuTexture* m_tex0_gpu = nullptr;
 
+  struct PcDataVulkan {
+    std::unique_ptr<VertexBuffer> static_vertex_buffer;
+    std::unique_ptr<VertexBuffer> dynamic_vertex_buffer;
+    std::unique_ptr<IndexBuffer> graphics_index_buffer;
+  } m_vulkan_pc;
+
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::unique_ptr<CommonOceanVertexUniformBuffer> m_common_uniform_vertex_buffer;
+  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_common_uniform_fragment_buffer;
+
+  std::unique_ptr<OceanMipMapVertexUniformBuffer> m_ocean_mipmap_uniform_vertex_buffer;
+  std::unique_ptr<OceanMipMapFragmentUniformBuffer> m_ocean_mipmap_uniform_fragment_buffer;
+
   std::unique_ptr<GraphicsPipelineLayout> m_pipeline_layout;
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   PipelineConfigInfo m_pipeline_info;

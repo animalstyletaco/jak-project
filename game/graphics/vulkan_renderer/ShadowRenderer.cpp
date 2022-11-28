@@ -26,6 +26,10 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
   InitializeInputVertexAttribute();
 }
 
+void ShadowVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  BaseShadowRenderer::render(dma, render_state, prof);
+}
+
 void ShadowVulkanRenderer::InitializeInputVertexAttribute() {
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;

@@ -54,7 +54,7 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   /*!
    * If you don't use the render interface, call this at the very end.
    */
-  void flush_pending(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
+  void flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
 
  protected:
   void InitializeInputVertexAttribute();

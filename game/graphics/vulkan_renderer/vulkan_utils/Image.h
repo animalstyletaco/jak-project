@@ -31,7 +31,7 @@ class VulkanTexture {
 
   void destroyTexture();
   void createTextureSampler();
-  VkSamplerCreateInfo& getSamplerInfo(){ return m_sampler_info; };
+  VkSamplerCreateInfo& getSamplerInfo() { return m_sampler_info; };
   VkFormat findDepthFormat();
   VkImage getImage() const { return m_image; };
   VkDeviceSize getMemorySize() const { return m_device_size; };
@@ -40,28 +40,28 @@ class VulkanTexture {
   uint32_t getHeight() const { return m_image_create_info.extent.height; };
   uint32_t getDepth() const { return m_image_create_info.extent.depth; };
   bool isInitialized() { return m_initialized; };
-  VkSampleCountFlagBits getMsaaCount() const {
-    return m_device->getMsaaCount();
-  }
+  VkSampleCountFlagBits getMsaaCount() const { return m_device->getMsaaCount(); }
 
-  void SetSamplerCreateInfo(VkSamplerCreateInfo samplerCreateInfo) { m_sampler_info = samplerCreateInfo; }
+  void SetSamplerCreateInfo(VkSamplerCreateInfo samplerCreateInfo) {
+    m_sampler_info = samplerCreateInfo;
+  }
   VkSamplerCreateInfo GetSamplerCreateInfo() { return m_sampler_info; }
 
   ~VulkanTexture() { destroyTexture(); };
 
-  private:
+ private:
   void AllocateVulkanImageMemory();
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  VkImage m_image = VK_NULL_HANDLE; 
+  VkImage m_image = VK_NULL_HANDLE;
   VkImageView m_image_view = VK_NULL_HANDLE;
   VkDeviceMemory m_device_memory = VK_NULL_HANDLE;
   VkDeviceSize m_device_size = 0;
-  VkSamplerCreateInfo m_sampler_info;
+  VkSamplerCreateInfo m_sampler_info{};
   VkSampler m_sampler = VK_NULL_HANDLE;
 
-  VkImageCreateInfo m_image_create_info;
-  VkImageViewCreateInfo m_image_view_create_info;
+  VkImageCreateInfo m_image_create_info{};
+  VkImageViewCreateInfo m_image_view_create_info{};
 
   bool m_initialized = false;
 };

@@ -37,8 +37,14 @@ VulkanShader::VulkanShader(VkDevice device, const std::string& shader_name, Game
 }
 
 VulkanShader::~VulkanShader() {
-  vkDestroyShaderModule(m_device, m_vert_shader, nullptr);
-  vkDestroyShaderModule(m_device, m_frag_shader, nullptr);
+  if (m_is_okay) {
+    vkDestroyShaderModule(m_device, m_vert_shader, nullptr);
+    vkDestroyShaderModule(m_device, m_frag_shader, nullptr);
+    m_is_okay = false;
+
+    m_vert_shader = VK_NULL_HANDLE;
+    m_frag_shader = VK_NULL_HANDLE;
+  }
 }
 
 VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device, GameVersion version) : m_device(device) {

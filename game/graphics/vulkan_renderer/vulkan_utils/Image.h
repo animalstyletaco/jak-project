@@ -7,12 +7,13 @@ class VulkanTexture {
   VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device);
   VulkanTexture(const VulkanTexture& image);
   void createImage(VkExtent3D extents,
-                   uint32_t mip_levels,
+                   uint32_t mipLevels,
                    VkImageType image_type,
-                   VkSampleCountFlagBits num_samples,
+                   VkSampleCountFlagBits numSamples,
                    VkFormat format,
                    VkImageTiling tiling,
-                   uint32_t usage);
+                   VkImageUsageFlags usage,
+                   VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED);
 
   void createImageView(VkImageViewType image_view_type,
                        VkFormat format,
@@ -28,6 +29,7 @@ class VulkanTexture {
   VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkResult invalidate(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkDescriptorImageInfo descriptorInfo(VkImageLayout image_layout);
+  void transitionImageLayout(VkImageLayout imageLayout);
 
   void destroyTexture();
   void createTextureSampler();
@@ -46,6 +48,7 @@ class VulkanTexture {
     m_sampler_info = samplerCreateInfo;
   }
   VkSamplerCreateInfo GetSamplerCreateInfo() { return m_sampler_info; }
+
 
   ~VulkanTexture() { destroyTexture(); };
 

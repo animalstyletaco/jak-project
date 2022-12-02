@@ -15,7 +15,7 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanIn
     m_textures[i]->createImage(
         extents, 1, VK_IMAGE_TYPE_2D,
         device->getMsaaCount(), VK_FORMAT_A8B8G8R8_SNORM_PACK32, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
     m_textures[i]->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SNORM_PACK32,
                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);
@@ -60,7 +60,7 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanIn
 
   m_vertex_data[5].x = 1;
   m_vertex_data[5].y = 1;
-  m_vertex_buffer->writeToGpuBuffer(m_vertex_data);
+  m_vertex_buffer->writeToGpuBuffer(m_vertex_data, sizeof(m_vertex_data), 0);
 }
 
 SkyBlendGPU::~SkyBlendGPU() {

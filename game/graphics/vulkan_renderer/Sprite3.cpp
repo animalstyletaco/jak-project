@@ -98,7 +98,8 @@ void SpriteVulkan3::graphics_setup_distort() {
   m_distort_ogl.fbo_texture->createImage(
     extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), 
     VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_LINEAR,
-    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+                                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
   m_distort_ogl.fbo_texture->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
@@ -358,7 +359,9 @@ void SpriteVulkan3::distort_setup_framebuffer_dims(BaseSharedRenderState* render
     VkExtent3D extents{m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, 1};
     m_distort_ogl.fbo_texture->createImage(
         extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(),
-        VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+                                           VK_FORMAT_R8G8B8_USCALED, VK_IMAGE_TILING_LINEAR,
+                                           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
   m_distort_ogl.fbo_texture->createImageView(
       VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);

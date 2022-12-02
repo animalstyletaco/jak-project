@@ -14,7 +14,8 @@ void vk_loader_stage::update_texture(TexturePoolVulkan& pool,
   VkExtent3D extents{tex.w, tex.h, 1};
   texture_info.createImage(extents, 1, VK_IMAGE_TYPE_2D, texture_info.getMsaaCount(),
                            VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
-                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
   texture_info.writeToImage((u32*)tex.data.data());
 

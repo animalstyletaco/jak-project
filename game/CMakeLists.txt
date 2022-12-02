@@ -127,10 +127,11 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/foreground/Generic2.cpp
         graphics/general_renderer/foreground/Generic2_DMA.cpp
         graphics/general_renderer/foreground/Generic2_Build.cpp
+        graphics/general_renderer/foreground/Merc2.cpp
         graphics/general_renderer/ocean/CommonOceanRenderer.cpp
         graphics/general_renderer/ocean/OceanMid.cpp
         graphics/general_renderer/ocean/OceanMid_PS2.cpp
-        #graphics/general_renderer/ocean/OceanMidAndFar.cpp
+        graphics/general_renderer/ocean/OceanMidAndFar.cpp
         graphics/general_renderer/ocean/OceanNear.cpp
         graphics/general_renderer/ocean/OceanNear_PS2.cpp
         graphics/general_renderer/ocean/OceanTexture.cpp
@@ -147,6 +148,7 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/SkyBlendCPU.cpp
         graphics/general_renderer/SkyBlendGPU.cpp
         graphics/general_renderer/SkyRenderer.cpp
+        graphics/general_renderer/sprite_common.cpp
         graphics/general_renderer/Sprite3.cpp
         graphics/general_renderer/SpriteRenderer.cpp
         graphics/general_renderer/DepthCue.cpp
@@ -222,6 +224,7 @@ if(WIN32)
         graphics/vulkan_renderer/SpriteRenderer.cpp
         graphics/vulkan_renderer/DepthCue.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
+        graphics/texture/TexturePoolVulkan.cpp
         ../third-party/glad/src/vulkan.c)
 else()
    list(APPEND RUNTIME_SOURCE

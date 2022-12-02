@@ -122,8 +122,8 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
       //CreateIndexBuffer(tree.unpacked.indices);
       VkExtent3D extents{TIME_OF_DAY_COLOR_COUNT, 1, 1};
       textures[l_geo][l_tree].createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
-                                          VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
-                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+                                          VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     }
   }
 
@@ -318,8 +318,9 @@ void Tie3Vulkan::render_tree(int idx,
   VkDeviceSize size = m_color_result.size() * sizeof(m_color_result[0]);
 
   VkExtent3D extents{tree.colors->size(), 1, 1};
-  timeOfDayTexture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
-              VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+  timeOfDayTexture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
   timeOfDayTexture.createImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);

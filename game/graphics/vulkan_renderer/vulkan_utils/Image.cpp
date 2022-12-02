@@ -69,7 +69,8 @@ void VulkanTexture::createImage(VkExtent3D extents,
                               VkSampleCountFlagBits numSamples,
                               VkFormat format,
                               VkImageTiling tiling,
-                              uint32_t usage) {
+                              VkImageUsageFlags usage,
+                              VkImageLayout layout) {
   m_image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   m_image_create_info.imageType = image_type;
   m_image_create_info.extent = extents;
@@ -77,7 +78,7 @@ void VulkanTexture::createImage(VkExtent3D extents,
   m_image_create_info.arrayLayers = 1;
   m_image_create_info.format = format;
   m_image_create_info.tiling = tiling;
-  m_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  m_image_create_info.initialLayout = layout;
   m_image_create_info.usage = usage;
   m_image_create_info.samples = numSamples;
   m_image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -120,6 +121,13 @@ void VulkanTexture::destroyTexture() {
   }
 };
 
+void VulkanTexture::transitionImageLayout(VkImageLayout imageLayout) {
+  m_device->transitionImageLayout(m_image, m_image_create_info.format,
+                                  m_image_create_info.initialLayout,
+                                  imageLayout);
+  m_image_create_info.initialLayout = imageLayout; //TODO: Should there be a separate variable to keep track of image layout is
+}
+
 /**
  * Copies the specified data to the mapped buffer. Default value writes whole buffer range
  *
@@ -130,6 +138,7 @@ void VulkanTexture::destroyTexture() {
  *
  */
 void VulkanTexture::writeToImage(void* data, VkDeviceSize size, VkDeviceSize offset) {
+  transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   StagingBuffer stagingBuffer(m_device,
                               m_image_create_info.extent.width * m_image_create_info.extent.height *
                                   m_image_create_info.extent.depth * 4, 1,
@@ -141,6 +150,7 @@ void VulkanTexture::writeToImage(void* data, VkDeviceSize size, VkDeviceSize off
   m_device->copyBufferToImage(stagingBuffer.getBuffer(), m_image, m_image_create_info.extent.width, m_image_create_info.extent.height,
                               0, 0, 1);
   stagingBuffer.unmap();
+  transitionImageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
 
 /**

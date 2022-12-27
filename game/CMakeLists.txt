@@ -119,6 +119,7 @@ set(RUNTIME_SOURCE
         graphics/texture/jak1_tpage_dir.cpp
         graphics/texture/jak2_tpage_dir.cpp
         graphics/texture/TextureConverter.cpp
+        graphics/texture/TexturePoolCommon.cpp
 
         graphics/general_renderer/renderer_utils/Buffer.cpp
         graphics/general_renderer/background/background_common.cpp
@@ -156,7 +157,6 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/DepthCue.cpp
         graphics/general_renderer/TextureUploadHandler.cpp
         graphics/general_renderer/VisDataHandler.cpp
-        graphics/texture/TexturePool.cpp
 
         system/vm/dmac.cpp
         system/vm/vm.cpp
@@ -226,9 +226,9 @@ if(WIN32)
         graphics/vulkan_renderer/SpriteRenderer.cpp
         graphics/vulkan_renderer/DepthCue.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
-        graphics/texture/TexturePoolVulkan.cpp
+        graphics/texture/VulkanTexturePool.cpp
         ../third-party/glad/src/vulkan.c)
-else()
+endif()
    list(APPEND RUNTIME_SOURCE
         graphics/opengl_renderer/background/background_common.cpp
         graphics/opengl_renderer/background/Shrub.cpp
@@ -252,14 +252,11 @@ else()
         graphics/opengl_renderer/loader/LoaderStages.cpp
         graphics/opengl_renderer/BucketRenderer.cpp
         graphics/opengl_renderer/CollideMeshRenderer.cpp
-        graphics/opengl_renderer/debug_gui.cpp
         graphics/opengl_renderer/DirectRenderer.cpp
         graphics/opengl_renderer/DirectRenderer2.cpp
         graphics/opengl_renderer/EyeRenderer.cpp
-        graphics/opengl_renderer/dma_helpers.cpp
         graphics/opengl_renderer/opengl_utils.cpp
         graphics/opengl_renderer/OpenGLRenderer.cpp
-        graphics/opengl_renderer/Profiler.cpp
         graphics/opengl_renderer/Shader.cpp
         graphics/opengl_renderer/Shadow_PS2.cpp
         graphics/opengl_renderer/ShadowRenderer.cpp
@@ -271,10 +268,10 @@ else()
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/VisDataHandler.cpp
         graphics/opengl_renderer/DepthCue.cpp
-        graphics/texture/TexturePoolOpenGL.cpp
         graphics/pipelines/opengl.cpp
+        graphics/texture/TexturePool.cpp
         ../third-party/glad/src/glad.c)
-endif()
+
 
 find_package(Git)
 

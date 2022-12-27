@@ -16,7 +16,6 @@ constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
 
 BaseSprite3::BaseSprite3(const std::string& name, int my_id)
     : BaseBucketRenderer(name, my_id) {
-  graphics_setup();
 }
 
 void BaseSprite3::graphics_setup() {
@@ -453,7 +452,7 @@ void BaseSprite3::render_2d_group1(DmaFollower& dma,
                                          m_hud_matrix_data.hvdf_offset.data());
   SetSprite3UniformVertexFourFloatVector("hud_hvdf_user", sizeof(m_hud_matrix_data.user_hvdf),
                                          m_hud_matrix_data.user_hvdf[0].data());
-  SetSprite3UniformMatrixFourFloatVector("hud_matrix", sizeof(m_hud_matrix_data.matrix), false,
+  SetSprite3UniformMatrixFourFloatVector("hud_matrix", 1, false,
                                          m_hud_matrix_data.matrix.data());
 
   // loop through chunks.

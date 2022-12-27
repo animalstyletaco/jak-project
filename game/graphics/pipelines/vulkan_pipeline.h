@@ -15,7 +15,7 @@
 
 class VkDisplay : public GfxDisplay {
  public:
-  VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>& device, bool is_main);
+  VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>&, bool is_main);
   virtual ~VkDisplay();
 
   void* get_window() const override { return m_window; }
@@ -45,11 +45,10 @@ class VkDisplay : public GfxDisplay {
  private:
   void update_glfw();
 
+  ImguiVulkanHelper m_imgui_helper;
   GLFWwindow* m_window;
   bool m_minimized = false;
   GLFWvidmode m_last_video_mode = {0, 0, 0, 0, 0, 0};
-
-  ImguiVulkanHelper imgui_helper;
 
   static constexpr int MAX_VMODES = 128;
 

@@ -45,7 +45,7 @@ void OceanNearVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_s
   BaseOceanNear::render(dma, render_state, prof);
 }
 
-void OceanNearVulkan::init_textures(TexturePoolVulkan& pool) {
+void OceanNearVulkan::init_textures(VulkanTexturePool& pool) {
   m_texture_renderer.init_textures(pool);
 }
 

@@ -48,7 +48,7 @@ class VulkanTexture {
     m_sampler_info = samplerCreateInfo;
   }
   VkSamplerCreateInfo GetSamplerCreateInfo() { return m_sampler_info; }
-
+  unsigned long GetTextureId() { return m_image_id; }
 
   ~VulkanTexture() { destroyTexture(); };
 
@@ -67,4 +67,5 @@ class VulkanTexture {
   VkImageViewCreateInfo m_image_view_create_info{};
 
   bool m_initialized = false;
+  uint32_t m_image_id = 0;
 };

@@ -4,7 +4,7 @@ layout (location = 0) out vec4 color;
 
 layout (location = 0) in vec4 fragment_color;
 layout (location = 1) in vec3 tex_coord;
-layout (set = 0, binding = 0) uniform UniformBufferObject {
+layout (set = 1, binding = 0) uniform UniformBufferObject {
   float color_mult;
   float alpha_mult;
   vec4 fog_color;
@@ -13,7 +13,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
 
 layout (location = 2) in float fog;
 
-layout (set = 0, binding = 1) uniform sampler2D tex_T0;
+layout (set = 1, binding = 1) uniform sampler2D tex_T0;
 
 void main() {
     vec4 T0 = texture(tex_T0, tex_coord.xy / tex_coord.z);

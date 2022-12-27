@@ -12,7 +12,7 @@ GraphicsPipelineLayout::~GraphicsPipelineLayout() {
   }
 }
 
-void GraphicsPipelineLayout::createGraphicsPipeline(const PipelineConfigInfo& configInfo) {
+void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configInfo) {
   assert(configInfo.pipelineLayout != VK_NULL_HANDLE &&
          "Cannot create graphics pipeline: no pipelineLayout provided in configInfo");
   assert(configInfo.renderPass != VK_NULL_HANDLE &&
@@ -35,6 +35,10 @@ void GraphicsPipelineLayout::createGraphicsPipeline(const PipelineConfigInfo& co
   pipelineInfo.pVertexInputState = &vertexInputInfo;
   pipelineInfo.pInputAssemblyState = &configInfo.inputAssemblyInfo;
   pipelineInfo.pViewportState = &configInfo.viewportInfo;
+
+  if (!m_device->getPhysicalDeviceFeatures().depthClamp) {
+    configInfo.rasterizationInfo.depthClampEnable = VK_FALSE;
+  }
   pipelineInfo.pRasterizationState = &configInfo.rasterizationInfo;
   pipelineInfo.pMultisampleState = &configInfo.multisampleInfo;
   pipelineInfo.pColorBlendState = &configInfo.colorBlendInfo;

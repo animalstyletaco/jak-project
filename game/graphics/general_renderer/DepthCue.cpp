@@ -12,8 +12,6 @@ namespace {
 constexpr int TOTAL_DRAW_SLICES = 16;
 
 BaseDepthCue::BaseDepthCue(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
-  graphics_setup();
-
   m_draw_slices.resize(TOTAL_DRAW_SLICES);
 }
 

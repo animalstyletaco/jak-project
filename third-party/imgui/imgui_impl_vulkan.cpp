@@ -95,56 +95,6 @@
 #pragma warning(disable : 4127)  // condition expression is constant
 #endif
 
-// Reusable buffers used for rendering 1 current in-flight frame, for
-// ImGui_ImplVulkan_RenderDrawData() [Please zero-clear before use!]
-struct ImGui_ImplVulkanH_FrameRenderBuffers {
-  VkDeviceMemory VertexBufferMemory;
-  VkDeviceMemory IndexBufferMemory;
-  VkDeviceSize VertexBufferSize;
-  VkDeviceSize IndexBufferSize;
-  VkBuffer VertexBuffer;
-  VkBuffer IndexBuffer;
-};
-
-// Each viewport will hold 1 ImGui_ImplVulkanH_WindowRenderBuffers
-// [Please zero-clear before use!]
-struct ImGui_ImplVulkanH_WindowRenderBuffers {
-  uint32_t Index;
-  uint32_t Count;
-  ImGui_ImplVulkanH_FrameRenderBuffers* FrameRenderBuffers;
-};
-
-// Vulkan data
-struct ImGui_ImplVulkan_Data {
-  ImGui_ImplVulkan_InitInfo VulkanInitInfo;
-  VkRenderPass RenderPass;
-  VkDeviceSize BufferMemoryAlignment;
-  VkPipelineCreateFlags PipelineCreateFlags;
-  VkDescriptorSetLayout DescriptorSetLayout;
-  VkPipelineLayout PipelineLayout;
-  VkPipeline Pipeline;
-  uint32_t Subpass;
-  VkShaderModule ShaderModuleVert;
-  VkShaderModule ShaderModuleFrag;
-
-  // Font data
-  VkSampler FontSampler;
-  VkDeviceMemory FontMemory;
-  VkImage FontImage;
-  VkImageView FontView;
-  VkDescriptorSet FontDescriptorSet;
-  VkDeviceMemory UploadBufferMemory;
-  VkBuffer UploadBuffer;
-
-  // Render buffers
-  ImGui_ImplVulkanH_WindowRenderBuffers MainWindowRenderBuffers;
-
-  ImGui_ImplVulkan_Data() {
-    memset((void*)this, 0, sizeof(*this));
-    BufferMemoryAlignment = 256;
-  }
-};
-
 // Forward Declarations
 bool ImGui_ImplVulkan_CreateDeviceObjects();
 void ImGui_ImplVulkan_DestroyDeviceObjects();

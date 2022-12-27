@@ -2,39 +2,8 @@
 
 #include "common/math/Vector.h"
 
+#include "game/graphics/general_renderer/background/background_common.h"
 #include "game/graphics/opengl_renderer/BucketRenderer.h"
-
-// data passed from game to PC renderers
-// the GOAL code assumes this memory layout.
-struct TfragPcPortData {
-  math::Vector4f planes[4];
-  math::Vector<s32, 4> itimes[4];
-  math::Vector4f camera[4];
-  math::Vector4f hvdf_off;
-  math::Vector4f fog;
-  math::Vector4f cam_trans;
-  char level_name[16];
-};
-
-// inputs to background renderers.
-struct TfragRenderSettings {
-  math::Matrix4f math_camera;
-  math::Vector4f hvdf_offset;
-  math::Vector4f fog;
-  int tree_idx;
-  math::Vector<s32, 4> itimes[4];
-  math::Vector4f planes[4];
-  bool debug_culling = false;
-  const u8* occlusion_culling = nullptr;
-};
-
-enum class DoubleDrawKind { NONE, AFAIL_NO_DEPTH_WRITE };
-
-struct DoubleDraw {
-  DoubleDrawKind kind = DoubleDrawKind::NONE;
-  float aref_first = 0.;
-  float aref_second = 0.;
-};
 
 DoubleDraw setup_tfrag_shader(SharedRenderState* render_state, DrawMode mode, ShaderId shader);
 DoubleDraw setup_opengl_from_draw_mode(DrawMode mode, u32 tex_unit, bool mipmap);
@@ -46,11 +15,6 @@ void first_tfrag_draw_setup(const TfragRenderSettings& settings,
 void interp_time_of_day_slow(const math::Vector<s32, 4> itimes[4],
                              const std::vector<tfrag3::TimeOfDayColor>& in,
                              math::Vector<u8, 4>* out);
-
-struct SwizzledTimeOfDay {
-  std::vector<u8> data;
-  u32 color_count = 0;
-};
 
 SwizzledTimeOfDay swizzle_time_of_day(const std::vector<tfrag3::TimeOfDayColor>& in);
 

@@ -62,9 +62,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_front_indices[m_next_front_index++] = clear_vertices + 2;
   m_front_indices[m_next_front_index++] = clear_vertices + 1;
 
-  m_ogl.vertex_buffer->map(m_next_vertex * sizeof(Vertex));
   m_ogl.vertex_buffer->writeToGpuBuffer(m_vertices);
-  m_ogl.vertex_buffer->unmap();
 
   m_pipeline_config_info.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
   m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
@@ -119,9 +117,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   {
     m_uniform_buffer->SetUniform4f("color_uniform",
                 0., 0.4, 0., 0.5);
-    m_ogl.index_buffers[0]->map(m_next_front_index * sizeof(u32));
-    m_ogl.index_buffers[0]->writeToGpuBuffer(m_back_indices);
-    m_ogl.index_buffers[0]->unmap();
+    m_ogl.index_buffers[0]->writeToGpuBuffer(m_back_indices, m_next_front_index * sizeof(u32), 0);
 
     m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
     m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
@@ -151,9 +147,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_uniform_buffer->SetUniform4f("color_uniform",
                 0.4, 0.0, 0., 0.5);
 
-    m_ogl.index_buffers[1]->map(m_next_back_index * sizeof(u32));
-    m_ogl.index_buffers[1]->writeToGpuBuffer(m_back_indices);
-    m_ogl.index_buffers[1]->unmap();
+    m_ogl.index_buffers[1]->writeToGpuBuffer(m_back_indices, m_next_back_index * sizeof(u32), 0);
 
     // Second pass.
 

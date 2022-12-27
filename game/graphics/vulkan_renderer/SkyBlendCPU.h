@@ -12,7 +12,7 @@ class SkyBlendCPU : public BaseSkyBlendCPU {
   SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   ~SkyBlendCPU();
 
-  void init_textures(TexturePoolVulkan& tex_pool);
+  void init_textures(VulkanTexturePool& tex_pool);
 
  private:
   void setup_gpu_texture(u32, bool, u32, u32, int, SkyBlendStats&) override;
@@ -21,7 +21,7 @@ class SkyBlendCPU : public BaseSkyBlendCPU {
   struct TexInfo {
     std::unique_ptr<VulkanTexture> texture;
     u32 tbp;
-    GpuTexture* tex;
+    VulkanGpuTextureMap* tex;
   } m_textures[2];
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;

@@ -57,8 +57,8 @@ class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
   } m_ogl;
 
   void graphics_setup() override;
-  void setup(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void setup(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
   std::unique_ptr<DepthCueVertexUniformBuffer> m_depth_cue_vertex_uniform_buffer;
   std::unique_ptr<UniformVulkanBuffer> m_depth_cue_fragment_uniform_buffer;

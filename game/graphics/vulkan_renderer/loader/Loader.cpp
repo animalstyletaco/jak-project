@@ -89,7 +89,7 @@ std::vector<LevelDataVulkan*> VulkanLoader::get_in_use_levels() {
  * Load a "common" FR3 file that has non-level textures.
  * This should be called during initialization, before any threaded loading goes on.
  */
-void VulkanLoader::load_common(TexturePoolVulkan& tex_pool, const std::string& name) {
+void VulkanLoader::load_common(VulkanTexturePool& tex_pool, const std::string& name) {
   auto data = file_util::read_binary_file(m_base_path / fmt::format("{}.fr3", name));
 
   auto decomp_data = compression::decompress_zstd(data.data(), data.size());
@@ -113,7 +113,7 @@ void VulkanLoader::load_common(TexturePoolVulkan& tex_pool, const std::string& n
   }
 }
 
-bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, TexturePoolVulkan& texture_pool) {
+bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTexturePool& texture_pool) {
   // try to move level from initializing to initialized:
 
   constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 128;
@@ -141,7 +141,7 @@ bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, TextureP
   return data.textures.size() == data.level->textures.size();
 }
 
-void VulkanLoader::update_blocking(TexturePoolVulkan& tex_pool) {
+void VulkanLoader::update_blocking(VulkanTexturePool& tex_pool) {
   fmt::print("NOTE: coming out of blackout on next frame, doing all loads now...\n");
 
   bool missing_levels = true;
@@ -266,7 +266,7 @@ void VulkanLoader::loader_thread() {
 }
 
 
-void VulkanLoader::update(TexturePoolVulkan& texture_pool) {
+void VulkanLoader::update(VulkanTexturePool& texture_pool) {
   Timer loader_timer;
 
   // only main thread can touch this.
@@ -333,7 +333,7 @@ void VulkanLoader::update(TexturePoolVulkan& texture_pool) {
             auto& tex = level_data->level->textures[i];
             if (tex.load_to_pool) {
               texture_pool.unload_texture(PcTextureId::from_combo_id(tex.combo_id),
-                                          level_data->textures.at(i));
+                                          level_data->textures.at(i).GetTextureId());
             }
           }
           lk.unlock();

@@ -9,12 +9,8 @@ GenericVulkan2::GenericVulkan2(const std::string& name,
                                u32 num_frags,
                                u32 num_adgif,
                                u32 num_buckets)
-    : BaseGeneric2(name, my_id, num_verts, num_frags, num_adgif, num_buckets), BucketVulkanRenderer(device, vulkan_info) {
+    : BucketVulkanRenderer(device, vulkan_info), BaseGeneric2(name, my_id, num_verts, num_frags, num_adgif, num_buckets) {
   graphics_setup();
-}
-
-GenericVulkan2::~GenericVulkan2() {
-  graphics_cleanup();
 }
 
 /*!
@@ -26,10 +22,12 @@ GenericVulkan2::~GenericVulkan2() {
 void GenericVulkan2::render(DmaFollower& dma,
                             SharedVulkanRenderState* render_state,
                             ScopedProfilerNode& prof) {
-  GenericVulkan2::render(dma, render_state, prof);
+  BaseGeneric2::render(dma, render_state, prof);
 }
 
 void GenericVulkan2::graphics_setup() {
+  m_pipeline_layouts.resize(m_buckets.size(), m_device);
+
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
     m_device, sizeof(Vertex), m_verts.size(), 1);
   m_ogl.index_buffer = std::make_unique<IndexBuffer>(
@@ -45,11 +43,12 @@ void GenericVulkan2::graphics_setup() {
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
-  m_fragment_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
+  m_fragment_descriptor_layout = DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .build();
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                      VK_SHADER_STAGE_FRAGMENT_BIT).build();
 
+  create_pipeline_layout();
   m_vertex_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
 
@@ -57,13 +56,29 @@ void GenericVulkan2::graphics_setup() {
       std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
 
   m_descriptor_sets.resize(2);
-  auto vertex_buffer_descriptor_info = m_vertex_uniform_buffer->descriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+  m_vertex_buffer_descriptor_info = m_vertex_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
-  auto fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+  m_fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
+  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
       .build(m_descriptor_sets[1]);
   InitializeInputAttributes();
+}
+
+void GenericVulkan2::create_pipeline_layout() {
+  //If push constants are needed put them here
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{m_vertex_descriptor_layout->getDescriptorSetLayout(),
+                                                          m_fragment_descriptor_layout->getDescriptorSetLayout()};
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
 }
 
 void GenericVulkan2::graphics_cleanup() {
@@ -77,13 +92,13 @@ void GenericVulkan2::init_shaders(VulkanShaderLibrary& shaders) {
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Vertex Fragment";
+  vertShaderStageInfo.pName = "main";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
   fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Shrub Fragment";
+  fragShaderStageInfo.pName = "main";
 
   m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
@@ -130,77 +145,6 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-
-  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
-
-  if (draw_mode.get_ab_enable() && draw_mode.get_alpha_blend() != DrawMode::AlphaBlend::DISABLED) {
-    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
-    switch (draw_mode.get_alpha_blend()) {
-      case DrawMode::AlphaBlend::SRC_DST_SRC_DST:
-        // glBlendEquation(GL_FUNC_ADD);
-        // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
-        m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-        m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-
-        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-
-        break;
-      case DrawMode::AlphaBlend::SRC_0_SRC_DST:
-        // glBlendEquation(GL_FUNC_ADD);
-        // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
-        m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-
-        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-
-        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        break;
-      case DrawMode::AlphaBlend::SRC_0_FIX_DST:
-        // glBlendEquation(GL_FUNC_ADD);
-        // glBlendFuncSeparate(GL_ONE, GL_ONE, GL_ONE, GL_ZERO);
-        m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
-        m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-
-        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-
-        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        break;
-      case DrawMode::AlphaBlend::SRC_DST_FIX_DST:
-        // Cv = (Cs - Cd) * FIX + Cd
-        // Cs * FIX * 0.5
-        // Cd * FIX * 0.5
-        // glBlendEquation(GL_FUNC_ADD);
-        // glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_CONSTANT_COLOR, GL_ONE, GL_ZERO);
-
-        break;
-      case DrawMode::AlphaBlend::ZERO_SRC_SRC_DST:
-        // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        // glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-        m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
-        m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
-
-        m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-
-        m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        break;
-      default:
-        lg::error("Invalid Alpha Blend Value {}", draw_mode.get_alpha_blend());
-        //ASSERT(false);
-    }
-  }
 
   m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_FALSE;
   m_pipeline_config_info.colorBlendInfo.attachmentCount = 1;
@@ -352,18 +296,18 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
 }
 
 void GenericVulkan2::setup_graphics_tex(u16 unit,
-                                u16 tbp,
-                                bool filter,
-                                bool clamp_s,
-                                bool clamp_t,
-                                BaseSharedRenderState* render_state) {
+                                        u16 tbp,
+                                        bool filter,
+                                        bool clamp_s,
+                                        bool clamp_t,
+                                        BaseSharedRenderState* render_state) {
   // look up the texture
   VulkanTexture* texture = NULL;
   u32 tbp_to_lookup = tbp & 0x7fff;
   bool use_mt4hh = tbp & 0x8000;
 
   if (use_mt4hh) {
-    texture = m_vulkan_info.texture_pool->lookup_mt4hh_texture(tbp_to_lookup);
+    texture = m_vulkan_info.texture_pool->lookup_mt4hh_vulkan_texture(tbp_to_lookup);
   } else {
     texture = m_vulkan_info.texture_pool->lookup_vulkan_texture(tbp_to_lookup);
   }
@@ -392,7 +336,7 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
     m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
 
-  VkSamplerCreateInfo samplerInfo{};
+  VkSamplerCreateInfo samplerInfo = texture->GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -416,7 +360,7 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
   }
 
   if (filter) {
-    //if (mipmap) { //TODO: Add option for mipmapping
+    // if (mipmap) { //TODO: Add option for mipmapping
     //  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     //}
     samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -425,9 +369,18 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
     samplerInfo.minFilter = VK_FILTER_NEAREST;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
+  texture->SetSamplerCreateInfo(samplerInfo);
+  texture->createTextureSampler();
+
+  VkDescriptorImageInfo image_descriptor =
+      texture->descriptorInfo(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+  m_fragment_descriptor_writer->writeImage(1, &image_descriptor).overwrite(m_descriptor_sets[1]);
 }
 
 void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+
   for (u32 i = 0; i < m_next_free_bucket; i++) {
     auto& bucket = m_buckets[i];
     auto& first = m_adgifs[bucket.start];
@@ -435,6 +388,14 @@ void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedPro
       setup_graphics_for_draw_mode(first.mode, first.fix, render_state);
       setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
                        first.mode.get_clamp_t_enable(), render_state);
+
+      m_pipeline_layouts[i].createGraphicsPipeline(m_pipeline_config_info);
+      m_pipeline_layouts[i].bind(m_vulkan_info.render_command_buffer);
+
+      m_vulkan_info.swap_chain->drawIndexedCommandBuffer(m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer, m_ogl.index_buffer,
+                                                  m_pipeline_config_info.pipelineLayout,
+                                                  m_descriptor_sets, 0);
+
       //glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
       //               (void*)(sizeof(u32) * bucket.idx_idx));
       prof.add_draw_call();
@@ -485,6 +446,9 @@ void GenericVulkan2::do_draws_for_alpha(BaseSharedRenderState* render_state,
                                         ScopedProfilerNode& prof,
                                         DrawMode::AlphaBlend alpha,
                                         bool hud) {
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+
   for (u32 i = 0; i < m_next_free_bucket; i++) {
     auto& bucket = m_buckets[i];
     auto& first = m_adgifs[bucket.start];
@@ -492,8 +456,11 @@ void GenericVulkan2::do_draws_for_alpha(BaseSharedRenderState* render_state,
       setup_graphics_for_draw_mode(first.mode, first.fix, render_state);
       setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
                        first.mode.get_clamp_t_enable(), render_state);
-      //glDrawElements(GL_TRIANGLE_STRIP, bucket.idx_count, GL_UNSIGNED_INT,
-      //               (void*)(sizeof(u32) * bucket.idx_idx));
+      m_pipeline_layouts[i].createGraphicsPipeline(m_pipeline_config_info);
+      m_pipeline_layouts[i].bind(m_vulkan_info.render_command_buffer);
+      m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
+          m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer, m_ogl.index_buffer,
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets, 0);
       prof.add_draw_call();
       prof.add_tri(bucket.tri_count);
     }

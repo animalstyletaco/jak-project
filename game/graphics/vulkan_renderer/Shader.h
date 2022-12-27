@@ -10,8 +10,13 @@
 class VulkanShader {
  public:
   static constexpr char shader_folder[] = "game/graphics/vulkan_renderer/shaders/";
-  VulkanShader(VkDevice device, const std::string& shader_name, GameVersion version);
+
   VulkanShader() = default;
+  VulkanShader(VkDevice device, const std::string& shader_name, GameVersion version);
+  VulkanShader(const VulkanShader& shader);
+  void initialize_shader(VkDevice device,
+                         const std::string& shader_name,
+                         GameVersion version);
   ~VulkanShader();
 
   VkShaderModule GetVertexShader() { return m_vert_shader; };
@@ -31,6 +36,7 @@ class VulkanShader {
   bool m_is_okay = false;
 
   std::string shader_name;
+  GameVersion m_version;
 };
 
 class VulkanShaderLibrary {

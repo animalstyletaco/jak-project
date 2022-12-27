@@ -5,7 +5,8 @@
 #include "common/util/Timer.h"
 
 #include "game/graphics/general_renderer/loader/Loader.h"
-#include "game/graphics/texture/TexturePoolVulkan.h"
+#include "game/graphics/texture/VulkanTexturePool.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 
 struct LevelDataVulkan : BaseLevelData {
   std::vector<VulkanTexture> textures;
@@ -38,7 +39,7 @@ struct MercRefVulkan : BaseMercRef {
 
 struct LoaderInputVulkan {
   LevelDataVulkan* lev_data;
-  TexturePoolVulkan* tex_pool;
+  VulkanTexturePool* tex_pool;
   std::unordered_map<std::string, std::vector<MercRefVulkan>>* mercs;
 };
 

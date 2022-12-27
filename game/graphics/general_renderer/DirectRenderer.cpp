@@ -268,6 +268,9 @@ void BaseDirectRenderer::render_gif(const u8* data,
             case GifTag::RegisterDescriptor::TEX0_1:
               handle_tex0_1_packed(data + offset);
               break;
+            case GifTag::RegisterDescriptor::UV:
+              handle_uv_packed(data + offset);
+              break;
             default:
               ASSERT_MSG(false, fmt::format("Register {} is not supported in packed mode yet\n",
                                             reg_descriptor_name(reg_desc[reg])));
@@ -455,6 +458,15 @@ void BaseDirectRenderer::handle_st_packed(const u8* data) {
   memcpy(&m_prim_building.st_reg.x(), data + 0, 4);
   memcpy(&m_prim_building.st_reg.y(), data + 4, 4);
   memcpy(&m_prim_building.Q, data + 8, 4);
+}
+
+void BaseDirectRenderer::handle_uv_packed(const u8* data) {
+  u32 u, v;
+  memcpy(&u, data, 4);
+  memcpy(&v, data + 4, 4);
+  m_prim_building.st_reg.x() = u;
+  m_prim_building.st_reg.y() = v;
+  m_prim_building.Q = 16.f;
 }
 
 void BaseDirectRenderer::handle_rgbaq_packed(const u8* data) {
@@ -824,6 +836,10 @@ void BaseDirectRenderer::PrimitiveBuffer::push(const math::Vector<u8, 4>& rgba,
                                            bool tcc,
                                            bool decal,
                                            bool fog_enable) {
+  if (is_full()) {
+    return;
+  }
+
   auto& v = vertices[vert_count];
   v.rgba = rgba;
   v.xyzf[0] = (float)vert[0] / (float)UINT32_MAX;

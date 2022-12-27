@@ -21,6 +21,7 @@
 #include "game/graphics/vulkan_renderer/ocean/OceanNear.h"
 
 #include "third-party/imgui/imgui.h"
+#include "third-party/imgui/imgui_impl_vulkan.h"
 
 // for the vif callback
 #include "game/kernel/common/kmachine.h"
@@ -77,11 +78,14 @@ using namespace vulkan_renderer;
 VulkanRenderer::~VulkanRenderer() {
 }
 
-VulkanRenderer::VulkanRenderer(std::shared_ptr<TexturePoolVulkan> texture_pool,
+VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
                                std::shared_ptr<VulkanLoader> loader,
                                GameVersion version,
                                std::unique_ptr<GraphicsDeviceVulkan>& device)
     : m_version(version), m_render_state(version, device), m_device(device), m_vulkan_info(device, version) {
+  m_vulkan_info.texture_pool = texture_pool;
+  m_vulkan_info.loader = loader;
+
   createCommandBuffers();
 
   m_extents = {640, 480};
@@ -128,6 +132,7 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<TexturePoolVulkan> texture_pool,
 void VulkanRenderer::init_bucket_renderers_jak1() {
   using namespace jak1;
   m_bucket_renderers.resize((int)BucketId::MAX_BUCKETS);
+  m_graphics_bucket_renderers.resize((int)BucketId::MAX_BUCKETS);
   m_bucket_categories.resize((int)BucketId::MAX_BUCKETS, BucketCategory::OTHER);
 
   std::vector<tfrag3::TFragmentTreeKind> normal_tfrags = {tfrag3::TFragmentTreeKind::NORMAL,
@@ -356,6 +361,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
 void VulkanRenderer::init_bucket_renderers_jak2() {
   using namespace jak2;
   m_bucket_renderers.resize((int)BucketId::MAX_BUCKETS);
+  m_graphics_bucket_renderers.resize((int)BucketId::MAX_BUCKETS);
   m_bucket_categories.resize((int)BucketId::MAX_BUCKETS, BucketCategory::OTHER);
   // 0
   init_bucket_renderer<VisDataVulkanHandler>("vis", BucketCategory::OTHER, BucketId::SPECIAL_BUCKET_2, m_device, m_vulkan_info);
@@ -371,6 +377,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<Tie3Vulkan>("tie-l0-tfrag", BucketCategory::TIE, BucketId::TIE_L0_TFRAG,
                                    m_device, m_vulkan_info, 0);
   // 10
+  init_bucket_renderer<MercVulkan2>("merc-l0-tfrag", BucketCategory::MERC, BucketId::MERC_L0_TFRAG, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-tfrag", BucketCategory::TEX,
                                                    BucketId::TEX_L1_TFRAG, m_device, m_vulkan_info);
   init_bucket_renderer<TFragmentVulkan>(
@@ -379,7 +386,17 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   // 20
   init_bucket_renderer<Tie3Vulkan>("tie-l1-tfrag", BucketCategory::TIE, BucketId::TIE_L1_TFRAG,
                                    m_device, m_vulkan_info, 1);
+  init_bucket_renderer<MercVulkan2>("merc-l1-tfrag", BucketCategory::MERC, BucketId::MERC_L1_TFRAG, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-tfrag", BucketCategory::TEX,
+                                                   BucketId::TEX_L2_TFRAG, m_device, m_vulkan_info);
+
   // 30
+  init_bucket_renderer<TFragmentVulkan>("tfrag-l2-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_L2_TFRAG, m_device, m_vulkan_info,
+                                        std::vector{tfrag3::TFragmentTreeKind::NORMAL}, false, 2);
+  init_bucket_renderer<Tie3Vulkan>("tie-l2-tfrag", BucketCategory::TIE,
+                                                          BucketId::TIE_L2_TFRAG, m_device, m_vulkan_info, 2);
+  init_bucket_renderer<MercVulkan2>("merc-l2-tfrag", BucketCategory::MERC,
+                                    BucketId::MERC_L2_TFRAG, m_device, m_vulkan_info);
   // 40
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-tfrag", BucketCategory::TEX,
                                              BucketId::TEX_L3_TFRAG, m_device, m_vulkan_info);
@@ -391,6 +408,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<Tie3Vulkan>("tie-l3-tfrag",
                              BucketCategory::TIE,
                              BucketId::TIE_L3_TFRAG, m_device, m_vulkan_info, 3);
+  init_bucket_renderer<MercVulkan2>("merc-l3-tfrag", BucketCategory::MERC, BucketId::MERC_L3_TFRAG, m_device, m_vulkan_info);
   // 50
   // 60
   // 70
@@ -404,6 +422,9 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<ShrubVulkan>("shrub-l1-shrub", BucketCategory::SHRUB,
                                     BucketId::SHRUB_L1_SHRUB, m_device, m_vulkan_info);
   // 90
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-shrub", BucketCategory::TEX,
+                                             BucketId::TEX_L2_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<ShrubVulkan>("shrub-l2-shrub", BucketCategory::SHRUB, BucketId::SHRUB_L2_SHRUB, m_device, m_vulkan_info);
   // 100
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-shrub", BucketCategory::TEX,
                                              BucketId::TEX_L3_SHRUB, m_device, m_vulkan_info);
@@ -415,35 +436,46 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<TFragmentVulkan>("tfrag-t-l0-alpha", BucketCategory::TFRAG, BucketId::TFRAG_T_L0_ALPHA, m_device,
       m_vulkan_info, std::vector{tfrag3::TFragmentTreeKind::TRANS}, false, 0);
   // 130
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-alpha", BucketCategory::TEX,
+                                             BucketId::TEX_L1_ALPHA, m_device, m_vulkan_info);
   // 140
   // 150
   // 160
   // 170
   // 180
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-tfrag", BucketCategory::TEX, BucketId::TEX_LCOM_TFRAG, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-lcom-tfrag", BucketCategory::MERC, BucketId::MERC_LCOM_TFRAG, m_device, m_vulkan_info);
   // 190
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-shrub", BucketCategory::TEX, BucketId::TEX_LCOM_SHRUB, m_device, m_vulkan_info);
-
+  init_bucket_renderer<MercVulkan2>("merc-lcom-shrub", BucketCategory::MERC, BucketId::MERC_LCOM_SHRUB, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-pris", BucketCategory::TEX,
                                                    BucketId::TEX_L0_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l0-pris", BucketCategory::MERC, BucketId::MERC_L0_PRIS, m_device, m_vulkan_info);
   // 200
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-pris", BucketCategory::TEX,
+                                             BucketId::TEX_L1_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l1-pris", BucketCategory::MERC, BucketId::MERC_L1_PRIS, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-pris", BucketCategory::TEX,
                                                    BucketId::TEX_L2_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l2-pris", BucketCategory::MERC, BucketId::MERC_L2_PRIS, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-pris", BucketCategory::TEX,
                                                    BucketId::TEX_L3_PRIS, m_device, m_vulkan_info);
   // 210
   // 220
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-pris", BucketCategory::TEX, BucketId::TEX_LCOM_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-lcom-pris", BucketCategory::MERC, BucketId::MERC_LCOM_PRIS, m_device, m_vulkan_info);
   // 230
   // 240
   // 250
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-water", BucketCategory::TEX,
                                                    BucketId::TEX_L0_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l0-water", BucketCategory::MERC, BucketId::MERC_L0_WATER, m_device, m_vulkan_info);
   init_bucket_renderer<TFragmentVulkan>("tfrag-w-l0-alpha", BucketCategory::TFRAG, BucketId::TFRAG_W_L0_WATER, m_device,
       m_vulkan_info, std::vector{tfrag3::TFragmentTreeKind::WATER}, false, 0);
   // 260
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-water", BucketCategory::TEX,
                                                    BucketId::TEX_L1_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l1-water", BucketCategory::MERC, BucketId::MERC_L1_WATER, m_device, m_vulkan_info);
   // 270
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-water", BucketCategory::TEX,
                                                    BucketId::TEX_L2_WATER, m_device, m_vulkan_info);
@@ -451,6 +483,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   // 290
   // 300
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-water", BucketCategory::TEX, BucketId::TEX_LCOM_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-lcom-water", BucketCategory::MERC, BucketId::MERC_LCOM_WATER, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-sky-post", BucketCategory::TEX,
                                                    BucketId::TEX_LCOM_SKY_POST, m_device,
                                                    m_vulkan_info);
@@ -466,6 +499,8 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-map", BucketCategory::TEX,
                                                    BucketId::TEX_ALL_MAP, m_device, m_vulkan_info);
   // 320
+  init_bucket_renderer<DirectVulkanRenderer>("progress", BucketCategory::OTHER, BucketId::PROGRESS, m_device, m_vulkan_info,
+                                       0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("debug2", BucketCategory::OTHER, BucketId::DEBUG2,
                                              m_device, m_vulkan_info, 0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("debug-no-zbuf2", BucketCategory::OTHER,
@@ -519,7 +554,7 @@ void VulkanRenderer::render(DmaFollower dma, const RenderOptions& settings) {
   // render the buckets!
   {
     auto prof = m_profiler.root()->make_scoped_child("buckets");
-    dispatch_buckets_jak1(dma, prof, settings.gpu_sync);
+    dispatch_buckets(dma, prof, settings.gpu_sync);
   }
 
   // apply effects done with PCRTC registers
@@ -613,14 +648,19 @@ void VulkanRenderer::draw_renderer_selection_window() {
 void VulkanRenderer::setup_frame(const RenderOptions& settings) {
   // glfw controls the window framebuffer, so we just update the size:
   bool window_changed = m_vulkan_info.swap_chain->width() != settings.window_framebuffer_width ||
-                        m_vulkan_info.swap_chain->height() != settings.window_framebuffer_height ||
-                        m_device->getMsaaCount() != settings.msaa_samples;
+                        m_vulkan_info.swap_chain->height() != settings.window_framebuffer_height;
   bool isValidWindow = true;
 
   if (window_changed) {
     m_extents.height = settings.window_framebuffer_height;
     m_extents.width = settings.window_framebuffer_width;
     recreateSwapChain();
+    ImGui_ImplVulkan_Data* bd = (ImGui_ImplVulkan_Data*)ImGui::GetIO().BackendRendererUserData;
+    bd->RenderPass = m_vulkan_info.swap_chain->getRenderPass();
+  }
+
+  if (m_device->getMsaaCount() != settings.msaa_samples) { //FIXME: Add check to see if requested msaa is higher than available gpu sampling
+    m_device->setMsaaCount((VkSampleCountFlagBits)settings.msaa_samples);
   }
 
   ASSERT_MSG(settings.game_res_w > 0 && settings.game_res_h > 0,
@@ -678,6 +718,25 @@ void VulkanRenderer::setup_frame(const RenderOptions& settings) {
 /*!
  * This function finds buckets and dispatches them to the appropriate part.
  */
+void VulkanRenderer::dispatch_buckets(DmaFollower dma,
+                                      ScopedProfilerNode& prof,
+                                      bool sync_after_buckets) {
+  m_render_state.version = m_version;
+  switch (m_version) {
+    case GameVersion::Jak1:
+      dispatch_buckets_jak1(dma, prof, sync_after_buckets);
+      break;
+    case GameVersion::Jak2:
+      dispatch_buckets_jak2(dma, prof, sync_after_buckets);
+      break;
+    default:
+      ASSERT(false);
+  }
+}
+
+/*!
+ * This function finds buckets and dispatches them to the appropriate part.
+ */
 void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
                                       ScopedProfilerNode& prof,
                                       bool sync_after_buckets) {
@@ -712,6 +771,9 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
   ASSERT(dma.current_tag_offset() == m_render_state.next_bucket);
   m_render_state.next_bucket += 16;
 
+  m_vulkan_info.render_command_buffer = beginFrame();
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, currentFrame);
+
   // loop over the buckets!
   for (int bucket_id = 0; bucket_id < (int)BucketId::MAX_BUCKETS; bucket_id++) {
     auto& renderer = m_bucket_renderers[bucket_id];
@@ -723,7 +785,6 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
     graphics_renderer->render(dma, &m_render_state, bucket_prof);
     if (sync_after_buckets) {
       auto pp = scoped_prof("finish");
-      //glFinish();
       vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
     }
 
@@ -744,6 +805,8 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
   g_current_render = "";
 
   // TODO ending data.
+  m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
+  endFrame();
 }
 
 void VulkanRenderer::dispatch_buckets_jak2(DmaFollower dma,
@@ -757,6 +820,10 @@ void VulkanRenderer::dispatch_buckets_jak2(DmaFollower dma,
   m_render_state.next_bucket = m_render_state.buckets_base + 16;
   m_render_state.bucket_for_vis_copy = (int)jak2::BucketId::SPECIAL_BUCKET_2;
   m_render_state.num_vis_to_copy = 6;
+
+  m_vulkan_info.render_command_buffer = beginFrame();
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+                                                     currentFrame);
 
   for (size_t bucket_id = 0; bucket_id < m_bucket_renderers.size(); bucket_id++) {
     auto& renderer = m_bucket_renderers[bucket_id];
@@ -780,6 +847,9 @@ void VulkanRenderer::dispatch_buckets_jak2(DmaFollower dma,
     m_category_times[(int)m_bucket_categories[bucket_id]] += bucket_prof.get_elapsed_time();
   }
   vif_interrupt_callback(m_bucket_renderers.size());
+
+  m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
+  endFrame();
 
   // TODO ending data.
 }

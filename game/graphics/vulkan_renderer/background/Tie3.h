@@ -33,6 +33,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
  private:
   void InitializeInputAttributes();
   void discard_tree_cache() override;
+  void create_pipeline_layout() override;
   void render_tree_wind(int idx,
                         int geom,
                         const TfragRenderSettings& settings,

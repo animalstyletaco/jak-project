@@ -13,13 +13,37 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
                                VulkanInitializationInfo& vulkan_info,
                                int batch_size)
     : BaseDirectRenderer(name, my_id, batch_size), BucketVulkanRenderer(device, vulkan_info) {
+  m_pipeline_layouts.resize(2, m_device);
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
   m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(BaseDirectRenderer::Vertex);
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, m_ogl.vertex_buffer_bytes, 1, 1);
 
   m_direct_basic_fragment_uniform_buffer = std::make_unique<DirectBasicTexturedFragmentUniformBuffer>(
     m_device,
     sizeof(DirectBasicTexturedFragmentUniformShaderData), 1, 1);
 
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
+                                                                    m_vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(1);
+  auto fragment_buffer_descriptor_info = m_direct_basic_fragment_uniform_buffer->descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+
+  create_pipeline_layout();
   InitializeInputVertexAttribute();
 }
 
@@ -28,13 +52,13 @@ void DirectVulkanRenderer::SetShaderModule(VulkanShader& shader) {
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Direct Renderer Vertex";
+  vertShaderStageInfo.pName = "main";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
   fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Direct Renderer Fragment";
+  fragShaderStageInfo.pName = "main";
 
   m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
@@ -78,32 +102,25 @@ void DirectVulkanRenderer::render(DmaFollower& dma,
   BaseDirectRenderer::render(dma, render_state, prof);
 }
 
-DirectVulkanRenderer::~DirectVulkanRenderer() {
-   //TODO: Delete allocated vulkan objects here
-  // DeleteVertexBuffer();
-  // DeleteIndexBuffer();
+void DirectVulkanRenderer::create_pipeline_layout() {
+  // If push constants are needed put them here
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{m_vertex_descriptor_layout->getDescriptorSetLayout(),
+                                                          m_fragment_descriptor_layout->getDescriptorSetLayout()};
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
 }
 
-void DirectVulkanRenderer::reset_state() {
-  m_test_state_needs_graphics_update = true;
-  m_test_state = TestState();
 
-  m_blend_state_needs_graphics_update = true;
-  m_blend_state = BlendState();
-
-  m_prim_graphics_state_needs_graphics_update = true;
-  m_prim_graphics_state = PrimGlState();
-
-  for (int i = 0; i < TEXTURE_STATE_COUNT; ++i) {
-    m_buffered_tex_state[i] = TextureState();
-  }
-  m_tex_state_from_reg = {};
-  m_next_free_tex_state = 0;
-  m_current_tex_state_idx = -1;
-
-  m_prim_building = PrimBuildState();
-
-  m_stats = {};
+DirectVulkanRenderer::~DirectVulkanRenderer() {
+   //TODO: Delete allocated vulkan objects here
+  // DeleteIndexBuffer();
 }
 
 void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
@@ -165,24 +182,41 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
 
   // render!
   // update buffers:
-  //CreateVertexBuffer(m_prim_buffer.vertices);
 
   int draw_count = 0;
-  //glDrawArrays(GL_TRIANGLES, 0, m_prim_buffer.vert_count);
+
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
+
+  m_vulkan_info.swap_chain->drawCommandBuffer(
+      m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
+      m_pipeline_config_info.pipelineLayout,
+      m_descriptor_sets,
+      0);
+
   draw_count++;
-  VkPipelineRasterizationStateCreateInfo rasterizer{};
+  VkPipelineRasterizationStateCreateInfo& rasterizer = m_pipeline_config_info.rasterizationInfo;
   rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
   if (m_debug_state.wireframe) {
     SetShaderModule(m_vulkan_info.shaders[ShaderId::DEBUG_RED]);
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
+
+    m_pipeline_layouts[1].createGraphicsPipeline(m_pipeline_config_info);
+    m_pipeline_layouts[1].bind(m_vulkan_info.render_command_buffer);
+
+    m_vulkan_info.swap_chain->drawCommandBuffer(
+        m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
+        m_pipeline_config_info.pipelineLayout,
+        m_descriptor_sets, 0);
+
     rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-
-    //glDrawArrays(GL_TRIANGLES, 0, m_prim_buffer.vert_count);
 
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     m_blend_state_needs_graphics_update = true;
@@ -190,7 +224,6 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
     draw_count++;
   }
 
-  //glActiveTexture(GL_TEXTURE0);
   int n_tris = draw_count * (m_prim_buffer.vert_count / 3);
   prof.add_tri(n_tris);
   prof.add_draw_call(draw_count);
@@ -234,9 +267,6 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
   if (state.aa_enable) {
     ASSERT(false);
   }
-  if (state.use_uv) {
-    ASSERT(false);
-  }
   if (state.ctxt) {
     ASSERT(false);
   }
@@ -253,7 +283,7 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
     return;
   }
   if (state.using_mt4hh) {
-    tex = m_vulkan_info.texture_pool->lookup_mt4hh_texture(state.texture_base_ptr);
+    tex = m_vulkan_info.texture_pool->lookup_mt4hh_vulkan_texture(state.texture_base_ptr);
   } else {
     tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(state.texture_base_ptr);
   }

@@ -9,19 +9,19 @@ const int PAT_MOD_COUNT = 3;
 const int PAT_EVT_COUNT = 7;
 const int PAT_MAT_COUNT = 23;
 
-layout (binding = 0) uniform UniformBufferObject {
-  uniform vec4 hvdf_offset;
-  uniform mat4 camera;
-  uniform vec4 camera_position;
-  uniform float fog_constant;
-  uniform float fog_min;
-  uniform float fog_max;
-  uniform int wireframe;
-  uniform int mode;
-  uniform uint collision_mode_mask[(PAT_MOD_COUNT + 31) / 32];
-  uniform uint collision_event_mask[(PAT_EVT_COUNT + 31) / 32];
-  uniform uint collision_material_mask[(PAT_MAT_COUNT + 31) / 32];
-  uniform uint collision_skip_mask;
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+  vec4 hvdf_offset;
+  mat4 camera;
+  vec4 camera_position;
+  float fog_constant;
+  float fog_min;
+  float fog_max;
+  int wireframe;
+  int mode;
+  uint collision_mode_mask[(PAT_MOD_COUNT + 31) / 32];
+  uint collision_event_mask[(PAT_EVT_COUNT + 31) / 32];
+  uint collision_material_mask[(PAT_MAT_COUNT + 31) / 32];
+  uint collision_skip_mask;
 } ubo;
 
 layout (location = 0) out vec4 fragment_color;

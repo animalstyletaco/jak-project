@@ -1,30 +1,30 @@
 #version 430 core
 
 
-layout (location = 0) out vec4 color;
 layout (location = 0) in vec2 tex_coord;
+layout (location = 1) in vec4 fragment_color;
+layout (location = 2) in float fog;
+layout (location = 3) in flat uvec2 tex_info;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
+layout (set = 1, binding = 0) uniform UniformBufferObject {
   float alpha_reject;
   float color_mult;
   vec4 fog_color;
 } ubo;
 
-layout (location = 1) in float fog;
-layout (location = 2) in vec4 fragment_color;
 
-layout (location = 3) in flat uvec2 tex_info;
+layout (set = 1, binding = 1) uniform sampler2D tex_T0;
+layout (set = 1, binding = 2) uniform sampler2D tex_T1;
+layout (set = 1, binding = 3) uniform sampler2D tex_T2;
+layout (set = 1, binding = 4) uniform sampler2D tex_T3;
+layout (set = 1, binding = 5) uniform sampler2D tex_T4;
+layout (set = 1, binding = 6) uniform sampler2D tex_T5;
+layout (set = 1, binding = 7) uniform sampler2D tex_T6;
+layout (set = 1, binding = 8) uniform sampler2D tex_T7;
+layout (set = 1, binding = 9) uniform sampler2D tex_T8;
+layout (set = 1, binding = 10) uniform sampler2D tex_T9;
 
-layout (set = 0, binding = 1) uniform sampler2D tex_T0;
-layout (set = 0, binding = 2) uniform sampler2D tex_T1;
-layout (set = 0, binding = 3) uniform sampler2D tex_T2;
-layout (set = 0, binding = 4) uniform sampler2D tex_T3;
-layout (set = 0, binding = 5) uniform sampler2D tex_T4;
-layout (set = 0, binding = 6) uniform sampler2D tex_T5;
-layout (set = 0, binding = 7) uniform sampler2D tex_T6;
-layout (set = 0, binding = 8) uniform sampler2D tex_T7;
-layout (set = 0, binding = 9) uniform sampler2D tex_T8;
-layout (set = 0, binding = 10) uniform sampler2D tex_T9;
+layout (location = 0) out vec4 color;
 
 vec4 sample_tex(vec2 coord, uint unit) {
     return texture(tex_T0, coord);

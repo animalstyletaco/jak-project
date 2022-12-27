@@ -67,13 +67,13 @@ void SkyBlendVulkanHandler::handle_sky_copies(DmaFollower& dma,
 SkyBlendStats SkyBlendVulkanHandler::cpu_blender_do_sky_blends(DmaFollower& dma,
                                                            BaseSharedRenderState* render_state,
                                                            ScopedProfilerNode& prof) {
-  m_shared_cpu_blender->do_sky_blends(dma, render_state, prof);
+  return m_shared_cpu_blender->do_sky_blends(dma, render_state, prof);
 }
 
 SkyBlendStats SkyBlendVulkanHandler::gpu_blender_do_sky_blends(DmaFollower& dma,
                                                                BaseSharedRenderState* render_state,
                                                                ScopedProfilerNode& prof) {
-  m_shared_gpu_blender->do_sky_blends(dma, render_state, prof);
+  return m_shared_gpu_blender->do_sky_blends(dma, render_state, prof);
 }
 
 void SkyBlendVulkanHandler::tfrag_renderer_render(DmaFollower& dma,

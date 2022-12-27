@@ -23,7 +23,7 @@ class FrameTimeRecorder {
     return m_play;
   }
 
-  bool do_gl_finish = false;
+  bool do_graphics_finish = false;
 
  private:
   float m_frame_times[SIZE] = {0};
@@ -37,7 +37,7 @@ class FrameTimeRecorder {
   bool m_single_frame = false;
 };
 
-class OpenGlDebugGui {
+class GraphicsDebugGui {
  public:
   void start_frame();
   void finish_frame();
@@ -48,7 +48,7 @@ class OpenGlDebugGui {
   const char* screenshot_name() const { return m_screenshot_save_name; }
 
   bool should_advance_frame() { return m_frame_timer.should_advance_frame(); }
-  bool should_gl_finish() const { return m_frame_timer.do_gl_finish; }
+  bool should_gl_finish() const { return m_frame_timer.do_graphics_finish; }
 
   bool get_screenshot_flag() {
     if (m_want_screenshot) {

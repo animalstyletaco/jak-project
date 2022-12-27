@@ -13,12 +13,10 @@ class BaseOceanTexture {
       DmaFollower& dma,
       BaseSharedRenderState* render_state,
       ScopedProfilerNode& prof);
-  void init_textures(BaseTexturePool& pool);
-  void draw_debug_window();
   virtual ~BaseOceanTexture();
 
  protected:
-  virtual void move_existing_to_vram(GpuTexture* tex, u32 slot_addr) = 0;
+  virtual void move_existing_to_vram(u32 slot_addr) = 0;
   void run_L1_PC();
   void run_L2_PC();
   void run_L3_PC();
@@ -43,8 +41,6 @@ class BaseOceanTexture {
   static constexpr int OCEAN_TEX_TBP = 8160;  // todo
 
   virtual void setup_framebuffer_context(int) = 0;
-
-  GpuTexture* m_tex0_gpu = nullptr;
 
   // (deftype ocean-texture-constants (structure)
   struct OceanTextureConstants {

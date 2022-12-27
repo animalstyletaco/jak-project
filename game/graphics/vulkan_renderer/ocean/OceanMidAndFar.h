@@ -22,7 +22,7 @@ class OceanVulkanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRende
                  std::unique_ptr<GraphicsDeviceVulkan>& device,
                  VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void init_textures(TexturePoolVulkan& pool) override;
+  void init_textures(VulkanTexturePool& pool) override;
   void draw_debug_window() override;
 
  private:

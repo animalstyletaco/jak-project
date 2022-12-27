@@ -81,10 +81,14 @@ class DescriptorWriter {
   DescriptorWriter(std::unique_ptr<DescriptorLayout>& setLayout, std::unique_ptr<DescriptorPool>& pool);
 
   DescriptorWriter& writeBuffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo);
-  DescriptorWriter& writeImage(uint32_t binding, VkDescriptorImageInfo* imageInfo);
+  DescriptorWriter& writeImage(uint32_t binding, std::vector<VkDescriptorImageInfo>& imageInfo);
+  DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
+                                                 VkDescriptorImageInfo* imageInfo,
+                                                 uint32_t imageInfoCount = 1);
 
   bool build(VkDescriptorSet& set);
   void overwrite(VkDescriptorSet& set);
+  bool allocateDescriptor(VkDescriptorSet& set);
 
  private:
   std::unique_ptr<DescriptorLayout>& m_set_layout;

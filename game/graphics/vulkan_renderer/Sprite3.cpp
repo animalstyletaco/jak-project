@@ -98,8 +98,7 @@ void SpriteVulkan3::graphics_setup_distort() {
   m_distort_ogl.fbo_texture->createImage(
     extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), 
     VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_LINEAR,
-                                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
   m_distort_ogl.fbo_texture->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
@@ -539,11 +538,11 @@ void SpriteVulkan3::SetSprite3UniformVertexFourFloatVector(const char* name,
   m_sprite_3d_vertex_uniform_buffer->SetUniform4f(name, data[0], data[1], data[2], data[3], flags);
 }
 void SpriteVulkan3::SetSprite3UniformMatrixFourFloatVector(const char* name,
-                                                     u32 numberOfFloats,
+                                                     u32 numberOfMatrices,
                                                      bool isTransponsedMatrix,
                                                      float* data,
                                                      u32 flags) {
-  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(name, numberOfFloats, isTransponsedMatrix, data, true);
+  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(name, numberOfMatrices, isTransponsedMatrix, data, true);
 }
 
 void SpriteVulkan3::EnableSprite3GraphicsBlending() {

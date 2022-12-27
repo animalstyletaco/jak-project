@@ -70,7 +70,8 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
     void set_merc_uniform_buffer_data(const DmaTransfer& dma) override;
 
   private:
-  void InitializeInputAttributes();
+    void create_pipeline_layout() override;
+    void InitializeInputAttributes();
 
   struct LevelDrawBucketVulkan {
     const LevelDataVulkan* level = nullptr;

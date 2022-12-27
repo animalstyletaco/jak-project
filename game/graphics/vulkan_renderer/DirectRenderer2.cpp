@@ -385,7 +385,7 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
   bool use_mt4hh = tbp & 0x8000;
 
   if (use_mt4hh) {
-    tex = m_vulkan_info.texture_pool->lookup_mt4hh_texture(tbp_to_lookup);
+    tex = m_vulkan_info.texture_pool->lookup_mt4hh_vulkan_texture(tbp_to_lookup);
   } else {
     tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(tbp_to_lookup);
   }

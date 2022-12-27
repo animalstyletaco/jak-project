@@ -270,7 +270,7 @@ void SpriteVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
     return;
   }
   if (state.using_mt4hh) {
-    tex = m_vulkan_info.texture_pool->lookup_mt4hh_texture(state.texture_base_ptr);
+    tex = m_vulkan_info.texture_pool->lookup_mt4hh_vulkan_texture(state.texture_base_ptr);
   } else {
     tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(state.texture_base_ptr);
   }

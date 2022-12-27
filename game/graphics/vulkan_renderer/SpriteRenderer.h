@@ -25,7 +25,7 @@ class SpriteVulkanRenderer : public BaseSpriteRenderer, public BucketVulkanRende
 
   void graphics_sprite_frame_setup() override;
   void update_graphics_texture(BaseSharedRenderState* render_state, int unit) override;
-  void flush_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void flush_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void update_graphics_blend(AdGifState& state) override;
 
 

@@ -19,15 +19,15 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
                     int my_id,
                     std::unique_ptr<GraphicsDeviceVulkan>& device,
                     VulkanInitializationInfo& vulkan_info);
-  void init_textures(TexturePoolVulkan& texture_pool) override;
+  void init_textures(VulkanTexturePool& texture_pool) override;
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
               ScopedProfilerNode& prof) override;
 
   struct SingleEyeDrawsVulkan : SingleEyeDraws {
-    VulkanTexture* iris_tex = VK_NULL_HANDLE;
-    VulkanTexture* pupil_tex = VK_NULL_HANDLE;
-    VulkanTexture* lid_tex = VK_NULL_HANDLE;
+    VulkanGpuTextureMap* iris_tex = VK_NULL_HANDLE;
+    VulkanGpuTextureMap* pupil_tex = VK_NULL_HANDLE;
+    VulkanGpuTextureMap* lid_tex = VK_NULL_HANDLE;
   };
 
  private:
@@ -37,14 +37,14 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
 
   struct CpuEyeTextures {
     std::unique_ptr<VulkanTexture> texture;
-    GpuTexture* gpu_texture = nullptr;
+    VulkanGpuTextureMap* gpu_texture = nullptr;
     u32 tbp = 0;
   };
 
   std::array<CpuEyeTextures, NUM_EYE_PAIRS * 2> m_cpu_eye_textures;
 
   struct GpuEyeTex {
-    GpuTexture* gpu_texture;
+    VulkanGpuTextureMap* gpu_texture;
     u32 tbp;
     FramebufferVulkanTexturePair fb;
 

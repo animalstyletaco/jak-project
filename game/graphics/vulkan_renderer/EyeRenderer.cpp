@@ -30,7 +30,7 @@ EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
       m_device, device_size, 1, 1);
 }
 
-void EyeVulkanRenderer::init_textures(TexturePoolVulkan& texture_pool) {
+void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
   // set up eyes
   for (int pair_idx = 0; pair_idx < NUM_EYE_PAIRS; pair_idx++) {
     for (int lr = 0; lr < 2; lr++) {
@@ -39,10 +39,8 @@ void EyeVulkanRenderer::init_textures(TexturePoolVulkan& texture_pool) {
       // CPU
       {
         u32 tbp = EYE_BASE_BLOCK + pair_idx * 2 + lr;
-        TextureInput in;
-        in.gpu_texture = (u64)m_cpu_eye_textures[tidx].texture.get();
-        in.w = 32;
-        in.h = 32;
+        VulkanTextureInput in;
+        in.texture = m_cpu_eye_textures[tidx].texture.get();
         in.debug_page_name = "PC-EYES";
         in.debug_name = fmt::format("{}-eye-cpu-{}", lr ? "left" : "right", pair_idx);
         in.id = texture_pool.allocate_pc_port_texture();
@@ -54,10 +52,8 @@ void EyeVulkanRenderer::init_textures(TexturePoolVulkan& texture_pool) {
       // GPU
       {
         u32 tbp = EYE_BASE_BLOCK + pair_idx * 2 + lr;
-        TextureInput in;
-        in.gpu_texture = (u64)m_gpu_eye_textures[tidx]->fb.texture();
-        in.w = 32;
-        in.h = 32;
+        VulkanTextureInput in;
+        in.texture = m_gpu_eye_textures[tidx]->fb.texture();
         in.debug_page_name = "PC-EYES";
         in.debug_name = fmt::format("{}-eye-gpu-{}", lr ? "left" : "right", pair_idx);
         in.id = texture_pool.allocate_pc_port_texture();
@@ -115,7 +111,8 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
     ASSERT(adgif0_dma.vif0() == 0);
     ASSERT(adgif0_dma.vifcode1().kind == VifCode::Kind::DIRECT);
     AdgifHelper adgif0(adgif0_dma.data + 16);
-    auto tex0 = m_vulkan_info.texture_pool->lookup_gpu_vulkan_texture(adgif0.tex0().tbp0());
+    auto tex0 = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(adgif0.tex0().tbp0());
+    VulkanTexture* vulkan_texture = tex0->get_selected_texture();
 
     u32 pair_idx = -1;
     // first draw. this is the background. It reads 0,0 of the texture uses that color everywhere.
@@ -131,19 +128,20 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
       l_draw.pair = pair_idx;
       r_draw.pair = pair_idx;
       if (tex0) {
-        VulkanBuffer imageDataBuffer{
-            m_device, tex0->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        StagingBuffer stagingBuffer{
+            m_device, vulkan_texture->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
 
-        tex0->getImageData(imageDataBuffer.getBuffer(), tex0->getWidth(), tex0->getHeight(), 0, 0);
-        imageDataBuffer.map();
-        void* imageData = imageDataBuffer.getMappedMemory();
+        vulkan_texture->getImageData(stagingBuffer.getBuffer(), vulkan_texture->getWidth(),
+                                     vulkan_texture->getHeight(), 0, 0);
+        stagingBuffer.map();
+        void* imageData = stagingBuffer.getMappedMemory();
 
         u32 tex_val;
         memcpy(&tex_val, imageData, 4);
         l_draw.clear_color = tex_val;
         r_draw.clear_color = tex_val;
-        imageDataBuffer.unmap();
+        stagingBuffer.unmap();
       } else {
         l_draw.clear_color = 0;
         r_draw.clear_color = 0;
@@ -166,7 +164,7 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
     ASSERT(adgif1_dma.vif0() == 0);
     ASSERT(adgif1_dma.vifcode1().kind == VifCode::Kind::DIRECT);
     AdgifHelper adgif1(adgif1_dma.data + 16);
-    auto tex1 = m_vulkan_info.texture_pool->lookup_gpu_vulkan_texture(adgif1.tex0().tbp0());
+    auto tex1 = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(adgif1.tex0().tbp0());
 
     if (tex1) {
       l_draw.pupil = read_eye_draw(dma);
@@ -183,7 +181,7 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
     ASSERT(adgif2_dma.vif0() == 0);
     ASSERT(adgif2_dma.vifcode1().kind == VifCode::Kind::DIRECT);
     AdgifHelper adgif2(adgif2_dma.data + 16);
-    auto tex2 = m_vulkan_info.texture_pool->lookup_gpu_vulkan_texture(adgif2.tex0().tbp0());
+    auto tex2 = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(adgif2.tex0().tbp0());
 
     {
       l_draw.lid = read_eye_draw(dma);
@@ -208,17 +206,17 @@ void EyeVulkanRenderer::run_cpu(const std::vector<SingleEyeDrawsVulkan>& draws,
     }
 
     if (draw.iris_tex) {
-      draw_eye<false>(m_temp_tex, draw.iris, draw.iris_tex, draw.pair, draw.lr, false,
+      draw_eye<false>(m_temp_tex, draw.iris, draw.iris_tex->get_selected_texture(), draw.pair, draw.lr, false,
                       m_use_bilinear);
     }
 
     if (draw.pupil_tex) {
-      draw_eye<true>(m_temp_tex, draw.pupil, draw.pupil_tex, draw.pair, draw.lr, false,
+      draw_eye<true>(m_temp_tex, draw.pupil, draw.pupil_tex->get_selected_texture(), draw.pair, draw.lr, false,
                      m_use_bilinear);
     }
 
     if (draw.lid_tex) {
-      draw_eye<false>(m_temp_tex, draw.lid, draw.lid_tex, draw.pair, draw.lr, draw.lr == 1,
+      draw_eye<false>(m_temp_tex, draw.lid, draw.lid_tex->get_selected_texture(), draw.pair, draw.lr, draw.lr == 1,
                       m_use_bilinear);
     }
 

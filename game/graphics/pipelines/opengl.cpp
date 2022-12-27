@@ -21,7 +21,7 @@
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
 #include "game/graphics/opengl_renderer/OpenGLRenderer.h"
-#include "game/graphics/opengl_renderer/debug_gui.h"
+#include "game/graphics/general_renderer/debug_gui.h"
 #include "game/graphics/texture/TexturePool.h"
 #include "game/runtime.h"
 #include "game/sce/libscf.h"
@@ -57,7 +57,7 @@ struct GraphicsData {
   // temporary opengl renderer
   OpenGLRenderer ogl_renderer;
 
-  OpenGlDebugGui debug_gui;
+  GraphicsDebugGui debug_gui;
 
   FrameLimiter frame_limiter;
   Timer engine_timer;
@@ -72,7 +72,7 @@ struct GraphicsData {
         texture_pool(std::make_shared<TexturePool>(version)),
         loader(std::make_shared<Loader>(
             file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
-            fr3_level_count[version])),
+            pipeline_common::fr3_level_count[version])),
         ogl_renderer(texture_pool, loader, version),
         version(version) {}
 };
@@ -490,7 +490,7 @@ void render_game_frame(int game_width,
       options.msaa_samples = msaa_max;
     }
 
-    if constexpr (run_dma_copy) {
+    if constexpr (pipeline_common::run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
       g_gfx_data->ogl_renderer.render(DmaFollower(chain.data.data(), chain.start_offset), options);
     } else {
@@ -974,7 +974,7 @@ void gl_send_chain(const void* data, u32 offset) {
     // The renderers should just operate on DMA chains, so eliminating this step in the future
     // may be easy.
 
-    g_gfx_data->dma_copier.set_input_data(data, offset, run_dma_copy);
+    g_gfx_data->dma_copier.set_input_data(data, offset, pipeline_common::run_dma_copy);
 
     g_gfx_data->has_data_to_render = true;
     g_gfx_data->dma_cv.notify_all();

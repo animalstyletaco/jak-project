@@ -10,22 +10,22 @@
 
 #include "game/graphics/vulkan_renderer/loader/common.h"
 #include "game/graphics/general_renderer/loader/Loader.h"
-#include "game/graphics/texture/TexturePoolVulkan.h"
+#include "game/graphics/texture/VulkanTexturePool.h"
 
 class VulkanLoader : public BaseLoader {
  public:
   VulkanLoader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path, int max_levels);
   ~VulkanLoader();
-  void update(TexturePoolVulkan& tex_pool);
-  void update_blocking(TexturePoolVulkan& tex_pool);
-  void load_common(TexturePoolVulkan& tex_pool, const std::string& name);
+  void update(VulkanTexturePool& tex_pool);
+  void update_blocking(VulkanTexturePool& tex_pool);
+  void load_common(VulkanTexturePool& tex_pool, const std::string& name);
   void set_want_levels(const std::vector<std::string>& levels);
   LevelDataVulkan* get_tfrag3_level(const std::string& level_name);
   std::optional<MercRefVulkan> get_merc_model(const char* model_name);
   std::vector<LevelDataVulkan*> get_in_use_levels();
   bool upload_textures(Timer& timer,
                        LevelDataVulkan& data,
-                       TexturePoolVulkan& texture_pool);
+                       VulkanTexturePool& texture_pool);
 
  private:
   void loader_thread();

@@ -146,7 +146,13 @@ DescriptorWriter& DescriptorWriter::writeBuffer(uint32_t binding,
 }
 
 DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
-                                               VkDescriptorImageInfo* imageInfo) {
+                                               std::vector<VkDescriptorImageInfo>& imageInfo) {
+  writeImage(binding, imageInfo.data(), imageInfo.size());
+}
+
+DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
+                                               VkDescriptorImageInfo* imageInfo,
+                                                uint32_t imageInfoCount) {
   assert(m_set_layout->m_bindings.count(binding) == 1 && "Layout does not contain specified binding");
 
   auto& bindingDescription = m_set_layout->m_bindings[binding];
@@ -159,14 +165,18 @@ DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
   write.descriptorType = bindingDescription.descriptorType;
   write.dstBinding = binding;
   write.pImageInfo = imageInfo;
-  write.descriptorCount = 1;
+  write.descriptorCount = imageInfoCount;
 
   m_writes.push_back(write);
   return *this;
 }
 
+bool DescriptorWriter::allocateDescriptor(VkDescriptorSet& set) {
+  return m_pool->allocateDescriptor(m_set_layout->getDescriptorSetLayout(), set);
+}
+
 bool DescriptorWriter::build(VkDescriptorSet& set) {
-  bool success = m_pool->allocateDescriptor(m_set_layout->getDescriptorSetLayout(), set);
+  bool success = allocateDescriptor(set);
   if (!success) {
     return false;
   }

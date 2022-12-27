@@ -79,20 +79,20 @@ void FrameTimeRecorder::draw_window(const DmaStats& /*dma_stats*/) {
       m_single_frame = true;
     }
     ImGui::SameLine();
-    ImGui::Checkbox("GLFinish", &do_gl_finish);
+    ImGui::Checkbox("GLFinish", &do_graphics_finish);
   }
   ImGui::End();
 }
 
-void OpenGlDebugGui::start_frame() {
+void GraphicsDebugGui::start_frame() {
   m_frame_timer.start_frame();
 }
 
-void OpenGlDebugGui::finish_frame() {
+void GraphicsDebugGui::finish_frame() {
   m_frame_timer.finish_frame();
 }
 
-void OpenGlDebugGui::draw(const DmaStats& dma_stats) {
+void GraphicsDebugGui::draw(const DmaStats& dma_stats) {
   if (ImGui::BeginMainMenuBar()) {
     if (ImGui::BeginMenu("Windows")) {
       ImGui::MenuItem("Frame Time Plot", nullptr, &m_draw_frame_time);

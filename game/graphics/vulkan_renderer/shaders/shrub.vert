@@ -5,7 +5,7 @@ layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in vec3 rgba_base;
 layout (location = 3) in int time_of_day_index;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
+layout (set = 1, binding = 0) uniform UniformBufferObject {
   vec4 hvdf_offset;
   mat4 camera;
   float fog_constant;
@@ -14,7 +14,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float height_scale;
 } ubo;
 
-layout (binding = 10) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
+layout (set = 1, binding = 10) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;

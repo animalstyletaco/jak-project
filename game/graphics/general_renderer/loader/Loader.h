@@ -29,8 +29,6 @@ class BaseLoader {
   }
 
  protected:
-  bool upload_textures(Timer& timer, BaseLevelData& data, BaseTexturePool& texture_pool);
-
   // used by game and loader thread
   std::string m_level_to_load;
 

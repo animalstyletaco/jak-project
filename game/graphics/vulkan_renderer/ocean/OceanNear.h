@@ -12,7 +12,7 @@ class OceanNearVulkan : public BaseOceanNear, public BucketVulkanRenderer {
             std::unique_ptr<GraphicsDeviceVulkan>& device,
             VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void init_textures(TexturePoolVulkan& pool) override;
+  void init_textures(VulkanTexturePool& pool) override;
 
  private:
   OceanVulkanTexture m_texture_renderer;

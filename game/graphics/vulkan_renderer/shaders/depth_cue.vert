@@ -3,7 +3,7 @@
 layout (location = 0) in vec2 xy;
 layout (location = 1) in vec2 st;
 
-layout (binding = 0) uniform UniformBufferObject {
+layout (set = 0, binding = 0) uniform UniformBufferObject {
    vec4 u_color;
    uniform float u_depth;
 } ubo;

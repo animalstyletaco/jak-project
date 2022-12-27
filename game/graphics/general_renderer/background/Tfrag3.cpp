@@ -3,7 +3,6 @@
 #include "third-party/imgui/imgui.h"
 
 BaseTfrag3::~BaseTfrag3() {
-  discard_tree_cache();
 }
 
 /*!
@@ -16,8 +15,8 @@ void BaseTfrag3::render_all_trees(int geom,
                               BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof) {
   TfragRenderSettings settings_copy = settings;
-  for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
-    if (m_cached_trees[geom][i].kind != tfrag3::TFragmentTreeKind::INVALID) {
+  for (size_t i = 0; i < get_total_cached_trees_count(geom); i++) {
+    if (get_cached_tree(geom, i).kind != tfrag3::TFragmentTreeKind::INVALID) {
       settings_copy.tree_idx = i;
       render_tree(geom, settings_copy, render_state, prof);
     }
@@ -30,8 +29,8 @@ void BaseTfrag3::render_matching_trees(int geom,
                                    BaseSharedRenderState* render_state,
                                    ScopedProfilerNode& prof) {
   TfragRenderSettings settings_copy = settings;
-  for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
-    auto& tree = m_cached_trees[geom][i];
+  for (size_t i = 0; i < get_total_cached_trees_count(geom); i++) {
+    auto& tree = get_cached_tree(geom, i);
     tree.reset_stats();
     if (!tree.allowed) {
       continue;
@@ -48,13 +47,13 @@ void BaseTfrag3::render_matching_trees(int geom,
 }
 
 void BaseTfrag3::draw_debug_window() {
-  for (int i = 0; i < (int)m_cached_trees.at(lod()).size(); i++) {
-    auto& tree = m_cached_trees.at(lod()).at(i);
+  for (int i = 0; i < (int)get_total_cached_trees_count(lod()); i++) {
+    auto& tree = get_cached_tree(lod(), i);
     if (tree.kind == tfrag3::TFragmentTreeKind::INVALID) {
       continue;
     }
     ImGui::PushID(i);
-    ImGui::Text("[%d] %10s", i, tfrag3::tfrag_tree_names[(int)m_cached_trees[lod()][i].kind]);
+    ImGui::Text("[%d] %10s", i, tfrag3::tfrag_tree_names[(int)tree.kind]);
     ImGui::SameLine();
     ImGui::Checkbox("Allow?", &tree.allowed);
     ImGui::SameLine();
@@ -140,47 +139,5 @@ void BaseTfrag3::debug_vis_draw(int first_root,
     if (node.flags) {
       debug_vis_draw(first_root, node.child_id, node.num_kids, depth + 1, nodes, verts_out);
     }
-  }
-}
-
-void BaseTfrag3::render_tree_cull_debug(const TfragRenderSettings& settings,
-                                    BaseSharedRenderState* render_state,
-                                    ScopedProfilerNode& prof) {
-  // generate debug verts:
-  m_debug_vert_data.clear();
-  auto& tree = m_cached_trees.at(settings.tree_idx).at(lod());
-
-  debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
-                 tree.vis->vis_nodes, m_debug_vert_data);
-
-  //FIXME: Add depth test for vulkan
-  //glEnable(GL_DEPTH_TEST);
-  //glDepthFunc(GL_GEQUAL);
-  //glEnable(GL_BLEND);
-  //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  // ?
-  //glDepthMask(GL_FALSE);
-
-  //glBindVertexArray(m_debug_vao);
-  //glBindBuffer(GL_ARRAY_BUFFER, m_debug_verts);
-
-  int remaining = m_debug_vert_data.size();
-  int start = 0;
-
-  while (remaining > 0) {
-    int to_do = std::min(DEBUG_TRI_COUNT * 3, remaining);
-
-    //SetShaderModule(render_state->shaders[ShaderId::TFRAG3_NO_TEX]);
-    //void* data;
-    //vkMapMemory(device, device_memory, 0, to_do * sizeof(DebugVertex), 0, &data);
-    //::memcpy(data, m_debug_vert_data.data() + start, to_do * sizeof(DebugVertex));
-    //vkUnmapMemory(device, device_memory, nullptr);
-
-    //TODO: Add draw function here
-    
-    prof.add_draw_call();
-    prof.add_tri(to_do / 3);
-
-    remaining -= to_do;
-    start += to_do;
   }
 }

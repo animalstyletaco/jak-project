@@ -33,6 +33,10 @@ layout (set = 0, binding = 2) uniform PerspectiveMatrixUniformBuffer {
    mat4 perspective_matrix;
 } perspective_ubo;
 
+layout (set = 0, binding = 3) uniform HeightScaleUbo {
+   int height_scale;
+} height_scale;
+
 const float SCISSOR_ADJUST = 512.0/448.0;
 
 // output
@@ -47,7 +51,7 @@ struct MercMatrixData {
     vec4 pad;
 };
 
-layout (std140, binding = 1) uniform ub_bones {
+layout (std140, binding = 4) uniform ub_bones {
     MercMatrixData bones[128];
 };
 
@@ -116,7 +120,7 @@ void main() {
     transformed.x /= (256);
     transformed.y /= -(128);
     transformed.xyz *= transformed.w;
-    transformed.y *= SCISSOR_ADJUST;
+    transformed.y *= (SCISSOR_ADJUST * height_scale.height_scale);
     gl_Position = transformed;
 
 

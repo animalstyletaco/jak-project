@@ -38,18 +38,25 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
       std::make_unique<VertexBuffer>(m_device, sizeof(Vertex), NUM_VERTS, 1);
   m_vulkan_pc.graphics_index_buffer =
       std::make_unique<IndexBuffer>(m_device, sizeof(u32), NUM_VERTS, 1);
+
+  InitializeVertexBuffer();
   // initialize the mipmap drawing
+}
+
+void OceanVulkanTexture::draw_debug_window() {
+  if (m_tex0_gpu) {
+    auto vulkan_texture = m_tex0_gpu->get_selected_texture();
+    ImGui::Image((void*)vulkan_texture->GetTextureId(), ImVec2(vulkan_texture->getWidth(), vulkan_texture->getHeight()));
+  }
 }
 
 OceanVulkanTexture::~OceanVulkanTexture() {
   destroy_pc();
 }
 
-void OceanVulkanTexture::init_textures(TexturePoolVulkan& pool) {
-  TextureInput in;
-  in.gpu_texture = (u64)m_result_texture.texture();
-  in.w = TEX0_SIZE;
-  in.h = TEX0_SIZE;
+void OceanVulkanTexture::init_textures(VulkanTexturePool& pool) {
+  VulkanTextureInput in;
+  in.texture = m_result_texture.texture();
   in.debug_page_name = "PC-OCEAN";
   in.debug_name = fmt::format("pc-ocean-mip-{}", m_generate_mipmaps);
   in.id = pool.allocate_pc_port_texture();
@@ -59,8 +66,6 @@ void OceanVulkanTexture::init_textures(TexturePoolVulkan& pool) {
 void OceanVulkanTexture::handle_ocean_texture(DmaFollower& dma,
                                         BaseSharedRenderState* render_state,
                                         ScopedProfilerNode& prof) {
-
-  InitializeVertexBuffer();
   BaseOceanTexture::handle_ocean_texture(dma, render_state, prof);
 }
 
@@ -210,8 +215,8 @@ void OceanVulkanTexture::InitializeVertexBuffer() {
 void OceanVulkanTexture::set_gpu_texture(TextureInput&) {
 }
 
-void OceanVulkanTexture::move_existing_to_vram(GpuTexture* tex, u32 slot_addr) {
-  m_vulkan_info.texture_pool->move_existing_to_vram(tex, slot_addr);
+void OceanVulkanTexture::move_existing_to_vram(u32 slot_addr) {
+  m_vulkan_info.texture_pool->move_existing_to_vram(m_tex0_gpu, slot_addr);
 }
 
 void OceanVulkanTexture::setup_framebuffer_context(int) {

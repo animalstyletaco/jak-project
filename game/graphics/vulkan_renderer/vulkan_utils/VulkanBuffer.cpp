@@ -251,9 +251,13 @@ void VulkanBuffer::writeToGpuBuffer(void* data, VkDeviceSize size, VkDeviceSize 
                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT, alignmentSize);
 
   stagingBuffer.map();
-  stagingBuffer.writeToCpuBuffer(data);
-
-  m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, size);
+  if (size < instanceSize) {
+    stagingBuffer.writeToCpuBuffer(data, size, offset);
+    m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, size);
+  } else {
+    stagingBuffer.writeToCpuBuffer(data, instanceSize, 0);
+    m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, instanceSize);
+  }
 }
 
 StagingBuffer::StagingBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
@@ -275,7 +279,7 @@ VertexBuffer::VertexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
     : VulkanBuffer(device,
                    instanceSize,
                    instanceCount,
-                   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                    minOffsetAlignment) {
 }
@@ -287,7 +291,7 @@ IndexBuffer::IndexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
     : VulkanBuffer(device,
                    instanceSize,
                    instanceCount,
-                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                    minOffsetAlignment) {
 }
@@ -318,4 +322,43 @@ uint32_t UniformVulkanBuffer::GetDeviceMemoryOffset(const char* name) {
     return section_name_to_memory_offset_map[name];
   }
   return 0;
+}
+
+MultiDrawVulkanBuffer::MultiDrawVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                         uint32_t instanceCount,
+                                         VkDeviceSize minOffsetAlignment)
+    : VulkanBuffer(device,
+                   sizeof(VkDrawIndexedIndirectCommand),
+                   instanceCount,
+                   VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                   minOffsetAlignment) {}
+
+VkDrawIndexedIndirectCommand MultiDrawVulkanBuffer::GetDrawIndexIndirectCommandAtInstanceIndex(
+    unsigned index) {
+  VkDrawIndexedIndirectCommand command;
+  StagingBuffer stagingBuffer(m_device, instanceSize, 1,
+                              VK_BUFFER_USAGE_TRANSFER_DST_BIT, alignmentSize);
+
+  m_device->copyBuffer(buffer, stagingBuffer.getBuffer(), instanceSize, index * instanceCount, 0);
+
+  stagingBuffer.map();
+  void* stagingMappedMemory = stagingBuffer.getMappedMemory();
+  ::memcpy(&command, stagingMappedMemory, sizeof(command));
+  stagingBuffer.unmap();
+
+  return command;
+}
+
+void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandAtInstanceIndex(unsigned index, VkDrawIndexedIndirectCommand command) {
+  StagingBuffer stagingBuffer(m_device, instanceSize, 1,
+                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT, alignmentSize);
+  stagingBuffer.map();
+  void* stagingMappedMemory = stagingBuffer.getMappedMemory();
+  ::memcpy(stagingMappedMemory, &command, sizeof(command));
+  stagingBuffer.unmap();
+
+  m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, instanceSize, 0, instanceSize * index);
 }

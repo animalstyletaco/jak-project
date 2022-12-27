@@ -44,7 +44,7 @@ void OceanVulkanMidAndFar::render(DmaFollower& dma, SharedVulkanRenderState* ren
   BaseOceanMidAndFar::render(dma, render_state, prof);
 }
 
-void OceanVulkanMidAndFar::init_textures(TexturePoolVulkan& pool) {
+void OceanVulkanMidAndFar::init_textures(VulkanTexturePool& pool) {
   m_texture_renderer.init_textures(pool);
 }
 

@@ -53,24 +53,6 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
  protected:
   void InitializeVertexInputAttributes();
 
- private:
-  enum VertexBucket {
-    RGB_TEXTURE = 0,
-    ALPHA = 1,
-    ENV_MAP = 2,
-  };
-  u32 m_current_bucket = VertexBucket::RGB_TEXTURE;
-
-  static constexpr int NUM_BUCKETS = 3;
-
-  std::vector<Vertex> m_vertices;
-  u32 m_next_free_vertex = 0;
-
-  std::vector<u32> m_indices[NUM_BUCKETS];
-  u32 m_next_free_index[NUM_BUCKETS] = {0};
-
-  u32 m_envmap_tex = 0;
-
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffers[NUM_BUCKETS];

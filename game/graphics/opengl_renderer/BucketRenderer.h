@@ -35,17 +35,24 @@ struct SharedRenderState : BaseSharedRenderState {
 /*!
  * Interface for bucket renders. Each bucket will have its own BucketRenderer.
  */
-class BucketRenderer : public BaseBucketRenderer {
+class BucketRenderer {
  public:
-  BucketRenderer(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {}
+  BucketRenderer(const std::string& name, int my_id) : m_name(name), m_my_id(my_id) {}
   virtual void render(DmaFollower& dma,
                       SharedRenderState* render_state,
                       ScopedProfilerNode& prof) = 0;
+  std::string name_and_id() const;
   virtual ~BucketRenderer() = default;
   bool& enabled() { return m_enabled; }
   virtual bool empty() const { return false; }
+  virtual void draw_debug_window() = 0;
   virtual void init_shaders(ShaderLibrary&) {}
   virtual void init_textures(TexturePool&) {}
+
+ protected:
+  std::string m_name;
+  int m_my_id;
+  bool m_enabled = true;
 };
 
 class RenderMux : public BucketRenderer {
@@ -54,11 +61,15 @@ class RenderMux : public BucketRenderer {
             int my_id,
             std::vector<std::unique_ptr<BucketRenderer>> renderers);
   void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void draw_debug_window() override;
   void init_shaders(ShaderLibrary&) override;
   void init_textures(TexturePool&) override;
 
  private:
   std::vector<std::unique_ptr<BucketRenderer>> m_renderers;
+  int m_render_idx = 0;
+  std::vector<std::string> m_name_strs;
+  std::vector<const char*> m_name_str_ptrs;
 };
 
 /*!

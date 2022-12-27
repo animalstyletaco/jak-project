@@ -1,67 +1,45 @@
-#include "TexturePool.h"
-
 #include <algorithm>
 #include <regex>
+
+#include "VulkanTexturePool.h"
 
 #include "common/log/log.h"
 #include "common/util/Assert.h"
 #include "common/util/Timer.h"
 
-#include "game/graphics/pipelines/opengl.h"
 #include "game/graphics/texture/jak1_tpage_dir.h"
 #include "game/graphics/texture/jak2_tpage_dir.h"
 
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-namespace {
-const char empty_string[] = "";
-const char* goal_string(u32 ptr, const u8* memory_base) {
-  if (ptr == 0) {
-    return empty_string;
-  }
-  return (const char*)(memory_base + ptr + 4);
+#include "game/graphics/texture/VulkanTexturePool.h"
+
+void VulkanTexturePool::upload_to_gpu(const u8* data, u16 w, u16 h, VulkanTexture& texture) {
+  // TODO: Get Mipmap Level here
+  unsigned mipLevels = 1;
+
+  VkExtent3D extents{w, h, 1};
+  texture.createImage(extents, mipLevels, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(),
+                      VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_LINEAR,
+                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+
+  texture.writeToImage((u8*)data);
+
+  texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
+                          VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
+
+  // Max Anisotropy is set in vulkan renderer sampler info;
 }
 
-}  // namespace
-
-std::string GoalTexturePage::print() const {
-  return fmt::format("Tpage id {} textures {} seg0 {} {} seg1 {} {} seg2 {} {}\n", id, length,
-                     segment[0].size, segment[0].dest, segment[1].size, segment[1].dest,
-                     segment[2].size, segment[2].dest);
-}
-
-u64 upload_to_gpu(const u8* data, u16 w, u16 h) {
-  GLuint tex_id;
-  glGenTextures(1, &tex_id);
-  GLint old_tex;
-  glGetIntegerv(GL_ACTIVE_TEXTURE, &old_tex);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, tex_id);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV, data);
-  glGenerateMipmap(GL_TEXTURE_2D);
-  float aniso = 0.0f;
-  glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY, &aniso);
-  glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY, aniso);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glActiveTexture(old_tex);
-  return tex_id;
-}
-
-GpuTexture* TexturePool::give_texture(const TextureInput& in) {
+VulkanGpuTextureMap* VulkanTexturePool::give_texture(const VulkanTextureInput& in) {
   // const auto& it = m_loaded_textures.find(in.name);
   const auto existing = m_loaded_textures.lookup_or_insert(in.id);
   if (!existing.second) {
     // nothing references this texture yet.
     existing.first->tex_id = in.id;
-    existing.first->w = in.w;
-    existing.first->h = in.h;
     existing.first->is_common = in.common;
-    existing.first->gpu_textures = {{in.gpu_texture, in.src_data}};
+    existing.first->gpu_textures.push_back(in.texture);
     existing.first->is_placeholder = false;
     *m_id_to_name.lookup_or_insert(in.id).first =
         fmt::format("{}/{}", in.debug_page_name, in.debug_name);
@@ -74,22 +52,20 @@ GpuTexture* TexturePool::give_texture(const TextureInput& in) {
       ASSERT(existing.first->gpu_textures.empty());
     }
     existing.first->is_placeholder = false;
-    existing.first->w = in.w;
-    existing.first->h = in.h;
-    existing.first->gpu_textures.push_back({in.gpu_texture, in.src_data});
+    existing.first->gpu_textures.push_back(in.texture);
     existing.first->is_common = in.common;
     refresh_links(*existing.first);
     return existing.first;
   }
 }
 
-GpuTexture* TexturePool::give_texture_and_load_to_vram(const TextureInput& in, u32 vram_slot) {
+VulkanGpuTextureMap* VulkanTexturePool::give_texture_and_load_to_vram(const VulkanTextureInput& in, u32 vram_slot) {
   auto tex = give_texture(in);
   move_existing_to_vram(tex, vram_slot);
   return tex;
 }
 
-void TexturePool::move_existing_to_vram(GpuTexture* tex, u32 slot_addr) {
+void VulkanTexturePool::move_existing_to_vram(VulkanGpuTextureMap* tex, u32 slot_addr) {
   ASSERT(!tex->is_placeholder);
   ASSERT(!tex->gpu_textures.empty());
   auto& slot = m_textures[slot_addr];
@@ -102,34 +78,33 @@ void TexturePool::move_existing_to_vram(GpuTexture* tex, u32 slot_addr) {
     } else {
       slot.source->remove_slot(slot_addr);
       slot.source = tex;
-      slot.gpu_texture = tex->gpu_textures.front().gl;
+      slot.texture = tex->get_selected_texture();
     }
   } else {
     slot.source = tex;
-    slot.gpu_texture = tex->gpu_textures.front().gl;
+    slot.texture = tex->get_selected_texture();
   }
 }
 
-void TexturePool::refresh_links(GpuTexture& texture) {
-  u64 tex_to_use =
-      texture.is_placeholder ? m_placeholder_texture_id : texture.gpu_textures.front().gl;
+void VulkanTexturePool::refresh_links(VulkanGpuTextureMap& texture) {
+  VulkanTexture* tex_to_use = texture.is_placeholder ? &m_placeholder_texture : texture.get_selected_texture();
 
   for (auto slot : texture.slots) {
     auto& t = m_textures[slot];
     ASSERT(t.source == &texture);
-    t.gpu_texture = tex_to_use;
+    t.texture = tex_to_use;
   }
 
   for (auto slot : texture.mt4hh_slots) {
     for (auto& tex : m_mt4hh_textures) {
       if (tex.slot == slot) {
-        tex.ref.gpu_texture = tex_to_use;
+        tex.ref.texture = tex_to_use;
       }
     }
   }
 }
 
-void TexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
+void VulkanTexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
   auto* tex = m_loaded_textures.lookup_existing(tex_id);
   ASSERT(tex);
   if (tex->is_common) {
@@ -140,7 +115,7 @@ void TexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
              fmt::format("trying to unload something that was already placholdered: {} {}\n",
                          get_debug_texture_name(tex_id), tex->gpu_textures.size()));
   auto it = std::find_if(tex->gpu_textures.begin(), tex->gpu_textures.end(),
-                         [&](const auto& a) { return a.gl == gpu_id; });
+                         [&](const auto& a) { return a->GetTextureId() == gpu_id; });
   ASSERT(it != tex->gpu_textures.end());
 
   tex->gpu_textures.erase(it);
@@ -150,13 +125,13 @@ void TexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
   refresh_links(*tex);
 }
 
-void GpuTexture::remove_slot(u32 slot) {
+void VulkanGpuTextureMap::remove_slot(u32 slot) {
   auto it = std::find(slots.begin(), slots.end(), slot);
   ASSERT(it != slots.end());
   slots.erase(it);
 }
 
-void GpuTexture::add_slot(u32 slot) {
+void VulkanGpuTextureMap::add_slot(u32 slot) {
   ASSERT(std::find(slots.begin(), slots.end(), slot) == slots.end());
   slots.push_back(slot);
 }
@@ -174,7 +149,7 @@ void GpuTexture::add_slot(u32 slot) {
  * We could store textures in the right format to begin with, or spread the conversion out over
  * multiple frames.
  */
-void TexturePool::handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr) {
+void VulkanTexturePool::handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr) {
   std::unique_lock<std::mutex> lk(m_mutex);
   // extract the texture-page object. This is just a description of the page data.
   GoalTexturePage texture_page;
@@ -206,8 +181,8 @@ void TexturePool::handle_upload_now(const u8* tpage, int mode, const u8* memory_
         if (has_segment[tex.segment_of_mip(mip_idx)]) {
           PcTextureId current_id(texture_page.id, tex_idx);
           if (!m_id_to_name.lookup_existing(current_id)) {
-            auto name = std::string(goal_string(texture_page.name_ptr, memory_base)) +
-                        goal_string(tex.name_ptr, memory_base);
+            auto name = std::string(texture_pool::goal_string(texture_page.name_ptr, memory_base)) +
+                        texture_pool::goal_string(tex.name_ptr, memory_base);
             *m_id_to_name.lookup_or_insert(current_id).first = name;
             m_name_to_id[name] = current_id;
           }
@@ -220,11 +195,11 @@ void TexturePool::handle_upload_now(const u8* tpage, int mode, const u8* memory_
             } else {
               slot.source->remove_slot(tex.dest[mip_idx]);
               slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
-              ASSERT(slot.gpu_texture != (u64)-1);
+              ASSERT(slot.texture);
             }
           } else {
             slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
-            ASSERT(slot.gpu_texture != (u64)-1);
+            ASSERT(slot.texture);
           }
         }
       }
@@ -234,50 +209,73 @@ void TexturePool::handle_upload_now(const u8* tpage, int mode, const u8* memory_
   }
 }
 
-void TexturePool::relocate(u32 destination, u32 source, u32 format) {
+void VulkanTexturePool::relocate(u32 destination, u32 source, u32 format) {
   std::unique_lock<std::mutex> lk(m_mutex);
-  GpuTexture* src = lookup_gpu_texture(source);
+  VulkanGpuTextureMap* src = lookup_vulkan_gpu_texture(source);
   ASSERT(src);
   if (format == 44) {
     m_mt4hh_textures.emplace_back();
     m_mt4hh_textures.back().slot = destination;
     m_mt4hh_textures.back().ref.source = src;
-    m_mt4hh_textures.back().ref.gpu_texture = src->gpu_textures.at(0).gl;
+    m_mt4hh_textures.back().ref.texture = src->get_selected_texture();
     src->mt4hh_slots.push_back(destination);
   } else {
     move_existing_to_vram(src, destination);
   }
 }
 
-GpuTexture* TexturePool::get_gpu_texture_for_slot(PcTextureId id, u32 slot) {
+VulkanGpuTextureMap* VulkanTexturePool::get_gpu_texture_for_slot(PcTextureId id, u32 slot) {
   auto it = m_loaded_textures.lookup_or_insert(id);
   if (!it.second) {
-    GpuTexture& placeholder = *it.first;
+    VulkanGpuTextureMap& placeholder = *it.first;
     placeholder.tex_id = id;
     placeholder.is_placeholder = true;
     placeholder.slots.push_back(slot);
 
     // auto r = m_loaded_textures.insert({name, placeholder});
-    m_textures[slot].gpu_texture = m_placeholder_texture_id;
+    m_textures[slot].texture = &m_placeholder_texture;
     return it.first;
   } else {
     auto result = it.first;
     result->add_slot(slot);
-    m_textures[slot].gpu_texture =
-        result->is_placeholder ? m_placeholder_texture_id : result->gpu_textures.at(0).gl;
+    m_textures[slot].texture =
+        result->is_placeholder ? &m_placeholder_texture : result->get_selected_texture();
     return result;
   }
 }
 
-std::optional<u64> TexturePool::lookup_mt4hh(u32 location) {
+VulkanTexture* VulkanTexturePool::lookup_vulkan_texture(u32 location) {
+  auto& t = m_textures[location];
+  if (t.source) {
+    if constexpr (EXTRA_TEX_DEBUG) {
+      if (t.source->is_placeholder) {
+        ASSERT(t.texture == &m_placeholder_texture);
+      } else {
+        bool fnd = false;
+        for (auto& tt : t.source->gpu_textures) {
+          if (tt->GetTextureId() == t.texture->GetTextureId()) {
+            fnd = true;
+            break;
+          }
+        }
+        ASSERT(fnd);
+      }
+    }
+    return t.texture;
+  } else {
+    return nullptr;
+  }
+}
+
+VulkanTexture* VulkanTexturePool::lookup_mt4hh_vulkan_texture(u32 location) {
   for (auto& t : m_mt4hh_textures) {
     if (t.slot == location) {
       if (t.ref.source) {
-        return t.ref.gpu_texture;
+        return t.ref.texture;
       }
     }
   }
-  return {};
+  return nullptr;
 }
 
 namespace {
@@ -293,22 +291,24 @@ const std::vector<u32>& get_tpage_dir(GameVersion version) {
 }
 }  // namespace
 
-TexturePool::TexturePool(GameVersion version)
+VulkanTexturePool::VulkanTexturePool(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& device)
     : m_loaded_textures(get_tpage_dir(version)),
       m_id_to_name(get_tpage_dir(version)),
-      m_tpage_dir_size(get_tpage_dir(version).size()) {
-  m_placeholder_data.resize(16 * 16);
+      m_tpage_dir_size(get_tpage_dir(version).size()), m_device(device) {
+  std::vector<u8> placeholder_data;
+  placeholder_data.resize(16 * 16);
+
   u32 c0 = 0xa0303030;
   u32 c1 = 0xa0e0e0e0;
   for (int i = 0; i < 16; i++) {
     for (int j = 0; j < 16; j++) {
-      m_placeholder_data[i * 16 + j] = (((i / 4) & 1) ^ ((j / 4) & 1)) ? c1 : c0;
+      placeholder_data[i * 16 + j] = (((i / 4) & 1) ^ ((j / 4) & 1)) ? c1 : c0;
     }
   }
-  m_placeholder_texture_id = upload_to_gpu((const u8*)(m_placeholder_data.data()), 16, 16);
+  upload_to_gpu((const u8*)(placeholder_data.data()), 16, 16, m_placeholder_texture);
 }
 
-void TexturePool::draw_debug_window() {
+void VulkanTexturePool::draw_debug_window() {
   int id = 0;
   int total_vram_bytes = 0;
   int total_textures = 0;
@@ -328,8 +328,9 @@ void TexturePool::draw_debug_window() {
         total_displayed_textures++;
       }
       if (!record.source->gpu_textures.empty()) {
+        VulkanTexture* vulkan_texture = record.source->get_selected_texture();
         total_vram_bytes +=
-            record.source->w * record.source->h * 4;  // todo, if we support other formats
+            vulkan_texture->getWidth() * vulkan_texture->getHeight() * 4;  // todo, if we support other formats
       }
 
       total_uploaded_textures++;
@@ -342,7 +343,7 @@ void TexturePool::draw_debug_window() {
               (float)total_vram_bytes / (1024 * 1024));
 }
 
-void TexturePool::draw_debug_for_tex(const std::string& name, GpuTexture* tex, u32 slot) {
+void VulkanTexturePool::draw_debug_for_tex(const std::string& name, VulkanGpuTextureMap* tex, u32 slot) {
   if (tex->is_placeholder) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.3, 0.3, 1.0));
   } else if (tex->gpu_textures.size() == 1) {
@@ -351,9 +352,11 @@ void TexturePool::draw_debug_for_tex(const std::string& name, GpuTexture* tex, u
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.8, 0.3, 1.0));
   }
   if (ImGui::TreeNode(fmt::format("{} {}", name, slot).c_str())) {
-    ImGui::Text("P: %s sz: %d x %d", get_debug_texture_name(tex->tex_id).c_str(), tex->w, tex->h);
+    VulkanTexture* vulkan_texture = tex->get_selected_texture();
+    ImGui::Text("P: %s sz: %d x %d", get_debug_texture_name(tex->tex_id).c_str(), vulkan_texture->getWidth(), vulkan_texture->getHeight());
     if (!tex->is_placeholder) {
-      ImGui::Image((void*)tex->gpu_textures.at(0).gl, ImVec2(tex->w, tex->h));
+      VulkanTexture* selected_texture = tex->get_selected_texture();
+      ImGui::Image((void*)selected_texture->GetTextureId(), ImVec2(selected_texture->getWidth(), selected_texture->getHeight()));
     } else {
       ImGui::Text("PLACEHOLDER");
     }
@@ -364,12 +367,12 @@ void TexturePool::draw_debug_for_tex(const std::string& name, GpuTexture* tex, u
   ImGui::PopStyleColor();
 }
 
-PcTextureId TexturePool::allocate_pc_port_texture() {
+PcTextureId VulkanTexturePool::allocate_pc_port_texture() {
   ASSERT(m_next_pc_texture_to_allocate < EXTRA_PC_PORT_TEXTURE_COUNT);
   return PcTextureId(get_jak1_tpage_dir().size() - 1, m_next_pc_texture_to_allocate++);
 }
 
-std::string TexturePool::get_debug_texture_name(PcTextureId id) {
+std::string VulkanTexturePool::get_debug_texture_name(PcTextureId id) {
   auto it = m_id_to_name.lookup_existing(id);
   if (it) {
     return *it;

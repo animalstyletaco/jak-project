@@ -8,7 +8,7 @@
 class BaseSkyBlendCPU {
  public:
   BaseSkyBlendCPU();
-  ~BaseSkyBlendCPU();
+  virtual ~BaseSkyBlendCPU();
 
   SkyBlendStats do_sky_blends(DmaFollower& dma,
                               BaseSharedRenderState* render_state,

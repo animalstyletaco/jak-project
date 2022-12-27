@@ -1,6 +1,10 @@
 #include "CommonOceanRenderer.h"
 
 BaseCommonOceanRenderer::BaseCommonOceanRenderer(){
+  m_vertices.resize(4096 * 10);  // todo decrease
+  for (auto& buf : m_indices) {
+    buf.resize(4096 * 10);
+  }
 }
 
 BaseCommonOceanRenderer::~BaseCommonOceanRenderer() {

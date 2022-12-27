@@ -7,10 +7,7 @@
 class BaseSkyBlendGPU {
  public:
   BaseSkyBlendGPU();
-  ~BaseSkyBlendGPU();
-  SkyBlendStats do_sky_blends(DmaFollower& dma,
-                              BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof);
+  virtual ~BaseSkyBlendGPU();
 
  protected:
   struct Vertex {

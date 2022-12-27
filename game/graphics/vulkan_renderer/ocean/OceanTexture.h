@@ -31,8 +31,9 @@ class OceanVulkanTexture : public BaseOceanTexture {
       DmaFollower& dma,
       BaseSharedRenderState* render_state,
       ScopedProfilerNode& prof);
-  void init_textures(TexturePoolVulkan& pool);
+  void init_textures(VulkanTexturePool& pool);
   void set_gpu_texture(TextureInput&) override;
+  void draw_debug_window();
   ~OceanVulkanTexture();
 
  private:
@@ -40,7 +41,7 @@ class OceanVulkanTexture : public BaseOceanTexture {
   void SetupShader(ShaderId);
   void InitializeMipmapVertexInputAttributes();
 
-  void move_existing_to_vram(GpuTexture* tex, u32 slot_addr) override;
+  void move_existing_to_vram(u32 slot_addr) override;
   void setup_framebuffer_context(int) override;
 
   void flush(BaseSharedRenderState* render_state,
@@ -49,7 +50,7 @@ class OceanVulkanTexture : public BaseOceanTexture {
   void make_texture_with_mipmaps(BaseSharedRenderState* render_state,
                                  ScopedProfilerNode& prof) override;
 
-  GpuTexture* m_tex0_gpu = nullptr;
+  VulkanGpuTextureMap* m_tex0_gpu = nullptr;
 
   struct PcDataVulkan {
     std::unique_ptr<VertexBuffer> static_vertex_buffer;

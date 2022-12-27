@@ -5,8 +5,23 @@
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
 SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
-  m_device(device), m_vulkan_info(vulkan_info), m_pipeline_layout(device) {
+  m_device(device), m_pipeline_layout(device), m_vulkan_info(vulkan_info) {
   // generate textures for sky blending
+
+  auto& shader = m_vulkan_info.shaders[ShaderId::SKY_BLEND];
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "Sky Blend GPU Vertex";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "Sky Blend GPU Fragment";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
   // setup the framebuffers
   for (int i = 0; i < 2; i++) {
@@ -66,12 +81,10 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanIn
 SkyBlendGPU::~SkyBlendGPU() {
 }
 
-void SkyBlendGPU::init_textures(TexturePoolVulkan& tex_pool) {
+void SkyBlendGPU::init_textures(VulkanTexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
-    TextureInput in;
-    in.gpu_texture = (u64)m_textures[i].get();
-    in.w = m_sizes[i];
-    in.h = in.w;
+    VulkanTextureInput in;
+    in.texture = m_textures[i].get();
     in.debug_name = fmt::format("PC-SKY-GPU-{}", i);
     in.id = tex_pool.allocate_pc_port_texture();
     u32 tbp = SKY_TEXTURE_VRAM_ADDRS[i];
@@ -143,7 +156,7 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     }
 
     // look up the source texture
-    auto tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(adgif.tex0().tbp0());
+    auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(adgif.tex0().tbp0())->get_selected_texture();
     ASSERT(tex);
 
     VkSamplerCreateInfo samplerInfo = tex->getSamplerInfo();
@@ -172,20 +185,6 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
     // setup for rendering!
     //glViewport(0, 0, m_sizes[buffer_idx], m_sizes[buffer_idx]);
     //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[buffer_idx], 0);
-    auto& shader = m_vulkan_info.shaders[ShaderId::SKY_BLEND];
-    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-    vertShaderStageInfo.module = shader.GetVertexShader();
-    vertShaderStageInfo.pName = "Sky Blend GPU Vertex";
-
-    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    fragShaderStageInfo.module = shader.GetFragmentShader();
-    fragShaderStageInfo.pName = "Sky Blend GPU Fragment";
-
-    m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
     // if the first is set, it disables alpha. we can just clear here, so it's easier to find
     // in renderdoc.

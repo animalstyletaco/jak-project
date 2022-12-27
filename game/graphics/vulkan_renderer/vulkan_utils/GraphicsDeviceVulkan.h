@@ -40,6 +40,7 @@ class GraphicsDeviceVulkan {
   GraphicsDeviceVulkan& operator=(GraphicsDeviceVulkan&&) = delete;
 
   VkSampleCountFlagBits getMsaaCount() { return m_msaa_samples; }
+  void setMsaaCount(VkSampleCountFlagBits msaa_count) { m_msaa_samples = msaa_count; }
   VkCommandPool getCommandPool() { return m_command_pool; }
   VkDevice getLogicalDevice() { return m_device; }
   VkPhysicalDevice getPhysicalDevice() { return m_physical_device; }
@@ -47,6 +48,7 @@ class GraphicsDeviceVulkan {
   VkQueue graphicsQueue() { return m_graphics_queue; }
   VkQueue presentQueue() { return m_present_queue; }
   VkInstance getInstance() { return m_instance; }
+  VkPhysicalDeviceFeatures getPhysicalDeviceFeatures() { return m_device_features; }
 
   SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(m_physical_device); }
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -60,7 +62,7 @@ class GraphicsDeviceVulkan {
   void submitCommandsBufferToQueue(std::vector<VkCommandBuffer> commandBuffer);
   VkCommandBuffer beginSingleTimeCommands();
   void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-  void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+  void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
   void copyBufferToImage(VkBuffer buffer,
                          VkImage image,
                          uint32_t width,
@@ -87,8 +89,6 @@ class GraphicsDeviceVulkan {
                              VkFormat format,
                              VkImageLayout oldLayout,
                              VkImageLayout newLayout);
-
-  VkPhysicalDeviceProperties properties;
 
  private:
   void createInstance();
@@ -124,4 +124,6 @@ class GraphicsDeviceVulkan {
 
   const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
   const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+  VkPhysicalDeviceFeatures m_device_features;
 };

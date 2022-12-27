@@ -4,7 +4,11 @@
 #include <cassert>
 #include <stdexcept>
 
-VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+namespace vulkan_texture {
+static unsigned long image_id = 0;
+}
+
+VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_image_id(vulkan_texture::image_id++) {
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(m_device->getPhysicalDevice(), &properties);
 
@@ -21,6 +25,7 @@ VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_
 
 VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_device) {
   m_image_create_info = texture.m_image_create_info;
+  m_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   if (texture.m_image) {
     AllocateVulkanImageMemory();
   }
@@ -36,6 +41,7 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
   if (texture.m_sampler) {
     createTextureSampler();
   }
+  m_device_size = texture.m_device_size;
 }
 
 

@@ -36,11 +36,7 @@ class BaseGeneric2 : public BaseBucketRenderer {
   void process_dma(DmaFollower& dma, u32 next_bucket);
   void setup_draws();
   virtual void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
-  virtual void do_draws_for_alpha(BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode& prof,
-                                  DrawMode::AlphaBlend alpha,
-                                  bool hud) = 0;
-  virtual void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+
   bool check_for_end_of_generic_data(DmaFollower& dma, u32 next_bucket);
   void final_vertex_update();
   bool handle_bucket_setup_dma(DmaFollower& dma, u32 next_bucket);
@@ -48,16 +44,6 @@ class BaseGeneric2 : public BaseBucketRenderer {
   virtual void graphics_setup() = 0;
   virtual void graphics_cleanup() = 0;
   virtual void graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) = 0;
-  virtual void setup_graphics_for_draw_mode(const DrawMode& draw_mode,
-                                            u8 fix,
-                                            BaseSharedRenderState* render_state) = 0;
-
-  virtual void setup_graphics_tex(u16 unit,
-                                  u16 tbp,
-                                  bool filter,
-                                  bool clamp_s,
-                                  bool clamp_t,
-                                  BaseSharedRenderState* render_state) = 0;
 
   struct {
     u32 stcycl;

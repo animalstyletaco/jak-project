@@ -42,7 +42,7 @@ void RenderVulkanMux::render(DmaFollower& dma,
   m_graphics_renderers[m_render_idx]->render(dma, render_state, prof);
 }
 
-void RenderVulkanMux::init_textures(TexturePoolVulkan& tp) {
+void RenderVulkanMux::init_textures(VulkanTexturePool& tp) {
   for (auto& rend : m_graphics_renderers) {
     rend->init_textures(tp);
   }

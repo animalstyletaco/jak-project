@@ -10,7 +10,7 @@ class SkyBlendGPU {
  public:
   SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   ~SkyBlendGPU();
-  void init_textures(TexturePoolVulkan& tex_pool);
+  void init_textures(VulkanTexturePool& tex_pool);
   SkyBlendStats do_sky_blends(DmaFollower& dma,
                               BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof);
@@ -34,7 +34,7 @@ class SkyBlendGPU {
   Vertex m_vertex_data[6];
 
   struct TexInfo {
-    GpuTexture* tex;
+    VulkanGpuTextureMap* tex;
     u32 tbp;
   } m_tex_info[2];
 };

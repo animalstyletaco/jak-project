@@ -7,35 +7,31 @@ constexpr float LOAD_BUDGET = 2.5f;
 /*!
  * Upload a texture to the GPU, and give it to the pool.
  */
-void vk_loader_stage::update_texture(TexturePoolVulkan& pool,
+void vk_loader_stage::update_texture(VulkanTexturePool& pool,
                                      const tfrag3::Texture& tex,
                                      VulkanTexture& texture_info,
                                      bool is_common) {
   VkExtent3D extents{tex.w, tex.h, 1};
-  texture_info.createImage(extents, 1, VK_IMAGE_TYPE_2D, texture_info.getMsaaCount(),
-                           VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
-                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+  texture_info.createImage(extents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+                           VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_LINEAR,
+                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
   texture_info.writeToImage((u32*)tex.data.data());
 
   //TODO: Get Mipmap Level here
   unsigned mipLevels = 1;
 
-  texture_info.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+  texture_info.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
                                VK_IMAGE_ASPECT_COLOR_BIT, 1);
   // Max Anisotropy is set in vulkan renderer sampler info;
 
   if (tex.load_to_pool) {
-    TextureInput in;
+    VulkanTextureInput in;
     in.debug_page_name = tex.debug_tpage_name;
     in.debug_name = tex.debug_name;
-    in.w = tex.w;
-    in.h = tex.h;
-    in.gpu_texture = (u64)&texture_info;
+    in.texture = &texture_info;
     in.common = is_common;
     in.id = PcTextureId::from_combo_id(tex.combo_id);
-    in.src_data = (const u8*)tex.data.data();
     pool.give_texture(in);
   }
 }
@@ -131,10 +127,8 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
 
-        tree_vertex_buffer.map(upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
         tree_vertex_buffer.writeToGpuBuffer((tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
                                           upload_size, 0);
-        tree_vertex_buffer.unmap();
         uploaded_bytes += upload_size;
       }
 
@@ -231,13 +225,10 @@ class ShrubVulkanLoadStage : public LoaderStageVulkan {
 
       u32 upload_size =
           (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
-      data.lev_data->shrub_vertex_data[m_next_tree].map(upload_size, start_vert_for_chunk *
-                                                         sizeof(tfrag3::ShrubGpuVertex));
       data.lev_data->shrub_vertex_data[m_next_tree].writeToGpuBuffer(
         (tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data(),
         tree.unpacked.vertices.size() - start_vert_for_chunk, 
         start_vert_for_chunk);
-      data.lev_data->shrub_vertex_data[m_next_tree].unmap();
       uploaded_bytes += upload_size;
 
       if (complete_tree) {
@@ -326,12 +317,8 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
 
-        data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->map(
-            upload_size,
-            start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
         data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->writeToGpuBuffer(
             (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk);
-        data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->unmap();
         uploaded_bytes += upload_size;
 
         if (complete_tree) {
@@ -384,9 +371,7 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
             out_tree.wind_indices = std::make_unique<IndexBuffer>(
                 m_device, sizeof(u32), wind_idx_buffer_len, 1);
 
-            out_tree.wind_indices->map();
             out_tree.wind_indices->writeToGpuBuffer((u32*)temp.data());
-            out_tree.wind_indices->unmap();
             abort = true;
           }
         }
@@ -444,11 +429,8 @@ class CollideVulkanLoaderStage : public LoaderStageVulkan {
 
     u32 start = m_vtx;
     u32 end = std::min((u32)data.lev_data->level->collision.vertices.size(), start + 32768);
-    m_collide_vertex_buffer->map((end - start) * sizeof(tfrag3::CollisionMesh::Vertex),
-                                 start * sizeof(tfrag3::CollisionMesh::Vertex));
     m_collide_vertex_buffer->writeToGpuBuffer(data.lev_data->level->collision.vertices.data() + start,
                                            (end - start) * sizeof(tfrag3::CollisionMesh::Vertex), 0);
-    m_collide_vertex_buffer->unmap();
     m_vtx = end;
 
     if (m_vtx == data.lev_data->level->collision.vertices.size()) {
@@ -516,10 +498,9 @@ bool MercVulkanLoaderStage::run(Timer& /*timer*/, LoaderInputVulkan& data) {
   if (!m_vtx_uploaded) {
     u32 start = m_idx;
     m_idx = std::min(start + 32768, (u32)data.lev_data->level->merc_data.indices.size());
-    data.lev_data->merc_indices->map((m_idx - start) * sizeof(u32), start * sizeof(u32));
-    data.lev_data->merc_indices->writeToGpuBuffer((u32*)data.lev_data->level->merc_data.indices.data() +
-                                               start);
-    data.lev_data->merc_indices->unmap();
+    data.lev_data->merc_indices->writeToGpuBuffer((u32*)data.lev_data->level->merc_data.indices.data() + start,
+      (m_idx - start) * sizeof(u32),
+      start * sizeof(u32));
     if (m_idx != data.lev_data->level->merc_data.indices.size()) {
       return false;
     } else {
@@ -530,12 +511,9 @@ bool MercVulkanLoaderStage::run(Timer& /*timer*/, LoaderInputVulkan& data) {
 
   u32 start = m_idx;
   m_idx = std::min(start + 32768, (u32)data.lev_data->level->merc_data.vertices.size());
-  data.lev_data->merc_vertices->map((m_idx - start) * sizeof(tfrag3::MercVertex),
-                                    start * sizeof(tfrag3::MercVertex));
   data.lev_data->merc_vertices->writeToGpuBuffer(
       (tfrag3::MercVertex*)data.lev_data->level->merc_data.vertices.data(),
-      data.lev_data->level->merc_data.vertices.size() - start, start);
-  data.lev_data->merc_vertices->unmap();
+      (m_idx - start) * sizeof(tfrag3::MercVertex), start * sizeof(tfrag3::MercVertex));
 
   if (m_idx != data.lev_data->level->merc_data.vertices.size()) {
     return false;

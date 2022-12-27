@@ -49,8 +49,6 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   ~DirectVulkanRenderer();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
 
-  void reset_state();
-
   /*!
    * If you don't use the render interface, call this at the very end.
    */
@@ -60,6 +58,7 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   void InitializeInputVertexAttribute();
   void SetShaderModule(VulkanShader& shader);
 
+  void create_pipeline_layout() override;
   void update_graphics_prim(BaseSharedRenderState* render_state) override;
   void update_graphics_blend() override;
   void update_graphics_test() override;

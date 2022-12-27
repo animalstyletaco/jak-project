@@ -55,11 +55,11 @@ class VulkanBuffer {
   VkBuffer buffer = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
 
-  VkDeviceSize bufferSize;
-  VkDeviceSize instanceSize;
-  uint32_t instanceCount;
-  VkDeviceSize alignmentSize;
-  VkDeviceSize minOffsetAlignment;
+  VkDeviceSize bufferSize = 0;
+  VkDeviceSize instanceSize = 0;
+  uint32_t instanceCount = 0;
+  VkDeviceSize alignmentSize = 0;
+  VkDeviceSize minOffsetAlignment = 0;
   VkBufferUsageFlags usageFlags;
   VkMemoryPropertyFlags memoryPropertyFlags;
 };
@@ -105,4 +105,14 @@ class UniformVulkanBuffer : public UniformBuffer, public VulkanBuffer {
 
  protected:
   std::unordered_map<std::string, uint32_t> section_name_to_memory_offset_map;
+};
+
+class MultiDrawVulkanBuffer : public UniformBuffer, public VulkanBuffer {
+ public:
+  MultiDrawVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                  uint32_t instanceCount,
+                  VkDeviceSize minOffsetAlignment = 1);
+
+  VkDrawIndexedIndirectCommand GetDrawIndexIndirectCommandAtInstanceIndex(unsigned);
+  void SetDrawIndexIndirectCommandAtInstanceIndex(unsigned, VkDrawIndexedIndirectCommand);
 };

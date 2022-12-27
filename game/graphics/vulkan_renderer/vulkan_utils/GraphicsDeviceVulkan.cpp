@@ -77,9 +77,9 @@ void GraphicsDeviceVulkan::createInstance() {
 
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  appInfo.pApplicationName = "Hello Triangle";
+  appInfo.pApplicationName = "OpenGOAL";
   appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-  appInfo.pEngineName = "No Engine";
+  appInfo.pEngineName = "OpenGOAL";
   appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
   appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -165,6 +165,7 @@ void GraphicsDeviceVulkan::pickPhysicalDevice() {
 
   VkPhysicalDeviceMemoryProperties memory_properties;
   vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memory_properties);
+  vkGetPhysicalDeviceFeatures(m_physical_device, &m_device_features);
 }
 
 void GraphicsDeviceVulkan::createLogicalDevice() {
@@ -273,11 +274,15 @@ void GraphicsDeviceVulkan::submitCommandsBufferToQueue(std::vector<VkCommandBuff
   vkFreeCommandBuffers(m_device, m_command_pool, 1, commandBuffer.data());
 }
 
-void GraphicsDeviceVulkan::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+void GraphicsDeviceVulkan::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size,
+                                      VkDeviceSize srcOffset, VkDeviceSize dstOffset) {
   VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
   VkBufferCopy copyRegion{};
   copyRegion.size = size;
+  copyRegion.srcOffset = srcOffset;
+  copyRegion.dstOffset = dstOffset;
+
   vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
   endSingleTimeCommands(commandBuffer);
@@ -295,6 +300,7 @@ uint32_t GraphicsDeviceVulkan::findMemoryType(uint32_t typeFilter, VkMemoryPrope
   }
 
   lg::error("failed to find suitable memory type!");
+  return UINT32_MAX;
 }
 
 void GraphicsDeviceVulkan::transitionImageLayout(VkImage image,

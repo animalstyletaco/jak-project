@@ -16,12 +16,9 @@ BaseGeneric2::BaseGeneric2(const std::string& name,
   m_adgifs.resize(num_adgif);
   m_buckets.resize(num_buckets);
   m_indices.resize(num_verts * 3);
-
-  graphics_setup();
 }
 
 BaseGeneric2::~BaseGeneric2() {
-  graphics_cleanup();
 }
 
 void BaseGeneric2::draw_debug_window() {

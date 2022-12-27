@@ -20,8 +20,8 @@ class SwapChain {
 
   VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
   VkRenderPass getRenderPass() { return renderPass; }
-  VkImage getImage(int index) { return swapChainImages[index].getImage(); }
-  VkImageView getImageView(int index) { return swapChainImages[index].getImageView(); }
+  VkImage getImage(int index) { return swapChainImages[index]; }
+  VkImageView getImageView(int index) { return swapChainImageViews[index]; }
   size_t imageCount() { return swapChainImages.size(); }
   VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
   void setSwapChainExtent(VkExtent2D extents) { swapChainExtent = extents; };
@@ -44,7 +44,23 @@ class SwapChain {
                                 VkPipelineLayout& pipeline_layout,
                                 std::vector<VkDescriptorSet>& descriptors,
                                 uint32_t imageIndex);
-  
+
+  void drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
+                                VertexBuffer* vertex_buffer,
+                                IndexBuffer* index_buffer,
+                                VkPipelineLayout& pipeline_layout,
+                                std::vector<VkDescriptorSet>& descriptors,
+                                uint32_t imageIndex);
+
+    void multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
+                                VertexBuffer* vertex_buffer,
+                                IndexBuffer* index_buffer,
+                                VkPipelineLayout& pipeline_layout,
+                                std::vector<VkDescriptorSet>& descriptors,
+                                MultiDrawVulkanBuffer* multiDrawBuffer,
+                                uint32_t imageIndex);
+
+  void setViewportScissor(VkCommandBuffer commandBuffer);
   void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);
   void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
@@ -85,8 +101,10 @@ class SwapChain {
   std::vector<VkFramebuffer> swapChainFramebuffers;
   VkRenderPass renderPass;
 
+  std::vector<VkImage> swapChainImages;
+  std::vector<VkImageView> swapChainImageViews;
+
   std::vector<VulkanTexture> depthImages;
-  std::vector<VulkanTexture> swapChainImages;
 
   std::unique_ptr<GraphicsDeviceVulkan>& device;
   VkExtent2D windowExtent;

@@ -32,7 +32,7 @@ class GenericCommonFragmentUniformBuffer : public UniformVulkanBuffer {
                                      VkDeviceSize minOffsetAlignment);
 };
 
-class GenericVulkan2 : public BaseGeneric2, public BucketVulkanRenderer {
+class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
  public:
   GenericVulkan2(const std::string& name,
                  int my_id,
@@ -42,14 +42,13 @@ class GenericVulkan2 : public BaseGeneric2, public BucketVulkanRenderer {
                  u32 num_frags = 2000,
                  u32 num_adgif = 6000,
                  u32 num_buckets = 800);
-  ~GenericVulkan2();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void do_draws_for_alpha(BaseSharedRenderState* render_state,
                           ScopedProfilerNode& prof,
                           DrawMode::AlphaBlend alpha,
-                          bool hud) override;
+                          bool hud);
   void init_shaders(VulkanShaderLibrary& shaders);
 
   struct Vertex {
@@ -66,19 +65,20 @@ class GenericVulkan2 : public BaseGeneric2, public BucketVulkanRenderer {
 
  private:
   void InitializeInputAttributes();
+  void create_pipeline_layout() override;
   void graphics_setup() override;
   void graphics_cleanup() override;
   void graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) override;
   void setup_graphics_for_draw_mode(const DrawMode& draw_mode,
                                   u8 fix,
-                                  BaseSharedRenderState* render_state) override;
+                                  BaseSharedRenderState* render_state);
 
   void setup_graphics_tex(u16 unit,
                           u16 tbp,
                           bool filter,
                           bool clamp_s,
                           bool clamp_t,
-                          BaseSharedRenderState* render_state) override;
+                          BaseSharedRenderState* render_state);
 
  private:
   struct {

@@ -9,7 +9,7 @@
 #include "game/graphics/vulkan_renderer/Shader.h"
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/loader/Loader.h"
-#include "game/graphics/texture/TexturePoolVulkan.h"
+#include "game/graphics/texture/VulkanTexturePool.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
@@ -35,8 +35,9 @@ struct VulkanInitializationInfo {
   std::unique_ptr<DescriptorPool> descriptor_pool;
   std::unique_ptr<SwapChain> swap_chain;
   VulkanShaderLibrary shaders;
-  std::shared_ptr<TexturePoolVulkan> texture_pool;
+  std::shared_ptr<VulkanTexturePool> texture_pool;
   std::shared_ptr<VulkanLoader> loader;
+  VkCommandBuffer render_command_buffer;
 };
 
 /*!
@@ -47,22 +48,26 @@ class BucketVulkanRenderer {
   BucketVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                        VulkanInitializationInfo& vulkan_info)
       : m_device(device),
-        m_vulkan_info(vulkan_info),
-        m_pipeline_layout(device) {
-    m_pipeline_layout.defaultPipelineConfigInfo(m_pipeline_config_info);
+        m_vulkan_info(vulkan_info) {
+    GraphicsPipelineLayout graphicsPipelineLayout{m_device};
+    graphicsPipelineLayout.defaultPipelineConfigInfo(m_pipeline_config_info);
   }
 
   virtual void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) = 0;
-  virtual void init_textures(TexturePoolVulkan& pool){};
+  virtual void init_textures(VulkanTexturePool& pool){};
   virtual void init_shaders(VulkanShaderLibrary& pool){};
+  virtual void create_pipeline_layout(){};
 
  protected:
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 
   VulkanInitializationInfo& m_vulkan_info;
 
-  GraphicsPipelineLayout m_pipeline_layout;
+  std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
   PipelineConfigInfo m_pipeline_config_info;
+
+  VkDescriptorBufferInfo m_vertex_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
@@ -82,7 +87,7 @@ class RenderVulkanMux : public BucketVulkanRenderer, public BaseRenderMux {
                   std::vector<std::shared_ptr<BucketVulkanRenderer>> renderers,
                   std::vector<std::shared_ptr<BaseBucketRenderer>> bucket_renderers);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void init_textures(TexturePoolVulkan& tp) override;
+  void init_textures(VulkanTexturePool& tp) override;
 
   private:
    std::vector<std::shared_ptr<BucketVulkanRenderer>> m_graphics_renderers;

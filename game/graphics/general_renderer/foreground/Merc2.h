@@ -52,7 +52,7 @@ class BaseMerc2 : public BaseBucketRenderer {
   };
 
   void handle_all_dma(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_setup_dma(DmaFollower& dma);
+  void handle_setup_dma(DmaFollower& dma, BaseSharedRenderState* render_state);
   u32 alloc_lights(const VuLights& lights);
   void set_lights(const DmaTransfer& dma);
   void handle_matrix_dma(const DmaTransfer& dma);
@@ -71,6 +71,8 @@ class BaseMerc2 : public BaseBucketRenderer {
     math::Vector4f tmat[4];
     math::Vector4f nmat[3];
     math::Vector4f pad;
+
+    std::string to_string() const;
   };
 
   static constexpr int MAX_SKEL_BONES = 128;

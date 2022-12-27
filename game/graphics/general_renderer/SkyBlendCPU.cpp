@@ -7,6 +7,9 @@
 #include "game/graphics/general_renderer/AdgifHandler.h"
 
 BaseSkyBlendCPU::BaseSkyBlendCPU() {
+  for (int i = 0; i < 2; i++) {
+    m_texture_data[i].resize(4 * m_sizes[i] * m_sizes[i]);
+  }
 }
 
 BaseSkyBlendCPU::~BaseSkyBlendCPU() {

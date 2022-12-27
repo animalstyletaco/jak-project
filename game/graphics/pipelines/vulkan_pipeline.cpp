@@ -22,7 +22,7 @@
 #include "game/graphics/gfx.h"
 #include "game/graphics/general_renderer/debug_gui.h"
 #include "game/graphics/vulkan_renderer/VulkanRenderer.h"
-#include "game/graphics/texture/TexturePoolVulkan.h"
+#include "game/graphics/texture/VulkanTexturePool.h"
 #include "game/runtime.h"
 #include "game/system/newpad.h"
 
@@ -46,13 +46,13 @@ struct VulkanGraphicsData {
   FixedChunkDmaCopier dma_copier;
 
   // texture pool
-  std::shared_ptr<TexturePoolVulkan> texture_pool;
+  std::shared_ptr<VulkanTexturePool> texture_pool;
 
   std::shared_ptr<VulkanLoader> loader;
 
   VulkanRenderer vulkan_renderer;
 
-  OpenGlDebugGui debug_gui;
+  GraphicsDebugGui debug_gui;
 
   FrameLimiter frame_limiter;
   Timer engine_timer;
@@ -64,7 +64,7 @@ struct VulkanGraphicsData {
 
   VulkanGraphicsData(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& vulkan_device)
       : dma_copier(EE_MAIN_MEM_SIZE),
-        texture_pool(std::make_shared<TexturePoolVulkan>(version, vulkan_device)),
+        texture_pool(std::make_shared<VulkanTexturePool>(version, vulkan_device)),
         loader(std::make_shared<VulkanLoader>(vulkan_device, file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
             pipeline_common::fr3_level_count[version])),
         vulkan_renderer(texture_pool, loader, version, vulkan_device),
@@ -214,7 +214,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   return std::static_pointer_cast<GfxDisplay>(display);
 }
 
-VkDisplay::VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>& swap_chain, bool is_main) : m_window(window), imgui_helper(swap_chain) {
+VkDisplay::VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>& swap_chain, bool is_main) : m_window(window), m_imgui_helper(swap_chain) {
   m_main = is_main;
 
   // Get initial state
@@ -713,7 +713,6 @@ void VkDisplay::VMode::set(const GLFWvidmode* vmode) {
 void VkDisplay::update_glfw() {
   auto p = scoped_prof("update_glfw");
   glfwPollEvents();
-  glfwMakeContextCurrent(m_window);
   auto& mapping_info = Gfx::get_button_mapping();
   Pad::update_gamepads(mapping_info);
   glfwGetFramebufferSize(m_window, &m_display_state_copy.window_size_width,
@@ -763,7 +762,7 @@ void VkDisplay::render() {
   // imgui start of frame
   {
     auto p = scoped_prof("imgui-init");
-    imgui_helper.InitializeNewFrame();
+    m_imgui_helper.InitializeNewFrame();
   }
 
   // framebuffer size
@@ -799,7 +798,7 @@ void VkDisplay::render() {
   }
   {
     auto p = scoped_prof("imgui-render");
-    imgui_helper.Render();
+    m_imgui_helper.Render();
   }
 
   // actual vsync

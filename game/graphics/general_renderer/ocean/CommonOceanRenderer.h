@@ -27,10 +27,8 @@ class BaseCommonOceanRenderer {
   static_assert(sizeof(Vertex) == 32);
 
  protected:
-  void SetShaders(BaseSharedRenderState* render_state);
   void reverse_indices(u32* indices, u32 count);
 
- private:
   void handle_near_vertex_gif_data_fan(const u8* data, u32 offset, u32 loop);
   void handle_near_vertex_gif_data_strip(const u8* data, u32 offset, u32 loop);
 

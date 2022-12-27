@@ -10,6 +10,7 @@ TFragmentVulkan::TFragmentVulkan(const std::string& name,
                      bool child_mode,
                      int level_id)
     : BaseTFragment(name, my_id, trees, child_mode, level_id), BucketVulkanRenderer(device, vulkan_info) {
+  m_pipeline_layouts.resize(1, m_device);
   m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(
       device, 1, 1);
   m_time_of_day_color = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
@@ -18,11 +19,13 @@ TFragmentVulkan::TFragmentVulkan(const std::string& name,
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(10, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   m_vertex_descriptor_writer =
@@ -39,7 +42,7 @@ TFragmentVulkan::TFragmentVulkan(const std::string& name,
   m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
       .build(m_descriptor_sets[1]);
 
-  m_tfrag3 = std::make_unique<Tfrag3Vulkan>(vulkan_info, m_pipeline_config_info, m_pipeline_layout,
+  m_tfrag3 = std::make_unique<Tfrag3Vulkan>(vulkan_info, m_pipeline_config_info, m_pipeline_layouts[0],
                                       m_vertex_descriptor_writer, m_fragment_descriptor_writer,
                                       m_vertex_shader_uniform_buffer, m_time_of_day_color);
 }

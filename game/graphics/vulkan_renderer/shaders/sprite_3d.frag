@@ -6,16 +6,16 @@ layout (location = 0) in flat vec4 fragment_color;
 layout (location = 1) in vec3 tex_coord;
 layout (location = 2) in flat uvec2 tex_info;
 
-layout (set = 0, binding = 20) uniform sampler2D tex_T0;
-layout (set = 0, binding = 21) uniform sampler2D tex_T1;
-layout (set = 0, binding = 22) uniform sampler2D tex_T2;
-layout (set = 0, binding = 23) uniform sampler2D tex_T3;
-layout (set = 0, binding = 24) uniform sampler2D tex_T4;
-layout (set = 0, binding = 25) uniform sampler2D tex_T5;
-layout (set = 0, binding = 26) uniform sampler2D tex_T6;
-layout (set = 0, binding = 27) uniform sampler2D tex_T7;
-layout (set = 0, binding = 28) uniform sampler2D tex_T8;
-layout (set = 0, binding = 29) uniform sampler2D tex_T9;
+layout (set = 1, binding = 20) uniform sampler2D tex_T0;
+layout (set = 1, binding = 21) uniform sampler2D tex_T1;
+layout (set = 1, binding = 22) uniform sampler2D tex_T2;
+layout (set = 1, binding = 23) uniform sampler2D tex_T3;
+layout (set = 1, binding = 24) uniform sampler2D tex_T4;
+layout (set = 1, binding = 25) uniform sampler2D tex_T5;
+layout (set = 1, binding = 26) uniform sampler2D tex_T6;
+layout (set = 1, binding = 27) uniform sampler2D tex_T7;
+layout (set = 1, binding = 28) uniform sampler2D tex_T8;
+layout (set = 1, binding = 29) uniform sampler2D tex_T9;
 
 vec4 sample_tex(vec2 coord, uint unit) {
   switch (unit) {

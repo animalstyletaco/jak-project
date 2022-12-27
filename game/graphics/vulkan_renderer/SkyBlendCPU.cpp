@@ -13,7 +13,7 @@ SkyBlendCPU::SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanIn
     VkExtent3D extents{m_sizes[i], m_sizes[i], 1};
     m_textures[i].texture->createImage(extents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
                             VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_LINEAR,
-                                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+                            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
     m_textures[i].texture->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
                                  VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
@@ -22,14 +22,12 @@ SkyBlendCPU::SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanIn
 SkyBlendCPU::~SkyBlendCPU() {
 }
 
-void SkyBlendCPU::init_textures(TexturePoolVulkan& tex_pool) {
+void SkyBlendCPU::init_textures(VulkanTexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
     m_textures[i].texture->writeToImage(m_texture_data[i].data(), m_texture_data[i].size(), 0);
 
-    TextureInput in;
-    in.gpu_texture = (u64)m_textures[i].texture.get();
-    in.w = m_sizes[i];
-    in.h = m_sizes[i];
+    VulkanTextureInput in;
+    in.texture = m_textures[i].texture.get();
     in.debug_name = fmt::format("PC-SKY-CPU-{}", i);
     in.id = tex_pool.allocate_pc_port_texture();
     u32 tbp = SKY_TEXTURE_VRAM_ADDRS[i];
@@ -45,18 +43,19 @@ void SkyBlendCPU::setup_gpu_texture(u32 slot,
                                     int buffer_idx,
                                     SkyBlendStats& stats) {
   // look up the source texture
-  auto tex = m_vulkan_info.texture_pool->lookup_gpu_vulkan_texture(slot);
-  ASSERT(tex);
+  auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(slot);
+  VulkanTexture* vulkan_texture = tex->get_selected_texture();
+  ASSERT(vulkan_texture);
 
-  VulkanBuffer imageDataBuffer{
-      m_device, tex->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
-  tex->getImageData(imageDataBuffer.getBuffer(), tex->getWidth(), tex->getHeight(), 0, 0);
-
-  const u8* mappedImageData = reinterpret_cast<const u8*>(imageDataBuffer.getMappedMemory());
+  StagingBuffer stagingBuffer{
+      m_device, vulkan_texture->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT};
+  vulkan_texture->getImageData(stagingBuffer.getBuffer(), vulkan_texture->getWidth(), vulkan_texture->getHeight(), 0,
+                               0);
+  stagingBuffer.map();
+  const u8* mappedImageData = reinterpret_cast<const u8*>(stagingBuffer.getMappedMemory());
 
   if (mappedImageData) {
-    if (m_texture_data[buffer_idx].size() == tex->getMemorySize()) {
+    if (m_texture_data[buffer_idx].size() == vulkan_texture->getMemorySize()) {
       if (is_first_draw) {
         blend_sky_initial_fast(intensity, m_texture_data[buffer_idx].data(), mappedImageData,
                                m_texture_data[buffer_idx].size());
@@ -85,4 +84,5 @@ void SkyBlendCPU::setup_gpu_texture(u32 slot,
     m_vulkan_info.texture_pool->move_existing_to_vram(m_textures[buffer_idx].tex,
                                                       m_textures[buffer_idx].tbp);
   }
+  stagingBuffer.unmap();
 }

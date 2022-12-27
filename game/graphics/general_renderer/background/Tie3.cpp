@@ -14,7 +14,6 @@ BaseTie3::BaseTie3(const std::string& name,
 }
 
 BaseTie3::~BaseTie3() {
-  discard_tree_cache();
 }
 
 void BaseTie3::vector_min_in_place(math::Vector4f& v, float val) {

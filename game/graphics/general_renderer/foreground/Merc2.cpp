@@ -49,6 +49,12 @@ u32 BaseMerc2::alloc_lights(const VuLights& lights) {
   return light_idx;
 }
 
+std::string BaseMerc2::ShaderMercMat::to_string() const {
+  return fmt::format("tmat:\n{}\n{}\n{}\n{}\n", tmat[0].to_string_aligned(),
+                     tmat[1].to_string_aligned(), tmat[2].to_string_aligned(),
+                     tmat[3].to_string_aligned());
+}
+
 /*!
  * Store light values
  */
@@ -70,8 +76,9 @@ void BaseMerc2::handle_all_dma(DmaFollower& dma,
                            ScopedProfilerNode& prof) {
   // process the first tag. this is just jumping to the merc-specific dma.
   auto data0 = dma.read_and_advance();
-  ASSERT(data0.vif1() == 0);
-  ASSERT(data0.vif0() == 0);
+  ASSERT(data0.vif1() == 0 || data0.vifcode1().kind == VifCode::Kind::NOP);
+  ASSERT(data0.vif0() == 0 || data0.vifcode0().kind == VifCode::Kind::NOP ||
+         data0.vifcode0().kind == VifCode::Kind::MARK);
   ASSERT(data0.size_bytes == 0);
   if (dma.current_tag().kind == DmaTag::Kind::CALL) {
     // renderer didn't run, let's just get out of here.
@@ -87,7 +94,7 @@ void BaseMerc2::handle_all_dma(DmaFollower& dma,
 
   // if we reach here, there's stuff to draw
   // this handles merc-specific setup DMA
-  handle_setup_dma(dma);
+  handle_setup_dma(dma, render_state);
 
   // handle each merc transfer
   while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -96,7 +103,7 @@ void BaseMerc2::handle_all_dma(DmaFollower& dma,
   ASSERT(dma.current_tag_offset() == render_state->next_bucket);
 }
 
-void BaseMerc2::handle_setup_dma(DmaFollower& dma) {
+void BaseMerc2::handle_setup_dma(DmaFollower& dma, BaseSharedRenderState* render_state) {
   auto first = dma.read_and_advance();
 
   // 10 quadword setup packet
@@ -154,12 +161,22 @@ void BaseMerc2::handle_setup_dma(DmaFollower& dma) {
 
   // TODO: process low memory initialization
 
-  auto second = dma.read_and_advance();
-  ASSERT(second.size_bytes == 32);  // setting up test register.
-  auto nothing = dma.read_and_advance();
-  ASSERT(nothing.size_bytes == 0);
-  ASSERT(nothing.vif0() == 0);
-  ASSERT(nothing.vif1() == 0);
+  if (render_state->version == GameVersion::Jak1) {
+    auto second = dma.read_and_advance();
+    ASSERT(second.size_bytes == 32);  // setting up test register.
+    auto nothing = dma.read_and_advance();
+    ASSERT(nothing.size_bytes == 0);
+    ASSERT(nothing.vif0() == 0);
+    ASSERT(nothing.vif1() == 0);
+  } else {
+    auto second = dma.read_and_advance();
+    ASSERT(second.size_bytes == 48);  // setting up test/zbuf register.
+    // todo z write mask stuff.
+    auto nothing = dma.read_and_advance();
+    ASSERT(nothing.size_bytes == 0);
+    ASSERT(nothing.vif0() == 0);
+    ASSERT(nothing.vif1() == 0);
+  }
 }
 
 namespace {
@@ -189,13 +206,33 @@ void BaseMerc2::handle_merc_chain(DmaFollower& dma,
 
   auto init = dma.read_and_advance();
 
+  if (init.vifcode0().kind == VifCode::Kind::FLUSHA) {
+    while (dma.current_tag_offset() != render_state->next_bucket) {
+      dma.read_and_advance();
+    }
+    return;
+  }
+
   if (init.vifcode1().kind == VifCode::Kind::PC_PORT) {
     // we got a PC PORT packet. this contains some extra data to set up the model
     flush_pending_model(render_state, prof);
     init_pc_model(init, render_state);
-    ASSERT(tag_is_nothing_cnt(dma));
+    ASSERT(tag_is_nothing_cnt(dma) || tag_is_nothing_next(dma));
     init = dma.read_and_advance();  // dummy tag in pc port
-    init = dma.read_and_advance();
+    if (init.vifcode0().kind != VifCode::Kind::STROW) {
+      init = dma.read_and_advance();
+    }
+    if (init.vifcode0().kind != VifCode::Kind::STROW) {
+      init = dma.read_and_advance();
+    }
+    if (init.vifcode0().kind != VifCode::Kind::STROW) {
+      while (dma.current_tag_offset() != render_state->next_bucket) {
+        auto skip = dma.read_and_advance();
+        ASSERT(skip.vifcode0().kind == VifCode::Kind::NOP);
+        ASSERT(skip.vifcode1().kind == VifCode::Kind::NOP);
+      }
+      return;
+    }
   }
 
   // row stuff.

@@ -28,6 +28,7 @@ class ShrubVulkan : public BucketVulkanRenderer, public BaseShrub {
   void InitializeVertexBuffer();
 
  private:
+  void create_pipeline_layout() override;
   void update_load(const LevelDataVulkan* loader_data);
   bool setup_for_level(const std::string& level, BaseSharedRenderState* render_state) override;
   void discard_tree_cache() override;
@@ -57,6 +58,8 @@ class ShrubVulkan : public BucketVulkanRenderer, public BaseShrub {
   std::string m_level_name;
   std::vector<VulkanTexture>* m_textures;
   u64 m_load_id = -1;
+
+  std::vector<VulkanTexture> m_time_of_day_textures;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
 

@@ -7,7 +7,6 @@ BaseShrub::BaseShrub(const std::string& name, int my_id) : BaseBucketRenderer(na
 }
 
 BaseShrub::~BaseShrub() {
-  discard_tree_cache();
 }
 
 void BaseShrub::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {

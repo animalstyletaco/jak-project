@@ -71,12 +71,12 @@ void UniformBuffer::SetUniformVectorFourFloat(const char* section_name,
 
 void UniformBuffer::SetUniform1ui(const char* section_name, uint32_t value, uint32_t flags) {
   uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
-  SetDataInVkDeviceMemory(memory_offset, (uint8_t*)value, sizeof(value), flags);
+  SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
 void UniformBuffer::SetUniform1i(const char* section_name, int32_t value, uint32_t flags) {
   uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
-  SetDataInVkDeviceMemory(memory_offset, (uint8_t*)value, sizeof(value), flags);
+  SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
 void UniformBuffer::SetUniform1f(const char* section_name, float value, uint32_t flags) {

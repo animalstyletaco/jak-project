@@ -29,6 +29,7 @@ SwapChain::~SwapChain() {
     swapChain = nullptr;
   }
 
+  swapChainImages.clear();
   for (auto framebuffer : swapChainFramebuffers) {
     vkDestroyFramebuffer(device->getLogicalDevice(), framebuffer, nullptr);
   }
@@ -159,30 +160,31 @@ void SwapChain::createSwapChain() {
   // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
   // retrieve the handles.
   vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, nullptr);
-  swapChainImages.resize(imageCount, VulkanTexture{device});
-
-  std::vector<VkImage> images;
-  for (uint32_t i = 0; i < imageCount; i++) {
-    images.push_back(swapChainImages[i].getImage());
-  }
-  vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, images.data());
+  swapChainImages.resize(imageCount);
+  vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount,
+                          swapChainImages.data());
 
   swapChainImageFormat = surfaceFormat.format;
 }
 
 void SwapChain::createImageViews() {
+  swapChainImageViews.resize(imageCount());
   for (int i = 0; i < imageCount(); i++) {
-    swapChainImages[i].createImage(
-        {
-            swapChainExtent.width,
-            swapChainExtent.height,
-            1,
-        },
-        1, VK_IMAGE_TYPE_2D, device->getMsaaCount(), swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = swapChainImages[i];
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = swapChainImageFormat;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
 
-    swapChainImages[i].createImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat,
-                                       VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    if (vkCreateImageView(device->getLogicalDevice(), &viewInfo, nullptr, &swapChainImageViews[i]) !=
+        VK_SUCCESS) {
+      throw std::runtime_error("failed to create texture image view!");
+    }
   }
 }
 
@@ -250,7 +252,7 @@ void SwapChain::createRenderPass() {
 void SwapChain::createFramebuffers() {
   swapChainFramebuffers.resize(imageCount());
   for (size_t i = 0; i < imageCount(); i++) {
-    std::array<VkImageView, 2> attachments = {swapChainImages[i].getImageView(), depthImages[i].getImageView()};
+    std::array<VkImageView, 2> attachments = {swapChainImageViews[i], depthImages[i].getImageView()};
 
     VkExtent2D swapChainExtent = getSwapChainExtent();
     VkFramebufferCreateInfo framebufferInfo = {};
@@ -364,26 +366,14 @@ void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,
                                   VkPipelineLayout& pipeline_layout,
                                   std::vector<VkDescriptorSet>& descriptors,
                                   uint32_t imageIndex) {
-  VkViewport viewport{};
-  viewport.x = 0.0f;
-  viewport.y = 0.0f;
-  viewport.width = (float)swapChainExtent.width;
-  viewport.height = (float)swapChainExtent.height;
-  viewport.minDepth = 0.0f;
-  viewport.maxDepth = 1.0f;
-  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-  VkRect2D scissor{};
-  scissor.offset = {0, 0};
-  scissor.extent = swapChainExtent;
-  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+  setViewportScissor(commandBuffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1,
-                          &descriptors[currentFrame], 0, nullptr);
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, descriptors.size(),
+                          descriptors.data(), 0, nullptr);
 
   vkCmdDraw(commandBuffer, vertex_buffer->getBufferSize(), 0, 0, 0);
 
@@ -400,36 +390,50 @@ void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                          VkPipelineLayout& pipeline_layout,
                                          std::vector<VkDescriptorSet>& descriptors,
                                          uint32_t imageIndex) {
-  VkViewport viewport{};
-  viewport.x = 0.0f;
-  viewport.y = 0.0f;
-  viewport.width = (float)swapChainExtent.width;
-  viewport.height = (float)swapChainExtent.height;
-  viewport.minDepth = 0.0f;
-  viewport.maxDepth = 1.0f;
-  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+  drawIndexedCommandBuffer(commandBuffer, vertex_buffer.get(), index_buffer.get(), pipeline_layout,
+                           descriptors, imageIndex);
+}
 
-  VkRect2D scissor{};
-  scissor.offset = {0, 0};
-  scissor.extent = swapChainExtent;
-  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
+                                         VertexBuffer* vertex_buffer,
+                                         IndexBuffer* index_buffer,
+                                         VkPipelineLayout& pipeline_layout,
+                                         std::vector<VkDescriptorSet>& descriptors,
+                                         uint32_t imageIndex) {
+  setViewportScissor(commandBuffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdBindIndexBuffer(commandBuffer, index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
+  vkCmdBindIndexBuffer(commandBuffer, index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
-  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, 1,
-                          &descriptors[currentFrame], 0, nullptr);
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
+                          descriptors.size(), descriptors.data(), 0, nullptr);
 
-  vkCmdDrawIndexed(commandBuffer, index_buffer->getBufferSize(), 1, 0, 0, 0);
+  vkCmdDrawIndexed(commandBuffer, index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
+}
 
-  vkCmdEndRenderPass(commandBuffer);
+void SwapChain::multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
+                                         VertexBuffer* vertex_buffer,
+                                         IndexBuffer* index_buffer,
+                                         VkPipelineLayout& pipeline_layout,
+                                         std::vector<VkDescriptorSet>& descriptors,
+                                         MultiDrawVulkanBuffer* multiDrawCommand,
+                                         uint32_t imageIndex) {
+  setViewportScissor(commandBuffer);
 
-  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-    throw std::runtime_error("failed to record command buffer!");
-  }
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindIndexBuffer(commandBuffer, index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
+                          descriptors.size(), descriptors.data(), 0, nullptr);
+
+  vkCmdDrawIndexedIndirect(commandBuffer, multiDrawCommand->getBuffer(), 0, multiDrawCommand->getInstanceCount(),
+                           sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
@@ -449,7 +453,9 @@ void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
   renderPassInfo.pClearValues = clearValues.data();
 
   vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
 
+void SwapChain::setViewportScissor(VkCommandBuffer commandBuffer) {
   VkViewport viewport{};
   viewport.x = 0.0f;
   viewport.y = 0.0f;

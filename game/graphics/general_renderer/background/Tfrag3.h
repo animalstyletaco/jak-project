@@ -32,9 +32,9 @@ class BaseTfrag3 {
                        BaseSharedRenderState* render_state) = 0;
   virtual void discard_tree_cache() = 0;
 
-  void render_tree_cull_debug(const TfragRenderSettings& settings,
+  virtual void render_tree_cull_debug(const TfragRenderSettings& settings,
                               BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof);
+                              ScopedProfilerNode& prof) = 0;
 
   void draw_debug_window();
   struct DebugVertex {
@@ -83,6 +83,9 @@ class BaseTfrag3 {
     bool cull_debug = false;
   };
 
+  virtual TreeCache& get_cached_tree(int bucket_index, int cache_index) = 0;
+  virtual size_t get_total_cached_trees_count(int bucket_index) = 0;
+
   struct Cache {
     std::vector<u8> vis_temp;
     std::vector<std::pair<int, int>> draw_idx_temp;
@@ -93,9 +96,6 @@ class BaseTfrag3 {
   } m_cache;
 
   std::string m_level_name;
-
-  std::array<std::vector<TreeCache>, GEOM_MAX> m_cached_trees;
-
   std::vector<math::Vector<u8, 4>> m_color_result;
 
   u64 m_load_id = -1;

@@ -3,7 +3,7 @@
 layout(location = 0) out vec4 color;
 
 layout (location = 0) in vec3 tex_coord;
-layout (binding = 0) uniform sampler2D tex_T0;
+layout (set = 0, binding = 0) uniform sampler2D tex_T0;
 
 void main() {
     vec4 T0 = texture(tex_T0, tex_coord.xy);

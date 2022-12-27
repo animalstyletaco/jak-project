@@ -132,7 +132,7 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
         uniform_vertex_shader_buffer->SetUniform1i("bucket", 1);
         break;
       case 2:
-        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(m_envmap_tex);
+        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(m_envmap_tex);
         if (!tex) {
           m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
@@ -221,7 +221,7 @@ void CommonOceanVulkanRenderer::flush_mid(
   for (int bucket = 0; bucket < 2; bucket++) {
     switch (bucket) {
       case 0: {
-        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(8160);
+        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(8160);
         if (!tex) {
           m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
@@ -238,7 +238,7 @@ void CommonOceanVulkanRenderer::flush_mid(
 
       break;
       case 1:
-        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(m_envmap_tex);
+        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(m_envmap_tex);
         if (!tex) {
           m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }

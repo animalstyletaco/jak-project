@@ -1,6 +1,6 @@
 #include "DepthCue.h"
 
-#include "game/graphics/opengl_renderer/dma_helpers.h"
+#include "game/graphics/general_renderer/dma_helpers.h"
 
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"

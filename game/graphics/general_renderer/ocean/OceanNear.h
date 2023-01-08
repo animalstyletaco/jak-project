@@ -3,9 +3,7 @@
 #include "game/common/vu.h"
 #include "game/graphics/general_renderer/ocean/CommonOceanRenderer.h"
 
-class BaseOceanNear : public BaseBucketRenderer,
-                  public CommonOceanRendererInterface,
-                  public CommonOceanTextureRendererInterface {
+class BaseOceanNear : public BaseBucketRenderer {
  public:
   BaseOceanNear(const std::string& name,
             int my_id);
@@ -13,6 +11,14 @@ class BaseOceanNear : public BaseBucketRenderer,
   void draw_debug_window() override;
 
  protected:
+   virtual void common_ocean_renderer_init_for_near() = 0;
+   virtual void common_ocean_renderer_kick_from_near(const u8* data) = 0;
+   virtual void common_ocean_renderer_flush_near(BaseSharedRenderState* render_state,
+     ScopedProfilerNode& prof) = 0;
+   virtual void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+                                                      BaseSharedRenderState* render_state,
+                                                      ScopedProfilerNode& prof) = 0;
+
   void run_call0_vu2c();
   void run_call39_vu2c();
   void run_L15_vu2c();

@@ -27,7 +27,8 @@ BaseSkyBlendHandler::BaseSkyBlendHandler(const std::string& name,
 void BaseSkyBlendHandler::handle_sky_copies(DmaFollower& dma,
                                         BaseSharedRenderState* render_state,
                                         ScopedProfilerNode& prof) {
-  if (!m_enabled) {
+  //if (!m_enabled) {
+  if(1){
     while (dma.current_tag().qwc == 6) {
       dma.read_and_advance();
       dma.read_and_advance();

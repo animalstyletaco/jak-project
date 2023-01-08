@@ -16,14 +16,16 @@ class BaseSpriteRenderer : public BaseBucketRenderer {
 
  protected:
   virtual void graphics_sprite_frame_setup() = 0;
+  virtual void setup_2d_group0_graphics() = 0;
+
   void render_distorter(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
   void handle_sprite_frame_setup(DmaFollower& dma);
   void render_3d(DmaFollower& dma);
-  virtual void render_2d_group0(DmaFollower& dma,
-                                BaseSharedRenderState* render_state,
-                                ScopedProfilerNode& prof) = 0;
+  void render_2d_group0(DmaFollower& dma,
+                        BaseSharedRenderState* render_state,
+                        ScopedProfilerNode& prof);
   void render_fake_shadow(DmaFollower& dma);
   void render_2d_group1(DmaFollower& dma,
                         BaseSharedRenderState* render_state,

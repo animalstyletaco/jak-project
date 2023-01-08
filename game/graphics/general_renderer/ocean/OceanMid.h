@@ -3,7 +3,7 @@
 #include "game/common/vu.h"
 #include "game/graphics/general_renderer/ocean/CommonOceanRenderer.h"
 
-class BaseOceanMid : public CommonOceanRendererInterface {
+class BaseOceanMid {
  public:
   BaseOceanMid();
   void run(DmaFollower& dma,
@@ -11,6 +11,11 @@ class BaseOceanMid : public CommonOceanRendererInterface {
            ScopedProfilerNode& prof);
 
  protected:
+  virtual void common_ocean_renderer_init_for_mid() = 0;
+  virtual void common_ocean_renderer_kick_from_mid(const u8* data) = 0;
+  virtual void common_ocean_renderer_flush_mid(BaseSharedRenderState* render_state,
+    ScopedProfilerNode& prof) = 0;
+
   void prepare_for_run(DmaFollower& dma, BaseSharedRenderState* render_state);
   void run_call0();
   void run_call0_vu2c();

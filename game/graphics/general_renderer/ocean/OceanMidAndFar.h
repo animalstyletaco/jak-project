@@ -12,7 +12,7 @@
  * - ocean-mid (handled by the C++ OceanMid class)
  */
 
-class BaseOceanMidAndFar : public BaseBucketRenderer, public CommonOceanTextureRendererInterface {
+class BaseOceanMidAndFar : public BaseBucketRenderer {
  public:
   BaseOceanMidAndFar(const std::string& name,
                  int my_id);
@@ -25,4 +25,21 @@ class BaseOceanMidAndFar : public BaseBucketRenderer, public CommonOceanTextureR
   void handle_ocean_mid(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
+protected:
+  virtual void direct_renderer_reset_state() = 0;
+  virtual void direct_renderer_render_gif(const u8* data,
+    u32 size,
+    BaseSharedRenderState* render_state,
+    ScopedProfilerNode& prof) = 0;
+  virtual void direct_renderer_flush_pending(BaseSharedRenderState* render_state,
+    ScopedProfilerNode& prof) = 0;
+  virtual void direct_renderer_set_mipmap(bool) = 0;
+
+  virtual void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+                                                  BaseSharedRenderState* render_state,
+                                                  ScopedProfilerNode& prof) = 0;
+
+  virtual void ocean_mid_renderer_run(DmaFollower& dma,
+                                      BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode& prof) = 0;
 };

@@ -37,4 +37,6 @@ class SkyBlendGPU {
     VulkanGpuTextureMap* tex;
     u32 tbp;
   } m_tex_info[2];
+
+  VkSampler m_sampler = VK_NULL_HANDLE;
 };

@@ -30,14 +30,10 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
   ~CommonOceanVulkanRenderer();
 
   void flush_near(BaseSharedRenderState* render_state,
-                  ScopedProfilerNode& prof,
-                  std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
-                  std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
+                  ScopedProfilerNode& prof);
 
   void flush_mid(BaseSharedRenderState* render_state,
-                 ScopedProfilerNode& prof,
-                 std::unique_ptr<CommonOceanVertexUniformBuffer>& uniform_vertex_buffer,
-                 std::unique_ptr<CommonOceanFragmentUniformBuffer>& uniform_fragment_buffer);
+                 ScopedProfilerNode& prof);
 
   // Move to public since neither Vulkan or DX12 have a getUniformLocation API like OpenGL does.
   // They'll need to know the memory offset of each member in the shader structure
@@ -52,13 +48,34 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
 
  protected:
   void InitializeVertexInputAttributes();
+  void CreatePipelineLayout();
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
-    std::unique_ptr<IndexBuffer> index_buffers[NUM_BUCKETS];
+    std::unique_ptr<IndexBuffer> index_buffers[2 * NUM_BUCKETS];
   } m_ogl;
+
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 
   PipelineConfigInfo m_pipeline_config_info;
   GraphicsPipelineLayout m_pipeline_layout;
   VulkanInitializationInfo& m_vulkan_info;
+  
+  std::unique_ptr<CommonOceanVertexUniformBuffer> m_ocean_uniform_vertex_buffer;
+  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_ocean_uniform_fragment_buffer;
+
+  VkDescriptorBufferInfo m_vertex_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
+
+  std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+
+  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+
+  std::vector<VkDescriptorSet> m_descriptor_sets;
+
+  VkSamplerCreateInfo m_sampler_info{};
+  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
+  std::vector<VkSampler> m_samplers;
 };

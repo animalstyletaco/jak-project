@@ -22,12 +22,60 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
   m_uniform_buffer = std::make_unique<ShadowRendererUniformBuffer>(
       device, 1);
 
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  create_pipeline_layout();
+  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
+                                                                    m_vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(1);
+  m_fragment_buffer_descriptor_info = m_uniform_buffer->descriptorInfo();
+  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   // xyz
   InitializeInputVertexAttribute();
 }
 
 void ShadowVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
   BaseShadowRenderer::render(dma, render_state, prof);
+}
+
+void ShadowVulkanRenderer::init_shaders(VulkanShaderLibrary& shaders) {
+  auto& shader = shaders[ShaderId::SHADOW];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "main";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "main";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+}
+
+void ShadowVulkanRenderer::create_pipeline_layout() {
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_fragment_descriptor_layout->getDescriptorSetLayout()};
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
 }
 
 void ShadowVulkanRenderer::InitializeInputVertexAttribute() {
@@ -50,6 +98,8 @@ ShadowVulkanRenderer::~ShadowVulkanRenderer() {
 }
 
 void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+
   u32 clear_vertices = m_next_vertex;
   m_vertices[m_next_vertex++] = Vertex{math::Vector3f(0.3, 0.3, 0), 0};
   m_vertices[m_next_vertex++] = Vertex{math::Vector3f(0.3, 0.7, 0), 0};
@@ -64,7 +114,6 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   m_ogl.vertex_buffer->writeToGpuBuffer(m_vertices);
 
-  m_pipeline_config_info.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
   m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
   m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
   m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
@@ -72,7 +121,6 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
   m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-  m_pipeline_config_info.depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_TRUE;
@@ -128,14 +176,14 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
 
-    //glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
+    VulkanDrawWithIndexBufferId(0);
 
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_uniform_buffer->SetUniform4f("color_uniform", 0.,
           0.0, 0., 0.5);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-      //glDrawElements(GL_TRIANGLES, (m_next_front_index - 6), GL_UNSIGNED_INT, nullptr);
+      VulkanDrawWithIndexBufferId(0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -159,12 +207,12 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-    //glDrawElements(GL_TRIANGLES, m_next_back_index, GL_UNSIGNED_INT, nullptr);
+    VulkanDrawWithIndexBufferId(1);
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_uniform_buffer->SetUniform4f("color_uniform", 0., 0.0, 0., 0.5);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-      //glDrawElements(GL_TRIANGLES, (m_next_back_index - 0), GL_UNSIGNED_INT, nullptr);
+      VulkanDrawWithIndexBufferId(1);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -198,7 +246,8 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-  //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, (void*)(sizeof(u32) * (m_next_front_index - 6)));
+  VulkanDrawWithIndexBufferId(0);
+
   prof.add_draw_call();
   prof.add_tri(2);
 
@@ -207,6 +256,15 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   //glDepthMask(GL_TRUE);
 
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
+}
+
+void ShadowVulkanRenderer::VulkanDrawWithIndexBufferId(uint32_t indexBufferId) {
+  m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
+
+  m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
+      m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer, m_ogl.index_buffers[indexBufferId],
+      m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 }
 
 ShadowRendererUniformBuffer::ShadowRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,

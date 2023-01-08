@@ -12,22 +12,18 @@ layout (set = 1, binding = 0) uniform UniformBufferObject {
   vec4 fog_color;
 } ubo;
 
+layout(push_constant) uniform PER_OBJECT
+{
+	int imgIdx;
+}pc;
 
-layout (set = 1, binding = 1) uniform sampler2D tex_T0;
-layout (set = 1, binding = 2) uniform sampler2D tex_T1;
-layout (set = 1, binding = 3) uniform sampler2D tex_T2;
-layout (set = 1, binding = 4) uniform sampler2D tex_T3;
-layout (set = 1, binding = 5) uniform sampler2D tex_T4;
-layout (set = 1, binding = 6) uniform sampler2D tex_T5;
-layout (set = 1, binding = 7) uniform sampler2D tex_T6;
-layout (set = 1, binding = 8) uniform sampler2D tex_T7;
-layout (set = 1, binding = 9) uniform sampler2D tex_T8;
-layout (set = 1, binding = 10) uniform sampler2D tex_T9;
+const int MAX_BUCKET_COUNT = 800;
+layout (set = 1, binding = 1) uniform sampler2D textures[MAX_BUCKET_COUNT];
 
 layout (location = 0) out vec4 color;
 
 vec4 sample_tex(vec2 coord, uint unit) {
-    return texture(tex_T0, coord);
+    return texture(textures[unit], coord);
 
 //    switch (unit) {
 //        case 0: return texture(tex_T0, coord);
@@ -45,7 +41,8 @@ vec4 sample_tex(vec2 coord, uint unit) {
 }
 
 void main() {
-    vec4 T0 = sample_tex(tex_coord.xy, tex_info.x);
+    //vec4 T0 = sample_tex(tex_coord.xy, tex_info.x);
+    vec4 T0 = texture(textures[pc.imgIdx], tex_coord.xy);
     // y is tcc
     // z is decal
 

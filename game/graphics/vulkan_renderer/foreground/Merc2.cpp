@@ -2,7 +2,6 @@
 
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-#include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/gfx.h"
 
@@ -11,8 +10,7 @@ MercVulkan2::MercVulkan2(const std::string& name,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info) :
   BaseMerc2(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
-  std::vector<u8> temp(MAX_SHADER_BONE_VECTORS * sizeof(math::Vector4f));
-  //m_bones_buffer = CreateBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, temp);
+  m_bone_vertex_uniform_buffer = std::make_unique<MercBoneVertexUniformBuffer>(device);
 
   //TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
   m_graphics_buffer_alignment = 1;
@@ -26,11 +24,13 @@ MercVulkan2::MercVulkan2(const std::string& name,
     m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   m_vertex_descriptor_writer =
@@ -52,6 +52,8 @@ MercVulkan2::MercVulkan2(const std::string& name,
     auto& draws = m_level_draw_buckets.emplace_back();
     draws.draws.resize(MAX_DRAWS_PER_LEVEL);
   }
+
+  init_shaders();
   InitializeInputAttributes();
 }
 
@@ -59,26 +61,37 @@ MercVulkan2::MercVulkan2(const std::string& name,
  * Main MercVulkan2 rendering.
  */
 void MercVulkan2::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   BaseMerc2::render(dma, render_state, prof);
 }
 
 void MercVulkan2::create_pipeline_layout() {
-  // If push constants are needed put them here
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{m_vertex_descriptor_layout->getDescriptorSetLayout(),
-                                                          m_fragment_descriptor_layout->getDescriptorSetLayout()};
+    std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+        m_vertex_descriptor_layout->getDescriptorSetLayout(),
+        m_fragment_descriptor_layout->getDescriptorSetLayout()};
 
-  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+    pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(float);
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+
+    if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                               &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create pipeline layout!");
+    }
 }
 
 void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_stats.num_draw_flush++;
+  uint32_t dynamic_descriptors_offset[] = {sizeof(MercUniformBufferVertexData)};
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
     auto& lev_bucket = m_level_draw_buckets[li];
@@ -87,11 +100,6 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, Scoped
     int last_tex = -1;
     int last_light = -1;
     m_stats.num_bones_uploaded += m_next_free_bone_vector;
-
-    //void* data = NULL;
-    //vkMapMemory(device, m_bones_buffer_memory, 0, m_next_free_bone_vector * sizeof(math::Vector4f), 0, &data);
-    //::memcpy(data, m_shader_bone_vector_buffer, m_next_free_bone_vector * sizeof(math::Vector4f));
-    //vkUnmapMemory(device, m_bones_buffer_memory, nullptr);
 
     for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
       auto& draw = lev_bucket.draws[di];
@@ -115,16 +123,16 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, Scoped
       prof.add_draw_call();
       prof.add_tri(draw.num_triangles);
 
-      //void* data = NULL;
-      //vkMapMemory(device, textureInfo.texture_memory, sizeof(math::Vector4f) * draw.first_bone,
-      //            128 * sizeof(ShaderMercMat), 0, &data);
-      //::memcpy(data, m_skel_matrix_buffer, 128 * sizeof(ShaderMercMat)); //TODO: Need to check that this is thread safe
-      //vkUnmapMemory(device, textureInfo.texture_memory, nullptr);
+      m_bone_vertex_uniform_buffer->map();
+      m_bone_vertex_uniform_buffer->writeToCpuBuffer(m_shader_bone_vector_buffer,
+                                                     sizeof(math::Vector4f) * draw.index_count,
+                                                     sizeof(math::Vector4f) * draw.first_bone);
+      m_bone_vertex_uniform_buffer->unmap();
 
-      //Set up index buffer from draw object
-
-      //glDrawElements(GL_TRIANGLE_STRIP, draw.index_count, GL_UNSIGNED_INT,
-      //               (void*)(sizeof(u32) * draw.first_index));
+      //m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
+      //    m_vulkan_info.render_command_buffer, lev_bucket.level->merc_vertices.get(),
+      //    lev_bucket.level->merc_indices.get(), m_pipeline_config_info.pipelineLayout,
+      //    m_descriptor_sets, 1, dynamic_descriptors_offset);
     }
   }
 
@@ -254,11 +262,10 @@ void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
  */
 void MercVulkan2::init_pc_model(const DmaTransfer& setup, BaseSharedRenderState* render_state) {
   // determine the name. We've packed this in a separate PC-port specific packet.
-  char name[128];
-  strcpy(name, (const char*)setup.data);
+  std::string name((const char*)setup.data);
 
   // get the model from the loader
-  m_current_model = m_vulkan_info.loader->get_merc_model(name);
+  m_current_model = m_vulkan_info.loader->get_merc_model(name.c_str());
 
   // update stats
   m_stats.num_models++;
@@ -396,6 +403,15 @@ MercFragmentUniformBuffer::MercFragmentUniformBuffer(std::unique_ptr<GraphicsDev
       {"ignore_alpha", offsetof(MercUniformBufferFragmentData, ignore_alpha)},
       {"decal_enable", offsetof(MercUniformBufferFragmentData, decal_enable)},
       {"gfx_hack_no_tex", offsetof(MercUniformBufferFragmentData, gfx_hack_no_tex)}};
+}
+
+MercVulkan2::MercBoneVertexUniformBuffer::MercBoneVertexUniformBuffer(
+                                                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                     VkDeviceSize minOffsetAlignment)
+    : UniformVulkanBuffer(device,
+                          sizeof(BaseMerc2::ShaderMercMat),
+                          MAX_SHADER_BONE_VECTORS,
+                          minOffsetAlignment) {
 }
 
 

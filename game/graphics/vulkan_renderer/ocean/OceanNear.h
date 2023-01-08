@@ -15,8 +15,14 @@ class OceanNearVulkan : public BaseOceanNear, public BucketVulkanRenderer {
   void init_textures(VulkanTexturePool& pool) override;
 
  private:
+  void common_ocean_renderer_init_for_near() override;
+  void common_ocean_renderer_kick_from_near(const u8* data) override;
+  void common_ocean_renderer_flush_near(BaseSharedRenderState* render_state,
+                                        ScopedProfilerNode& prof) override;
+  void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) override;
+
   OceanVulkanTexture m_texture_renderer;
   CommonOceanVulkanRenderer m_common_ocean_renderer;
-  std::unique_ptr<CommonOceanVertexUniformBuffer> m_ocean_vertex_uniform_buffer;
-  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_ocean_fragment_uniform_buffer;
 };

@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <exception>
 #include <regex>
 
 #include "VulkanTexturePool.h"
@@ -29,7 +30,29 @@ void VulkanTexturePool::upload_to_gpu(const u8* data, u16 w, u16 h, VulkanTextur
   texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
                           VK_IMAGE_ASPECT_COLOR_BIT, mipLevels);
 
-  // Max Anisotropy is set in vulkan renderer sampler info;
+  VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  samplerInfo.maxAnisotropy = m_device->getMaxSamplerAnisotropy();
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  if(vkCreateSampler(m_device->getLogicalDevice(), &samplerInfo, nullptr, &m_placeholder_sampler) != VK_SUCCESS){
+    throw std::runtime_error("Failed to create place holder sampler");
+  } 
+
+  m_placeholder_descriptor_image_info = VkDescriptorImageInfo{
+      m_placeholder_sampler,
+      texture.getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 }
 
 VulkanGpuTextureMap* VulkanTexturePool::give_texture(const VulkanTextureInput& in) {
@@ -292,9 +315,9 @@ const std::vector<u32>& get_tpage_dir(GameVersion version) {
 }  // namespace
 
 VulkanTexturePool::VulkanTexturePool(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& device)
-    : m_loaded_textures(get_tpage_dir(version)),
+    : m_device(device), m_loaded_textures(get_tpage_dir(version)),
       m_id_to_name(get_tpage_dir(version)),
-      m_tpage_dir_size(get_tpage_dir(version).size()), m_device(device) {
+      m_tpage_dir_size(get_tpage_dir(version).size()) {
   std::vector<u8> placeholder_data;
   placeholder_data.resize(16 * 16);
 
@@ -378,5 +401,11 @@ std::string VulkanTexturePool::get_debug_texture_name(PcTextureId id) {
     return *it;
   } else {
     return "???";
+  }
+}
+
+VulkanTexturePool::~VulkanTexturePool() {
+  if (m_placeholder_sampler) {
+    vkDestroySampler(m_device->getLogicalDevice(), m_placeholder_sampler, nullptr);
   }
 }

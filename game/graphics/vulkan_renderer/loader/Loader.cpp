@@ -338,16 +338,6 @@ void VulkanLoader::update(VulkanTexturePool& texture_pool) {
           }
           lk.unlock();
           for (auto& tex : level_data->textures) {
-            //if (EXTRA_TEX_DEBUG) {
-            //  for (auto& slot : texture_pool.all_textures()) {
-            //    if (slot.source) {
-            //      ASSERT(slot.gpu_texture != tex);
-            //    } else {
-            //      ASSERT(slot.gpu_texture != tex);
-            //    }
-            //  }
-            //}
-
             tex.destroyTexture();
           }
 

@@ -93,17 +93,17 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
 
   //May be overkill for descriptor pool
   std::vector<VkDescriptorPoolSize> poolSizes = {
-    {VK_DESCRIPTOR_TYPE_SAMPLER, 100},
-    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100},
-    {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 100},
-    {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 100}
+    {VK_DESCRIPTOR_TYPE_SAMPLER, 10000},
+    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10000},
+    {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 10000},
+    {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 10000},
+    {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 10000},
+    {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 10000},
+    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10000},
+    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10000},
+    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10000},
+    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 10000},
+    {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 10000}
   };
 
   uint32_t maxSets = 0;
@@ -111,6 +111,7 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
     maxSets += poolSize.descriptorCount;
   }
   m_vulkan_info.descriptor_pool = std::make_unique<DescriptorPool>(m_device, maxSets, 0, poolSizes);
+  m_collide_renderer = std::make_unique<CollideMeshVulkanRenderer>(m_device, m_vulkan_info);
 
   // initialize all renderers
   // initialize all renderers
@@ -799,7 +800,7 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
     if (bucket_id == (int)BucketId::ALPHA_TEX_LEVEL0 - 1 &&
         Gfx::g_global_settings.collision_enable) {
       auto p = prof.make_scoped_child("collision-draw");
-      m_collide_renderer.render(&m_render_state, p);
+      m_collide_renderer->render(&m_render_state, p);
     }
   }
   g_current_render = "";

@@ -8,27 +8,23 @@ namespace vulkan_texture {
 static unsigned long image_id = 0;
 }
 
-VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_image_id(vulkan_texture::image_id++) {
+VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+  m_image_id = vulkan_texture::image_id++; 
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(m_device->getPhysicalDevice(), &properties);
-
-  m_sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  m_sampler_info.anisotropyEnable = VK_TRUE;
-  m_sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-  m_sampler_info.unnormalizedCoordinates = VK_FALSE;
-  m_sampler_info.minLod = 0.0f;
-  // m_sampler_info.maxLod = static_cast<float>(mipLevels);
-  m_sampler_info.mipLodBias = 0.0f;
-
-  m_sampler_info.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
 }
 
 VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_device) {
+  m_image_id = texture.m_image_id;
   m_image_create_info = texture.m_image_create_info;
   m_image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   if (texture.m_image) {
     AllocateVulkanImageMemory();
   }
+  if (texture.m_image_create_info.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
+    transitionImageLayout(texture.m_image_create_info.initialLayout);
+  }
+
   m_image_view_create_info = texture.m_image_view_create_info;
   if (m_image_view) {
     if (vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
@@ -37,10 +33,6 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
     }
   }
 
-  m_sampler_info = texture.m_sampler_info;
-  if (texture.m_sampler) {
-    createTextureSampler();
-  }
   m_device_size = texture.m_device_size;
 }
 
@@ -222,30 +214,4 @@ bool hasStencilComponent(VkFormat format) {
   return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
 
-void VulkanTexture::createTextureSampler() {
-  if (m_sampler) {
-    vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
-    m_sampler = VK_NULL_HANDLE;
-  }
 
-  if (vkCreateSampler(m_device->getLogicalDevice(), &m_sampler_info, nullptr, &m_sampler) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create texture sampler!");
-  }
-}
-
-/**
- * Create a buffer info descriptor
- *
- * @param size (Optional) Size of the memory range of the descriptor
- * @param offset (Optional) Byte offset from beginning
- *
- * @return VkDescriptorBufferInfo of specified offset and range
- */
-VkDescriptorImageInfo VulkanTexture::descriptorInfo(VkImageLayout image_layout) {
-  return VkDescriptorImageInfo{
-      m_sampler,
-      m_image_view,
-      image_layout
-  };
-}

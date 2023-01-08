@@ -13,7 +13,8 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float height_scale;
 } ubo;
 
-layout (binding = 10) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
+const int MAX_TIME_OF_DAY_COUNT = 8192;
+layout (set = 0, binding = 1) uniform sampler1D textures[MAX_TIME_OF_DAY_COUNT]; // note, sampled in the vertex shader on purpose.
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
@@ -69,7 +70,7 @@ void main() {
     gl_Position = transformed;
 
     // time of day lookup
-    fragment_color = texelFetch(tex_T1, time_of_day_index, 0);
+    fragment_color = texelFetch(textures[0], time_of_day_index, 0);
 
     // fog hack
     if (fragment_color.r < 0.0075 && fragment_color.g < 0.0075 && fragment_color.b < 0.0075) {

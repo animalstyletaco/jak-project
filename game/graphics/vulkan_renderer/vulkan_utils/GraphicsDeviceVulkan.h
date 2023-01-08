@@ -2,6 +2,7 @@
 
 #include <array>
 #include <optional>
+#include <vector>
 
 #include "common/log/log.h"
 
@@ -48,7 +49,10 @@ class GraphicsDeviceVulkan {
   VkQueue graphicsQueue() { return m_graphics_queue; }
   VkQueue presentQueue() { return m_present_queue; }
   VkInstance getInstance() { return m_instance; }
-  VkPhysicalDeviceFeatures getPhysicalDeviceFeatures() { return m_device_features; }
+  VkPhysicalDeviceFeatures getPhysicalDeviceFeatures() { return m_physical_device_features; }
+  VkPhysicalDeviceProperties getPhysicalDeviceLimits() { return m_physical_device_properties; }
+
+  float getMaxSamplerAnisotropy() { return m_physical_device_properties.limits.maxSamplerAnisotropy; }
 
   SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(m_physical_device); }
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -125,5 +129,7 @@ class GraphicsDeviceVulkan {
   const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
   const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-  VkPhysicalDeviceFeatures m_device_features;
+  VkPhysicalDeviceFeatures m_physical_device_features{};
+  VkPhysicalDeviceProperties m_physical_device_properties{};
+  VkPhysicalDeviceMemoryProperties m_physical_memory_properties{};
 };

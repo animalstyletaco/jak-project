@@ -19,9 +19,7 @@ class SpriteVulkanRenderer : public BaseSpriteRenderer, public BucketVulkanRende
 
  private:
   void InitializeInputVertexAttribute();
-  void render_2d_group0(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof) override;
+  void setup_2d_group0_graphics() override;
 
   void graphics_sprite_frame_setup() override;
   void update_graphics_texture(BaseSharedRenderState* render_state, int unit) override;

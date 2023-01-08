@@ -12,6 +12,10 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
               VkDebugUtilsMessageTypeFlagsEXT messageType,
               const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
               void* pUserData) {
+  if (!strcmp(pCallbackData->pMessageIdName, "UNASSIGNED-CoreValidation-Shader-InputNotProduced")) {
+    printf("shader mistake");
+  }
+
   if (strcmp(pCallbackData->pMessageIdName, "Loader Message")) {
     lg::error("{}: {}", pCallbackData->pMessageIdName, pCallbackData->pMessage);
   } else {
@@ -163,9 +167,9 @@ void GraphicsDeviceVulkan::pickPhysicalDevice() {
     lg::error("failed to find a suitable GPU!");
   }
 
-  VkPhysicalDeviceMemoryProperties memory_properties;
-  vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memory_properties);
-  vkGetPhysicalDeviceFeatures(m_physical_device, &m_device_features);
+  vkGetPhysicalDeviceMemoryProperties(m_physical_device, &m_physical_memory_properties);
+  vkGetPhysicalDeviceProperties(m_physical_device, &m_physical_device_properties);
+  vkGetPhysicalDeviceFeatures(m_physical_device, &m_physical_device_features);
 }
 
 void GraphicsDeviceVulkan::createLogicalDevice() {
@@ -185,16 +189,13 @@ void GraphicsDeviceVulkan::createLogicalDevice() {
     queueCreateInfos.push_back(queueCreateInfo);
   }
 
-  VkPhysicalDeviceFeatures deviceFeatures{};
-  deviceFeatures.samplerAnisotropy = VK_TRUE;
-
   VkDeviceCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
   createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
   createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-  createInfo.pEnabledFeatures = &deviceFeatures;
+  createInfo.pEnabledFeatures = &m_physical_device_features;
 
   createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
   createInfo.ppEnabledExtensionNames = deviceExtensions.data();
@@ -337,6 +338,13 @@ void GraphicsDeviceVulkan::transitionImageLayout(VkImage image,
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
     sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+  } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+             newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
   } else {
     throw std::invalid_argument("unsupported layout transition!");

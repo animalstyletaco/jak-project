@@ -11,9 +11,10 @@ layout (location = 2) out float fog;
 
 const float SCISSOR_ADJUST = 512.0/448.0;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
-   int bucket;
-} ubo;
+layout(push_constant) uniform PER_OBJECT
+{
+	int bucket;
+}pc;
 
 void main() {
     gl_Position = vec4((position_in.x - 0.5) * 16., -(position_in.y - 0.5) * 32, position_in.z * 2 - 1., 1.0);
@@ -23,11 +24,11 @@ void main() {
     tex_coord = tex_coord_in;
     fog = 255 - fog_in;
     
-    if (ubo.bucket == 0) {
+    if (pc.bucket == 0) {
         fragment_color.rgb *= 2;
-    } else if (ubo.bucket == 1 || ubo.bucket == 3) {
+    } else if (pc.bucket == 1 || pc.bucket == 3) {
         fragment_color *= 2;
-    } else if (ubo.bucket == 4) {
+    } else if (pc.bucket == 4) {
         fragment_color.a = 0;
     }
 }

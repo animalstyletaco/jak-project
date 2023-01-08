@@ -364,8 +364,7 @@ VkFormat SwapChain::findDepthFormat() {
 void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,
                                   std::unique_ptr<VertexBuffer>& vertex_buffer,
                                   VkPipelineLayout& pipeline_layout,
-                                  std::vector<VkDescriptorSet>& descriptors,
-                                  uint32_t imageIndex) {
+                                  std::vector<VkDescriptorSet>& descriptors) {
   setViewportScissor(commandBuffer);
 
   VkDeviceSize offsets[] = {0};
@@ -376,12 +375,6 @@ void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,
                           descriptors.data(), 0, nullptr);
 
   vkCmdDraw(commandBuffer, vertex_buffer->getBufferSize(), 0, 0, 0);
-
-  vkCmdEndRenderPass(commandBuffer);
-
-  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-    throw std::runtime_error("failed to record command buffer!");
-  }
 }
 
 void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
@@ -389,9 +382,10 @@ void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                          std::unique_ptr<IndexBuffer>& index_buffer,
                                          VkPipelineLayout& pipeline_layout,
                                          std::vector<VkDescriptorSet>& descriptors,
-                                         uint32_t imageIndex) {
+                                         uint32_t dynamicDescriptorCount,
+                                         uint32_t* dynamicDescriptorOffsets) {
   drawIndexedCommandBuffer(commandBuffer, vertex_buffer.get(), index_buffer.get(), pipeline_layout,
-                           descriptors, imageIndex);
+                           descriptors, dynamicDescriptorCount, dynamicDescriptorOffsets);
 }
 
 void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
@@ -399,7 +393,21 @@ void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                          IndexBuffer* index_buffer,
                                          VkPipelineLayout& pipeline_layout,
                                          std::vector<VkDescriptorSet>& descriptors,
-                                         uint32_t imageIndex) {
+                                         uint32_t dynamicDescriptorCount,
+                                         uint32_t* dynamicDescriptorOffsets) {
+
+  setupForDrawIndexedCommand(commandBuffer, vertex_buffer, index_buffer, pipeline_layout,
+                             descriptors, dynamicDescriptorCount, dynamicDescriptorOffsets);
+  vkCmdDrawIndexed(commandBuffer, index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
+}
+
+void SwapChain::setupForDrawIndexedCommand(VkCommandBuffer commandBuffer,
+                                           VertexBuffer* vertex_buffer,
+                                           IndexBuffer* index_buffer,
+                                           VkPipelineLayout& pipeline_layout,
+                                           std::vector<VkDescriptorSet>& descriptors,
+                                           uint32_t dynamicDescriptorCount,
+                                           uint32_t* dynamicDescriptorOffsets) {
   setViewportScissor(commandBuffer);
 
   VkDeviceSize offsets[] = {0};
@@ -409,9 +417,8 @@ void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
   vkCmdBindIndexBuffer(commandBuffer, index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
   vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
-                          descriptors.size(), descriptors.data(), 0, nullptr);
-
-  vkCmdDrawIndexed(commandBuffer, index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
+                          descriptors.size(), descriptors.data(), dynamicDescriptorCount,
+                          dynamicDescriptorOffsets);
 }
 
 void SwapChain::multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
@@ -419,19 +426,9 @@ void SwapChain::multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                          IndexBuffer* index_buffer,
                                          VkPipelineLayout& pipeline_layout,
                                          std::vector<VkDescriptorSet>& descriptors,
-                                         MultiDrawVulkanBuffer* multiDrawCommand,
-                                         uint32_t imageIndex) {
-  setViewportScissor(commandBuffer);
-
-  VkDeviceSize offsets[] = {0};
-  VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
-
-  vkCmdBindIndexBuffer(commandBuffer, index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
-                          descriptors.size(), descriptors.data(), 0, nullptr);
-
+                                         MultiDrawVulkanBuffer* multiDrawCommand) {
+  setupForDrawIndexedCommand(commandBuffer, vertex_buffer, index_buffer, pipeline_layout,
+                             descriptors, 0, nullptr);
   vkCmdDrawIndexedIndirect(commandBuffer, multiDrawCommand->getBuffer(), 0, multiDrawCommand->getInstanceCount(),
                            sizeof(VkDrawIndexedIndirectCommand));
 }

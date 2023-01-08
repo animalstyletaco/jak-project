@@ -125,40 +125,29 @@ void DescriptorPool::resetPool() {
 DescriptorWriter::DescriptorWriter(std::unique_ptr<DescriptorLayout>& setLayout, std::unique_ptr<DescriptorPool>& pool)
     : m_set_layout{setLayout}, m_pool{pool} {}
 
-DescriptorWriter& DescriptorWriter::writeBuffer(uint32_t binding,
-                                                VkDescriptorBufferInfo* bufferInfo) {
+VkWriteDescriptorSet DescriptorWriter::writeBufferDescriptorSet(uint32_t binding,
+                                                               VkDescriptorBufferInfo* bufferInfo,
+                                                               uint32_t bufferInfoCount) const {
   assert(m_set_layout->m_bindings.count(binding) == 1 && "Layout does not contain specified binding");
 
   auto& bindingDescription = m_set_layout->m_bindings[binding];
-
-  assert(bindingDescription.descriptorCount == 1 &&
-         "Binding single descriptor info, but binding expects multiple");
 
   VkWriteDescriptorSet write{};
   write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
   write.descriptorType = bindingDescription.descriptorType;
   write.dstBinding = binding;
   write.pBufferInfo = bufferInfo;
-  write.descriptorCount = 1;
+  write.descriptorCount = bufferInfoCount;
 
-  m_writes.push_back(write);
-  return *this;
+  return write;
 }
 
-DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
-                                               std::vector<VkDescriptorImageInfo>& imageInfo) {
-  writeImage(binding, imageInfo.data(), imageInfo.size());
-}
-
-DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
-                                               VkDescriptorImageInfo* imageInfo,
-                                                uint32_t imageInfoCount) {
+VkWriteDescriptorSet DescriptorWriter::writeImageDescriptorSet(uint32_t binding,
+                                                               VkDescriptorImageInfo* imageInfo,
+                                                               uint32_t imageInfoCount) const {
   assert(m_set_layout->m_bindings.count(binding) == 1 && "Layout does not contain specified binding");
 
   auto& bindingDescription = m_set_layout->m_bindings[binding];
-
-  assert(bindingDescription.descriptorCount == 1 &&
-         "Binding single descriptor info, but binding expects multiple");
 
   VkWriteDescriptorSet write{};
   write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -167,7 +156,20 @@ DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
   write.pImageInfo = imageInfo;
   write.descriptorCount = imageInfoCount;
 
-  m_writes.push_back(write);
+  return write;
+}
+
+DescriptorWriter& DescriptorWriter::writeBuffer(uint32_t binding,
+                                                VkDescriptorBufferInfo* bufferInfo,
+                                                uint32_t bufferInfoCount) {
+  m_writes.push_back(writeBufferDescriptorSet(binding, bufferInfo, bufferInfoCount));
+  return *this;
+}
+
+DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
+                                               VkDescriptorImageInfo* imageInfo,
+                                               uint32_t imageInfoCount) {
+  m_writes.push_back(writeImageDescriptorSet(binding, imageInfo, imageInfoCount));
   return *this;
 }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_map>
+
 #include "common/math/geometry.h"
 #include "game/graphics/general_renderer/renderer_utils/Buffer.h"
 #include "GraphicsDeviceVulkan.h"

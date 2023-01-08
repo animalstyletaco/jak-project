@@ -28,12 +28,10 @@ class VulkanTexture {
                     double y_offset);
   VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkResult invalidate(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
-  VkDescriptorImageInfo descriptorInfo(VkImageLayout image_layout);
   void transitionImageLayout(VkImageLayout imageLayout);
 
   void destroyTexture();
   void createTextureSampler();
-  VkSamplerCreateInfo& getSamplerInfo() { return m_sampler_info; };
   VkFormat findDepthFormat();
   VkImage getImage() const { return m_image; };
   VkDeviceSize getMemorySize() const { return m_device_size; };
@@ -44,10 +42,6 @@ class VulkanTexture {
   bool isInitialized() { return m_initialized; };
   VkSampleCountFlagBits getMsaaCount() const { return m_device->getMsaaCount(); }
 
-  void SetSamplerCreateInfo(VkSamplerCreateInfo samplerCreateInfo) {
-    m_sampler_info = samplerCreateInfo;
-  }
-  VkSamplerCreateInfo GetSamplerCreateInfo() { return m_sampler_info; }
   unsigned long GetTextureId() { return m_image_id; }
 
   ~VulkanTexture() { destroyTexture(); };
@@ -60,8 +54,6 @@ class VulkanTexture {
   VkImageView m_image_view = VK_NULL_HANDLE;
   VkDeviceMemory m_device_memory = VK_NULL_HANDLE;
   VkDeviceSize m_device_size = 0;
-  VkSamplerCreateInfo m_sampler_info{};
-  VkSampler m_sampler = VK_NULL_HANDLE;
 
   VkImageCreateInfo m_image_create_info{};
   VkImageViewCreateInfo m_image_view_create_info{};

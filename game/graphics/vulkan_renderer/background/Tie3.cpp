@@ -18,12 +18,12 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(10, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
@@ -430,7 +430,7 @@ void Tie3Vulkan::render_tree(int idx,
     if (render_state->no_multidraw) {
       m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
           m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-          m_pipeline_config_info.pipelineLayout, m_descriptor_sets, 0);
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
       //glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
       //               (void*)(singledraw_indices.first * sizeof(u32)));
     } else {

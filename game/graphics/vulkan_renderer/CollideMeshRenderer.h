@@ -27,18 +27,27 @@ class CollisionMeshVertexUniformBuffer : public UniformVulkanBuffer {
                                    VkDeviceSize minOffsetAlignment = 1);
 };
 
-class CollideMeshRenderer {
+class CollideMeshVulkanRenderer {
  public:
-  CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
+  CollideMeshVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   void render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  ~CollideMeshRenderer();
+  ~CollideMeshVulkanRenderer();
 
  private:
   void InitializeInputVertexAttribute();
+  void init_shaders();
+  void create_pipeline_layout();
 
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   UniformVulkanBuffer m_collision_mesh_vertex_uniform_buffer;
 
   GraphicsPipelineLayout m_pipeline_layout;
   PipelineConfigInfo m_pipeline_config_info;
   VulkanInitializationInfo& m_vulkan_info;
+
+  VkDescriptorBufferInfo m_vertex_buffer_descriptor_info;
+
+  std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+  std::vector<VkDescriptorSet> m_descriptor_sets;
 };

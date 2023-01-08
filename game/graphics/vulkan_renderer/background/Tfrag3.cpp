@@ -99,11 +99,11 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
         tree_cache.time_of_day_texture = std::make_unique<VulkanTexture>(get_logical_device());
         tree_cache.time_of_day_texture->createImage(
             {TIME_OF_DAY_COLOR_COUNT, 0, 0}, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
-            VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
         tree_cache.time_of_day_texture->createImageView(
-            VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+            VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_ASPECT_COLOR_BIT, 1);
       }
     }
   }
@@ -173,10 +173,10 @@ void Tfrag3Vulkan::render_tree(int geom,
 
   VkExtent3D extents{tree.colors->size(), 1, 1};
   timeOfDayTexture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
-                               VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
+                               VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
                                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
-  timeOfDayTexture.createImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+  timeOfDayTexture.createImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
                                    VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
   timeOfDayTexture.writeToImage(m_color_result.data());

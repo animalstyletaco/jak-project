@@ -126,7 +126,7 @@ DoubleDraw background_common::setup_vulkan_from_draw_mode(
   //VkPhysicalDeviceProperties properties{};
   //vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 
-  VkSamplerCreateInfo samplerInfo = texture->getSamplerInfo();
+  VkSamplerCreateInfo samplerInfo{};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;

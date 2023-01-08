@@ -51,6 +51,7 @@ class BucketVulkanRenderer {
         m_vulkan_info(vulkan_info) {
     GraphicsPipelineLayout graphicsPipelineLayout{m_device};
     graphicsPipelineLayout.defaultPipelineConfigInfo(m_pipeline_config_info);
+    m_pipeline_layouts.resize(1, m_device);
   }
 
   virtual void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) = 0;

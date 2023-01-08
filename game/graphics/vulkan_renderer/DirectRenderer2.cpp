@@ -73,13 +73,13 @@ void DirectVulkanRenderer2::InitializeShaderModule() {
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Collision Fragment";
+  vertShaderStageInfo.pName = "main";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
   fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Collision Fragment";
+  fragShaderStageInfo.pName = "main";
 
   m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
@@ -114,13 +114,8 @@ void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
   // first, upload:
   Timer upload_timer;
 
-  m_ogl.vertex_buffer->map();
   m_ogl.vertex_buffer->writeToGpuBuffer(m_vertices.vertices.data());
-  m_ogl.vertex_buffer->unmap();
-
-  m_ogl.index_buffer->map();
   m_ogl.index_buffer->writeToGpuBuffer(m_vertices.indices.data());
-  m_ogl.index_buffer->unmap();
 
   m_stats.upload_wait += upload_timer.getSeconds();
   m_stats.num_uploads++;
@@ -151,7 +146,7 @@ void DirectVulkanRenderer2::draw_call_loop_simple(SharedVulkanRenderState* rende
     } else {
       end_idx = m_draw_buffer[draw_idx + 1].start_index;
     }
-    glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
+    //glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) - 2);
   }
@@ -198,7 +193,7 @@ void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* rend
     // fmt::print("drawing {:4d} with abe {} tex {} {}", end_idx - draw.start_index,
     // (int)draw.mode.get_ab_enable(), end_of_draw_group - draw_idx, draw.to_single_line_string() );
     // fmt::print("{}\n", draw.mode.to_string());
-    glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
+    //glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) / 3);
     draw_idx = end_of_draw_group + 1;
@@ -413,9 +408,6 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
   } else {
     m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
-
-  // VkPhysicalDeviceProperties properties{};
-  // vkGetPhysicalDeviceProperties(physicalDevice, &properties);
 
   VkSamplerCreateInfo samplerInfo{};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;

@@ -48,6 +48,12 @@ class MercFragmentUniformBuffer : public UniformVulkanBuffer {
                             VkDeviceSize minOffsetAlignment = 1);
 };
 
+class MercVertexBoneUniformBuffer : public UniformVulkanBuffer {
+  MercVertexBoneUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                              uint32_t instanceCount,
+                              VkDeviceSize minOffsetAlignment = 1);
+};
+
 class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
  public:
   MercVulkan2(const std::string& name,
@@ -84,11 +90,18 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
     }
   };
 
+  class MercBoneVertexUniformBuffer : public UniformVulkanBuffer {
+   public:
+    MercBoneVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                VkDeviceSize minOffsetAlignment = 1);
+  };
+
   std::optional<MercRefVulkan> m_current_model = std::nullopt;
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
 
   std::unique_ptr<MercVertexUniformBuffer> m_vertex_uniform_buffer;
+  std::unique_ptr<MercBoneVertexUniformBuffer> m_bone_vertex_uniform_buffer;
   std::unique_ptr<MercFragmentUniformBuffer> m_fragment_uniform_buffer;
 };
 

@@ -22,32 +22,30 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
     m_device,
     sizeof(DirectBasicTexturedFragmentUniformShaderData), 1, 1);
 
-  m_vertex_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .build();
-
-  m_fragment_descriptor_layout =
+  m_direct_basic_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
-  m_vertex_descriptor_writer =
-      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
-
-  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
-                                                                    m_vulkan_info.descriptor_pool);
+  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(
+      m_direct_basic_fragment_descriptor_layout,
+      m_vulkan_info.descriptor_pool);
 
   m_descriptor_sets.resize(1);
-  auto fragment_buffer_descriptor_info = m_direct_basic_fragment_uniform_buffer->descriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+  m_fragment_buffer_descriptor_info = m_direct_basic_fragment_uniform_buffer->descriptorInfo();
+  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
+  m_fragment_descriptor_writer->writeImage(
+      1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
 
   create_pipeline_layout();
   InitializeInputVertexAttribute();
 }
 
-void DirectVulkanRenderer::SetShaderModule(VulkanShader& shader) {
+void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
+  auto& shader = m_vulkan_info.shaders[shaderId];
+
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -61,12 +59,28 @@ void DirectVulkanRenderer::SetShaderModule(VulkanShader& shader) {
   fragShaderStageInfo.pName = "main";
 
   m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+
+  m_pipeline_config_info.attributeDescriptions.clear();
+  if (shaderId == ShaderId::DEBUG_RED) {
+    m_pipeline_config_info.attributeDescriptions.insert(
+        m_pipeline_config_info.attributeDescriptions.end(), debugRedAttributeDescriptions.begin(),
+        debugRedAttributeDescriptions.end());
+  } else if (shaderId == ShaderId::DIRECT_BASIC) {
+    m_pipeline_config_info.attributeDescriptions.insert(
+        m_pipeline_config_info.attributeDescriptions.end(),
+        directBasicAttributeDescriptions.begin(), directBasicAttributeDescriptions.end());
+  } else {
+    m_pipeline_config_info.attributeDescriptions.insert(
+        m_pipeline_config_info.attributeDescriptions.end(),
+        directBasicTexturedAttributeDescriptions.begin(),
+        directBasicTexturedAttributeDescriptions.end());
+  }
 }
 
 void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
-  bindingDescription.stride = sizeof(DirectVulkanRenderer::Vertex);
+  bindingDescription.stride = sizeof(BaseDirectRenderer::Vertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
   m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
@@ -75,42 +89,59 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[0].binding = 0;
   attributeDescriptions[0].location = 0;
   attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-  attributeDescriptions[0].offset = offsetof(DirectVulkanRenderer::Vertex, xyzf);
+  attributeDescriptions[0].offset = offsetof(BaseDirectRenderer::Vertex, xyzf);
 
   attributeDescriptions[1].binding = 0;
   attributeDescriptions[1].location = 1;
   attributeDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
-  attributeDescriptions[1].offset = offsetof(DirectVulkanRenderer::Vertex, rgba);
+  attributeDescriptions[1].offset = offsetof(BaseDirectRenderer::Vertex, rgba);
 
   attributeDescriptions[2].binding = 0;
   attributeDescriptions[2].location = 2;
   attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-  attributeDescriptions[2].offset = offsetof(DirectVulkanRenderer::Vertex, stq);
+  attributeDescriptions[2].offset = offsetof(BaseDirectRenderer::Vertex, stq);
 
   attributeDescriptions[3].binding = 0;
   attributeDescriptions[3].location = 3;
   attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
-  attributeDescriptions[3].offset = offsetof(DirectVulkanRenderer::Vertex, tex_unit);
-  m_pipeline_config_info.attributeDescriptions.insert(
-      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
-      attributeDescriptions.end());
+  attributeDescriptions[3].offset = offsetof(BaseDirectRenderer::Vertex, tex_unit);
+
+  debugRedAttributeDescriptions[0] = attributeDescriptions[0];
+  directBasicAttributeDescriptions[0] = attributeDescriptions[0];
+  directBasicTexturedAttributeDescriptions[0] = attributeDescriptions[0];
+
+  directBasicAttributeDescriptions[1] = attributeDescriptions[1];
+  directBasicTexturedAttributeDescriptions[1] = attributeDescriptions[1];
+
+  directBasicTexturedAttributeDescriptions[2] = attributeDescriptions[2];
+  directBasicTexturedAttributeDescriptions[3] = attributeDescriptions[3];
 }
 
 void DirectVulkanRenderer::render(DmaFollower& dma,
                                   SharedVulkanRenderState* render_state,
                                   ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   BaseDirectRenderer::render(dma, render_state, prof);
 }
 
 void DirectVulkanRenderer::create_pipeline_layout() {
   // If push constants are needed put them here
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{m_vertex_descriptor_layout->getDescriptorSetLayout(),
-                                                          m_fragment_descriptor_layout->getDescriptorSetLayout()};
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_direct_basic_fragment_descriptor_layout->getDescriptorSetLayout()};
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange pushConstantRange = {};
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(float);
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
+
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
@@ -119,11 +150,13 @@ void DirectVulkanRenderer::create_pipeline_layout() {
 
 
 DirectVulkanRenderer::~DirectVulkanRenderer() {
-   //TODO: Delete allocated vulkan objects here
-  // DeleteIndexBuffer();
+  if (m_sampler) {
+    vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
+  }
 }
 
 void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
@@ -161,13 +194,13 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
 
   if (m_debug_state.disable_texture) {
     // a bit of a hack, this forces the non-textured shader always.
-    SetShaderModule(m_vulkan_info.shaders[ShaderId::DIRECT_BASIC]);
+    SetShaderModule(ShaderId::DIRECT_BASIC);
     m_blend_state_needs_graphics_update = true;
     m_prim_graphics_state_needs_graphics_update = true;
   }
 
   if (m_debug_state.red) {
-    SetShaderModule(m_vulkan_info.shaders[ShaderId::DEBUG_RED]);
+    SetShaderModule(ShaderId::DEBUG_RED);
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     m_prim_graphics_state_needs_graphics_update = true;
     m_blend_state_needs_graphics_update = true;
@@ -193,15 +226,13 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
   m_vulkan_info.swap_chain->drawCommandBuffer(
       m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
       m_pipeline_config_info.pipelineLayout,
-      m_descriptor_sets,
-      0);
+      m_descriptor_sets);
 
   draw_count++;
   VkPipelineRasterizationStateCreateInfo& rasterizer = m_pipeline_config_info.rasterizationInfo;
-  rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 
   if (m_debug_state.wireframe) {
-    SetShaderModule(m_vulkan_info.shaders[ShaderId::DEBUG_RED]);
+    SetShaderModule(ShaderId::DEBUG_RED);
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
 
@@ -211,7 +242,7 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
     m_vulkan_info.swap_chain->drawCommandBuffer(
         m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
         m_pipeline_config_info.pipelineLayout,
-        m_descriptor_sets, 0);
+        m_descriptor_sets);
 
     rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
     rasterizer.lineWidth = 1.0f;
@@ -251,6 +282,7 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
       }
     }
 
+    SetShaderModule(ShaderId::DIRECT_BASIC_TEXTURED);
     m_direct_basic_fragment_uniform_buffer->SetUniform1f("alpha_reject", alpha_reject);
     m_direct_basic_fragment_uniform_buffer->SetUniform1f("color_mult", m_ogl.color_mult);
     m_direct_basic_fragment_uniform_buffer->SetUniform1f("alpha_mult", m_ogl.alpha_mult);
@@ -259,7 +291,7 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
                 render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
 
   } else {
-    SetShaderModule(m_vulkan_info.shaders[ShaderId::DIRECT_BASIC]);
+    SetShaderModule(ShaderId::DIRECT_BASIC);
   }
   if (state.fogging_enable) {
     //    ASSERT(false);
@@ -313,16 +345,13 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
     m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
 
-  // VkPhysicalDeviceProperties properties{};
-  // vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-
   VkSamplerCreateInfo samplerInfo{};
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.anisotropyEnable = VK_TRUE;
-  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+  samplerInfo.maxAnisotropy = m_device->getMaxSamplerAnisotropy();
   samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
   samplerInfo.unnormalizedCoordinates = VK_FALSE;
   samplerInfo.compareEnable = VK_FALSE;
@@ -350,6 +379,24 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
     samplerInfo.minFilter = VK_FILTER_NEAREST;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
+
+  if (!m_sampler) {
+    vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
+  }
+
+  if (vkCreateSampler(m_device->getLogicalDevice(), &samplerInfo, nullptr, &m_sampler) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to find supported format!");
+  }
+
+  m_descriptor_image_info = VkDescriptorImageInfo{m_sampler, tex->getImageView(),
+                                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
+  write_descriptors_info[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
+      1, &m_descriptor_image_info, 1);
+
+ // m_fragment_descriptor_writer->overwrite(m_descriptor_sets[0]);
 }
 
 void DirectVulkanRenderer::update_graphics_blend() {

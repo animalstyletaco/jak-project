@@ -42,6 +42,7 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
                  u32 num_frags = 2000,
                  u32 num_adgif = 6000,
                  u32 num_buckets = 800);
+  ~GenericVulkan2();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
@@ -49,7 +50,7 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
                           ScopedProfilerNode& prof,
                           DrawMode::AlphaBlend alpha,
                           bool hud);
-  void init_shaders(VulkanShaderLibrary& shaders);
+  void init_shaders(VulkanShaderLibrary& shaders) override;
 
   struct Vertex {
     math::Vector<float, 3> xyz;
@@ -78,14 +79,19 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
                           bool filter,
                           bool clamp_s,
                           bool clamp_t,
-                          BaseSharedRenderState* render_state);
+                          BaseSharedRenderState* render_state,
+                          u32 bucketId);
 
  private:
+  void FinalizeVulkanDraws();
+
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
   } m_ogl;
 
+  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
+  std::vector<VkSampler> m_samplers;
   std::unique_ptr<GenericCommonVertexUniformBuffer> m_vertex_uniform_buffer;
   std::unique_ptr<GenericCommonFragmentUniformBuffer> m_fragment_uniform_buffer;
 };

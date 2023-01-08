@@ -19,10 +19,13 @@ class ShadowVulkanRenderer : public BaseShadowRenderer, public BucketVulkanRende
                  VulkanInitializationInfo& vulkan_info);
   ~ShadowVulkanRenderer();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void init_shaders(VulkanShaderLibrary& shaders) override;
 
  protected:
   void InitializeInputVertexAttribute();
   void draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void create_pipeline_layout() override;
+  void VulkanDrawWithIndexBufferId(uint32_t indexBufferId);
 
   struct {
     // index is front, back

@@ -8,7 +8,7 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-class ShrubVulkan : public BucketVulkanRenderer, public BaseShrub {
+class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
  public:
   ShrubVulkan(const std::string& name,
         int my_id,
@@ -73,7 +73,6 @@ class ShrubVulkan : public BucketVulkanRenderer, public BaseShrub {
     std::vector<u32> multidraw_count_buffer;
     std::vector<void*> multidraw_index_offset_buffer;
   } m_cache;
-  TfragPcPortData m_pc_port_data;
 
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   std::unique_ptr<IndexBuffer>  m_index_buffer;

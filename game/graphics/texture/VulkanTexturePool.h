@@ -44,14 +44,7 @@ class VulkanGpuTextureMap  {
   u32 get_selected_slot() const { return (!slots.empty()) ? slots.at(0) : 0; }
     // the size of our data, in bytes
   u32 data_size() const { return gpu_textures.at(get_selected_slot())->getMemorySize(); }
-  VulkanTexture* get_selected_texture() const { return gpu_textures.front(); }
-
-  // get a pointer to our data, or nullptr if we are a placeholder.
-  const u8* get_data_ptr() const {
-    if (is_placeholder) {
-      return nullptr;
-    }
-  }
+  VulkanTexture* get_selected_texture() const { return (!gpu_textures.empty()) ? gpu_textures.front() : nullptr; }
 
   // add or remove a VRAM reference to this texture
   void remove_slot(u32 slot);
@@ -94,6 +87,7 @@ struct VulkanTextureVRAMReference {
 class VulkanTexturePool {
  public:
   VulkanTexturePool(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& device);
+  ~VulkanTexturePool();
   void handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr);
   VulkanGpuTextureMap* give_texture(const VulkanTextureInput& in);
   VulkanGpuTextureMap* give_texture_and_load_to_vram(const VulkanTextureInput& in, u32 vram_slot);
@@ -124,6 +118,9 @@ class VulkanTexturePool {
     return m_textures;
   }
   void move_existing_to_vram(VulkanGpuTextureMap* tex, u32 slot_addr);
+  VkDescriptorImageInfo* get_placeholder_descriptor_image_info() {
+    return &m_placeholder_descriptor_image_info;
+  }
 
   std::mutex& mutex() { return m_mutex; }
   PcTextureId allocate_pc_port_texture();
@@ -145,6 +142,9 @@ class VulkanTexturePool {
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   VulkanTexture m_placeholder_texture{m_device};
+  VkSampler m_placeholder_sampler = VK_NULL_HANDLE;
+
+  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 
   TextureMap<VulkanGpuTextureMap> m_loaded_textures;
 

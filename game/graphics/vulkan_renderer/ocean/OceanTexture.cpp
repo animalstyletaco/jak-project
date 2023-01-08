@@ -10,16 +10,18 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
     : BaseOceanTexture(m_generate_mipmaps),
       m_result_texture(TEX0_SIZE,
                        TEX0_SIZE,
-                       VK_FORMAT_A8B8G8R8_SINT_PACK32,
+                       VK_FORMAT_A8B8G8R8_SRGB_PACK32,
                        device,
                        m_generate_mipmaps ? NUM_MIPS : 1),
-      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SINT_PACK32, device), m_device(device),
+      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SRGB_PACK32, device), m_device(device),
       m_vulkan_info(vulkan_info) {
   m_dbuf_x = m_dbuf_a;
   m_dbuf_y = m_dbuf_b;
 
   m_tbuf_x = m_tbuf_a;
   m_tbuf_y = m_tbuf_b;
+
+  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_info);
 
   init_pc();
   SetupShader(ShaderId::OCEAN_TEXTURE);
@@ -41,6 +43,8 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
 
   InitializeVertexBuffer();
   // initialize the mipmap drawing
+  m_pipeline_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 }
 
 void OceanVulkanTexture::draw_debug_window() {
@@ -106,17 +110,12 @@ void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfil
   }
   // no decal
   // yes tcc
-  auto sampler_info = lookup->GetSamplerCreateInfo();
-  sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-  sampler_info.magFilter = VK_FILTER_LINEAR;
-  sampler_info.minFilter = VK_FILTER_LINEAR;
-  lookup->SetSamplerCreateInfo(sampler_info);
+  m_sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  m_sampler_create_info.magFilter = VK_FILTER_LINEAR;
+  m_sampler_create_info.minFilter = VK_FILTER_LINEAR;
 
   // glDrawArrays(GL_TRIANGLE_STRIP, 0, NUM_VERTS);
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-  inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-  inputAssembly.primitiveRestartEnable = VK_TRUE;
+
   //glDrawElements(GL_TRIANGLE_STRIP, m_pc.index_buffer.size(), GL_UNSIGNED_INT, (void*)0);
 
   prof.add_draw_call();
@@ -157,13 +156,13 @@ void OceanVulkanTexture::SetupShader(ShaderId shaderId) {
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Ocean Texture Vertex";
+  vertShaderStageInfo.pName = "main";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
   fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Ocean Texture Fragment";
+  fragShaderStageInfo.pName = "main";
 
   m_pipeline_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
@@ -192,24 +191,23 @@ void OceanVulkanTexture::InitializeVertexBuffer() {
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   colorBlendAttachment.blendEnable = VK_FALSE;
 
-  VkSamplerCreateInfo samplerInfo{};
-  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.anisotropyEnable = VK_TRUE;
+  m_sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  m_sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  m_sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  m_sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  m_sampler_create_info.anisotropyEnable = VK_TRUE;
   // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-  samplerInfo.unnormalizedCoordinates = VK_FALSE;
-  samplerInfo.compareEnable = VK_FALSE;
-  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  samplerInfo.minLod = 0.0f;
+  m_sampler_create_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  m_sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+  m_sampler_create_info.compareEnable = VK_FALSE;
+  m_sampler_create_info.compareOp = VK_COMPARE_OP_ALWAYS;
+  m_sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  m_sampler_create_info.minLod = 0.0f;
   // samplerInfo.maxLod = static_cast<float>(mipLevels);
-  samplerInfo.mipLodBias = 0.0f;
+  m_sampler_create_info.mipLodBias = 0.0f;
 
-  samplerInfo.magFilter = VK_FILTER_LINEAR;
-  samplerInfo.minFilter = VK_FILTER_LINEAR;
+  m_sampler_create_info.magFilter = VK_FILTER_LINEAR;
+  m_sampler_create_info.minFilter = VK_FILTER_LINEAR;
 }
 
 void OceanVulkanTexture::set_gpu_texture(TextureInput&) {

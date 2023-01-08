@@ -35,30 +35,38 @@ class SwapChain {
   void drawCommandBuffer(VkCommandBuffer commandBuffer,
                        std::unique_ptr<VertexBuffer>& vertex_buffer,
                        VkPipelineLayout& pipeline_layout,
-                       std::vector<VkDescriptorSet>& descriptors,
-                       uint32_t imageIndex);
+                       std::vector<VkDescriptorSet>& descriptors);
+
+  void setupForDrawIndexedCommand(VkCommandBuffer commandBuffer,
+                                  VertexBuffer* vertex_buffer,
+                                  IndexBuffer* index_buffer,
+                                  VkPipelineLayout& pipeline_layout,
+                                  std::vector<VkDescriptorSet>& descriptors,
+                                  uint32_t dynamicDescriptorCount = 0,
+                                  uint32_t* dynamicDescriptorOffsets = nullptr);
 
   void drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                 std::unique_ptr<VertexBuffer>& vertex_buffer,
                                 std::unique_ptr<IndexBuffer>& index_buffer,
                                 VkPipelineLayout& pipeline_layout,
                                 std::vector<VkDescriptorSet>& descriptors,
-                                uint32_t imageIndex);
+                                uint32_t dynamicDescriptorCount = 0,
+                                uint32_t* dynamicDescriptorOffsets = nullptr);
 
   void drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                 VertexBuffer* vertex_buffer,
                                 IndexBuffer* index_buffer,
                                 VkPipelineLayout& pipeline_layout,
                                 std::vector<VkDescriptorSet>& descriptors,
-                                uint32_t imageIndex);
+                                uint32_t dynamicDescriptorCount = 0,
+                                uint32_t* dynamicDescriptorOffsets = nullptr);
 
     void multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                 VertexBuffer* vertex_buffer,
                                 IndexBuffer* index_buffer,
                                 VkPipelineLayout& pipeline_layout,
                                 std::vector<VkDescriptorSet>& descriptors,
-                                MultiDrawVulkanBuffer* multiDrawBuffer,
-                                uint32_t imageIndex);
+                                MultiDrawVulkanBuffer* multiDrawBuffer);
 
   void setViewportScissor(VkCommandBuffer commandBuffer);
   void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);

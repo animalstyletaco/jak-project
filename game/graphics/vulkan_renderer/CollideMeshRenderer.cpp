@@ -3,22 +3,77 @@
 #include "game/graphics/display.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-CollideMeshRenderer::CollideMeshRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+      m_device(device),
       m_collision_mesh_vertex_uniform_buffer(device, sizeof(CollisionMeshVertexUniformShaderData), 1, 1),
       m_pipeline_layout{device},
       m_vulkan_info{vulkan_info} {
+
+  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
   InitializeInputVertexAttribute();
+  init_shaders();
+
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .build();
+
+  create_pipeline_layout();
+  m_vertex_descriptor_writer = std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout,
+                                                                  m_vulkan_info.descriptor_pool);
+
+  m_descriptor_sets.resize(1);
+  m_vertex_buffer_descriptor_info = m_collision_mesh_vertex_uniform_buffer.descriptorInfo();
+  m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
 }
 
-CollideMeshRenderer::~CollideMeshRenderer() {
+void CollideMeshVulkanRenderer::create_pipeline_layout() {
+  // If push constants are needed put them here
+
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_vertex_descriptor_layout->getDescriptorSetLayout()};
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
 }
 
-void CollideMeshRenderer::render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void CollideMeshVulkanRenderer::init_shaders() {
+  auto& shader = m_vulkan_info.shaders[ShaderId::COLLISION];
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "main";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "main";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+}
+
+CollideMeshVulkanRenderer::~CollideMeshVulkanRenderer() {
+}
+
+void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   if (!render_state->has_pc_data) {
     return;
   }
 
-  auto levels = m_vulkan_info.loader->get_in_use_levels();
+  std::vector<LevelDataVulkan*> levels = m_vulkan_info.loader->get_in_use_levels();
   if (levels.empty()) {
     return;
   }
@@ -31,20 +86,6 @@ void CollideMeshRenderer::render(SharedVulkanRenderState* render_state, ScopedPr
   for (int i = 0; i < 4; i++) {
     settings.planes[i] = render_state->camera_planes[i];
   }
-  auto& shader = m_vulkan_info.shaders[ShaderId::COLLISION];
-  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Collision Fragment";
-
-  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Collision Fragment";
-
-  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 
   m_collision_mesh_vertex_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
       "camera", 1, GL_FALSE,
@@ -73,7 +114,7 @@ void CollideMeshRenderer::render(SharedVulkanRenderState* render_state, ScopedPr
   m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
-  for (auto lev : levels) {
+  for (LevelDataVulkan* level : levels) {
     m_collision_mesh_vertex_uniform_buffer.SetUniform1f("wireframe", 0);
     m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
         "collision_mode_mask",
@@ -91,9 +132,13 @@ void CollideMeshRenderer::render(SharedVulkanRenderState* render_state, ScopedPr
                Gfx::g_global_settings.collision_skip_mask);
     m_collision_mesh_vertex_uniform_buffer.SetUniform1f("mode",
                                                         Gfx::g_global_settings.collision_mode);
-    //glDrawArrays(GL_TRIANGLES, 0, lev->level->collision.vertices.size());
 
-    //CreateVertexBuffer(lev->level->collision.vertices);
+    m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+    m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+
+    m_vulkan_info.swap_chain->drawCommandBuffer(
+        m_vulkan_info.render_command_buffer, level->collide_vertices,
+        m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 
     if (Gfx::g_global_settings.collision_wireframe) {
       m_collision_mesh_vertex_uniform_buffer.SetUniform1i("wireframe", 1);
@@ -112,19 +157,28 @@ void CollideMeshRenderer::render(SharedVulkanRenderState* render_state, ScopedPr
       m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //TODO: Verify that this is correct
       m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-      //CreateVertexBuffer(lev->level->collision.vertices);
-      //glDrawArrays(GL_TRIANGLES, 0, lev->level->collision.vertices.size());
+      m_vulkan_info.swap_chain->drawCommandBuffer(
+          m_vulkan_info.render_command_buffer, level->collide_vertices,
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
+      m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+      m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+
+      m_vulkan_info.swap_chain->drawCommandBuffer(
+          m_vulkan_info.render_command_buffer, level->collide_vertices,
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       colorBlendAttachment.blendEnable = VK_TRUE;
       //imageView.aspectView |= VK_IMAGE_ASPECT_DEPTH_BIT;
     }
 
     prof.add_draw_call();
-    prof.add_tri(lev->level->collision.vertices.size() / 3);
+    prof.add_tri(level->level->collision.vertices.size() / 3);
   }
 }
 
-void CollideMeshRenderer::InitializeInputVertexAttribute() {
+void CollideMeshVulkanRenderer::InitializeInputVertexAttribute() {
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
     bindingDescription.stride = sizeof(tfrag3::CollisionMesh::Vertex);

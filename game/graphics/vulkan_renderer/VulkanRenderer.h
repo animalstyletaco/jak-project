@@ -106,7 +106,7 @@ class VulkanRenderer {
 
   VulkanInitializationInfo m_vulkan_info;
 
-  CollideMeshRenderer m_collide_renderer{m_device, m_vulkan_info};
+  std::unique_ptr<CollideMeshVulkanRenderer> m_collide_renderer;
 
   uint32_t currentImageIndex;
   bool isFrameStarted = false;

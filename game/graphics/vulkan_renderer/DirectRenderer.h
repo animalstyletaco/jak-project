@@ -56,7 +56,7 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
 
  protected:
   void InitializeInputVertexAttribute();
-  void SetShaderModule(VulkanShader& shader);
+  void SetShaderModule(ShaderId shader);
 
   void create_pipeline_layout() override;
   void update_graphics_prim(BaseSharedRenderState* render_state) override;
@@ -73,6 +73,15 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
     float alpha_mult = 1.0;
   } m_ogl;
 
+  std::array<VkVertexInputAttributeDescription, 1> debugRedAttributeDescriptions{};
+  std::array<VkVertexInputAttributeDescription, 2> directBasicAttributeDescriptions{};
+  std::array<VkVertexInputAttributeDescription, 4> directBasicTexturedAttributeDescriptions{};
+
   std::unique_ptr<DirectBasicTexturedFragmentUniformBuffer> m_direct_basic_fragment_uniform_buffer;
+  std::unique_ptr<DescriptorLayout> m_direct_basic_fragment_descriptor_layout;
+
+  VkDescriptorBufferInfo m_fragment_buffer_descriptor_info{};
+  VkDescriptorImageInfo m_descriptor_image_info{};
+  VkSampler m_sampler = VK_NULL_HANDLE;
 };
 

@@ -9,7 +9,7 @@ layout (location = 4) in vec3 rgba;
 layout (location = 5) in uvec3 mats;
 
 // light control
-layout (set = 0, binding = 0) uniform LightControlUniformBufferObject {
+struct LightControlUniformBufferObject {
    vec3 light_dir0;
    vec3 light_dir1;
    vec3 light_dir2;
@@ -17,25 +17,28 @@ layout (set = 0, binding = 0) uniform LightControlUniformBufferObject {
    vec3 light_col1;
    vec3 light_col2;
    vec3 light_ambient;
-} light_control_ubo;
+};
 
 // camera control
-layout (set = 0, binding = 1) uniform CameraControlUniformBufferObject {
+struct CameraControlUniformBufferObject {
    vec4 hvdf_offset;
    vec4 perspective0;
    vec4 perspective1;
    vec4 perspective2;
    vec4 perspective3;
    vec4 fog_constants;
-} camera_control_ubo;
+};
 
-layout (set = 0, binding = 2) uniform PerspectiveMatrixUniformBuffer {
+layout (set = 0, binding = 0) uniform MercUniformBufferObject {
+   LightControlUniformBufferObject light_control;
+   CameraControlUniformBufferObject camera_control;
    mat4 perspective_matrix;
-} perspective_ubo;
+} ubo;
 
-layout (set = 0, binding = 3) uniform HeightScaleUbo {
-   int height_scale;
-} height_scale;
+layout(push_constant) uniform HeightScale
+{
+	float height_scale;
+}height_scale;
 
 const float SCISSOR_ADJUST = 512.0/448.0;
 
@@ -51,7 +54,7 @@ struct MercMatrixData {
     vec4 pad;
 };
 
-layout (std140, binding = 4) uniform ub_bones {
+layout (std140, binding = 1) uniform ub_bones {
     MercMatrixData bones[128];
 };
 
@@ -72,10 +75,10 @@ maddz.xyzw vf26, vf28, vf25
 ```
 */
 void main() {
-    //    vec4 transformed = -camera_control_ubo.perspective3.xyzw;
-    //    transformed += -camera_control_ubo.perspective0 * position_in.x;
-    //    transformed += -camera_control_ubo.perspective1 * position_in.y;
-    //    transformed += -camera_control_ubo.perspective2 * position_in.z;
+    //    vec4 transformed = -ubo.camera_control.perspective3.xyzw;
+    //    transformed += -ubo.camera_control.perspective0 * position_in.x;
+    //    transformed += -ubo.camera_control.perspective1 * position_in.y;
+    //    transformed += -ubo.camera_control.perspective2 * position_in.z;
 
 
 //    vec4 transformed = -hmat3.xyzw;
@@ -97,23 +100,23 @@ void main() {
         rotated_nrm += bones[mats[2]].R * normal_in * weights_in[2];
     }
 
-    vec4 transformed = perspective_ubo.perspective_matrix * vtx_pos;
+    vec4 transformed = ubo.perspective_matrix * vtx_pos;
 
     rotated_nrm = normalize(rotated_nrm);
-    vec3 light_intensity = light_control_ubo.light_dir0 * rotated_nrm.x + light_control_ubo.light_dir1 * rotated_nrm.y + light_control_ubo.light_dir2 * rotated_nrm.z;
+    vec3 light_intensity = ubo.light_control.light_dir0 * rotated_nrm.x + ubo.light_control.light_dir1 * rotated_nrm.y + ubo.light_control.light_dir2 * rotated_nrm.z;
     light_intensity = max(light_intensity, vec3(0, 0, 0));
 
-    vec3 light_color_no_ambient = light_intensity.x * light_control_ubo.light_col0
-                                  + light_intensity.y * light_control_ubo.light_col1
-                                  + light_intensity.z * light_control_ubo.light_col2;
+    vec3 light_color_no_ambient = light_intensity.x * ubo.light_control.light_col0
+                                  + light_intensity.y * ubo.light_control.light_col1
+                                  + light_intensity.z * ubo.light_control.light_col2;
 
-    vec3 light_color = light_control_ubo.light_ambient + light_color_no_ambient;
+    vec3 light_color = ubo.light_control.light_ambient + light_color_no_ambient;
 
-    float Q = camera_control_ubo.fog_constants.x / transformed[3];
-    fog = 255 - clamp(-transformed.w + camera_control_ubo.hvdf_offset.w, camera_control_ubo.fog_constants.y, camera_control_ubo.fog_constants.z);
+    float Q = ubo.camera_control.fog_constants.x / transformed[3];
+    fog = 255 - clamp(-transformed.w + ubo.camera_control.hvdf_offset.w, ubo.camera_control.fog_constants.y, ubo.camera_control.fog_constants.z);
 
     transformed.xyz *= Q;
-    transformed.xyz += camera_control_ubo.hvdf_offset.xyz;
+    transformed.xyz += ubo.camera_control.hvdf_offset.xyz;
     transformed.xy -= (2048.);
     transformed.z /= (8388608);
     transformed.z -= 1;

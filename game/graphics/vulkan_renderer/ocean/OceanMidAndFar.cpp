@@ -9,30 +9,6 @@ OceanVulkanMidAndFar::OceanVulkanMidAndFar(const std::string& name,
     : BaseOceanMidAndFar(name, my_id), BucketVulkanRenderer(device, vulkan_info),
       m_direct(name, my_id, device, vulkan_info, 4096),
       m_texture_renderer(true, device, vulkan_info), m_mid_renderer(device, vulkan_info) {
-  m_vertex_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .build();
-
-  m_fragment_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .build();
-
-  m_vertex_descriptor_writer =
-      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
-
-  m_fragment_descriptor_writer =
-      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
-
-  m_descriptor_sets.resize(2);
-
-  auto vertex_buffer_descriptor_info = m_mid_renderer.GetUniformVertexBufferDescriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
-      .build(m_descriptor_sets[0]);
-  auto fragment_buffer_descriptor_info = m_mid_renderer.GetUniformFragmentBufferDescriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
-      .build(m_descriptor_sets[1]);
 }
 
 void OceanVulkanMidAndFar::draw_debug_window() {

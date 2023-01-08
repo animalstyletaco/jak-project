@@ -11,8 +11,8 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   vec4 fog_color;
 } ubo;
 
-layout (location = 2) in flat uvec2 tex_info;
-layout (location = 3) in float fog;
+layout (location = 2) in float fog;
+layout (location = 3) in flat uvec2 tex_info;
 
 layout (set = 0, binding = 1) uniform sampler2D tex_T0;
 layout (set = 0, binding = 2) uniform sampler2D tex_T1;

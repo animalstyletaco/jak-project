@@ -71,4 +71,7 @@ class OceanVulkanTexture : public BaseOceanTexture {
   VulkanInitializationInfo& m_vulkan_info;
   FramebufferVulkanTexturePair m_result_texture;
   FramebufferVulkanTexturePair m_temp_texture;
+
+  VkSamplerCreateInfo m_sampler_create_info{};
+  VkSampler m_sampler = VK_NULL_HANDLE;
 };

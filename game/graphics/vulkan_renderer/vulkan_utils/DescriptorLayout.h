@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 
 #include "GraphicsDeviceVulkan.h"
 
@@ -80,15 +81,23 @@ class DescriptorWriter {
  public:
   DescriptorWriter(std::unique_ptr<DescriptorLayout>& setLayout, std::unique_ptr<DescriptorPool>& pool);
 
-  DescriptorWriter& writeBuffer(uint32_t binding, VkDescriptorBufferInfo* bufferInfo);
-  DescriptorWriter& writeImage(uint32_t binding, std::vector<VkDescriptorImageInfo>& imageInfo);
-  DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
-                                                 VkDescriptorImageInfo* imageInfo,
-                                                 uint32_t imageInfoCount = 1);
+  VkWriteDescriptorSet writeBufferDescriptorSet (uint32_t binding, VkDescriptorBufferInfo* bufferInfo, uint32_t bufferInfoCount = 1) const;
+  VkWriteDescriptorSet writeImageDescriptorSet(uint32_t binding,
+                                 VkDescriptorImageInfo* imageInfo,
+                                 uint32_t imageInfoCount = 1) const;
+
+  DescriptorWriter& writeBuffer(uint32_t binding,
+                                VkDescriptorBufferInfo* bufferInfo,
+                                uint32_t bufferInfoCount = 1);
+  DescriptorWriter& writeImage(uint32_t binding,
+                               VkDescriptorImageInfo* imageInfo,
+                               uint32_t imageInfoCount = 1);
 
   bool build(VkDescriptorSet& set);
   void overwrite(VkDescriptorSet& set);
   bool allocateDescriptor(VkDescriptorSet& set);
+
+  std::vector<VkWriteDescriptorSet>& getWriteDescriptorSets() { return m_writes; };
 
  private:
   std::unique_ptr<DescriptorLayout>& m_set_layout;

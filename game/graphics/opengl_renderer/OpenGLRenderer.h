@@ -11,6 +11,7 @@
 #include "game/graphics/general_renderer/Profiler.h"
 #include "game/graphics/opengl_renderer/Shader.h"
 #include "game/graphics/opengl_renderer/opengl_utils.h"
+#include "game/tools/filter_menu/filter_menu.h"
 #include "game/tools/subtitles/subtitle_editor.h"
 
 struct Fbo {
@@ -102,6 +103,7 @@ class OpenGLRenderer {
   Profiler m_profiler;
   SmallProfiler m_small_profiler;
   SubtitleEditor m_subtitle_editor;
+  FiltersMenu m_filters_menu;
 
   std::vector<std::unique_ptr<BucketRenderer>> m_bucket_renderers;
   std::vector<BucketCategory> m_bucket_categories;

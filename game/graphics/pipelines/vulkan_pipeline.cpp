@@ -207,7 +207,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
   auto display = std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer.GetSwapChain() , is_main);
-  display->set_imgui_visible(Gfx::get_debug_menu_visible_on_startup());
+  display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
   display->update_cursor_visibility(window, display->is_imgui_visible());
   // lg::debug("init display #x{:x}", (uintptr_t)display);
 

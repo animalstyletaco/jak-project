@@ -2,6 +2,7 @@
 
 #include <future>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -85,39 +86,37 @@ class OfflineTestThreadStatus {
   Stage stage = Stage::IDLE;
   uint32_t total_steps = 0;
   uint32_t curr_step = 0;
-  std::vector<std::string> dgos = {};
+  std::set<std::string> dgos;
   std::string curr_file;
   OfflineTestConfig config;
 
   void update_stage(Stage new_stage);
   void update_curr_file(const std::string& _curr_file);
   void complete_step();
+  bool in_progress();
 };
 
 struct OfflineTestWorkCollection {
   std::vector<OfflineTestSourceFile> source_files;
-  std::vector<OfflineTestArtFile> art_files;
 };
 
 struct OfflineTestWorkGroup {
-  std::vector<std::string> dgos;
-  std::vector<OfflineTestWorkCollection> work_collections;
+  std::set<std::string> dgo_set;
+  OfflineTestWorkCollection work_collection;
   std::shared_ptr<OfflineTestThreadStatus> status;
 
-  int work_size() const {
-    int i = 0;
-    for (const auto& coll : work_collections) {
-      i += coll.source_files.size() + coll.art_files.size();
-    }
-    return i;
-  }
+  int work_size() const { return work_collection.source_files.size(); }
 };
 
 class OfflineTestThreadManager {
  public:
-  void print_current_test_status(const OfflineTestConfig& config);
-
   std::vector<std::shared_ptr<OfflineTestThreadStatus>> statuses = {};
+
+  int num_threads_pending();
+  int num_threads_succeeded();
+  int num_threads_failed();
+
+  void print_current_test_status(const OfflineTestConfig& config);
 
  private:
   std::mutex print_lock;
@@ -127,5 +126,4 @@ extern OfflineTestThreadManager g_offline_test_thread_manager;
 
 std::vector<std::future<OfflineTestThreadResult>> distribute_work(
     const OfflineTestConfig& offline_config,
-    const std::vector<OfflineTestSourceFile>& files,
-    const std::vector<OfflineTestArtFile>& art_files);
+    const std::vector<OfflineTestSourceFile>& files);

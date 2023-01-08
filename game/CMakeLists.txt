@@ -93,6 +93,8 @@ set(RUNTIME_SOURCE
         mips2c/jak2_functions/foreground.cpp
         mips2c/jak2_functions/joint.cpp
         mips2c/jak2_functions/lights.cpp
+        mips2c/jak2_functions/nav_control.cpp
+        mips2c/jak2_functions/nav_mesh.cpp
         mips2c/jak2_functions/sky.cpp
         mips2c/jak2_functions/sparticle.cpp
         mips2c/jak2_functions/sparticle_launcher.cpp
@@ -161,8 +163,8 @@ set(RUNTIME_SOURCE
 
         system/vm/dmac.cpp
         system/vm/vm.cpp
-        tools/subtitles/subtitle_editor.h
         tools/subtitles/subtitle_editor.cpp
+        tools/filter_menu/filter_menu.cpp
         )
 
 if(WIN32)
@@ -272,7 +274,6 @@ endif()
         graphics/pipelines/opengl.cpp
         graphics/texture/TexturePool.cpp
         ../third-party/glad/src/glad.c)
-
 
 find_package(Git)
 

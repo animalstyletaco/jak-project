@@ -7,45 +7,56 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
-FramebufferVulkanTexturePair::FramebufferVulkanTexturePair(int w,
-                                               int h,
-                                               VkFormat format,
-                                               std::unique_ptr<GraphicsDeviceVulkan>& device, int num_levels)
-    : m_device(device), m_w(w), m_h(h) {
+FramebufferVulkanTexturePair::FramebufferVulkanTexturePair(unsigned w,
+                                                           unsigned h,
+                                                           VkFormat format,
+                                                           std::unique_ptr<GraphicsDeviceVulkan>& device, int num_levels)
+    : m_device(device) {
+  extents = {w, h};
+  m_swap_chain = std::make_unique<SwapChain>(m_device, extents);
+
   VkSamplerCreateInfo samplerInfo{};
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
   samplerInfo.magFilter = VK_FILTER_LINEAR;
   samplerInfo.minFilter = VK_FILTER_NEAREST;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-  textures.resize(num_levels, VulkanTexture{device});
-  for (int i = 0; i < num_levels; i++) {
-    VkExtent3D extents{m_w >> i, m_h >> i, 1};
-
-    textures[i].createImage(extents, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(), format, VK_IMAGE_TILING_OPTIMAL,
-                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-
-    textures[i].createImageView(VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  if (vkCreateSampler(m_device->getLogicalDevice(), &samplerInfo, nullptr, &m_sampler) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("Failed to create Frambuffer helper sampler\n");
   }
 
-  for (int i = 0; i < num_levels; i++) {
-    //m_textures[i];
-    // TODO: Copy Image to Buffer
-    // I don't know if we really need to do this. whatever uses this texture should figure it out.
-
-    //glDrawBuffers(1, draw_buffers);
+  m_textures.resize(num_levels, m_device);
+  for (uint32_t i = 0; i < num_levels; i++) {
+    VkExtent3D textureExtents = {extents.width >> i, extents.height >> i, 1};
+    //Check needed to avoid validation error. See https://vulkan-tutorial.com/Generating_Mipmaps#page_Image-creation for more info
+    uint32_t maxMinmapLevels =
+        static_cast<uint32_t>(std::floor(std::log2(std::max(textureExtents.width, textureExtents.height)))) + 1;
+    uint32_t minmapLevel = (i + 1 > maxMinmapLevels) ? maxMinmapLevels : i + 1;
+    m_textures[i].createImage(textureExtents, minmapLevel, VK_IMAGE_TYPE_2D, device->getMsaaCount(), format,
+                         VK_IMAGE_TILING_OPTIMAL,
+                         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+  
+    m_textures[i].createImageView(VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
 }
 
 FramebufferVulkanTexturePair::~FramebufferVulkanTexturePair() {
+  vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
 }
 
 FramebufferVulkanTexturePairContext::FramebufferVulkanTexturePairContext(FramebufferVulkanTexturePair& fb, int level)
     : m_fb(&fb) {
   //TODO: store previous viewport settings
-  //glViewport(0, 0, m_fb->m_w, m_fb->m_h);
-  //swapChainExtent.width = m_fb->m_w;
-  //swapChainExtent.height = m_fb->m_h;
   //recreateSwapChain();
   //TODO: CopyImageToBuffer
 }
@@ -61,8 +72,6 @@ void FramebufferVulkanTexturePairContext::switch_to(FramebufferVulkanTexturePair
 }
 
 FramebufferVulkanTexturePairContext::~FramebufferVulkanTexturePairContext() {
-  //m_old_viewport;
-  //m_fb->m_device->recreateSwapChains(m_old_viewport);
 }
 
 FullScreenDrawVulkan::FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_pipeline_layout(device) {

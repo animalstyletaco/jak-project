@@ -53,7 +53,7 @@ void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
       {
         u32 tbp = EYE_BASE_BLOCK + pair_idx * 2 + lr;
         VulkanTextureInput in;
-        in.texture = m_gpu_eye_textures[tidx]->fb.texture();
+        //in.texture = &m_gpu_eye_textures[tidx]->fb.Texture(0);
         in.debug_page_name = "PC-EYES";
         in.debug_name = fmt::format("{}-eye-gpu-{}", lr ? "left" : "right", pair_idx);
         in.id = texture_pool.allocate_pc_port_texture();

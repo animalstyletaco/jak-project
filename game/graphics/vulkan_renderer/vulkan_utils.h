@@ -6,6 +6,7 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
 
 struct SharedVulkanRenderState;
 class ScopedProfilerNode;
@@ -16,14 +17,14 @@ class ScopedProfilerNode;
  */
 class FramebufferVulkanTexturePair {
  public:
-  FramebufferVulkanTexturePair(int w,
-                         int h,
-                         VkFormat format,
-                         std::unique_ptr<GraphicsDeviceVulkan>& device,
-                         int num_levels = 1);
+  FramebufferVulkanTexturePair(unsigned w,
+                               unsigned h,
+                               VkFormat format,
+                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+                               int num_levels = 1);
   ~FramebufferVulkanTexturePair();
 
-  VulkanTexture* texture() const { return (VulkanTexture*)textures.data(); }
+  VulkanTexture& Texture(int level) { return m_textures[level]; }
 
   FramebufferVulkanTexturePair(const FramebufferVulkanTexturePair&) = delete;
   FramebufferVulkanTexturePair& operator=(const FramebufferVulkanTexturePair&) = delete;
@@ -31,10 +32,14 @@ class FramebufferVulkanTexturePair {
  private:
   friend class FramebufferVulkanTexturePairContext;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  std::vector<VulkanTexture> textures;
+  VkExtent2D extents = {640, 480};
+  VkOffset2D offsetExtents;
 
-  int m_w, m_h;
+  std::unique_ptr<SwapChain> m_swap_chain;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+
+  VkSampler m_sampler = VK_NULL_HANDLE;
+  std::vector<VulkanTexture> m_textures;
 };
 
 class FramebufferVulkanTexturePairContext {

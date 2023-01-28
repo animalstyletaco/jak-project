@@ -37,7 +37,10 @@ class OceanVulkanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRende
                                      ScopedProfilerNode& prof) override;
   void direct_renderer_set_mipmap(bool isMipmapEnabled) override;
   void direct_renderer_reset_state() override;
-  void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+  void texture_renderer_handle_ocean_texture_jak1(DmaFollower& dma,
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) override;
+  void texture_renderer_handle_ocean_texture_jak2(DmaFollower& dma,
                                              BaseSharedRenderState* render_state,
                                              ScopedProfilerNode& prof) override;
 

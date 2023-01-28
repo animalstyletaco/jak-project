@@ -25,6 +25,13 @@ struct MercPerspectiveMatrixUniformBufferVertexData {
   math::Matrix4f perspective_matrix;                       // binding = 2
 };
 
+struct EmercUniformBufferVertexData {
+  math::Vector4f hvdf_offset;
+  math::Vector4f fog_constants;
+  math::Vector4f fade;
+  math::Matrix4f perspective_matrix;
+};
+
 class MercLightControlVertexUniformBuffer : public UniformVulkanBuffer {
  public:
   MercLightControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
@@ -44,6 +51,13 @@ class MercPerspectiveMatrixVertexUniformBuffer : public UniformVulkanBuffer {
   MercPerspectiveMatrixVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                            uint32_t instanceCount,
                                            VkDeviceSize minOffsetAlignment = 1);
+};
+
+class EmercVertexUniformBuffer : public UniformVulkanBuffer {
+ public:
+  EmercVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           uint32_t instanceCount,
+                           VkDeviceSize minOffsetAlignment = 1);
 };
 
 struct MercUniformBufferFragmentData {
@@ -105,6 +119,20 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
     }
   };
 
+  void do_merc_draws(const Draw* draw_array,
+                     const LevelDataVulkan* lev,
+                     u32 num_draws,
+                     ScopedProfilerNode& prof,
+                     bool set_fade,
+                     BaseSharedRenderState* render_state);
+
+  void do_emerc_draws(const Draw* draw_array,
+                      const LevelDataVulkan* lev,
+                      u32 num_draws,
+                      ScopedProfilerNode& prof,
+                      bool set_fade,
+                      BaseSharedRenderState* render_state);
+
   class MercBoneVertexUniformBuffer : public UniformVulkanBuffer {
    public:
     MercBoneVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
@@ -115,6 +143,7 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
 
+  std::unique_ptr<EmercVertexUniformBuffer> m_emerc_vertex_uniform_buffer;
   std::unique_ptr<MercLightControlVertexUniformBuffer> m_light_control_vertex_uniform_buffer;
   std::unique_ptr<MercCameraControlVertexUniformBuffer> m_camera_control_vertex_uniform_buffer;
   std::unique_ptr<MercPerspectiveMatrixVertexUniformBuffer> m_perspective_matrix_vertex_uniform_buffer;

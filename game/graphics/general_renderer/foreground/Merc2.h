@@ -6,9 +6,7 @@ class BaseMerc2 : public BaseBucketRenderer {
   BaseMerc2(const std::string& name, int my_id);
   void draw_debug_window() override;
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
-  void handle_merc_chain(DmaFollower& dma,
-                         BaseSharedRenderState* render_state,
-                         ScopedProfilerNode& prof);
+
 
  protected:
   virtual void flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
@@ -17,6 +15,9 @@ class BaseMerc2 : public BaseBucketRenderer {
   virtual void init_pc_model(const DmaTransfer& setup, BaseSharedRenderState* render_state) = 0;
   virtual void set_merc_uniform_buffer_data(const DmaTransfer& dma) = 0;
   virtual void init_for_frame(BaseSharedRenderState* render_state) = 0;
+  void handle_merc_chain(DmaFollower& dma,
+                         BaseSharedRenderState* render_state,
+                         ScopedProfilerNode& prof);
 
   enum MercDataMemory {
     LOW_MEMORY = 0,
@@ -41,14 +42,10 @@ class BaseMerc2 : public BaseBucketRenderer {
     u32 w1;
     math::Vector3f direction2;
     u32 w2;
-    math::Vector3f color0;
-    u32 w3;
-    math::Vector3f color1;
-    u32 w4;
-    math::Vector3f color2;
-    u32 w5;
-    math::Vector3f ambient;
-    u32 w6;
+    math::Vector4f color0;
+    math::Vector4f color1;
+    math::Vector4f color2;
+    math::Vector4f ambient;
   };
 
   void handle_all_dma(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
@@ -58,9 +55,14 @@ class BaseMerc2 : public BaseBucketRenderer {
   void handle_matrix_dma(const DmaTransfer& dma);
 
   u32 alloc_bones(int count);
+ 
+  void switch_to_merc2(BaseSharedRenderState* render_state);
+  void switch_to_emerc(BaseSharedRenderState* render_state);
 
   u16 m_current_effect_enable_bits = 0;
   u16 m_current_ignore_alpha_bits = 0;
+  static constexpr int kMaxEffect = 16;
+  u8 m_fade_buffer[4 * kMaxEffect];
 
   struct MercMat {
     math::Vector4f tmat[4];
@@ -81,6 +83,7 @@ class BaseMerc2 : public BaseBucketRenderer {
 
   static constexpr int MAX_LEVELS = 3;
   static constexpr int MAX_DRAWS_PER_LEVEL = 1024;
+  static constexpr int MAX_ENVMAP_DRAWS_PER_LEVEL = 1024;
 
   math::Vector4f m_shader_bone_vector_buffer[MAX_SHADER_BONE_VECTORS];
   ShaderMercMat m_skel_matrix_buffer[MAX_SKEL_BONES];
@@ -94,6 +97,8 @@ class BaseMerc2 : public BaseBucketRenderer {
     int num_bones_uploaded = 0;
     int num_lights = 0;
     int num_draw_flush = 0;
+    int num_envmap_effects = 0;
+    int num_envmap_tris = 0;
   } m_stats;
 
   struct Draw {
@@ -105,6 +110,7 @@ class BaseMerc2 : public BaseBucketRenderer {
     u16 first_bone;
     u16 light_idx;
     u8 ignore_alpha;
+    u8 fade[4];
   };
 
   static constexpr int MAX_LIGHTS = 1024;

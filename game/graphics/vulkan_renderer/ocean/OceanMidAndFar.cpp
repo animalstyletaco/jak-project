@@ -47,8 +47,15 @@ void OceanVulkanMidAndFar::direct_renderer_reset_state() {
   m_direct.reset_state();
 }
 
-void OceanVulkanMidAndFar::texture_renderer_handle_ocean_texture(DmaFollower& dma,
+void OceanVulkanMidAndFar::texture_renderer_handle_ocean_texture_jak1(DmaFollower& dma,
                                                                  BaseSharedRenderState* render_state,
                                                                  ScopedProfilerNode& prof) {
-  m_texture_renderer.handle_ocean_texture(dma, render_state, prof);
+  m_texture_renderer.handle_ocean_texture_jak1(dma, render_state, prof);
+}
+
+void OceanVulkanMidAndFar::texture_renderer_handle_ocean_texture_jak2(
+    DmaFollower& dma,
+    BaseSharedRenderState* render_state,
+    ScopedProfilerNode& prof) {
+  m_texture_renderer.handle_ocean_texture_jak2(dma, render_state, prof);
 }

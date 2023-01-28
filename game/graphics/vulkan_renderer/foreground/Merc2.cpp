@@ -137,13 +137,13 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, Scoped
             "light_direction1", m_lights_buffer[draw.light_idx].direction1, di);
         m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
             "light_direction2", m_lights_buffer[draw.light_idx].direction2, di);
-        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector4f(
             "light_color0", m_lights_buffer[draw.light_idx].color0, di);
-        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector4f(
             "light_color1", m_lights_buffer[draw.light_idx].color1, di);
-        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector4f(
             "light_color2", m_lights_buffer[draw.light_idx].color2, di);
-        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector4f(
             "light_ambient", m_lights_buffer[draw.light_idx].ambient, di);
         last_light = draw.light_idx;
       }
@@ -399,6 +399,22 @@ void MercVulkan2::InitializeInputAttributes() {
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 }
 
+void MercVulkan2::do_merc_draws(const Draw* draw_array,
+                                const LevelDataVulkan* lev,
+                                u32 num_draws,
+                                ScopedProfilerNode& prof,
+                                bool set_fade,
+                                BaseSharedRenderState* render_state) {
+}
+
+void MercVulkan2::do_emerc_draws(const Draw* draw_array,
+                                 const LevelDataVulkan* lev,
+                                 u32 num_draws,
+                                 ScopedProfilerNode& prof,
+                                 bool set_fade,
+                                 BaseSharedRenderState* render_state) {
+}
+
 MercLightControlVertexUniformBuffer::MercLightControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                       uint32_t instanceCount,
                                       VkDeviceSize minOffsetAlignment)
@@ -446,6 +462,20 @@ MercPerspectiveMatrixVertexUniformBuffer::MercPerspectiveMatrixVertexUniformBuff
        offsetof(MercPerspectiveMatrixUniformBufferVertexData, perspective_matrix)}
   };
 };
+
+EmercVertexUniformBuffer::EmercVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           uint32_t instanceCount,
+                            VkDeviceSize minOffsetAlignment) :
+    UniformVulkanBuffer(device,
+                        sizeof(EmercUniformBufferVertexData),
+                        instanceCount,
+                        minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"hvdf_offset", offsetof(EmercUniformBufferVertexData, hvdf_offset)},
+      {"fog_constants", offsetof(EmercUniformBufferVertexData, fog_constants)},
+      {"fade", offsetof(EmercUniformBufferVertexData, fade)},
+      {"perspective_matrix", offsetof(EmercUniformBufferVertexData, perspective_matrix)}};
+}
 
 MercFragmentUniformBuffer::MercFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                                      uint32_t instanceCount,

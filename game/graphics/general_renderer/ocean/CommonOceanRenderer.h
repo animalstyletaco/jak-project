@@ -4,6 +4,11 @@
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include <exception>
 
+namespace ocean_common {
+   static constexpr int OCEAN_TEX_TBP_JAK1 = 8160;  // todo
+   static constexpr int OCEAN_TEX_TBP_JAK2 = 672;
+}  // namespace ocean_common
+
 class BaseCommonOceanRenderer {
  public:
   BaseCommonOceanRenderer();

@@ -26,5 +26,6 @@ enum class ShaderId {
   SPRITE_DISTORT_INSTANCED = 21,
   POST_PROCESSING = 22,
   DEPTH_CUE = 23,
+  EMERC = 24,
   MAX_SHADERS
 };

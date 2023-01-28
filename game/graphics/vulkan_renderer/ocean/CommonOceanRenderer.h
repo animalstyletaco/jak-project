@@ -55,6 +55,11 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
     std::unique_ptr<IndexBuffer> index_buffers[2 * NUM_BUCKETS];
   } m_ogl;
 
+  struct PushConstant{
+    int bucket = 0;
+    float scissor_adjust = 0;
+  }m_push_constant;
+
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 
   PipelineConfigInfo m_pipeline_config_info;

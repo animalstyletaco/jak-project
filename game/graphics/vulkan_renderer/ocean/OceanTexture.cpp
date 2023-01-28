@@ -64,13 +64,19 @@ void OceanVulkanTexture::init_textures(VulkanTexturePool& pool) {
   in.debug_page_name = "PC-OCEAN";
   in.debug_name = fmt::format("pc-ocean-mip-{}", m_generate_mipmaps);
   in.id = pool.allocate_pc_port_texture();
-  m_tex0_gpu = pool.give_texture_and_load_to_vram(in, OCEAN_TEX_TBP);
+  m_tex0_gpu = pool.give_texture_and_load_to_vram(in, ocean_common::OCEAN_TEX_TBP_JAK1);
 }
 
 void OceanVulkanTexture::handle_ocean_texture(DmaFollower& dma,
                                         BaseSharedRenderState* render_state,
                                         ScopedProfilerNode& prof) {
-  BaseOceanTexture::handle_ocean_texture(dma, render_state, prof);
+  if (render_state->version == GameVersion::Jak1) {
+    BaseOceanTexture::handle_ocean_texture_jak1(dma, render_state, prof);
+  } else if (render_state->version == GameVersion::Jak2) {
+    BaseOceanTexture::handle_ocean_texture_jak2(dma, render_state, prof);
+  } else {
+    assert(false);
+  }
 }
 
 /*!

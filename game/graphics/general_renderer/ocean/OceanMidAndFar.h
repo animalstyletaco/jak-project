@@ -19,13 +19,21 @@ class BaseOceanMidAndFar : public BaseBucketRenderer {
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
  protected:
+  void render_jak1(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void render_jak2(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_ocean_far(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
   void handle_ocean_mid(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
-protected:
+  void handle_ocean_89_jak2(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof);
+  void handle_ocean_79_jak2(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof);
+
   virtual void direct_renderer_reset_state() = 0;
   virtual void direct_renderer_render_gif(const u8* data,
     u32 size,
@@ -35,9 +43,12 @@ protected:
     ScopedProfilerNode& prof) = 0;
   virtual void direct_renderer_set_mipmap(bool) = 0;
 
-  virtual void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+  virtual void texture_renderer_handle_ocean_texture_jak1(DmaFollower& dma,
                                                   BaseSharedRenderState* render_state,
                                                   ScopedProfilerNode& prof) = 0;
+  virtual void texture_renderer_handle_ocean_texture_jak2(DmaFollower& dma,
+                                                          BaseSharedRenderState* render_state,
+                                                          ScopedProfilerNode& prof) = 0;
 
   virtual void ocean_mid_renderer_run(DmaFollower& dma,
                                       BaseSharedRenderState* render_state,

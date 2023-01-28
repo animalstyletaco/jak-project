@@ -88,6 +88,7 @@ VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& 
   at(ShaderId::SPRITE_DISTORT_INSTANCED).initialize_shader(m_device->getLogicalDevice(), "sprite_distort_instanced", version);
   at(ShaderId::POST_PROCESSING).initialize_shader(m_device->getLogicalDevice(), "post_processing", version);
   at(ShaderId::DEPTH_CUE).initialize_shader(m_device->getLogicalDevice(), "depth_cue", version);
+  at(ShaderId::EMERC).initialize_shader(m_device->getLogicalDevice(), "emerc", version);
 
   for (auto& shader : m_shaders) {
     ASSERT_MSG(shader.okay(), "Shader compiled");

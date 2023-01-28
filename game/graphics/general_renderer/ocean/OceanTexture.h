@@ -9,10 +9,13 @@
 class BaseOceanTexture {
  public:
   BaseOceanTexture(bool generate_mipmaps);
-  void handle_ocean_texture(
+  void handle_ocean_texture_jak1(
       DmaFollower& dma,
       BaseSharedRenderState* render_state,
       ScopedProfilerNode& prof);
+  void handle_ocean_texture_jak2(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof);
   virtual ~BaseOceanTexture();
 
  protected:
@@ -22,6 +25,10 @@ class BaseOceanTexture {
   void run_L3_PC();
   void run_L5_PC();
   void xgkick_PC(Vf* src);
+
+  void run_L1_PC_jak2();
+  void run_L2_PC_jak2();
+  void run_L3_PC_jak2();
 
   virtual void set_gpu_texture(TextureInput&) = 0;
   void setup_renderer();
@@ -38,7 +45,6 @@ class BaseOceanTexture {
 
   static constexpr int TEX0_SIZE = 128;
   static constexpr int NUM_MIPS = 8;
-  static constexpr int OCEAN_TEX_TBP = 8160;  // todo
 
   virtual void setup_framebuffer_context(int) = 0;
 

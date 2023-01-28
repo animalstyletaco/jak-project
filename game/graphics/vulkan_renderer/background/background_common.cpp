@@ -13,6 +13,9 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
   pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
+
+  DoubleDraw double_draw;
+
   if (mode.get_zt_enable()) {
     pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
     switch (mode.get_depth_test()) {
@@ -101,6 +104,16 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
         pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
+      case DrawMode::AlphaBlend::SRC_0_DST_DST:
+        pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+        pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
+
+        pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        double_draw.color_mult = 0.5f;
       default:
         ASSERT(false);
     }
@@ -160,7 +173,7 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
 
   // for some reason, they set atest NEVER + FB_ONLY to disable depth writes
   bool alpha_hack_to_disable_z_write = false;
-  DoubleDraw double_draw;
+
 
   float alpha_min = 0.;
   if (mode.get_at_enable()) {

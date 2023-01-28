@@ -63,7 +63,7 @@ void CommonOceanVulkanRenderer::CreatePipelineLayout() {
 
   std::array<VkPushConstantRange, 2> pushConstantRanges;
   pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(int);
+  pushConstantRanges[0].size = sizeof(PushConstant);
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   pushConstantRanges[1].offset = pushConstantRanges[0].size;
@@ -163,7 +163,9 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
         m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-        tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(8160);
+        auto tbp =
+            render_state->version == GameVersion::Jak1 ? ocean_common::OCEAN_TEX_TBP_JAK1 : ocean_common::OCEAN_TEX_TBP_JAK2;
+        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(tbp);
         if (!tex) {
           tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
@@ -224,8 +226,10 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
           1, &m_descriptor_image_infos[bucket], 1);
     }
 
+    m_push_constant.bucket = bucket;
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(int), (void*)&bucket);
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstant),
+                       (void*)&m_push_constant);
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT, 4, sizeof(int), (void*)&bucket);
     
@@ -299,7 +303,9 @@ void CommonOceanVulkanRenderer::flush_mid(
   for (int bucket = NUM_BUCKETS; bucket < NUM_BUCKETS + 2; bucket++) {
     switch (bucket) {
       case 0: {
-        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(8160);
+        auto tbp = render_state->version == GameVersion::Jak1 ? ocean_common::OCEAN_TEX_TBP_JAK1
+                                                              : ocean_common::OCEAN_TEX_TBP_JAK2;
+        auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(tbp);
         if (!tex) {
           m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }

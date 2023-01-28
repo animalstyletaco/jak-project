@@ -20,11 +20,16 @@ class BaseOceanNear : public BaseBucketRenderer {
                                                       ScopedProfilerNode& prof) = 0;
 
   void run_call0_vu2c();
+  void run_call0_vu2c_jak2();
   void run_call39_vu2c();
+  void run_call39_vu2c_jak2();
   void run_L15_vu2c();
+  void run_L15_vu2c_jak2();
   void run_L21_vu2c();
+  void run_L21_vu2c_jak2();
   void run_L23_vu2c();
   void run_L25_vu2c();
+  void run_L25_vu2c_jak2();
   void run_L30_vu2c();
   void run_L32_vu2c();
 

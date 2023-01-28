@@ -48,6 +48,13 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   void initialize_debug_pipeline();
   std::unique_ptr<GraphicsDeviceVulkan>& get_logical_device();
 
+  struct Cache {
+    std::vector<u8> vis_temp;
+    std::vector<std::pair<int, int>> draw_idx_temp;
+    std::vector<u32> index_temp;
+    std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
+  } m_cache;
+
   struct TreeCacheVulkan : TreeCache {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
@@ -57,6 +64,7 @@ class Tfrag3Vulkan : public BaseTfrag3 {
 
   std::array<std::vector<TreeCacheVulkan>, GEOM_MAX> m_cached_trees;
   const std::vector<VulkanTexture>* m_textures = nullptr;
+  std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
 
   PipelineConfigInfo m_debug_pipeline_config_info{};
   PipelineConfigInfo& m_pipeline_config_info;
@@ -70,7 +78,4 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& m_time_of_day_color;
 
   std::unique_ptr<VertexBuffer> m_debug_vertex_buffer;
-
-  VkSamplerCreateInfo m_sampler_info;
-  VkSampler m_sampler = VK_NULL_HANDLE;
 };

@@ -60,37 +60,4 @@ bool sphere_in_view_ref(const math::Vector4f& sphere, const math::Vector4f* plan
 
 void update_render_state_from_pc_settings(BaseSharedRenderState* state, const TfragPcPortData& data);
 
-void make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
-                                 u32* counts_out,
-                                 void** index_offsets_out,
-                                 const std::vector<tfrag3::ShrubDraw>& draws);
-
-u32 make_all_visible_multidraws(std::pair<int, int>* draw_ptrs_out,
-                                u32* counts_out,
-                                void** index_offsets_out,
-                                const std::vector<tfrag3::StripDraw>& draws);
-
-u32 make_multidraws_from_vis_string(std::pair<int, int>* draw_ptrs_out,
-                                    u32* counts_out,
-                                    void** index_offsets_out,
-                                    const std::vector<tfrag3::StripDraw>& draws,
-                                    const std::vector<u8>& vis_data);
-
-u32 make_all_visible_index_list(std::pair<int, int>* group_out,
-                                u32* idx_out,
-                                const std::vector<tfrag3::StripDraw>& draws,
-                                const u32* idx_in,
-                                u32* num_tris_out);
-
-u32 make_index_list_from_vis_string(std::pair<int, int>* group_out,
-                                    u32* idx_out,
-                                    const std::vector<tfrag3::StripDraw>& draws,
-                                    const std::vector<u8>& vis_data,
-                                    const u32* idx_in,
-                                    u32* num_tris_out);
-
-u32 make_all_visible_index_list(std::pair<int, int>* group_out,
-                                u32* idx_out,
-                                const std::vector<tfrag3::ShrubDraw>& draws,
-                                const u32* idx_in);
 }  // namespace background_common

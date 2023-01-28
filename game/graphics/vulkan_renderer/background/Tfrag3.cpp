@@ -14,24 +14,6 @@ Tfrag3Vulkan::Tfrag3Vulkan(VulkanInitializationInfo& vulkan_info,
   m_vertex_descriptor_writer(vertex_description_writer), m_fragment_descriptor_writer(fragment_description_writer),
   m_vertex_shader_uniform_buffer(vertex_shader_uniform_buffer), m_time_of_day_color(fragment_shader_uniform_buffer){
 
-  m_sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  m_sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  m_sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  m_sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  m_sampler_info.anisotropyEnable = VK_TRUE;
-  // m_sampler_info.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-  m_sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-  m_sampler_info.unnormalizedCoordinates = VK_FALSE;
-  m_sampler_info.compareEnable = VK_FALSE;
-  m_sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
-  m_sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  m_sampler_info.minLod = 0.0f;
-  // m_sampler_info.maxLod = static_cast<float>(mipLevels);
-  m_sampler_info.mipLodBias = 0.0f;
-
-  m_sampler_info.minFilter = VK_FILTER_NEAREST;
-  m_sampler_info.magFilter = VK_FILTER_NEAREST;
-
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
@@ -109,9 +91,6 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
   }
 
   m_cache.vis_temp.resize(vis_temp_len);
-  m_cache.multidraw_offset_per_stripdraw.resize(max_draws);
-  m_cache.multidraw_count_buffer.resize(max_num_grps);
-  m_cache.multidraw_index_offset_buffer.resize(max_num_grps);
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
   ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
@@ -181,7 +160,7 @@ void Tfrag3Vulkan::render_tree(int geom,
 
   timeOfDayTexture.writeToImage(m_color_result.data());
 
-  background_common::first_tfrag_draw_setup(settings, render_state,
+  vulkan_background_common::first_tfrag_draw_setup(settings, render_state,
                                                         m_vertex_shader_uniform_buffer);
 
   background_common::cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
@@ -189,23 +168,21 @@ void Tfrag3Vulkan::render_tree(int geom,
 
   u32 total_tris;
   if (render_state->no_multidraw) {
-    u32 idx_buffer_size = background_common::make_index_list_from_vis_string(
+    u32 idx_buffer_size = vulkan_background_common::make_index_list_from_vis_string(
         m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, m_cache.vis_temp,
         tree.index_data, &total_tris);
     //CreateIndexBuffer(m_cache.index_temp);
     //glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx_buffer_size * sizeof(u32), m_cache.index_temp.data(),
     //             GL_STREAM_DRAW);
   } else {
-    total_tris = background_common::make_multidraws_from_vis_string(
-        m_cache.multidraw_offset_per_stripdraw.data(), m_cache.multidraw_count_buffer.data(),
-        m_cache.multidraw_index_offset_buffer.data(), *tree.draws, m_cache.vis_temp);
+    total_tris = vulkan_background_common::make_multidraws_from_vis_string(
+        m_cache.multi_draw_indexed_infos, *tree.draws, m_cache.vis_temp);
   }
 
   prof.add_tri(total_tris);
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->operator[](draw_idx);
-    const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     if (render_state->no_multidraw) {
@@ -219,7 +196,9 @@ void Tfrag3Vulkan::render_tree(int geom,
     }
 
     ASSERT(m_textures);
-    auto double_draw = background_common::setup_tfrag_shader(render_state, draw.mode, (VulkanTexture*)&m_textures->at(draw.tree_tex_id), m_pipeline_config_info,
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(
+        render_state, draw.mode, (VulkanTexture*)&m_textures->at(draw.tree_tex_id),
+        m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
         m_time_of_day_color);
     tree.tris_this_frame += draw.num_triangles;
     tree.draws_this_frame++;
@@ -348,13 +327,13 @@ void Tfrag3Vulkan::initialize_debug_pipeline() {
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Tfrag 3 Vertex";
+  vertShaderStageInfo.pName = "main";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
   fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Tfrag 3 Fragment";
+  fragShaderStageInfo.pName = "main";
 
   m_debug_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 

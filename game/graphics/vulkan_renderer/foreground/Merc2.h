@@ -21,17 +21,29 @@ struct MercCameraControlUniformBufferVertexData {
   math::Vector4f fog_constants;
 };
 
-struct MercUniformBufferVertexData {
-  MercLightControlUniformBufferVertexData light_system;    // binding = 0
-  MercCameraControlUniformBufferVertexData camera_system;  // binding = 1
+struct MercPerspectiveMatrixUniformBufferVertexData {
   math::Matrix4f perspective_matrix;                       // binding = 2
 };
 
-class MercVertexUniformBuffer : public UniformVulkanBuffer {
+class MercLightControlVertexUniformBuffer : public UniformVulkanBuffer {
  public:
-  MercVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  MercLightControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                           uint32_t instanceCount,
                           VkDeviceSize minOffsetAlignment = 1);
+};
+
+class MercCameraControlVertexUniformBuffer : public UniformVulkanBuffer {
+ public:
+  MercCameraControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                       uint32_t instanceCount,
+                                       VkDeviceSize minOffsetAlignment = 1);
+};
+
+class MercPerspectiveMatrixVertexUniformBuffer : public UniformVulkanBuffer {
+ public:
+  MercPerspectiveMatrixVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                           uint32_t instanceCount,
+                                           VkDeviceSize minOffsetAlignment = 1);
 };
 
 struct MercUniformBufferFragmentData {
@@ -82,6 +94,9 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
   struct LevelDrawBucketVulkan {
     const LevelDataVulkan* level = nullptr;
     std::vector<Draw> draws;
+    std::vector<VulkanSamplerHelper> samplers;
+    std::vector<VkDescriptorImageInfo> descriptor_image_infos;
+    std::vector<GraphicsPipelineLayout> pipeline_layouts;
     u32 next_free_draw = 0;
 
     void reset() {
@@ -100,8 +115,16 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
 
-  std::unique_ptr<MercVertexUniformBuffer> m_vertex_uniform_buffer;
+  std::unique_ptr<MercLightControlVertexUniformBuffer> m_light_control_vertex_uniform_buffer;
+  std::unique_ptr<MercCameraControlVertexUniformBuffer> m_camera_control_vertex_uniform_buffer;
+  std::unique_ptr<MercPerspectiveMatrixVertexUniformBuffer> m_perspective_matrix_vertex_uniform_buffer;
   std::unique_ptr<MercBoneVertexUniformBuffer> m_bone_vertex_uniform_buffer;
   std::unique_ptr<MercFragmentUniformBuffer> m_fragment_uniform_buffer;
+
+  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
+  VkDescriptorBufferInfo m_light_control_vertex_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_camera_control_vertex_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_perspective_matrix_vertex_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_bone_vertex_buffer_descriptor_info;
 };
 

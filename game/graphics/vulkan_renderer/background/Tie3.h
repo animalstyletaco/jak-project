@@ -72,8 +72,16 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     } perf;
   };
 
+  struct Cache {
+    std::vector<std::pair<int, int>> draw_idx_temp;
+    std::vector<u32> index_temp;
+    std::vector<u8> vis_temp;
+    std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
+  } m_cache;
+
   std::array<std::vector<Tree>, 4> m_trees;  // includes 4 lods!
   std::vector<VulkanTexture>* m_textures;
+  std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color;

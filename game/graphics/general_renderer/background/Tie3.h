@@ -73,15 +73,6 @@ class BaseTie3 : public BaseBucketRenderer {
   std::string m_level_name;
   u64 m_load_id = -1;
 
-  struct Cache {
-    std::vector<std::pair<int, int>> draw_idx_temp;
-    std::vector<u32> index_temp;
-    std::vector<u8> vis_temp;
-    std::vector<std::pair<int, int>> multidraw_offset_per_stripdraw;
-    std::vector<u32> multidraw_count_buffer;
-    std::vector<void*> multidraw_index_offset_buffer;
-  } m_cache;
-
   std::vector<math::Vector<u8, 4>> m_color_result;
 
   static constexpr int TIME_OF_DAY_COLOR_COUNT = 8192;

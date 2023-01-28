@@ -54,6 +54,7 @@ void UniformBuffer::Set4x4MatrixDataInVkDeviceMemory(const char* section_name,
 void UniformBuffer::SetUniformVectorUnsigned(const char* section_name,
                                              uint32_t size,
                                              uint32_t* value,
+                                             uint32_t instanceIndex,
                                              uint32_t flags) {
   uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)value, sizeof(unsigned) * size, flags);
@@ -62,39 +63,42 @@ void UniformBuffer::SetUniformVectorUnsigned(const char* section_name,
 void UniformBuffer::SetUniformVectorFourFloat(const char* section_name,
                                               uint32_t vector_count,
                                               float* value,
+                                              uint32_t instanceIndex,
                                               uint32_t flags) {
   uint32_t size = vector_count * 4 * sizeof(float);
 
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)value, size, flags);
 }
 
-void UniformBuffer::SetUniform1ui(const char* section_name, uint32_t value, uint32_t flags) {
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+void UniformBuffer::SetUniform1ui(const char* section_name, uint32_t value, uint32_t instanceIndex, uint32_t flags) {
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
-void UniformBuffer::SetUniform1i(const char* section_name, int32_t value, uint32_t flags) {
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+void UniformBuffer::SetUniform1i(const char* section_name, int32_t value, uint32_t instanceIndex, uint32_t flags) {
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
-void UniformBuffer::SetUniform1f(const char* section_name, float value, uint32_t flags) {
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+void UniformBuffer::SetUniform1f(const char* section_name, float value, uint32_t instanceIndex, uint32_t flags) {
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
 void UniformBuffer::SetUniformMathVector3f(const char* section_name,
                                            math::Vector3f& value,
+                                           uint32_t instanceIndex,
                                            uint32_t flags) {
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
 void UniformBuffer::SetUniformMathVector4f(const char* section_name,
                                            math::Vector4f& value,
+                                           uint32_t instanceIndex,
                                            uint32_t flags) {
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
@@ -102,8 +106,9 @@ void UniformBuffer::SetUniform3f(const char* section_name,
                                  float value1,
                                  float value2,
                                  float value3,
+                                 uint32_t instanceIndex,
                                  uint32_t flags) {
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
 
   float values[] = {value1, value2, value3};
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&values, sizeof(values), flags);
@@ -114,8 +119,9 @@ void UniformBuffer::SetUniform4f(const char* section_name,
                                  float value2,
                                  float value3,
                                  float value4,
+                                 uint32_t instanceIndex,
                                  uint32_t flags) {
-  uint32_t memory_offset = GetDeviceMemoryOffset(section_name);
+  uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
 
   float values[] = {value1, value2, value3, value4};
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&values, sizeof(values), flags);

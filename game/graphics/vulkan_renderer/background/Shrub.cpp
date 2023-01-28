@@ -14,7 +14,7 @@ ShrubVulkan::ShrubVulkan(const std::string& name,
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(10, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
@@ -62,6 +62,15 @@ void ShrubVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange pushConstantRange = {};
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(int);
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
+
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
@@ -120,9 +129,6 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
   m_index_buffer->writeToGpuBuffer(total_shrub_indices.data());
   m_single_draw_index_buffer->writeToGpuBuffer(total_shrub_indices.data());
 
-  m_cache.multidraw_offset_per_stripdraw.resize(max_draws);
-  m_cache.multidraw_count_buffer.resize(max_num_grps);
-  m_cache.multidraw_index_offset_buffer.resize(max_num_grps);
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
   ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
@@ -254,7 +260,7 @@ void ShrubVulkan::render_tree(int idx,
                                          VK_IMAGE_ASPECT_COLOR_BIT, 1);
   m_time_of_day_textures[idx].writeToImage(m_color_result.data());
 
-  background_common::first_tfrag_draw_setup(settings, render_state,
+  vulkan_background_common::first_tfrag_draw_setup(settings, render_state,
                                             m_vertex_shader_uniform_buffer);
 
   tree.perf.tod_time.add(setup_timer.getSeconds());
@@ -262,11 +268,10 @@ void ShrubVulkan::render_tree(int idx,
 
   Timer index_timer;
   if (render_state->no_multidraw) {
-    background_common::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, tree.index_data);
+    vulkan_background_common::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, tree.index_data);
   } else {
-    background_common::make_all_visible_multidraws(m_cache.multidraw_offset_per_stripdraw.data(),
-                                m_cache.multidraw_count_buffer.data(),
-                                m_cache.multidraw_index_offset_buffer.data(), *tree.draws);
+    vulkan_background_common::make_all_visible_multidraws(m_cache.multi_draw_indexed_infos,
+                                                          *tree.draws);
   }
 
   tree.perf.index_time.add(index_timer.getSeconds());
@@ -275,7 +280,6 @@ void ShrubVulkan::render_tree(int idx,
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->operator[](draw_idx);
-    const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     m_pipeline_layouts[idx].createGraphicsPipeline(m_pipeline_config_info);
@@ -283,10 +287,13 @@ void ShrubVulkan::render_tree(int idx,
 
     if (render_state->no_multidraw) {
       if (singledraw_indices.second == 0) {
-        //TODO: Initialize MultidrawBuffer
-        // m_vulkan_info.swap_chain->multiDrawIndexedCommandBuffer(
-        //    m_vulkan_info.render_command_buffer, m_vertex_buffer, m_index_buffer,
-        //    m_pipeline_config_info.pipelineLayout, m_descriptor_sets, 0);
+        m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
+            m_vulkan_info.render_command_buffer, m_vertex_buffer.get(), m_index_buffer.get(),
+            m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
+        vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+                                 m_cache.multi_draw_indexed_infos.data(),
+                                 1, 0, sizeof(VkMultiDrawIndexedInfoEXT), NULL);
       }
     } else {
       if (multidraw_indices.second == 0) {
@@ -296,8 +303,9 @@ void ShrubVulkan::render_tree(int idx,
       }
     }
 
-    auto double_draw = background_common::setup_tfrag_shader(render_state, draw.mode, &m_textures->at(draw.tree_tex_id),
-                                          m_pipeline_config_info, m_time_of_day_color_buffer);
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &m_textures->at(draw.tree_tex_id),
+        m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
+        m_time_of_day_color_buffer);
     m_time_of_day_textures[idx].writeToImage(m_color_result.data());
 
     prof.add_draw_call();
@@ -320,9 +328,14 @@ void ShrubVulkan::render_tree(int idx,
               m_vulkan_info.render_command_buffer, m_vertex_buffer, m_index_buffer,
               m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
         } else {
-          //m_vulkan_info.swap_chain->multiDrawIndexedCommandBuffer(
-          //    m_vulkan_info.render_command_buffer, m_vertex_buffer, m_index_buffer,
-          //    m_pipeline_config_info.pipelineLayout, m_descriptor_sets, 0);
+          // TODO: Initialize MultidrawBuffer
+          m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
+              m_vulkan_info.render_command_buffer, m_vertex_buffer.get(), m_index_buffer.get(),
+              m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
+          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+                                   m_cache.multi_draw_indexed_infos.data(), 1, 0,
+                                   sizeof(VkMultiDrawIndexedInfoEXT), NULL);
         }
         break;
       default:

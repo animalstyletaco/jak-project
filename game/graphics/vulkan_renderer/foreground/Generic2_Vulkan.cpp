@@ -496,12 +496,11 @@ void GenericVulkan2::FinalizeVulkanDraws() {
   m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
   m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
 
-  m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
-      m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer.get(), m_ogl.index_buffer.get(),
-      m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
-
-
   for (uint32_t i = 0; i < m_next_free_bucket; i++) {
+    m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
+        m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer.get(), m_ogl.index_buffer.get(),
+        m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(int), (void*)&i);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,

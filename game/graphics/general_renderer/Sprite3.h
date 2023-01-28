@@ -18,6 +18,7 @@ class BaseSprite3 : public BaseBucketRenderer {
   void draw_debug_window() override;
 
  protected:
+  virtual void setup_graphics_for_2d_group_0_render() = 0;
   virtual void direct_renderer_reset_state() = 0;
   virtual void direct_renderer_render_vif(u32 vif0,
                                           u32 vif1,
@@ -48,15 +49,15 @@ class BaseSprite3 : public BaseBucketRenderer {
   virtual void distort_draw_common(BaseSharedRenderState* render_state,
                                    ScopedProfilerNode& prof) = 0;
   virtual void distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) = 0;
-  virtual void render_2d_group0(DmaFollower& dma,
-                                BaseSharedRenderState* render_state,
-                                ScopedProfilerNode& prof) = 0;
   virtual void flush_sprites(BaseSharedRenderState* render_state,
                              ScopedProfilerNode& prof,
                              bool double_draw) = 0;
   virtual void EnableSprite3GraphicsBlending() = 0;  // TODO: May need to have game version passed
                                                      // in as parameter
 
+  void render_2d_group0(DmaFollower& dma,
+                       BaseSharedRenderState* render_state,
+                       ScopedProfilerNode& prof);
   void render_distorter(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);

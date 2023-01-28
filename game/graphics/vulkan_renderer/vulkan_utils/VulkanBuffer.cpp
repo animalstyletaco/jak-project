@@ -300,7 +300,7 @@ UniformVulkanBuffer::UniformVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& 
                                          VkDeviceSize instanceSize,
                                          uint32_t instanceCount,
                                          VkDeviceSize minOffsetAlignment)
-    : VulkanBuffer(device, instanceSize, instanceCount,
+    : UniformBuffer(instanceSize), VulkanBuffer(device, instanceSize, instanceCount,
                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                    minOffsetAlignment) {
@@ -313,6 +313,7 @@ void UniformVulkanBuffer::SetDataInVkDeviceMemory(uint32_t memory_offset,
                                                   uint32_t flags) {
   map(value_size, memory_offset);
   writeToCpuBuffer(value, value_size, memory_offset);
+  //flush(value_size, memory_offset);
   unmap();
 }
 

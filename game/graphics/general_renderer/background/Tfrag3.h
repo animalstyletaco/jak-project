@@ -86,15 +86,6 @@ class BaseTfrag3 {
   virtual TreeCache& get_cached_tree(int bucket_index, int cache_index) = 0;
   virtual size_t get_total_cached_trees_count(int bucket_index) = 0;
 
-  struct Cache {
-    std::vector<u8> vis_temp;
-    std::vector<std::pair<int, int>> draw_idx_temp;
-    std::vector<u32> index_temp;
-    std::vector<std::pair<int, int>> multidraw_offset_per_stripdraw;
-    std::vector<u32> multidraw_count_buffer;
-    std::vector<void*> multidraw_index_offset_buffer;
-  } m_cache;
-
   std::string m_level_name;
   std::vector<math::Vector<u8, 4>> m_color_result;
 

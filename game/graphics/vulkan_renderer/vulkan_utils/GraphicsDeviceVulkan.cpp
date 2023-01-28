@@ -12,10 +12,6 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
               VkDebugUtilsMessageTypeFlagsEXT messageType,
               const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
               void* pUserData) {
-  if (!strcmp(pCallbackData->pMessageIdName, "UNASSIGNED-CoreValidation-Shader-InputNotProduced")) {
-    printf("shader mistake");
-  }
-
   if (strcmp(pCallbackData->pMessageIdName, "Loader Message")) {
     lg::error("{}: {}", pCallbackData->pMessageIdName, pCallbackData->pMessage);
   } else {
@@ -414,6 +410,7 @@ std::vector<const char*> GraphicsDeviceVulkan::getRequiredExtensions() {
   glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
   std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+  extensions.push_back(VK_EXT_MULTI_DRAW_EXTENSION_NAME);
 
   if (enableValidationLayers) {
     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);

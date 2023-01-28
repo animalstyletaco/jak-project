@@ -35,6 +35,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
 
   struct Tree {
     std::unique_ptr<VulkanTexture> time_of_day_texture;
+    std::vector<MultiDrawVulkanBuffer> multidraw_buffers;
     u32 vert_count;
     const std::vector<tfrag3::ShrubDraw>* draws = nullptr;
     const std::vector<tfrag3::TieWindInstance>* instance_info = nullptr;
@@ -60,6 +61,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   u64 m_load_id = -1;
 
   std::vector<VulkanTexture> m_time_of_day_textures;
+  std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
 
@@ -69,9 +71,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   struct Cache {
     std::vector<std::pair<int, int>> draw_idx_temp;
     std::vector<u32> index_temp;
-    std::vector<std::pair<int, int>> multidraw_offset_per_stripdraw;
-    std::vector<u32> multidraw_count_buffer;
-    std::vector<void*> multidraw_index_offset_buffer;
+    std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
 
   std::unique_ptr<VertexBuffer> m_vertex_buffer;

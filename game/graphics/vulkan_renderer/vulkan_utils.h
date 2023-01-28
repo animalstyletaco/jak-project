@@ -7,6 +7,7 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
 
 struct SharedVulkanRenderState;
 class ScopedProfilerNode;
@@ -38,7 +39,7 @@ class FramebufferVulkanTexturePair {
   std::unique_ptr<SwapChain> m_swap_chain;
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 
-  VkSampler m_sampler = VK_NULL_HANDLE;
+  VulkanSamplerHelper m_sampler_helper;
   std::vector<VulkanTexture> m_textures;
 };
 

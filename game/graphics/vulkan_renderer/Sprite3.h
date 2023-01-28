@@ -34,6 +34,9 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void SetupShader(ShaderId shaderId) override;
 
+ protected:
+  void setup_graphics_for_2d_group_0_render() override;
+
  private:
   void InitializeInputVertexAttribute();
   void graphics_setup() override;
@@ -46,9 +49,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void distort_draw_common(BaseSharedRenderState* render_state,
                            ScopedProfilerNode& prof) override;
   void distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) override;
-  void render_2d_group0(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof) override;
+
   void flush_sprites(BaseSharedRenderState* render_state,
                      ScopedProfilerNode& prof,
                      bool double_draw) override;
@@ -112,6 +113,9 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
 
   std::unique_ptr<Sprite3dVertexUniformBuffer> m_sprite_3d_vertex_uniform_buffer;
   std::unique_ptr<Sprite3dFragmentUniformBuffer> m_sprite_3d_fragment_uniform_buffer;
+
+  VulkanSamplerHelper m_sampler_helper;
+  VulkanSamplerHelper m_distort_sampler_helper;
 
   std::unique_ptr<SpriteDistortInstancedVertexUniformBuffer>
       m_sprite_3d_instanced_vertex_uniform_buffer;

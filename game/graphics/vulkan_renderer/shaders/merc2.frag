@@ -5,14 +5,14 @@ layout (location = 0) in vec3 vtx_color;
 layout (location = 1) in vec2 vtx_st;
 layout (location = 2) in float fog;
 
-layout (set = 1, binding = 0) uniform sampler2D tex_T0;
-
-layout (set = 1, binding = 1) uniform UniformBufferObject {
+layout (set = 1, binding = 0) uniform UniformBufferObject {
   vec4 fog_color;
   int ignore_alpha;
   int decal_enable;
   int gfx_hack_no_tex;
 } ubo;
+
+layout (set = 1, binding = 1) uniform sampler2D tex_T0;
 
 void main() {
     if(ubo.gfx_hack_no_tex == 0){

@@ -13,7 +13,9 @@ SpriteVulkan3::SpriteVulkan3(const std::string& name,
                  std::unique_ptr<GraphicsDeviceVulkan>& device,
                  VulkanInitializationInfo& graphics_info)
     : BaseSprite3(name, my_id), BucketVulkanRenderer(device, graphics_info), m_direct(name, my_id, device, graphics_info, 1024),
-  m_distorted_pipeline_layout(device), m_distorted_instance_pipeline_layout(device) {
+      m_distorted_pipeline_layout(device),
+      m_distorted_instance_pipeline_layout(device),
+      m_sampler_helper(device), m_distort_sampler_helper(device) {
   m_sprite_3d_vertex_uniform_buffer = std::make_unique<Sprite3dVertexUniformBuffer>(
       m_device, 1);
 
@@ -344,7 +346,7 @@ void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state, Sco
   update_mode_from_alpha1(
       m_sprite_distorter_setup.alpha.data,
       m_current_mode);  // alpha1
-  background_common::setup_vulkan_from_draw_mode(m_current_mode, m_distort_ogl.fbo_texture.get(), m_pipeline_config_info, false);
+  vulkan_background_common::setup_vulkan_from_draw_mode(m_current_mode, m_distort_ogl.fbo_texture.get(), m_distort_sampler_helper, m_pipeline_config_info, false);
 }
 
 void SpriteVulkan3::distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) {
@@ -367,12 +369,11 @@ void SpriteVulkan3::distort_setup_framebuffer_dims(BaseSharedRenderState* render
   }
 }
 
-void SpriteVulkan3::render_2d_group0(DmaFollower& dma,
-                               BaseSharedRenderState* render_state,
-                               ScopedProfilerNode& prof) {
+void SpriteVulkan3::setup_graphics_for_2d_group_0_render() {
   // opengl sprite frame setup
-  //auto shid = render_state->shaders[ShaderId::SPRITE3].id();
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("hvdf_offset", 1, m_3d_matrix_data.hvdf_offset.data());
+  // auto shid = render_state->shaders[ShaderId::SPRITE3].id();
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("hvdf_offset", 1,
+                                                               m_3d_matrix_data.hvdf_offset.data());
   m_sprite_3d_vertex_uniform_buffer->SetUniform1f("pfog0", m_frame_data.pfog0);
   m_sprite_3d_vertex_uniform_buffer->SetUniform1f("min_scale", m_frame_data.min_scale);
   m_sprite_3d_vertex_uniform_buffer->SetUniform1f("max_scale", m_frame_data.max_scale);
@@ -382,61 +383,18 @@ void SpriteVulkan3::render_2d_group0(DmaFollower& dma,
   // glUniform4fv(glGetUniformLocation(shid, "hmge_scale"), 1, m_frame_data.hmge_scale.data());
   m_sprite_3d_vertex_uniform_buffer->SetUniform1f("deg_to_rad", m_frame_data.deg_to_rad);
   m_sprite_3d_vertex_uniform_buffer->SetUniform1f("inv_area", m_frame_data.inv_area);
-  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
-                                                                      m_3d_matrix_data.camera.data());
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xy_array", 8, m_frame_data.xy_array[0].data());
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xyz_array", 4, m_frame_data.xyz_array[0].data());
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("st_array", 4, m_frame_data.st_array[0].data());
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("basis_x", 1, m_frame_data.basis_x.data());
-  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("basis_y", 1, m_frame_data.basis_y.data());
-
-  u16 last_prog = -1;
-
-  while (sprite_common::looks_like_2d_chunk_start(dma)) {
-    m_debug_stats.blocks_2d_grp0++;
-    // 4 packets per chunk
-
-    // first is the header
-    u32 sprite_count = sprite_common::process_sprite_chunk_header(dma);
-    m_debug_stats.count_2d_grp0 += sprite_count;
-
-    // second is the vector data
-    u32 expected_vec_size = sizeof(SpriteVecData2d) * sprite_count;
-    auto vec_data = dma.read_and_advance();
-    ASSERT(expected_vec_size <= sizeof(m_vec_data_2d));
-    unpack_to_no_stcycl(&m_vec_data_2d, vec_data, VifCode::Kind::UNPACK_V4_32, expected_vec_size,
-                        SpriteDataMem::Vector, false, true);
-
-    // third is the adgif data
-    u32 expected_adgif_size = sizeof(AdGifData) * sprite_count;
-    auto adgif_data = dma.read_and_advance();
-    ASSERT(expected_adgif_size <= sizeof(m_adgif));
-    unpack_to_no_stcycl(&m_adgif, adgif_data, VifCode::Kind::UNPACK_V4_32, expected_adgif_size,
-                        SpriteDataMem::Adgif, false, true);
-
-    // fourth is the actual run!!!!!
-    auto run = dma.read_and_advance();
-    ASSERT(run.vifcode0().kind == VifCode::Kind::NOP);
-    ASSERT(run.vifcode1().kind == VifCode::Kind::MSCAL);
-
-    if (m_enabled) {
-      if (run.vifcode1().immediate != last_prog) {
-        // one-time setups and flushing
-        flush_sprites(render_state, prof, false);
-      }
-
-      if (run.vifcode1().immediate == SpriteProgMem::Sprites2dGrp0) {
-        if (m_2d_enable) {
-          do_block_common(SpriteMode::Mode2D, sprite_count, render_state, prof);
-        }
-      } else {
-        if (m_3d_enable) {
-          do_block_common(SpriteMode::Mode3D, sprite_count, render_state, prof);
-        }
-      }
-      last_prog = run.vifcode1().immediate;
-    }
-  }
+  m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+      "camera", 1, GL_FALSE, m_3d_matrix_data.camera.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xy_array", 8,
+                                                               m_frame_data.xy_array[0].data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xyz_array", 4,
+                                                               m_frame_data.xyz_array[0].data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("st_array", 4,
+                                                               m_frame_data.st_array[0].data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("basis_x", 1,
+                                                               m_frame_data.basis_x.data());
+  m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("basis_y", 1,
+                                                               m_frame_data.basis_y.data());
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -477,7 +435,7 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
     }
     ASSERT(tex);
 
-    auto settings = background_common::setup_vulkan_from_draw_mode(mode, tex, m_pipeline_config_info, false);
+    auto settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, tex, m_sampler_helper, m_pipeline_config_info, false);
 
     m_sprite_3d_fragment_uniform_buffer->SetUniform1f("alpha_min", double_draw ? settings.aref_first : 0.016);
     m_sprite_3d_fragment_uniform_buffer->SetUniform1f("alpha_max", 10.f);

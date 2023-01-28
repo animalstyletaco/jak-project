@@ -10,27 +10,30 @@ MercVulkan2::MercVulkan2(const std::string& name,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info) :
   BaseMerc2(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
-  m_bone_vertex_uniform_buffer = std::make_unique<MercBoneVertexUniformBuffer>(device);
-
   //TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
   m_graphics_buffer_alignment = 1;
-  m_vertex_uniform_buffer = std::make_unique<MercVertexUniformBuffer>(
-      m_device, sizeof(MercUniformBufferVertexData),
-      1);
+
+  m_light_control_vertex_uniform_buffer =
+      std::make_unique<MercLightControlVertexUniformBuffer>(m_device, MAX_DRAWS_PER_LEVEL, 1);
+  m_camera_control_vertex_uniform_buffer = std::make_unique<MercCameraControlVertexUniformBuffer>(m_device, 1, 1);
+  m_perspective_matrix_vertex_uniform_buffer = std::make_unique<MercPerspectiveMatrixVertexUniformBuffer>(m_device, 1, 1);
+  m_bone_vertex_uniform_buffer = std::make_unique<MercBoneVertexUniformBuffer>(device);
 
   m_fragment_uniform_buffer = std::make_unique<MercFragmentUniformBuffer>(
       m_device, sizeof(MercUniformBufferFragmentData), 1);
 
     m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   m_vertex_descriptor_writer =
@@ -40,17 +43,35 @@ MercVulkan2::MercVulkan2(const std::string& name,
                                                                     m_vulkan_info.descriptor_pool);
 
   m_descriptor_sets.resize(2);
-  auto vertex_buffer_descriptor_info = m_vertex_uniform_buffer->descriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
+  m_light_control_vertex_buffer_descriptor_info =
+      m_light_control_vertex_uniform_buffer->descriptorInfo();
+  m_camera_control_vertex_buffer_descriptor_info =
+      m_camera_control_vertex_uniform_buffer->descriptorInfo();
+  m_perspective_matrix_vertex_buffer_descriptor_info =
+      m_perspective_matrix_vertex_uniform_buffer->descriptorInfo();
+  m_bone_vertex_buffer_descriptor_info = m_bone_vertex_uniform_buffer
+      ->descriptorInfo();
+
+  m_vertex_descriptor_writer->writeBuffer(0, &m_light_control_vertex_buffer_descriptor_info)
+      .writeBuffer(1, &m_camera_control_vertex_buffer_descriptor_info)
+      .writeBuffer(2, &m_perspective_matrix_vertex_buffer_descriptor_info)
+      .writeBuffer(3, &m_bone_vertex_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
+
   auto fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+  m_fragment_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info, 1)
       .build(m_descriptor_sets[1]);
+  m_placeholder_descriptor_image_info =
+      *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info();
+  m_fragment_descriptor_writer->writeImage(1, &m_placeholder_descriptor_image_info, 2);
 
   create_pipeline_layout();
   for (int i = 0; i < MAX_LEVELS; i++) {
-    auto& draws = m_level_draw_buckets.emplace_back();
-    draws.draws.resize(MAX_DRAWS_PER_LEVEL);
+    auto& bucket = m_level_draw_buckets.emplace_back();
+    bucket.draws.resize(MAX_DRAWS_PER_LEVEL);
+    bucket.samplers.resize(MAX_DRAWS_PER_LEVEL, m_device);
+    bucket.descriptor_image_infos.resize(MAX_DRAWS_PER_LEVEL);
+    bucket.pipeline_layouts.resize(MAX_DRAWS_PER_LEVEL, m_device);
   }
 
   init_shaders();
@@ -91,7 +112,6 @@ void MercVulkan2::create_pipeline_layout() {
 
 void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_stats.num_draw_flush++;
-  uint32_t dynamic_descriptors_offset[] = {sizeof(MercUniformBufferVertexData)};
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
     auto& lev_bucket = m_level_draw_buckets[li];
@@ -103,20 +123,31 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, Scoped
 
     for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
       auto& draw = lev_bucket.draws[di];
+      auto& sampler = lev_bucket.samplers[di];
+
       auto& textureInfo = lev->textures[draw.texture];
-      m_vertex_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha);
+      m_fragment_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha, di);
+
+      uint32_t dynamic_descriptors_offset = di * sizeof(MercLightControlVertexUniformBuffer);
 
       if ((int)draw.light_idx != last_light) {
-        m_vertex_uniform_buffer->SetUniformMathVector3f("light_direction0", m_lights_buffer[draw.light_idx].direction0);
-        m_vertex_uniform_buffer->SetUniformMathVector3f("light_direction1", m_lights_buffer[draw.light_idx].direction1);
-        m_vertex_uniform_buffer->SetUniformMathVector3f("light_direction2", m_lights_buffer[draw.light_idx].direction2);
-        m_vertex_uniform_buffer->SetUniformMathVector3f("light_color0", m_lights_buffer[draw.light_idx].color0);
-        m_vertex_uniform_buffer->SetUniformMathVector3f("light_color1", m_lights_buffer[draw.light_idx].color1);
-        m_vertex_uniform_buffer->SetUniformMathVector3f("light_color2", m_lights_buffer[draw.light_idx].color2);
-        m_vertex_uniform_buffer->SetUniformMathVector3f("light_ambient", m_lights_buffer[draw.light_idx].ambient);
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+            "light_direction0", m_lights_buffer[draw.light_idx].direction0, di);
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+            "light_direction1", m_lights_buffer[draw.light_idx].direction1, di);
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+            "light_direction2", m_lights_buffer[draw.light_idx].direction2, di);
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+            "light_color0", m_lights_buffer[draw.light_idx].color0, di);
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+            "light_color1", m_lights_buffer[draw.light_idx].color1, di);
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+            "light_color2", m_lights_buffer[draw.light_idx].color2, di);
+        m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
+            "light_ambient", m_lights_buffer[draw.light_idx].ambient, di);
         last_light = draw.light_idx;
       }
-      background_common::setup_vulkan_from_draw_mode(draw.mode, (VulkanTexture*)&textureInfo, m_pipeline_config_info, true);
+      vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, (VulkanTexture*)&textureInfo, sampler, m_pipeline_config_info, true);
 
       m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
 
@@ -129,11 +160,23 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, Scoped
                                                      sizeof(math::Vector4f) * draw.first_bone);
       m_bone_vertex_uniform_buffer->unmap();
 
-      //m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
-      //    m_vulkan_info.render_command_buffer, lev_bucket.level->merc_vertices.get(),
-      //    lev_bucket.level->merc_indices.get(), m_pipeline_config_info.pipelineLayout,
-      //    m_descriptor_sets, 1, dynamic_descriptors_offset);
+      lev_bucket.pipeline_layouts[di].createGraphicsPipeline(m_pipeline_config_info);
+      lev_bucket.pipeline_layouts[di].bind(m_vulkan_info.render_command_buffer);
+
+      lev_bucket.descriptor_image_infos[di] = {
+          sampler.GetSampler(),
+          textureInfo.getImageView(),
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+      };
+
+      m_fragment_descriptor_writer->writeImage(1, &lev_bucket.descriptor_image_infos[di]);
+
+      m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
+          m_vulkan_info.render_command_buffer, lev_bucket.level->merc_vertices.get(),
+          lev_bucket.level->merc_indices.get(), m_pipeline_config_info.pipelineLayout,
+          m_descriptor_sets, 1, &dynamic_descriptors_offset);
     }
+    //TODO: Flush mapped memory here
   }
 
   m_next_free_light = 0;
@@ -237,24 +280,27 @@ void MercVulkan2::init_for_frame(BaseSharedRenderState* render_state) {
   m_stats = {};
 
   // set uniforms that we know from render_state
-  m_vertex_uniform_buffer->SetUniform4f("fog_constants", render_state->fog_color[0] / 255.f,
+  m_camera_control_vertex_uniform_buffer->SetUniform4f(
+      "fog_constants", render_state->fog_color[0] / 255.f,
               render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
               render_state->fog_intensity / 255);
-  m_vertex_uniform_buffer->SetUniform1ui("gfx_hack_no_tex", Gfx::g_global_settings.hack_no_tex);
+  m_fragment_uniform_buffer->SetUniform1ui("gfx_hack_no_tex", Gfx::g_global_settings.hack_no_tex);
 }
 
 void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
   memcpy(&m_low_memory, dma.data + 16, sizeof(LowMemory));
-  m_vertex_uniform_buffer->SetUniformMathVector4f("hvdf_offset", m_low_memory.hvdf_offset);
-  m_vertex_uniform_buffer->SetUniformMathVector4f("fog_constants", m_low_memory.fog);
+  m_camera_control_vertex_uniform_buffer->SetUniformMathVector4f("hvdf_offset",
+                                                                 m_low_memory.hvdf_offset);
+  m_camera_control_vertex_uniform_buffer->SetUniformMathVector4f("fog_constants", m_low_memory.fog);
   for (int i = 0; i < 4; i++) {
-    m_vertex_uniform_buffer->SetUniformMathVector4f(
+    m_camera_control_vertex_uniform_buffer->SetUniformMathVector4f(
         (std::string("perspective") + std::to_string(i)).c_str(),  // Ugly declaration
         m_low_memory.perspective[i]);
   }
   // todo rm.
-  m_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory("perspective_matrix", 1, GL_FALSE,
-                                                            &m_low_memory.perspective[0].x());
+  m_camera_control_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+      "perspective_matrix", 1, GL_FALSE,
+      &m_low_memory.perspective[0].x());
 }
 
 /*!
@@ -306,7 +352,7 @@ void MercVulkan2::InitializeInputAttributes() {
 
   VkVertexInputBindingDescription mercMatrixBindingDescription{};
   mercMatrixBindingDescription.binding = 1;
-  mercMatrixBindingDescription.stride = 128 * sizeof(ShaderMercMat);
+  mercMatrixBindingDescription.stride = sizeof(ShaderMercMat);
   mercMatrixBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
   m_pipeline_config_info.bindingDescriptions = {mercVertexBindingDescription,
                                                 mercMatrixBindingDescription};
@@ -335,30 +381,16 @@ void MercVulkan2::InitializeInputAttributes() {
   // FIXME: Make sure format for byte and shorts are correct
   attributeDescriptions[4].binding = 0;
   attributeDescriptions[4].location = 4;
-  attributeDescriptions[4].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[4].format = VK_FORMAT_R8G8B8A8_SNORM;
   attributeDescriptions[4].offset = offsetof(tfrag3::MercVertex, rgba[0]);
 
   attributeDescriptions[5].binding = 0;
   attributeDescriptions[5].location = 5;
-  attributeDescriptions[5].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[5].format = VK_FORMAT_R8G8B8_UINT;
   attributeDescriptions[5].offset = offsetof(tfrag3::MercVertex, mats[0]);
   m_pipeline_config_info.attributeDescriptions.insert(
       m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
       attributeDescriptions.end());
-
-  std::array<VkVertexInputAttributeDescription, 2> matrixAttributeDescriptions{};
-  matrixAttributeDescriptions[0].binding = 1;
-  matrixAttributeDescriptions[0].location = 0;
-  matrixAttributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-  matrixAttributeDescriptions[0].offset = offsetof(ShaderMercMat, tmat[0]);
-
-  matrixAttributeDescriptions[1].binding = 1;
-  matrixAttributeDescriptions[1].location = 1;
-  matrixAttributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-  matrixAttributeDescriptions[1].offset = offsetof(ShaderMercMat, nmat[0]);
-  m_pipeline_config_info.attributeDescriptions.insert(
-      m_pipeline_config_info.attributeDescriptions.end(), matrixAttributeDescriptions.begin(),
-      matrixAttributeDescriptions.end());
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
@@ -367,29 +399,53 @@ void MercVulkan2::InitializeInputAttributes() {
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 }
 
-MercVertexUniformBuffer::MercVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                                 uint32_t instanceCount,
-                                                 VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device,
-                    sizeof(MercUniformBufferVertexData),
+MercLightControlVertexUniformBuffer::MercLightControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                      uint32_t instanceCount,
+                                      VkDeviceSize minOffsetAlignment)
+  : UniformVulkanBuffer(device,
+                    sizeof(MercLightControlUniformBufferVertexData),
                     instanceCount,
                     minOffsetAlignment) {
   section_name_to_memory_offset_map = {
-      {"light_dir0", offsetof(MercUniformBufferVertexData, light_system.light_dir0)},
-      {"light_dir1", offsetof(MercUniformBufferVertexData, light_system.light_dir1)},
-      {"light_dir2", offsetof(MercUniformBufferVertexData, light_system.light_dir2)},
-      {"light_col0", offsetof(MercUniformBufferVertexData, light_system.light_col0)},
-      {"light_col1", offsetof(MercUniformBufferVertexData, light_system.light_col1)},
-      {"light_col2", offsetof(MercUniformBufferVertexData, light_system.light_col2)},
-      {"light_ambient", offsetof(MercUniformBufferVertexData, light_system.light_ambient)},
-      {"hvdf_offset", offsetof(MercUniformBufferVertexData, camera_system.hvdf_offset)},
-      {"perspective0", offsetof(MercUniformBufferVertexData, camera_system.perspective0)},
-      {"perspective1", offsetof(MercUniformBufferVertexData, camera_system.perspective1)},
-      {"perspective2", offsetof(MercUniformBufferVertexData, camera_system.perspective2)},
-      {"perspective3", offsetof(MercUniformBufferVertexData, camera_system.perspective3)},
-      {"fog_constants", offsetof(MercUniformBufferVertexData, camera_system.fog_constants)},
-      {"perspective_matrix", offsetof(MercUniformBufferVertexData, perspective_matrix)}};
+      {"light_dir0", offsetof(MercLightControlUniformBufferVertexData, light_dir0)},
+      {"light_dir1", offsetof(MercLightControlUniformBufferVertexData, light_dir1)},
+      {"light_dir2", offsetof(MercLightControlUniformBufferVertexData, light_dir2)},
+      {"light_col0", offsetof(MercLightControlUniformBufferVertexData, light_col0)},
+      {"light_col1", offsetof(MercLightControlUniformBufferVertexData, light_col1)},
+      {"light_col2", offsetof(MercLightControlUniformBufferVertexData, light_col2)},
+      {"light_ambient", offsetof(MercLightControlUniformBufferVertexData, light_ambient)}
+  };
 }
+
+MercCameraControlVertexUniformBuffer::MercCameraControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                       uint32_t instanceCount,
+                                       VkDeviceSize minOffsetAlignment)
+  : UniformVulkanBuffer(device,
+                    sizeof(MercCameraControlUniformBufferVertexData),
+                    instanceCount,
+                    minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"hvdf_offset", offsetof(MercCameraControlUniformBufferVertexData, hvdf_offset)},
+      {"perspective0", offsetof(MercCameraControlUniformBufferVertexData, perspective0)},
+      {"perspective1", offsetof(MercCameraControlUniformBufferVertexData, perspective1)},
+      {"perspective2", offsetof(MercCameraControlUniformBufferVertexData, perspective2)},
+      {"perspective3", offsetof(MercCameraControlUniformBufferVertexData, perspective3)},
+      {"fog_constants", offsetof(MercCameraControlUniformBufferVertexData, fog_constants)},
+  };
+}
+
+MercPerspectiveMatrixVertexUniformBuffer::MercPerspectiveMatrixVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                           uint32_t instanceCount,
+                                           VkDeviceSize minOffsetAlignment)
+  : UniformVulkanBuffer(device,
+                    sizeof(MercPerspectiveMatrixUniformBufferVertexData),
+                    instanceCount,
+                    minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"perspective_matrix",
+       offsetof(MercPerspectiveMatrixUniformBufferVertexData, perspective_matrix)}
+  };
+};
 
 MercFragmentUniformBuffer::MercFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                                      uint32_t instanceCount,
@@ -410,7 +466,7 @@ MercVulkan2::MercBoneVertexUniformBuffer::MercBoneVertexUniformBuffer(
                                                      VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device,
                           sizeof(BaseMerc2::ShaderMercMat),
-                          MAX_SHADER_BONE_VECTORS,
+                          128,
                           minOffsetAlignment) {
 }
 

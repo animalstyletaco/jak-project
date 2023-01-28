@@ -70,6 +70,15 @@ void Tie3Vulkan::create_pipeline_layout() {
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange pushConstantRange = {};
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(int);
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
+
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
@@ -150,9 +159,6 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
   }
 
   m_cache.vis_temp.resize(vis_temp_len);
-  m_cache.multidraw_offset_per_stripdraw.resize(max_draws);
-  m_cache.multidraw_count_buffer.resize(max_num_grps);
-  m_cache.multidraw_index_offset_buffer.resize(max_num_grps);
   m_wind_vectors.resize(4 * max_wind_idx + 4);  // 4x u32's per wind.
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
@@ -259,8 +265,9 @@ void Tie3Vulkan::render_tree_wind(int idx,
 
   for (size_t draw_idx = 0; draw_idx < tree.wind_draws->size(); draw_idx++) {
     const auto& draw = tree.wind_draws->operator[](draw_idx);
-    auto double_draw = background_common::setup_tfrag_shader(
-        render_state, draw.mode, &m_textures->at(draw.tree_tex_id), m_pipeline_config_info,
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(
+        render_state, draw.mode, &m_textures->at(draw.tree_tex_id),
+        m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
         m_time_of_day_color);
 
     int off = 0;
@@ -350,7 +357,7 @@ void Tie3Vulkan::render_tree(int idx,
   timeOfDayTexture.writeToImage(m_color_result.data());
 
   // setup Vulkan shader
-  background_common::first_tfrag_draw_setup(settings, render_state, m_vertex_shader_uniform_buffer);
+  vulkan_background_common::first_tfrag_draw_setup(settings, render_state, m_vertex_shader_uniform_buffer);
 
   tree.perf.tod_time.add(setup_timer.getSeconds());
 
@@ -373,10 +380,10 @@ void Tie3Vulkan::render_tree(int idx,
     u32 idx_buffer_size;
     if (m_debug_all_visible) {
       idx_buffer_size =
-          background_common::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(),
+          vulkan_background_common::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(),
                                       *tree.draws, tree.index_data, &num_tris);
     } else {
-      idx_buffer_size = background_common::make_index_list_from_vis_string(
+      idx_buffer_size = vulkan_background_common::make_index_list_from_vis_string(
           m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, m_cache.vis_temp,
           tree.index_data, &num_tris);
     }
@@ -389,15 +396,13 @@ void Tie3Vulkan::render_tree(int idx,
   } else {
     if (m_debug_all_visible) {
       Timer index_timer;
-      num_tris = background_common::make_all_visible_multidraws(
-          m_cache.multidraw_offset_per_stripdraw.data(), m_cache.multidraw_count_buffer.data(),
-          m_cache.multidraw_index_offset_buffer.data(), *tree.draws);
+      num_tris = vulkan_background_common::make_all_visible_multidraws(
+          m_cache.multi_draw_indexed_infos, *tree.draws);
       tree.perf.index_time.add(index_timer.getSeconds());
     } else {
       Timer index_timer;
-      num_tris = background_common::make_multidraws_from_vis_string(
-          m_cache.multidraw_offset_per_stripdraw.data(), m_cache.multidraw_count_buffer.data(),
-          m_cache.multidraw_index_offset_buffer.data(), *tree.draws, m_cache.vis_temp);
+      num_tris = vulkan_background_common::make_multidraws_from_vis_string(
+          m_cache.multi_draw_indexed_infos, *tree.draws, m_cache.vis_temp);
       tree.perf.index_time.add(index_timer.getSeconds());
     }
   }
@@ -407,7 +412,6 @@ void Tie3Vulkan::render_tree(int idx,
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->operator[](draw_idx);
-    const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     if (render_state->no_multidraw) {
@@ -420,8 +424,8 @@ void Tie3Vulkan::render_tree(int idx,
       }
     }
 
-    auto double_draw = background_common::setup_tfrag_shader(render_state, draw.mode,
-                                          &m_textures->at(draw.tree_tex_id), m_pipeline_config_info, m_time_of_day_color);
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &m_textures->at(draw.tree_tex_id),
+        m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info, m_time_of_day_color);
 
     prof.add_draw_call();
 
@@ -431,13 +435,14 @@ void Tie3Vulkan::render_tree(int idx,
       m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
           m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
           m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
-      //glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
-      //               (void*)(singledraw_indices.first * sizeof(u32)));
     } else {
-      //glMultiDrawElements(GL_TRIANGLE_STRIP,
-      //                    &m_cache.multidraw_count_buffer[multidraw_indices.first], GL_UNSIGNED_INT,
-      //                    &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
-      //                    multidraw_indices.second);
+      m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
+          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
+      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+                               m_cache.multi_draw_indexed_infos.data(), 1, 0,
+                               sizeof(VkMultiDrawIndexedInfoEXT), NULL);
     }
 
     switch (double_draw.kind) {
@@ -449,13 +454,17 @@ void Tie3Vulkan::render_tree(int idx,
         m_time_of_day_color->SetUniform1f("alpha_min", -10.f);
         m_time_of_day_color->SetUniform1f("alpha_max", double_draw.aref_second);
         if (render_state->no_multidraw) {
-          //glDrawElements(GL_TRIANGLE_STRIP, singledraw_indices.second, GL_UNSIGNED_INT,
-          //               (void*)(singledraw_indices.first * sizeof(u32)));
+          m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
+              m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
+              m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
         } else {
-          //glMultiDrawElements(
-          //    GL_TRIANGLE_STRIP, &m_cache.multidraw_count_buffer[multidraw_indices.first],
-          //    GL_UNSIGNED_INT, &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
-          //    multidraw_indices.second);
+          m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
+              m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
+              m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
+          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+                                   m_cache.multi_draw_indexed_infos.data(), 1, 0,
+                                   sizeof(VkMultiDrawIndexedInfoEXT), NULL);
         }
         break;
       default:
@@ -471,10 +480,15 @@ void Tie3Vulkan::render_tree(int idx,
       m_vertex_shader_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
-      //glMultiDrawElements(GL_TRIANGLE_STRIP,
-      //                    &m_cache.multidraw_count_buffer[multidraw_indices.first], GL_UNSIGNED_INT,
-      //                    &m_cache.multidraw_index_offset_buffer[multidraw_indices.first],
-      //                    multidraw_indices.second);
+
+      m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
+          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
+      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+                               m_cache.multi_draw_indexed_infos.data(), 1, 0,
+                               sizeof(VkMultiDrawIndexedInfoEXT), NULL);
+
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
       prof.add_draw_call();

@@ -17,6 +17,7 @@ layout(push_constant) uniform PER_OBJECT
 	int imgIdx;
 }pc;
 
+//FIXME: This should be texture2Darray
 const int MAX_BUCKET_COUNT = 800;
 layout (set = 1, binding = 1) uniform sampler2D textures[MAX_BUCKET_COUNT];
 

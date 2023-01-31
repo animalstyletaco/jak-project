@@ -69,7 +69,8 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   bool m_has_level = false;
 
   struct Cache {
-    std::vector<std::pair<int, int>> draw_idx_temp;
+    std::vector<background_common::DrawSettings> draw_idx_temp;
+    std::vector<background_common::DrawSettings> multidraw_offset_per_stripdraw;
     std::vector<u32> index_temp;
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;

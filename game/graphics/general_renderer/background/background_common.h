@@ -43,6 +43,13 @@ struct SwizzledTimeOfDay {
 };
 
 namespace background_common {
+
+// TODO: Come up with better struct name
+struct DrawSettings {
+  int draw_index = 0;
+  int number_of_draws = 0;
+};
+
 SwizzledTimeOfDay swizzle_time_of_day(const std::vector<tfrag3::TimeOfDayColor>& in);
 
 void interp_time_of_day_slow(const math::Vector<s32, 4> itimes[4],

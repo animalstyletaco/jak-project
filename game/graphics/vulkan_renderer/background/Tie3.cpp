@@ -412,14 +412,15 @@ void Tie3Vulkan::render_tree(int idx,
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->operator[](draw_idx);
+    const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     if (render_state->no_multidraw) {
-      if (singledraw_indices.second == 0) {
+      if (singledraw_indices.number_of_draws == 0) {
         continue;
       }
     } else {
-      if (multidraw_indices.second == 0) {
+      if (multidraw_indices.number_of_draws == 0) {
         continue;
       }
     }
@@ -440,7 +441,7 @@ void Tie3Vulkan::render_tree(int idx,
           m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
           m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 
-      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
                                m_cache.multi_draw_indexed_infos.data(), 1, 0,
                                sizeof(VkMultiDrawIndexedInfoEXT), NULL);
     }
@@ -462,7 +463,7 @@ void Tie3Vulkan::render_tree(int idx,
               m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
               m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 
-          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
                                    m_cache.multi_draw_indexed_infos.data(), 1, 0,
                                    sizeof(VkMultiDrawIndexedInfoEXT), NULL);
         }
@@ -485,7 +486,7 @@ void Tie3Vulkan::render_tree(int idx,
           m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
           m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 
-      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
                                m_cache.multi_draw_indexed_infos.data(), 1, 0,
                                sizeof(VkMultiDrawIndexedInfoEXT), NULL);
 

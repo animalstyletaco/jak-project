@@ -280,23 +280,24 @@ void ShrubVulkan::render_tree(int idx,
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->operator[](draw_idx);
+    const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     m_pipeline_layouts[idx].createGraphicsPipeline(m_pipeline_config_info);
     m_pipeline_layouts[idx].bind(m_vulkan_info.render_command_buffer);
 
     if (render_state->no_multidraw) {
-      if (singledraw_indices.second == 0) {
+      if (singledraw_indices.number_of_draws == 0) {
         m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
             m_vulkan_info.render_command_buffer, m_vertex_buffer.get(), m_index_buffer.get(),
             m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 
-        vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+        vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
                                  m_cache.multi_draw_indexed_infos.data(),
                                  1, 0, sizeof(VkMultiDrawIndexedInfoEXT), NULL);
       }
     } else {
-      if (multidraw_indices.second == 0) {
+      if (multidraw_indices.number_of_draws == 0) {
         m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
             m_vulkan_info.render_command_buffer, m_vertex_buffer, m_index_buffer,
             m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
@@ -333,7 +334,7 @@ void ShrubVulkan::render_tree(int idx,
               m_vulkan_info.render_command_buffer, m_vertex_buffer.get(), m_index_buffer.get(),
               m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 
-          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.second,
+          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
                                    m_cache.multi_draw_indexed_infos.data(), 1, 0,
                                    sizeof(VkMultiDrawIndexedInfoEXT), NULL);
         }

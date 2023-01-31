@@ -410,7 +410,7 @@ std::vector<const char*> GraphicsDeviceVulkan::getRequiredExtensions() {
   glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
   std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-  extensions.push_back(VK_EXT_MULTI_DRAW_EXTENSION_NAME);
+  //extensions.push_back(VK_EXT_MULTI_DRAW_EXTENSION_NAME);
 
   if (enableValidationLayers) {
     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);

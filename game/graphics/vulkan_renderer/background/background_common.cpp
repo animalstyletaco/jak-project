@@ -8,6 +8,8 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
+using namespace background_common;
+
 DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
   DrawMode mode, VulkanTexture* texture, VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_config_info, bool mipmap) {
   pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
@@ -278,19 +280,19 @@ u32 vulkan_background_common::make_all_visible_multidraws(std::vector<VkMultiDra
   return num_tris;
 }
 
-u32 vulkan_background_common::make_all_visible_index_list(std::pair<int, int>* group_out,
+u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_out,
                                                           u32* idx_out,
                                                           const std::vector<tfrag3::ShrubDraw>& draws,
                                                           const u32* idx_in) {
   int idx_buffer_ptr = 0;
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
-    std::pair<int, int> ds;
-    ds.first = idx_buffer_ptr;
+    DrawSettings ds;
+    ds.draw_index = idx_buffer_ptr;
     memcpy(&idx_out[idx_buffer_ptr], idx_in + draw.first_index_index,
            draw.num_indices * sizeof(u32));
     idx_buffer_ptr += draw.num_indices;
-    ds.second = idx_buffer_ptr - ds.first;
+    ds.number_of_draws = idx_buffer_ptr - ds.draw_index;
     group_out[i] = ds;
   }
   return idx_buffer_ptr;
@@ -339,7 +341,7 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<VkMult
   return num_tris;
 }
 
-u32 vulkan_background_common::make_index_list_from_vis_string(std::pair<int, int>* group_out,
+u32 vulkan_background_common::make_index_list_from_vis_string(DrawSettings* group_out,
                                                               u32* idx_out,
                                                               const std::vector<tfrag3::StripDraw>& draws,
                                                               const std::vector<u8>& vis_data,
@@ -350,8 +352,8 @@ u32 vulkan_background_common::make_index_list_from_vis_string(std::pair<int, int
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
     int vtx_idx = 0;
-    std::pair<int, int> ds;
-    ds.first = idx_buffer_ptr;
+    DrawSettings ds;
+    ds.draw_index = idx_buffer_ptr;
     bool building_run = false;
     int run_start_out = 0;
     int run_start_in = 0;
@@ -387,14 +389,14 @@ u32 vulkan_background_common::make_index_list_from_vis_string(std::pair<int, int
              (idx_buffer_ptr - run_start_out) * sizeof(u32));
     }
 
-    ds.second = idx_buffer_ptr - ds.first;
+    ds.number_of_draws = idx_buffer_ptr - ds.draw_index;
     group_out[i] = ds;
   }
   *num_tris_out = num_tris;
   return idx_buffer_ptr;
 }
 
-u32 vulkan_background_common::make_all_visible_index_list(std::pair<int, int>* group_out,
+u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_out,
                                                           u32* idx_out,
                                                           const std::vector<tfrag3::StripDraw>& draws,
                                                           const u32* idx_in,
@@ -403,8 +405,8 @@ u32 vulkan_background_common::make_all_visible_index_list(std::pair<int, int>* g
   u32 num_tris = 0;
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
-    std::pair<int, int> ds;
-    ds.first = idx_buffer_ptr;
+    DrawSettings ds;
+    ds.draw_index = idx_buffer_ptr;
     u32 num_inds = 0;
     for (auto& grp : draw.vis_groups) {
       num_inds += grp.num_inds;
@@ -413,7 +415,7 @@ u32 vulkan_background_common::make_all_visible_index_list(std::pair<int, int>* g
     memcpy(&idx_out[idx_buffer_ptr], idx_in + draw.unpacked.idx_of_first_idx_in_full_buffer,
            num_inds * sizeof(u32));
     idx_buffer_ptr += num_inds;
-    ds.second = idx_buffer_ptr - ds.first;
+    ds.number_of_draws = idx_buffer_ptr - ds.draw_index;
     group_out[i] = ds;
   }
   *num_tris_out = num_tris;

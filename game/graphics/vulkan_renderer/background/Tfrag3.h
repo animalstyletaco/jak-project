@@ -50,7 +50,8 @@ class Tfrag3Vulkan : public BaseTfrag3 {
 
   struct Cache {
     std::vector<u8> vis_temp;
-    std::vector<std::pair<int, int>> draw_idx_temp;
+    std::vector<background_common::DrawSettings> draw_idx_temp;
+    std::vector<background_common::DrawSettings> multidraw_offset_per_stripdraw;
     std::vector<u32> index_temp;
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;

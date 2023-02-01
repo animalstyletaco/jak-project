@@ -18,6 +18,7 @@ MercVulkan2::MercVulkan2(const std::string& name,
   m_camera_control_vertex_uniform_buffer = std::make_unique<MercCameraControlVertexUniformBuffer>(m_device, 1, 1);
   m_perspective_matrix_vertex_uniform_buffer = std::make_unique<MercPerspectiveMatrixVertexUniformBuffer>(m_device, 1, 1);
   m_bone_vertex_uniform_buffer = std::make_unique<MercBoneVertexUniformBuffer>(device);
+  m_emerc_vertex_uniform_buffer = std::make_unique<EmercVertexUniformBuffer>(device, 1, 1);
 
   m_fragment_uniform_buffer = std::make_unique<MercFragmentUniformBuffer>(
       m_device, sizeof(MercUniformBufferFragmentData), 1);
@@ -30,6 +31,10 @@ MercVulkan2::MercVulkan2(const std::string& name,
           .addBinding(3, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
+    m_emerc_vertex_descriptor_layout = DescriptorLayout::Builder(m_device)
+      .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT).build();
+
+  //Emerc fragment descriptor is the same as standard merc no need for separate object
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -38,11 +43,17 @@ MercVulkan2::MercVulkan2(const std::string& name,
 
   m_vertex_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
+  m_emerc_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
 
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
                                                                     m_vulkan_info.descriptor_pool);
+  m_emerc_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
+                                                                          m_vulkan_info.descriptor_pool);
 
   m_descriptor_sets.resize(2);
+  m_emerc_descriptor_sets.resize(2);
+
   m_light_control_vertex_buffer_descriptor_info =
       m_light_control_vertex_uniform_buffer->descriptorInfo();
   m_camera_control_vertex_buffer_descriptor_info =
@@ -51,6 +62,8 @@ MercVulkan2::MercVulkan2(const std::string& name,
       m_perspective_matrix_vertex_uniform_buffer->descriptorInfo();
   m_bone_vertex_buffer_descriptor_info = m_bone_vertex_uniform_buffer
       ->descriptorInfo();
+  m_emerc_vertex_buffer_descriptor_info =
+    m_emerc_vertex_uniform_buffer->descriptorInfo();
 
   m_vertex_descriptor_writer->writeBuffer(0, &m_light_control_vertex_buffer_descriptor_info)
       .writeBuffer(1, &m_camera_control_vertex_buffer_descriptor_info)
@@ -58,12 +71,20 @@ MercVulkan2::MercVulkan2(const std::string& name,
       .writeBuffer(3, &m_bone_vertex_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
 
+  m_emerc_vertex_descriptor_writer->writeBuffer(0, &m_emerc_vertex_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
+
   auto fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
   m_fragment_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info, 1)
       .build(m_descriptor_sets[1]);
+
+  m_fragment_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info, 1)
+      .build(m_descriptor_sets[1]);
+
   m_placeholder_descriptor_image_info =
       *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info();
   m_fragment_descriptor_writer->writeImage(1, &m_placeholder_descriptor_image_info, 2);
+  m_emerc_fragment_descriptor_writer->writeImage(1, &m_placeholder_descriptor_image_info, 2);
 
   create_pipeline_layout();
   for (int i = 0; i < MAX_LEVELS; i++) {
@@ -87,34 +108,64 @@ void MercVulkan2::render(DmaFollower& dma, SharedVulkanRenderState* render_state
 }
 
 void MercVulkan2::create_pipeline_layout() {
-    std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+    std::vector<VkDescriptorSetLayout> mercDescriptorSetLayouts{
         m_vertex_descriptor_layout->getDescriptorSetLayout(),
         m_fragment_descriptor_layout->getDescriptorSetLayout()};
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-    pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+    std::vector<VkDescriptorSetLayout> emercDescriptorSetLayouts{
+        m_emerc_vertex_descriptor_layout->getDescriptorSetLayout(),
+        m_fragment_descriptor_layout->getDescriptorSetLayout()};
 
     VkPushConstantRange pushConstantRange = {};
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(float);
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    VkPipelineLayoutCreateInfo mercPipelineLayoutInfo{};
+    mercPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    mercPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(mercDescriptorSetLayouts.size());
+    mercPipelineLayoutInfo.pSetLayouts = mercDescriptorSetLayouts.data();
+    
+    mercPipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    mercPipelineLayoutInfo.pushConstantRangeCount = 1;
 
-    if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+    VkPipelineLayoutCreateInfo emercPipelineLayoutInfo{};
+    emercPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    emercPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(emercDescriptorSetLayouts.size());
+    emercPipelineLayoutInfo.pSetLayouts = emercDescriptorSetLayouts.data();
+
+    emercPipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    emercPipelineLayoutInfo.pushConstantRangeCount = 1;
+
+    if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &mercPipelineLayoutInfo, nullptr,
                                &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+      throw std::runtime_error("failed to create pipeline layout!");
+    }
+
+    if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &emercPipelineLayoutInfo, nullptr,
+                               &m_emerc_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
       throw std::runtime_error("failed to create pipeline layout!");
     }
 }
 
-void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
+                                     ScopedProfilerNode& prof) {
   m_stats.num_draw_flush++;
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
     auto& lev_bucket = m_level_draw_buckets[li];
+    draw_merc2(lev_bucket, prof);
+    if (lev_bucket.next_free_envmap_draw) {
+      draw_emercs(lev_bucket, prof);
+    }
+  }
+
+  m_next_free_light = 0;
+  m_next_free_bone_vector = 0;
+  m_next_free_level_bucket = 0;
+}
+
+void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNode& prof) {
     auto* lev = lev_bucket.level;
 
     int last_tex = -1;
@@ -177,11 +228,50 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state, Scoped
           m_descriptor_sets, 1, &dynamic_descriptors_offset);
     }
     //TODO: Flush mapped memory here
-  }
+}
 
-  m_next_free_light = 0;
-  m_next_free_bone_vector = 0;
-  m_next_free_level_bucket = 0;
+void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNode& prof) {
+   auto* lev = lev_bucket.level;
+   
+   int last_tex = -1;
+   int last_light = -1;
+   m_stats.num_bones_uploaded += m_next_free_bone_vector;
+   
+   for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
+     auto& draw = lev_bucket.draws[di];
+     auto& sampler = lev_bucket.samplers[di];
+   
+     auto& textureInfo = lev->textures[draw.texture];
+     m_fragment_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha, di);
+   
+     vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, (VulkanTexture*)&textureInfo,
+                                                           sampler, m_pipeline_config_info, true);
+   
+     m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
+   
+     uint32_t dynamic_descriptors_offset = di * sizeof(EmercUniformBufferVertexData);
+     prof.add_draw_call();
+     prof.add_tri(draw.num_triangles);
+   
+     m_bone_vertex_uniform_buffer->map();
+     m_bone_vertex_uniform_buffer->writeToCpuBuffer(m_shader_bone_vector_buffer,
+                                                    sizeof(math::Vector4f) * draw.index_count,
+                                                    sizeof(math::Vector4f) * draw.first_bone);
+     m_bone_vertex_uniform_buffer->unmap();
+   
+     lev_bucket.pipeline_layouts[di].createGraphicsPipeline(m_pipeline_config_info);
+     lev_bucket.pipeline_layouts[di].bind(m_vulkan_info.render_command_buffer);
+   
+     lev_bucket.descriptor_image_infos[di] = {sampler.GetSampler(), textureInfo.getImageView(),
+                                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+   
+     m_fragment_descriptor_writer->writeImage(1, &lev_bucket.descriptor_image_infos[di]);
+   
+     m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
+         m_vulkan_info.render_command_buffer, lev_bucket.level->merc_vertices.get(),
+         lev_bucket.level->merc_indices.get(), m_pipeline_config_info.pipelineLayout,
+         m_descriptor_sets, 1, &dynamic_descriptors_offset);
+   }
 }
 
 /*!
@@ -297,10 +387,13 @@ void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
         (std::string("perspective") + std::to_string(i)).c_str(),  // Ugly declaration
         m_low_memory.perspective[i]);
   }
+
+  m_emerc_vertex_uniform_buffer->SetUniformMathVector4f("hvdf_offset",
+                                                        m_low_memory.hvdf_offset);
+  m_emerc_vertex_uniform_buffer->SetUniformMathVector4f("fog_constants", m_low_memory.fog);
   // todo rm.
-  m_camera_control_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "perspective_matrix", 1, GL_FALSE,
-      &m_low_memory.perspective[0].x());
+  m_emerc_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+      "perspective_matrix", 1, GL_FALSE, &m_low_memory.perspective[0].x());
 }
 
 /*!
@@ -327,21 +420,36 @@ void MercVulkan2::init_pc_model(const DmaTransfer& setup, BaseSharedRenderState*
 }
 
 void MercVulkan2::init_shaders() {
-  auto& shader = m_vulkan_info.shaders[ShaderId::MERC2];
+  auto& merc2_shader = m_vulkan_info.shaders[ShaderId::MERC2];
+  auto& emerc_shader = m_vulkan_info.shaders[ShaderId::EMERC];
 
-  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-  vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "main";
+  VkPipelineShaderStageCreateInfo mercVertShaderStageInfo{};
+  mercVertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  mercVertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  mercVertShaderStageInfo.module = merc2_shader.GetVertexShader();
+  mercVertShaderStageInfo.pName = "main";
 
-  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-  fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "main";
+  VkPipelineShaderStageCreateInfo mercFragShaderStageInfo{};
+  mercFragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  mercFragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  mercFragShaderStageInfo.module = merc2_shader.GetFragmentShader();
+  mercFragShaderStageInfo.pName = "main";
 
-  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+  m_pipeline_config_info.shaderStages = {mercVertShaderStageInfo, mercFragShaderStageInfo};
+
+  VkPipelineShaderStageCreateInfo emercVertShaderStageInfo{};
+  emercVertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  emercVertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  emercVertShaderStageInfo.module = emerc_shader.GetVertexShader();
+  emercVertShaderStageInfo.pName = "main";
+
+  VkPipelineShaderStageCreateInfo emercFragShaderStageInfo{};
+  emercFragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  emercFragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  emercFragShaderStageInfo.module = emerc_shader.GetFragmentShader();
+  emercFragShaderStageInfo.pName = "main";
+
+  m_emerc_pipeline_config_info.shaderStages = {mercVertShaderStageInfo, mercFragShaderStageInfo};
 }
 
 void MercVulkan2::InitializeInputAttributes() {
@@ -397,22 +505,11 @@ void MercVulkan2::InitializeInputAttributes() {
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
-}
 
-void MercVulkan2::do_merc_draws(const Draw* draw_array,
-                                const LevelDataVulkan* lev,
-                                u32 num_draws,
-                                ScopedProfilerNode& prof,
-                                bool set_fade,
-                                BaseSharedRenderState* render_state) {
-}
 
-void MercVulkan2::do_emerc_draws(const Draw* draw_array,
-                                 const LevelDataVulkan* lev,
-                                 u32 num_draws,
-                                 ScopedProfilerNode& prof,
-                                 bool set_fade,
-                                 BaseSharedRenderState* render_state) {
+  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_emerc_pipeline_config_info);
+  m_emerc_pipeline_config_info.attributeDescriptions = m_pipeline_config_info.attributeDescriptions;
+  m_emerc_pipeline_config_info.bindingDescriptions = m_pipeline_config_info.bindingDescriptions;
 }
 
 MercLightControlVertexUniformBuffer::MercLightControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,

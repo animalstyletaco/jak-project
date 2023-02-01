@@ -101,37 +101,27 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
     void flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
     void set_merc_uniform_buffer_data(const DmaTransfer& dma) override;
 
+    struct LevelDrawBucketVulkan {
+      const LevelDataVulkan* level = nullptr;
+      std::vector<Draw> draws;
+      std::vector<VulkanSamplerHelper> samplers;
+      std::vector<VkDescriptorImageInfo> descriptor_image_infos;
+      std::vector<GraphicsPipelineLayout> pipeline_layouts;
+      u32 next_free_draw = 0;
+      u32 next_free_envmap_draw = 0;
+
+      void reset() {
+        level = nullptr;
+        next_free_draw = 0;
+      }
+    };
+
   private:
     void create_pipeline_layout() override;
+    void draw_merc2(LevelDrawBucketVulkan& level_bucket, ScopedProfilerNode& prof);
+    void draw_emercs(LevelDrawBucketVulkan& level_bucket, ScopedProfilerNode& prof);
     void InitializeInputAttributes();
 
-  struct LevelDrawBucketVulkan {
-    const LevelDataVulkan* level = nullptr;
-    std::vector<Draw> draws;
-    std::vector<VulkanSamplerHelper> samplers;
-    std::vector<VkDescriptorImageInfo> descriptor_image_infos;
-    std::vector<GraphicsPipelineLayout> pipeline_layouts;
-    u32 next_free_draw = 0;
-
-    void reset() {
-      level = nullptr;
-      next_free_draw = 0;
-    }
-  };
-
-  void do_merc_draws(const Draw* draw_array,
-                     const LevelDataVulkan* lev,
-                     u32 num_draws,
-                     ScopedProfilerNode& prof,
-                     bool set_fade,
-                     BaseSharedRenderState* render_state);
-
-  void do_emerc_draws(const Draw* draw_array,
-                      const LevelDataVulkan* lev,
-                      u32 num_draws,
-                      ScopedProfilerNode& prof,
-                      bool set_fade,
-                      BaseSharedRenderState* render_state);
 
   class MercBoneVertexUniformBuffer : public UniformVulkanBuffer {
    public:
@@ -143,7 +133,6 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
 
-  std::unique_ptr<EmercVertexUniformBuffer> m_emerc_vertex_uniform_buffer;
   std::unique_ptr<MercLightControlVertexUniformBuffer> m_light_control_vertex_uniform_buffer;
   std::unique_ptr<MercCameraControlVertexUniformBuffer> m_camera_control_vertex_uniform_buffer;
   std::unique_ptr<MercPerspectiveMatrixVertexUniformBuffer> m_perspective_matrix_vertex_uniform_buffer;
@@ -155,5 +144,17 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
   VkDescriptorBufferInfo m_camera_control_vertex_buffer_descriptor_info;
   VkDescriptorBufferInfo m_perspective_matrix_vertex_buffer_descriptor_info;
   VkDescriptorBufferInfo m_bone_vertex_buffer_descriptor_info;
+
+  // Emerc
+  std::vector<VkDescriptorSet> m_emerc_descriptor_sets;
+  std::unique_ptr<DescriptorLayout> m_emerc_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorWriter> m_emerc_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_emerc_fragment_descriptor_writer;
+  std::unique_ptr<EmercVertexUniformBuffer> m_emerc_vertex_uniform_buffer;
+
+  std::vector<GraphicsPipelineLayout> m_emerc_pipeline_layouts;
+  PipelineConfigInfo m_emerc_pipeline_config_info;
+
+  VkDescriptorBufferInfo m_emerc_vertex_buffer_descriptor_info{};
 };
 

@@ -84,7 +84,10 @@ void VulkanTexture::createImage(VkExtent3D extents,
   m_image_create_info.mipLevels = mipLevels;
   m_image_create_info.arrayLayers = 1;
   m_image_create_info.format = format;
-  m_image_create_info.tiling = tiling;
+
+  //Added this check to make sure imageCreateMaybeLinear is set to false if multisampling is enabled.
+  //More details in https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
+  m_image_create_info.tiling = (numSamples > VK_SAMPLE_COUNT_1_BIT) ? VK_IMAGE_TILING_OPTIMAL : tiling;
   m_image_create_info.initialLayout = layout;
   m_image_create_info.usage = usage;
   m_image_create_info.samples = (numSamples > m_device->GetMaxUsableSampleCount()) ? m_device->GetMaxUsableSampleCount() : numSamples;

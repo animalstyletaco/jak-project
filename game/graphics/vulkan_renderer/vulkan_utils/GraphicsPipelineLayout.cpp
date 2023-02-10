@@ -40,6 +40,8 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
     configInfo.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
   pipelineInfo.pRasterizationState = &configInfo.rasterizationInfo;
+
+  //configInfo.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   pipelineInfo.pMultisampleState = &configInfo.multisampleInfo;
   pipelineInfo.pColorBlendState = &configInfo.colorBlendInfo;
   pipelineInfo.pDepthStencilState = &configInfo.depthStencilInfo;

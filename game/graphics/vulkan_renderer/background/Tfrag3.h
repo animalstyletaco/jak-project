@@ -64,7 +64,7 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   };
 
   std::array<std::vector<TreeCacheVulkan>, GEOM_MAX> m_cached_trees;
-  const std::vector<VulkanTexture>* m_textures = nullptr;
+  std::unordered_map<u32, VulkanTexture>* m_textures = nullptr;
   std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
 
   PipelineConfigInfo m_debug_pipeline_config_info{};

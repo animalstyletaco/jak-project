@@ -6,7 +6,7 @@ ShrubVulkan::ShrubVulkan(const std::string& name,
              VulkanInitializationInfo& vulkan_info)
     : BaseShrub(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
   m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
-  m_time_of_day_textures.resize(TIME_OF_DAY_COLOR_COUNT, m_device);
+  //m_time_of_day_textures.resize(TIME_OF_DAY_COLOR_COUNT, m_device);
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
@@ -145,7 +145,7 @@ bool ShrubVulkan::setup_for_level(const std::string& level, BaseSharedRenderStat
     discard_tree_cache();
     return false;
   }
-  m_textures = &lev_data->textures;
+  m_textures = &lev_data->textures_map;
   m_load_id = lev_data->load_id;
 
   if (m_level_name != level) {
@@ -240,8 +240,13 @@ void ShrubVulkan::render_tree(int idx,
   }
 
   if (m_color_result.size() < tree.colors->size()) {
+    for (u32 i = m_color_result.size(); i < tree.colors->size(); i++) {
+      m_time_of_day_textures.insert(std::pair<u32, VulkanTexture>(i, VulkanTexture{m_device}));
+      m_time_of_day_samplers.insert(
+          std::pair<u32, VulkanSamplerHelper>(i, VulkanSamplerHelper{m_device}));
+    }
+
     m_color_result.resize(tree.colors->size());
-    m_time_of_day_textures.resize(tree.colors->size(), m_device);
     m_pipeline_layouts.resize(tree.colors->size(), m_device);
   }
 
@@ -252,13 +257,15 @@ void ShrubVulkan::render_tree(int idx,
   Timer setup_timer;
 
   VkExtent3D extents{tree.colors->size(), 1, 1};
-  m_time_of_day_textures[idx].createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
-                                     VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
-                                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+  auto& time_of_day_texture = m_time_of_day_textures.at(idx);
 
-  m_time_of_day_textures[idx].createImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_R8G8B8A8_UNORM,
+  time_of_day_texture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
+                                   VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL,
+                                   VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+  time_of_day_texture.createImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_R8G8B8A8_UNORM,
                                          VK_IMAGE_ASPECT_COLOR_BIT, 1);
-  m_time_of_day_textures[idx].writeToImage(m_color_result.data());
+  time_of_day_texture.writeToImage(m_color_result.data());
 
   vulkan_background_common::first_tfrag_draw_setup(settings, render_state,
                                             m_vertex_shader_uniform_buffer);
@@ -279,7 +286,7 @@ void ShrubVulkan::render_tree(int idx,
   Timer draw_timer;
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
-    const auto& draw = tree.draws->operator[](draw_idx);
+    const auto& draw = tree.draws->at(draw_idx);
     const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
@@ -303,11 +310,13 @@ void ShrubVulkan::render_tree(int idx,
             m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
       }
     }
+    auto& time_of_day_texture = m_textures->at(draw.tree_tex_id);
+    auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
 
-    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &m_textures->at(draw.tree_tex_id),
-        m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &time_of_day_texture,
+        time_of_day_sampler, m_pipeline_config_info,
         m_time_of_day_color_buffer);
-    m_time_of_day_textures[idx].writeToImage(m_color_result.data());
+    time_of_day_texture.writeToImage(m_color_result.data());
 
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);

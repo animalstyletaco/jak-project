@@ -96,9 +96,12 @@ void VulkanLoader::load_common(VulkanTexturePool& tex_pool, const std::string& n
   Serializer ser(decomp_data.data(), decomp_data.size());
   m_common_level.level = std::make_unique<tfrag3::Level>();
   m_common_level.level->serialize(ser);
-  m_common_level.textures.resize(m_common_level.level->textures.size(), VulkanTexture{m_device});
+
+  for (unsigned i = m_common_level.textures_map.size(); i < m_common_level.level->textures.size(); i++) {
+     m_common_level.textures_map.insert(std::pair<u32, VulkanTexture>(i, VulkanTexture{m_device}));
+  }
   for (size_t i = 0; i < m_common_level.level->textures.size(); i++) {
-    vk_loader_stage::update_texture(tex_pool, m_common_level.level->textures.at(i), m_common_level.textures[i], true);
+    vk_loader_stage::update_texture(tex_pool, m_common_level.level->textures.at(i), &m_common_level.textures_map.at(i), true);
   }
 
   Timer tim;
@@ -120,14 +123,17 @@ bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTe
 
   int bytes_this_run = 0;
   int tex_this_run = 0;
-  if (data.textures.size() < data.level->textures.size()) {
+  if (data.textures_map.size() < data.level->textures.size()) {
     std::unique_lock<std::mutex> tpool_lock(texture_pool.mutex());
-    while (data.textures.size() < data.level->textures.size()) {
-      auto& level_texture = data.level->textures[data.textures.size()];
-      VulkanTexture texture_to_be_loaded{m_device};
-      vk_loader_stage::update_texture(texture_pool, level_texture, texture_to_be_loaded, false);
 
-      data.textures.push_back(texture_to_be_loaded);
+    u32 texture_id = data.textures_map.size();
+    while (data.textures_map.size() < data.level->textures.size()) {
+      auto& level_texture = data.level->textures[texture_id];
+
+      data.textures_map.insert(std::pair<u32, VulkanTexture>(texture_id, VulkanTexture{m_device}));
+      vk_loader_stage::update_texture(texture_pool, level_texture, &data.textures_map.at(texture_id), false);
+      texture_id++;
+
       bytes_this_run += level_texture.w * level_texture.h * 4;
       tex_this_run++;
       if (tex_this_run > 20) {
@@ -138,7 +144,7 @@ bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTe
       }
     }
   }
-  return data.textures.size() == data.level->textures.size();
+  return data.textures_map.size() == data.level->textures.size();
 }
 
 void VulkanLoader::update_blocking(VulkanTexturePool& tex_pool) {
@@ -332,33 +338,14 @@ void VulkanLoader::update(VulkanTexturePool& texture_pool) {
           for (size_t i = 0; i < level_data->level->textures.size(); i++) {
             auto& tex = level_data->level->textures[i];
             if (tex.load_to_pool) {
+              auto& texture = level_data->textures_map.at(i);
+
               texture_pool.unload_texture(PcTextureId::from_combo_id(tex.combo_id),
-                                          level_data->textures.at(i).GetTextureId());
+                                          texture.GetTextureId());
             }
           }
           lk.unlock();
-          for (auto& tex : level_data->textures) {
-            tex.destroyTexture();
-          }
-
-          for (auto& tie_geo : level_data->tie_data) {
-            for (auto& tie_tree : tie_geo) {
-              //glDeleteBuffers(1, &tie_tree.vertex_buffer);
-              if (tie_tree.has_wind) {
-                //glDeleteBuffers(1, &tie_tree.wind_indices);
-              }
-            }
-          }
-
-          for (auto& tfrag_geo : level_data->tfrag_vertex_data) {
-            for (auto& tfrag_buff : tfrag_geo) {
-              //glDeleteBuffers(1, &tfrag_buff);
-            }
-          }
-
-          //glDeleteBuffers(1, &lev.second->collide_vertices);
-          //glDeleteBuffers(1, &lev.second->merc_vertices);
-          //glDeleteBuffers(1, &lev.second->merc_indices);
+          level_data->textures_map.clear();
 
           for (auto& model : level_data->level->merc_data.models) {
             auto& mercs = m_all_merc_models.at(model.name);

@@ -15,6 +15,24 @@ void BaseMerc2::draw_debug_window() {
   ImGui::Text("Bones    : %d", m_stats.num_bones_uploaded);
   ImGui::Text("Lights   : %d", m_stats.num_lights);
   ImGui::Text("Dflush   : %d", m_stats.num_draw_flush);
+  if (m_debug_mode) {
+    for (int i = 0; i < kMaxEffect; i++) {
+      ImGui::Checkbox(fmt::format("e{:02d}", i).c_str(), &m_effect_debug_mask[i]);
+    }
+
+    for (const auto& model : m_debug.model_list) {
+      if (ImGui::TreeNode(model.name.c_str())) {
+        ImGui::Text("Level: %s\n", model.level.c_str());
+        for (const auto& e : model.effects) {
+          for (const auto& d : e.draws) {
+            ImGui::Text("%s", d.mode.to_string().c_str());
+          }
+          ImGui::Separator();
+        }
+        ImGui::TreePop();
+      }
+    }
+  }
 }
 
 /*!
@@ -29,13 +47,9 @@ void BaseMerc2::render(DmaFollower& dma, BaseSharedRenderState* render_state, Sc
     return;
   }
 
-  init_for_frame(render_state);
-
   // iterate through the dma chain, filling buckets
   handle_all_dma(dma, render_state, prof);
 
-  // flush model data to buckets
-  flush_pending_model(render_state, prof);
   // flush buckets to draws
   flush_draw_buckets(render_state, prof);
 }
@@ -205,106 +219,31 @@ void BaseMerc2::handle_merc_chain(DmaFollower& dma,
   }
 
   auto init = dma.read_and_advance();
+  int skip_count = 2;
+  if (render_state->version == GameVersion::Jak2) {
+    skip_count = 1;
+  }
+
+  while (init.vifcode1().kind == VifCode::Kind::PC_PORT) {
+    // flush_pending_model(render_state, prof);
+    handle_pc_model(init, render_state, prof);
+    for (int i = 0; i < skip_count; i++) {
+      auto link = dma.read_and_advance();
+      ASSERT(link.vifcode0().kind == VifCode::Kind::NOP);
+      ASSERT(link.vifcode1().kind == VifCode::Kind::NOP);
+      ASSERT(link.size_bytes == 0);
+    }
+    init = dma.read_and_advance();
+  }
 
   if (init.vifcode0().kind == VifCode::Kind::FLUSHA) {
+    int num_skipped = 0;
     while (dma.current_tag_offset() != render_state->next_bucket) {
       dma.read_and_advance();
+      num_skipped++;
     }
+    ASSERT(num_skipped < 4);
     return;
-  }
-
-  if (init.vifcode1().kind == VifCode::Kind::PC_PORT) {
-    // we got a PC PORT packet. this contains some extra data to set up the model
-    flush_pending_model(render_state, prof);
-    init_pc_model(init, render_state);
-    ASSERT(tag_is_nothing_cnt(dma) || tag_is_nothing_next(dma));
-    init = dma.read_and_advance();  // dummy tag in pc port
-    if (init.vifcode0().kind != VifCode::Kind::STROW) {
-      init = dma.read_and_advance();
-    }
-    if (init.vifcode0().kind != VifCode::Kind::STROW) {
-      init = dma.read_and_advance();
-    }
-    if (init.vifcode0().kind != VifCode::Kind::STROW) {
-      while (dma.current_tag_offset() != render_state->next_bucket) {
-        auto skip = dma.read_and_advance();
-        ASSERT(skip.vifcode0().kind == VifCode::Kind::NOP);
-        ASSERT(skip.vifcode1().kind == VifCode::Kind::NOP);
-      }
-      return;
-    }
-  }
-
-  // row stuff.
-  ASSERT(init.vifcode0().kind == VifCode::Kind::STROW);
-  ASSERT(init.size_bytes == 16);
-  // m_vif.row[0] = init.vif1();
-  // memcpy(m_vif.row + 1, init.data, 12);
-  u32 extra;
-  memcpy(&extra, init.data + 12, 4);
-  // ASSERT(extra == 0);
-  m_current_effect_enable_bits = extra;
-  m_current_ignore_alpha_bits = extra >> 16;
-  DmaTransfer next;
-
-  bool setting_up = true;
-  u32 mscal_addr = -1;
-  while (setting_up) {
-    next = dma.read_and_advance();
-    // fmt::print("next: {}", dma.current_tag().print());
-    u32 offset_in_data = 0;
-    //    fmt::print("START {} : {} {}\n", next.size_bytes, next.vifcode0().print(),
-    //               next.vifcode1().print());
-    auto vif0 = next.vifcode0();
-    switch (vif0.kind) {
-      case VifCode::Kind::NOP:
-      case VifCode::Kind::FLUSHE:
-        break;
-      case VifCode::Kind::STMOD:
-        ASSERT(vif0.immediate == 0 || vif0.immediate == 1);
-        // m_vif.stmod = vif0.immediate;
-        break;
-      default:
-        ASSERT(false);
-    }
-
-    auto vif1 = next.vifcode1();
-    switch (vif1.kind) {
-      case VifCode::Kind::UNPACK_V4_8: {
-        VifCodeUnpack up(vif1);
-        offset_in_data += 4 * vif1.num;
-      } break;
-      case VifCode::Kind::UNPACK_V4_32: {
-        VifCodeUnpack up(vif1);
-        if (up.addr_qw == 132 && vif1.num == 8) {
-          set_lights(next);
-        } else if (vif1.num == 7) {
-          handle_matrix_dma(next);
-        }
-        offset_in_data += 16 * vif1.num;
-      } break;
-      case VifCode::Kind::MSCAL:
-        // fmt::print("cal\n");
-        mscal_addr = vif1.immediate;
-        ASSERT(next.size_bytes == 0);
-        setting_up = false;
-        break;
-      default:
-        ASSERT(false);
-    }
-
-    ASSERT(offset_in_data <= next.size_bytes);
-    if (offset_in_data < next.size_bytes) {
-      ASSERT((offset_in_data % 4) == 0);
-      u32 leftover = next.size_bytes - offset_in_data;
-      if (leftover < 16) {
-        for (u32 i = 0; i < leftover; i++) {
-          ASSERT(next.data[offset_in_data + i] == 0);
-        }
-      } else {
-        ASSERT(false);
-      }
-    }
   }
 }
 
@@ -312,7 +251,7 @@ void BaseMerc2::handle_merc_chain(DmaFollower& dma,
  * Queue up some bones to be included in the bone buffer.
  * Returns the index of the first bone vector.
  */
-u32 BaseMerc2::alloc_bones(int count) {
+u32 BaseMerc2::alloc_bones(int count, ShaderMercMat* data) {
   u32 first_bone_vector = m_next_free_bone_vector;
   ASSERT(count * 8 + first_bone_vector <= MAX_SHADER_BONE_VECTORS);
 
@@ -321,7 +260,7 @@ u32 BaseMerc2::alloc_bones(int count) {
 
   // iterate over each bone we need
   for (int i = 0; i < count; i++) {
-    auto& skel_mat = m_skel_matrix_buffer[i];
+    auto& skel_mat = data[i];
     auto* shader_mat = &m_shader_bone_vector_buffer[m_next_free_bone_vector];
     int bv = 0;
 
@@ -334,16 +273,6 @@ u32 BaseMerc2::alloc_bones(int count) {
       shader_mat[bv++] = skel_mat.nmat[j];
     }
 
-    // we could include the effect of the perspective matrix here.
-    //        for (int j = 0; j < 3; j++) {
-    //          tbone_buffer[i][j] = vf15.elementwise_multiply(bone_mat[j]);
-    //          tbone_buffer[i][j].w() += p.w() * bone_mat[j].z();
-    //          tbone_buffer[i][j] *= scale;
-    //        }
-    //
-    //        tbone_buffer[i][3] = vf15.elementwise_multiply(bone_mat[3]) +
-    //        m_low_memory.perspective[3]; tbone_buffer[i][3].w() += p.w() * bone_mat[3].z();
-
     m_next_free_bone_vector += 8;
   }
 
@@ -354,4 +283,123 @@ u32 BaseMerc2::alloc_bones(int count) {
   ASSERT(b0 <= m_next_free_bone_vector);
   ASSERT(first_bone_vector + count * 8 <= m_next_free_bone_vector);
   return first_bone_vector;
+}
+
+
+void BaseMerc2::handle_mod_vertices(const DmaTransfer& setup,
+                                    const tfrag3::MercEffect& effect,
+                                    const u8* input_data,
+                                    uint32_t index,
+                                    const tfrag3::MercModel* model) {
+  // start with the "correct" vertices from the model data:
+  memcpy(m_mod_vtx_temp.data(), effect.mod.vertices.data(),
+         sizeof(tfrag3::MercVertex) * effect.mod.vertices.size());
+
+  // get pointers to the fragment and fragment control data
+  u32 goal_addr;
+  memcpy(&goal_addr, input_data + 4 * index, 4);
+  const u8* ee0 = setup.data - setup.data_offset;
+  const u8* merc_effect = ee0 + goal_addr;
+  u16 frag_cnt;
+  memcpy(&frag_cnt, merc_effect + 18, 2);
+  ASSERT(frag_cnt >= effect.mod.fragment_mask.size());
+  u32 frag_goal;
+  memcpy(&frag_goal, merc_effect, 4);
+  u32 frag_ctrl_goal;
+  memcpy(&frag_ctrl_goal, merc_effect + 4, 4);
+  const u8* frag = ee0 + frag_goal;
+  const u8* frag_ctrl = ee0 + frag_ctrl_goal;
+
+  // loop over frags
+  u32 vidx = 0;
+  // u32 st_vif_add = model->st_vif_add;
+  float xyz_scale = model->xyz_scale;
+  prof().end_event();
+  {
+    // we're going to look at data that the game may be modifying.
+    // in the original game, they didn't have any lock, but I think that the
+    // scratchpad access from the EE would effectively block the VIF1 DMA, so you'd
+    // hopefully never get a partially updated model (which causes obvious holes).
+    // this lock is not ideal, and can block the rendering thread while blerc_execute runs,
+    // which can take up to 2ms on really blerc-heavy scenes
+    std::unique_lock<std::mutex> lk(g_merc_data_mutex);
+    int frags_done = 0;
+    auto p = scoped_prof("vert-math");
+
+    // loop over fragments
+    for (u32 fi = 0; fi < effect.mod.fragment_mask.size(); fi++) {
+      frags_done++;
+      u8 mat_xfer_count = frag_ctrl[3];
+
+      // we create a mask of fragments to skip because they have no vertices.
+      // the indexing data assumes that we skip the other fragments.
+      if (effect.mod.fragment_mask[fi]) {
+        // read fragment metadata
+        u8 unsigned_four_count = frag_ctrl[0];
+        u8 lump_four_count = frag_ctrl[1];
+        u32 mm_qwc_off = frag[10];
+        float float_offsets[3];
+        memcpy(float_offsets, &frag[mm_qwc_off * 16], 12);
+        u32 my_u4_count = ((unsigned_four_count + 3) / 4) * 16;
+        u32 my_l4_count = my_u4_count + ((lump_four_count + 3) / 4) * 16;
+
+        // loop over vertices in the fragment and unpack
+        for (u32 w = my_u4_count / 4; w < (my_l4_count / 4) - 2; w += 3) {
+          // just want positions for now.
+          u32 q0w = 0x4b010000 + frag[w * 4 + (0 * 4) + 3];
+          u32 q1w = 0x4b010000 + frag[w * 4 + (1 * 4) + 3];
+          u32 q2w = 0x4b010000 + frag[w * 4 + (2 * 4) + 3];
+
+          // and maybe normals
+          u32 q0z = 0x47800000 + frag[w * 4 + (0 * 4) + 2];
+          u32 q1z = 0x47800000 + frag[w * 4 + (1 * 4) + 2];
+          u32 q2z = 0x47800000 + frag[w * 4 + (2 * 4) + 2];
+
+          auto* pos_array = m_mod_vtx_unpack_temp[vidx].pos;
+          memcpy(&pos_array[0], &q0w, 4);
+          memcpy(&pos_array[1], &q1w, 4);
+          memcpy(&pos_array[2], &q2w, 4);
+          pos_array[0] += float_offsets[0];
+          pos_array[1] += float_offsets[1];
+          pos_array[2] += float_offsets[2];
+          pos_array[0] *= xyz_scale;
+          pos_array[1] *= xyz_scale;
+          pos_array[2] *= xyz_scale;
+
+          auto* nrm_array = m_mod_vtx_unpack_temp[vidx].nrm;
+          memcpy(&nrm_array[0], &q0z, 4);
+          memcpy(&nrm_array[1], &q1z, 4);
+          memcpy(&nrm_array[2], &q2z, 4);
+          nrm_array[0] += -65537;
+          nrm_array[1] += -65537;
+          nrm_array[2] += -65537;
+          vidx++;
+        }
+      }
+
+      // next control
+      frag_ctrl += 4 + 2 * mat_xfer_count;
+
+      // next frag
+      u32 mm_qwc_count = frag[11];
+      frag += mm_qwc_count * 16;
+    }
+
+    // sanity check
+    if (effect.mod.expect_vidx_end != vidx) {
+      fmt::print("---------- BAD {}/{}\n", effect.mod.expect_vidx_end, vidx);
+      ASSERT(false);
+    }
+  }
+
+  {
+    auto pp = scoped_prof("copy");
+    // now copy the data in merc original vertex order to the output.
+    for (u32 vi = 0; vi < effect.mod.vertices.size(); vi++) {
+      u32 addr = effect.mod.vertex_lump4_addr[vi];
+      if (addr < vidx) {
+        memcpy(&m_mod_vtx_temp[vi], &m_mod_vtx_unpack_temp[addr], 32);
+      }
+    }
+  }
 }

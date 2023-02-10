@@ -224,10 +224,10 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
 }
 
 DoubleDraw vulkan_background_common::setup_tfrag_shader(
-  BaseSharedRenderState* render_state, DrawMode mode, VulkanTexture* VulkanTexture,
+  BaseSharedRenderState* render_state, DrawMode mode, VulkanTexture* texture,
     VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_info,
     std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer) {
-  auto draw_settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, VulkanTexture, sampler, pipeline_info, true);
+  auto draw_settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, texture, sampler, pipeline_info, true);
   uniform_buffer->SetUniform1f("alpha_min",
               draw_settings.aref_first);
   uniform_buffer->SetUniform1f("alpha_max", 10.f);

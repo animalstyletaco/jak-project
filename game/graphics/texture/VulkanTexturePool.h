@@ -134,6 +134,7 @@ class VulkanTexturePool {
 
   char m_regex_input[256] = "";
   std::array<VulkanTextureVRAMReference, 1024 * 1024 * 4 / 256> m_textures;
+
   struct Mt4hhTexture {
     VulkanTextureVRAMReference ref;
     u32 slot;

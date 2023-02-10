@@ -39,7 +39,7 @@ FramebufferVulkanTexturePair::FramebufferVulkanTexturePair(unsigned w,
     uint32_t maxMinmapLevels =
         static_cast<uint32_t>(std::floor(std::log2(std::max(textureExtents.width, textureExtents.height)))) + 1;
     uint32_t minmapLevel = (i + 1 > maxMinmapLevels) ? maxMinmapLevels : i + 1;
-    m_textures[i].createImage(textureExtents, minmapLevel, VK_IMAGE_TYPE_2D, device->getMsaaCount(), format,
+    m_textures[i].createImage(textureExtents, minmapLevel, VK_IMAGE_TYPE_2D, format,
                          VK_IMAGE_TILING_OPTIMAL,
                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
   

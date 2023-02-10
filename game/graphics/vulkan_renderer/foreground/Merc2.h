@@ -89,21 +89,24 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
   ~MercVulkan2();
   void init_shaders();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void handle_merc_chain(DmaFollower& dma,
-                         SharedVulkanRenderState* render_state,
-                         ScopedProfilerNode& prof);
 
   protected:
-    void init_for_frame(BaseSharedRenderState* render_state) override;
-    void init_pc_model(const DmaTransfer& setup,
-                       BaseSharedRenderState* render_state) override;
+    void handle_pc_model(const DmaTransfer& setup,
+                         BaseSharedRenderState* render_state,
+                         ScopedProfilerNode& prof) override;
     void flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
-    void flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
     void set_merc_uniform_buffer_data(const DmaTransfer& dma) override;
 
+    std::unique_ptr<VertexBuffer> vertex;
+
+    struct VulkanDraw : Draw {
+      std::unique_ptr<VulkanBuffer> mod_vtx_buffer;
+    };
+
     struct LevelDrawBucketVulkan {
-      const LevelDataVulkan* level = nullptr;
-      std::vector<Draw> draws;
+      LevelDataVulkan* level = nullptr;
+      std::vector<VulkanDraw> draws;
+      std::vector<VulkanDraw> envmap_draws;
       std::vector<VulkanSamplerHelper> samplers;
       std::vector<VkDescriptorImageInfo> descriptor_image_infos;
       std::vector<GraphicsPipelineLayout> pipeline_layouts;
@@ -121,7 +124,19 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
     void draw_merc2(LevelDrawBucketVulkan& level_bucket, ScopedProfilerNode& prof);
     void draw_emercs(LevelDrawBucketVulkan& level_bucket, ScopedProfilerNode& prof);
     void InitializeInputAttributes();
-
+   
+    VulkanDraw* alloc_normal_draw(const tfrag3::MercDraw& mdraw,
+                                  bool ignore_alpha,
+                                  LevelDrawBucketVulkan* lev_bucket,
+                                  u32 first_bone,
+                                  u32 lights);
+    VulkanDraw* try_alloc_envmap_draw(const tfrag3::MercDraw& mdraw,
+                                      const DrawMode& envmap_mode,
+                                      u32 envmap_texture,
+                                      LevelDrawBucketVulkan* lev_bucket,
+                                      const u8* fade,
+                                      u32 first_bone,
+                                      u32 lights);
 
   class MercBoneVertexUniformBuffer : public UniformVulkanBuffer {
    public:
@@ -129,7 +144,21 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
                                 VkDeviceSize minOffsetAlignment = 1);
   };
 
-  std::optional<MercRefVulkan> m_current_model = std::nullopt;
+  struct ModSettings {
+    int num_effects = 0;                 // sanity check
+    int current_ignore_alpha_bits = 0;   // shader settings
+    int current_effect_enable_bits = 0;  // mask for game to disable an effect
+    bool model_uses_mod = false;         // if we should update vertices from game.
+  };
+
+void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect,
+                               ModSettings mod_settings,
+                               LevelDrawBucketVulkan* lev_bucket,
+                               u8* fade_buffer,
+                               uint32_t index,
+                               uint32_t first_bone,
+                               uint32_t lights,
+      std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>>& mod_graphics_buffers);
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
 

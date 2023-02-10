@@ -10,8 +10,6 @@ static unsigned long image_id = 0;
 
 VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
   m_image_id = vulkan_texture::image_id++; 
-  VkPhysicalDeviceProperties properties{};
-  vkGetPhysicalDeviceProperties(m_device->getPhysicalDevice(), &properties);
 }
 
 VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_device) {
@@ -62,6 +60,17 @@ void VulkanTexture::AllocateVulkanImageMemory() {
 }
 
 void VulkanTexture::createImage(VkExtent3D extents,
+                                uint32_t mipLevels,
+                                VkImageType image_type,
+                                VkFormat format,
+                                VkImageTiling tiling,
+                                VkImageUsageFlags usage,
+                                VkImageLayout layout) {
+  createImage(extents, mipLevels, image_type, m_device->getMsaaCount(), format, tiling, usage,
+              layout);
+}
+
+void VulkanTexture::createImage(VkExtent3D extents,
                               uint32_t mipLevels,
                               VkImageType image_type,
                               VkSampleCountFlagBits numSamples,
@@ -78,7 +87,7 @@ void VulkanTexture::createImage(VkExtent3D extents,
   m_image_create_info.tiling = tiling;
   m_image_create_info.initialLayout = layout;
   m_image_create_info.usage = usage;
-  m_image_create_info.samples = numSamples;
+  m_image_create_info.samples = (numSamples > m_device->GetMaxUsableSampleCount()) ? m_device->GetMaxUsableSampleCount() : numSamples;
   m_image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
   AllocateVulkanImageMemory();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <unordered_map>
 
 #include "common/util/FilteredValue.h"
 
@@ -57,11 +58,12 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
 
   std::vector<Tree> m_trees;
   std::string m_level_name;
-  std::vector<VulkanTexture>* m_textures;
+  std::unordered_map<u32, VulkanTexture>* m_textures;
   u64 m_load_id = -1;
 
-  std::vector<VulkanTexture> m_time_of_day_textures;
-  std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
+  //Using unordered_map to avoid using copy constructors when adding new element to the container
+  std::unordered_map<u32, VulkanTexture> m_time_of_day_textures;
+  std::unordered_map<u32, VulkanSamplerHelper> m_time_of_day_samplers;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
 

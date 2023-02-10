@@ -9,19 +9,19 @@ constexpr float LOAD_BUDGET = 2.5f;
  */
 void vk_loader_stage::update_texture(VulkanTexturePool& pool,
                                      const tfrag3::Texture& tex,
-                                     VulkanTexture& texture_info,
+                                     VulkanTexture* texture_info,
                                      bool is_common) {
   VkExtent3D extents{tex.w, tex.h, 1};
-  texture_info.createImage(extents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+  texture_info->createImage(extents, 1, VK_IMAGE_TYPE_2D, 
                            VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_LINEAR,
                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
-  texture_info.writeToImage((u32*)tex.data.data());
+  texture_info->writeToImage((u32*)tex.data.data());
 
   //TODO: Get Mipmap Level here
   unsigned mipLevels = 1;
 
-  texture_info.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
+  texture_info->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
                                VK_IMAGE_ASPECT_COLOR_BIT, 1);
   // Max Anisotropy is set in vulkan renderer sampler info;
 
@@ -29,7 +29,7 @@ void vk_loader_stage::update_texture(VulkanTexturePool& pool,
     VulkanTextureInput in;
     in.debug_page_name = tex.debug_tpage_name;
     in.debug_name = tex.debug_name;
-    in.texture = &texture_info;
+    in.texture = texture_info;
     in.common = is_common;
     in.id = PcTextureId::from_combo_id(tex.combo_id);
     pool.give_texture(in);
@@ -44,15 +44,17 @@ class TextureVulkanLoaderStage : public LoaderStageVulkan {
 
     int bytes_this_run = 0;
     int tex_this_run = 0;
-    if (data.lev_data->textures.size() < data.lev_data->level->textures.size()) {
+    if (data.lev_data->textures_map.size() < data.lev_data->level->textures.size()) {
       std::unique_lock<std::mutex> tpool_lock(data.tex_pool->mutex());
-      while (data.lev_data->textures.size() < data.lev_data->level->textures.size()) {
-        auto& level_texture = data.lev_data->level->textures[data.lev_data->textures.size()];
 
-        VulkanTexture texture_to_be_loaded{m_device};
-        vk_loader_stage::update_texture(*data.tex_pool, level_texture, texture_to_be_loaded, false);
+      u32 texture_id = data.lev_data->textures_map.size();
+      while (data.lev_data->textures_map.size() < data.lev_data->level->textures.size()) {
+        auto& level_texture = data.lev_data->level->textures[data.lev_data->textures_map.size()];
 
-        data.lev_data->textures.push_back(texture_to_be_loaded);
+        data.lev_data->textures_map.insert(std::pair<u32, VulkanTexture>(texture_id, VulkanTexture{m_device}));
+        vk_loader_stage::update_texture(*data.tex_pool, level_texture, &data.lev_data->textures_map.at(texture_id), false);
+        texture_id++;
+
         bytes_this_run += level_texture.w * level_texture.h * 4;
         tex_this_run++;
         if (tex_this_run > 20) {
@@ -63,7 +65,7 @@ class TextureVulkanLoaderStage : public LoaderStageVulkan {
         }
       }
     }
-    return data.lev_data->textures.size() == data.lev_data->level->textures.size();
+    return data.lev_data->textures_map.size() == data.lev_data->level->textures.size();
   }
   void reset() override {}
 };

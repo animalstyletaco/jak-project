@@ -9,6 +9,14 @@ class VulkanTexture {
   void createImage(VkExtent3D extents,
                    uint32_t mipLevels,
                    VkImageType image_type,
+                   VkFormat format,
+                   VkImageTiling tiling,
+                   VkImageUsageFlags usage,
+                   VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED);
+
+  void createImage(VkExtent3D extents,
+                   uint32_t mipLevels,
+                   VkImageType image_type,
                    VkSampleCountFlagBits numSamples,
                    VkFormat format,
                    VkImageTiling tiling,

@@ -9,15 +9,40 @@ class BaseMerc2 : public BaseBucketRenderer {
 
 
  protected:
-  virtual void flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
   virtual void flush_draw_buckets(BaseSharedRenderState* render_state,
                                    ScopedProfilerNode& prof) = 0;
-  virtual void init_pc_model(const DmaTransfer& setup, BaseSharedRenderState* render_state) = 0;
+  virtual void handle_pc_model(const DmaTransfer& setup,
+                               BaseSharedRenderState* render_state,
+                               ScopedProfilerNode& prof) = 0;
   virtual void set_merc_uniform_buffer_data(const DmaTransfer& dma) = 0;
-  virtual void init_for_frame(BaseSharedRenderState* render_state) = 0;
   void handle_merc_chain(DmaFollower& dma,
                          BaseSharedRenderState* render_state,
                          ScopedProfilerNode& prof);
+  void handle_mod_vertices(const DmaTransfer& setup,
+                           const tfrag3::MercEffect& effect,
+                           const u8* input_data,
+                           uint32_t index,
+                           const tfrag3::MercModel* model);
+
+  std::mutex g_merc_data_mutex;
+  bool m_debug_mode = false;
+  struct DrawDebug {
+    DrawMode mode;
+    int num_tris;
+  };
+  struct EffectDebug {
+    bool envmap = false;
+    DrawMode envmap_mode;
+    std::vector<DrawDebug> draws;
+  };
+  struct ModelDebug {
+    std::string name;
+    std::string level;
+    std::vector<EffectDebug> effects;
+  };
+  struct {
+    std::vector<ModelDebug> model_list;
+  } m_debug;
 
   enum MercDataMemory {
     LOW_MEMORY = 0,
@@ -54,15 +79,8 @@ class BaseMerc2 : public BaseBucketRenderer {
   void set_lights(const DmaTransfer& dma);
   void handle_matrix_dma(const DmaTransfer& dma);
 
-  u32 alloc_bones(int count);
- 
-  void switch_to_merc2(BaseSharedRenderState* render_state);
-  void switch_to_emerc(BaseSharedRenderState* render_state);
-
-  u16 m_current_effect_enable_bits = 0;
-  u16 m_current_ignore_alpha_bits = 0;
-  static constexpr int kMaxEffect = 16;
-  u8 m_fade_buffer[4 * kMaxEffect];
+  static constexpr int kMaxEffect = 32;
+  bool m_effect_debug_mask[kMaxEffect];
 
   struct MercMat {
     math::Vector4f tmat[4];
@@ -87,9 +105,12 @@ class BaseMerc2 : public BaseBucketRenderer {
 
   math::Vector4f m_shader_bone_vector_buffer[MAX_SHADER_BONE_VECTORS];
   ShaderMercMat m_skel_matrix_buffer[MAX_SKEL_BONES];
+  
+  u32 alloc_bones(int count, ShaderMercMat* data);
 
   struct Stats {
     int num_models = 0;
+    int num_missing_models = 0;
     int num_chains = 0;
     int num_effects = 0;
     int num_predicted_draws = 0;
@@ -99,7 +120,14 @@ class BaseMerc2 : public BaseBucketRenderer {
     int num_draw_flush = 0;
     int num_envmap_effects = 0;
     int num_envmap_tris = 0;
+    int num_upload_bytes = 0;
+    int num_uploads = 0;
   } m_stats;
+
+  enum DrawFlags {
+    IGNORE_ALPHA = 1,
+    MOD_VTX = 2,
+  };
 
   struct Draw {
     u32 first_index;
@@ -109,9 +137,18 @@ class BaseMerc2 : public BaseBucketRenderer {
     u32 num_triangles;
     u16 first_bone;
     u16 light_idx;
-    u8 ignore_alpha;
+    u8 flags;
     u8 fade[4];
   };
+  
+  static constexpr int MAX_MOD_VTX = UINT16_MAX;
+  std::vector<tfrag3::MercVertex> m_mod_vtx_temp;
+
+  struct UnpackTempVtx {
+    float pos[4];
+    float nrm[4];
+  };
+  std::vector<UnpackTempVtx> m_mod_vtx_unpack_temp;
 
   static constexpr int MAX_LIGHTS = 1024;
   VuLights m_lights_buffer[MAX_LIGHTS];

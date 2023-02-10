@@ -1,5 +1,7 @@
 #pragma once
 
+#include <list>
+
 #include "common/common_types.h"
 #include "common/custom_data/Tfrag3Data.h"
 #include "common/util/Timer.h"
@@ -9,7 +11,9 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 
 struct LevelDataVulkan : BaseLevelData {
-  std::vector<VulkanTexture> textures;
+  // Switched from vector to map to avoid using VulkanTexture copy constructors
+  // when appending new VulkanTexture objects to an stl container
+  std::unordered_map<u32, VulkanTexture> textures_map; 
 
   struct TieVulkan {
     std::unique_ptr<VertexBuffer> vertex_buffer;
@@ -28,13 +32,13 @@ struct LevelDataVulkan : BaseLevelData {
 
 struct MercRefVulkan : BaseMercRef {
   MercRefVulkan() = default;
-  MercRefVulkan(const tfrag3::MercModel* model, u64 load_id, const LevelDataVulkan* level)
+  MercRefVulkan(const tfrag3::MercModel* model, u64 load_id, LevelDataVulkan* level)
       : model(model), load_id(load_id), level(level) {
   }
 
   const tfrag3::MercModel* model = nullptr;
   u64 load_id = 0;
-  const LevelDataVulkan* level = nullptr;
+  LevelDataVulkan* level = nullptr;
 };
 
 struct LoaderInputVulkan {

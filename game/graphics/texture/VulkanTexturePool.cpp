@@ -56,29 +56,28 @@ void VulkanTexturePool::upload_to_gpu(const u8* data, u16 w, u16 h, VulkanTextur
 }
 
 VulkanGpuTextureMap* VulkanTexturePool::give_texture(const VulkanTextureInput& in) {
-  // const auto& it = m_loaded_textures.find(in.name);
-  const auto existing = m_loaded_textures.lookup_or_insert(in.id);
-  if (!existing.second) {
+  const auto [textureMap, doesTextureExist] = m_loaded_textures.lookup_or_insert(in.id);
+  if (!doesTextureExist) {
     // nothing references this texture yet.
-    existing.first->tex_id = in.id;
-    existing.first->is_common = in.common;
-    existing.first->gpu_textures.push_back(in.texture);
-    existing.first->is_placeholder = false;
+    textureMap->tex_id = in.id;
+    textureMap->is_common = in.common;
+    textureMap->gpu_textures.push_back(in.texture);
+    textureMap->is_placeholder = false;
     *m_id_to_name.lookup_or_insert(in.id).first =
         fmt::format("{}/{}", in.debug_page_name, in.debug_name);
-    return existing.first;
+    return textureMap;
   } else {
-    if (!existing.first->is_placeholder) {
+    if (!textureMap->is_placeholder) {
       // two sources for texture. this is fine.
-      ASSERT(!existing.first->gpu_textures.empty());
+      ASSERT(!textureMap->gpu_textures.empty());
     } else {
-      ASSERT(existing.first->gpu_textures.empty());
+      ASSERT(textureMap->gpu_textures.empty());
     }
-    existing.first->is_placeholder = false;
-    existing.first->gpu_textures.push_back(in.texture);
-    existing.first->is_common = in.common;
-    refresh_links(*existing.first);
-    return existing.first;
+    textureMap->is_placeholder = false;
+    textureMap->gpu_textures.push_back(in.texture);
+    textureMap->is_common = in.common;
+    refresh_links(*textureMap);
+    return textureMap;
   }
 }
 

@@ -151,9 +151,9 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
       VkDeviceSize size = 0;
       //CreateIndexBuffer(tree.unpacked.indices);
       VkExtent3D extents{TIME_OF_DAY_COLOR_COUNT, 1, 1};
-      textures[l_geo][l_tree].createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
-                                          VK_FORMAT_A8B8G8R8_SINT_PACK32, VK_IMAGE_TILING_OPTIMAL,
-                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+      textures[l_geo][l_tree].createImage(
+          extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+          VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     }
   }
@@ -180,7 +180,7 @@ bool Tie3Vulkan::setup_for_level(const std::string& level, BaseSharedRenderState
     discard_tree_cache();
     return false;
   }
-  m_textures = &lev_data->textures;
+  m_textures = &lev_data->textures_map;
   m_load_id = lev_data->load_id;
 
   if (m_level_name != level) {
@@ -264,10 +264,14 @@ void Tie3Vulkan::render_tree_wind(int idx,
   int last_texture = -1;
 
   for (size_t draw_idx = 0; draw_idx < tree.wind_draws->size(); draw_idx++) {
-    const auto& draw = tree.wind_draws->operator[](draw_idx);
+    const auto& draw = tree.wind_draws->at(draw_idx);
+
+    auto& time_of_day_texture = m_textures->at(draw.tree_tex_id);
+    auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
+
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
-        render_state, draw.mode, &m_textures->at(draw.tree_tex_id),
-        m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
+        render_state, draw.mode, &time_of_day_texture,
+        time_of_day_sampler, m_pipeline_config_info,
         m_time_of_day_color);
 
     int off = 0;
@@ -347,7 +351,7 @@ void Tie3Vulkan::render_tree(int idx,
   VkDeviceSize size = m_color_result.size() * sizeof(m_color_result[0]);
 
   VkExtent3D extents{tree.colors->size(), 1, 1};
-  timeOfDayTexture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
+  timeOfDayTexture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
                                VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -425,8 +429,11 @@ void Tie3Vulkan::render_tree(int idx,
       }
     }
 
-    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &m_textures->at(draw.tree_tex_id),
-        m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info, m_time_of_day_color);
+    auto& time_of_day_texture = m_textures->at(draw.tree_tex_id);
+    auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
+
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &time_of_day_texture,
+        time_of_day_sampler, m_pipeline_config_info, m_time_of_day_color);
 
     prof.add_draw_call();
 

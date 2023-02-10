@@ -1,15 +1,53 @@
 #include "Merc2.h"
 
+#include <mutex>
+
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/gfx.h"
+
+
+/* Merc 2 renderer:
+ The merc2 renderer is the main "foreground" renderer, which draws characters, collectables,
+ and even some water.
+ The PC format renderer does the usual tricks of buffering stuff head of time as much as possible.
+ The main trick here is to buffer up draws and upload "bones" (skinning matrix) for many draws all
+ at once.
+ The other tricky part is "mod vertices", which may be modified by the game.
+ We know ahead of time which vertices could be modified, and have a way to upload only those
+ vertices.
+ Each "merc model" corresponds to a merc-ctrl in game. There's one merc-ctrl per LOD of an
+ art-group. So generally, this will be something like "jak" or "orb" or "some enemy".
+ Each model is made up of "effect"s. There are a number of per-effect settings, like environment
+ mapping. Generally, the purpose of an "effect" is to divide up a model into parts that should be
+ rendered with a different configuration.
+ Within each model, there are fragments. These correspond to how much data can be uploaded to VU1
+ memory. For the most part, fragments are not considered by the PC renderer. The only exception is
+ updating vertices - we must read the data from the game, which is stored in fragments.
+ Per level, there is an FR3 file loaded by the loader. Each merc renderer can access multiple
+ levels.
+*/
+
+/*!
+ * Remaining ideas for optimization:
+ * - port blerc to C++, do it in the rendering thread and avoid the lock.
+ * - combine envmap draws per effect (might require some funky indexing stuff, or multidraw)
+ * - smaller vertex formats for mod-vertex
+ * - AVX version of vertex conversion math
+ * - eliminate the "copy" step of vertex modification
+ * - batch uploading the vertex modification data
+ */
 
 MercVulkan2::MercVulkan2(const std::string& name,
              int my_id,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info) :
   BaseMerc2(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
+
+    // annoyingly, glBindBufferRange can have alignment restrictions that vary per platform.
+  // the GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT gives us the minimum alignment for views into the bone
+  // buffer. The bone buffer stores things per-16-byte "quadword".
   //TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
   m_graphics_buffer_alignment = 1;
 
@@ -176,8 +214,7 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
       auto& draw = lev_bucket.draws[di];
       auto& sampler = lev_bucket.samplers[di];
 
-      auto& textureInfo = lev->textures[draw.texture];
-      m_fragment_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha, di);
+      VulkanTexture& textureInfo = lev->textures_map.at(draw.texture);
 
       uint32_t dynamic_descriptors_offset = di * sizeof(MercLightControlVertexUniformBuffer);
 
@@ -198,7 +235,7 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
             "light_ambient", m_lights_buffer[draw.light_idx].ambient, di);
         last_light = draw.light_idx;
       }
-      vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, (VulkanTexture*)&textureInfo, sampler, m_pipeline_config_info, true);
+      vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, &textureInfo, sampler, m_pipeline_config_info, true);
 
       m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
 
@@ -241,10 +278,9 @@ void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerN
      auto& draw = lev_bucket.draws[di];
      auto& sampler = lev_bucket.samplers[di];
    
-     auto& textureInfo = lev->textures[draw.texture];
-     m_fragment_uniform_buffer->SetUniform1i("ignore_alpha", draw.ignore_alpha, di);
-   
-     vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, (VulkanTexture*)&textureInfo,
+     VulkanTexture& textureInfo = lev->textures_map.at(draw.texture);
+
+     vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, &textureInfo,
                                                            sampler, m_pipeline_config_info, true);
    
      m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
@@ -274,109 +310,6 @@ void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerN
    }
 }
 
-/*!
- * Flush a model to draw buckets
- */
-void MercVulkan2::flush_pending_model(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
-  if (!m_current_model) {
-    return;
-  }
-
-  const LevelDataVulkan* lev = m_current_model->level;
-  const tfrag3::MercModel* model = m_current_model->model;
-
-  int bone_count = model->max_bones + 1;
-
-  if (m_next_free_light >= MAX_LIGHTS) {
-    fmt::print("MERC2 out of lights, consider increasing MAX_LIGHTS\n");
-    flush_draw_buckets(render_state, prof);
-  }
-
-  if (m_next_free_bone_vector + m_graphics_buffer_alignment + bone_count * 8 >
-      MAX_SHADER_BONE_VECTORS) {
-    fmt::print("MERC2 out of bones, consider increasing MAX_SHADER_BONE_VECTORS\n");
-    flush_draw_buckets(render_state, prof);
-  }
-
-  // find a level bucket
-  LevelDrawBucketVulkan* lev_bucket = nullptr;
-  for (u32 i = 0; i < m_next_free_level_bucket; i++) {
-    if (m_level_draw_buckets[i].level == lev) {
-      lev_bucket = &m_level_draw_buckets[i];
-      break;
-    }
-  }
-
-  if (!lev_bucket) {
-    // no existing bucket
-    if (m_next_free_level_bucket >= m_level_draw_buckets.size()) {
-      // out of room, flush
-      // fmt::print("MERC2 out of levels, consider increasing MAX_LEVELS\n");
-      flush_draw_buckets(render_state, prof);
-      // and retry the whole thing.
-      flush_pending_model(render_state, prof);
-      return;
-    }
-    // alloc a new one
-    lev_bucket = &m_level_draw_buckets[m_next_free_level_bucket++];
-    lev_bucket->reset();
-    lev_bucket->level = lev;
-  }
-
-  if (lev_bucket->next_free_draw + model->max_draws >= lev_bucket->draws.size()) {
-    // out of room, flush
-    fmt::print("MERC2 out of draws, consider increasing MAX_DRAWS_PER_LEVEL\n");
-    flush_draw_buckets(render_state, prof);
-    // and retry the whole thing.
-    flush_pending_model(render_state, prof);
-    return;
-  }
-
-  u32 first_bone = alloc_bones(bone_count);
-
-  // allocate lights
-  u32 lights = alloc_lights(m_current_lights);
-  //
-  for (size_t ei = 0; ei < model->effects.size(); ei++) {
-    if (!(m_current_effect_enable_bits & (1 << ei))) {
-      continue;
-    }
-
-    u8 ignore_alpha = (m_current_ignore_alpha_bits & (1 << ei));
-    auto& effect = model->effects[ei];
-    for (auto& mdraw : effect.draws) {
-      Draw* draw = &lev_bucket->draws[lev_bucket->next_free_draw++];
-      draw->first_index = mdraw.first_index;
-      draw->index_count = mdraw.index_count;
-      draw->mode = mdraw.mode;
-      draw->texture = mdraw.tree_tex_id;
-      draw->first_bone = first_bone;
-      draw->light_idx = lights;
-      draw->num_triangles = mdraw.num_triangles;
-      draw->ignore_alpha = ignore_alpha;
-    }
-  }
-
-  m_current_model = std::nullopt;
-}
-
-
-/*!
- * Once-per-frame initialization
- */
-void MercVulkan2::init_for_frame(BaseSharedRenderState* render_state) {
-  // reset state
-  m_current_model = std::nullopt;
-  m_stats = {};
-
-  // set uniforms that we know from render_state
-  m_camera_control_vertex_uniform_buffer->SetUniform4f(
-      "fog_constants", render_state->fog_color[0] / 255.f,
-              render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
-              render_state->fog_intensity / 255);
-  m_fragment_uniform_buffer->SetUniform1ui("gfx_hack_no_tex", Gfx::g_global_settings.hack_no_tex);
-}
-
 void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
   memcpy(&m_low_memory, dma.data + 16, sizeof(LowMemory));
   m_camera_control_vertex_uniform_buffer->SetUniformMathVector4f("hvdf_offset",
@@ -399,24 +332,345 @@ void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
 /*!
  * Handle the merc renderer switching to a different model.
  */
-void MercVulkan2::init_pc_model(const DmaTransfer& setup, BaseSharedRenderState* render_state) {
-  // determine the name. We've packed this in a separate PC-port specific packet.
-  std::string name((const char*)setup.data);
+void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
+                                  BaseSharedRenderState* render_state,
+                                  ScopedProfilerNode& proff) {
+  auto p = scoped_prof("init-pc");
 
-  // get the model from the loader
-  m_current_model = m_vulkan_info.loader->get_merc_model(name.c_str());
+  // the format of the data is:
+  //  ;; name   (128 char, 8 qw)
+  //  ;; lights (7 qw x 1)
+  //  ;; matrix slot string (128 char, 8 qw)
+  //  ;; matrices (7 qw x N)
+  //  ;; flags    (num-effects, effect-alpha-ignore, effect-disable)
+  //  ;; fades    (u32 x N), padding to qw aligned
+  //  ;; pointers (u32 x N), padding
 
-  // update stats
-  m_stats.num_models++;
-  if (m_current_model) {
-    for (const auto& effect : m_current_model->model->effects) {
-      m_stats.num_effects++;
-      m_stats.num_predicted_draws += effect.draws.size();
-      for (const auto& draw : effect.draws) {
-        m_stats.num_predicted_tris += draw.num_triangles;
-      }
+  // Get the name
+  const u8* input_data = setup.data;
+  ASSERT(strlen((const char*)input_data) < 127);
+  char name[128];
+  strcpy(name, (const char*)setup.data);
+  input_data += 128;
+
+  // Look up the model by name in the loader.
+  // This will return a reference to this model's data, plus a reference to the level's data
+  // for stuff shared between models of the same level
+  auto model_ref = m_vulkan_info.loader->get_merc_model(name);
+  if (!model_ref) {
+    // it can fail, if the game is faster than the loader. In this case, we just don't draw.
+    m_stats.num_missing_models++;
+    return;
+  }
+
+  // next, we need to check if we have enough room to draw this effect.
+  LevelDataVulkan* lev = model_ref->level;
+  const tfrag3::MercModel* model = model_ref->model;
+
+  // each model uses only 1 light.
+  if (m_next_free_light >= MAX_LIGHTS) {
+    fmt::print("MERC2 out of lights, consider increasing MAX_LIGHTS\n");
+    flush_draw_buckets(render_state, proff);
+  }
+
+  // models use many bones. First check if we need to flush:
+  int bone_count = model->max_bones + 1;
+  if (m_next_free_bone_vector + m_graphics_buffer_alignment + bone_count * 8 >
+      MAX_SHADER_BONE_VECTORS) {
+    fmt::print("MERC2 out of bones, consider increasing MAX_SHADER_BONE_VECTORS\n");
+    flush_draw_buckets(render_state, proff);
+  }
+
+  // also sanity check that we have enough to draw the model
+  if (m_graphics_buffer_alignment + bone_count * 8 > MAX_SHADER_BONE_VECTORS) {
+    fmt::print(
+        "MERC2 doesn't have enough bones to draw a model, increase MAX_SHADER_BONE_VECTORS\n");
+    ASSERT_NOT_REACHED();
+  }
+
+  // next, we need to find a bucket that holds draws for this level (will have the right buffers
+  // bound for drawing)
+  LevelDrawBucketVulkan* lev_bucket = nullptr;
+  for (u32 i = 0; i < m_next_free_level_bucket; i++) {
+    if (m_level_draw_buckets[i].level == lev) {
+      lev_bucket = &m_level_draw_buckets[i];
+      break;
     }
   }
+
+  if (!lev_bucket) {
+    // no existing bucket, allocate a new one.
+    if (m_next_free_level_bucket >= m_level_draw_buckets.size()) {
+      // out of room, flush
+      // fmt::print("MERC2 out of levels, consider increasing MAX_LEVELS\n");
+      flush_draw_buckets(render_state, proff);
+    }
+    // alloc a new one
+    lev_bucket = &m_level_draw_buckets[m_next_free_level_bucket++];
+    lev_bucket->reset();
+    lev_bucket->level = lev;
+  }
+
+  // next check draws:
+  if (lev_bucket->next_free_draw + model->max_draws >= lev_bucket->draws.size()) {
+    // out of room, flush
+    fmt::print("MERC2 out of draws, consider increasing MAX_DRAWS_PER_LEVEL\n");
+    flush_draw_buckets(render_state, proff);
+    if (model->max_draws >= lev_bucket->draws.size()) {
+      ASSERT_NOT_REACHED_MSG("MERC2 draw buffer not big enough");
+    }
+  }
+
+  // same for envmap draws
+  if (lev_bucket->next_free_envmap_draw + model->max_draws >= lev_bucket->envmap_draws.size()) {
+    // out of room, flush
+    fmt::print("MERC2 out of envmap draws, consider increasing MAX_ENVMAP_DRAWS_PER_LEVEL\n");
+    flush_draw_buckets(render_state, proff);
+    if (model->max_draws >= lev_bucket->envmap_draws.size()) {
+      ASSERT_NOT_REACHED_MSG("MERC2 envmap draw buffer not big enough");
+    }
+  }
+
+  // Next part of input data is the lights
+  VuLights current_lights;
+  memcpy(&current_lights, input_data, sizeof(VuLights));
+  input_data += sizeof(VuLights);
+
+  // Next part is the matrix slot string. The game sends us a bunch of bone matrices,
+  // but they may not be in order, or include all bones. The matrix slot string tells
+  // us which bones go where. (the game doesn't go in order because it follows the merc format)
+  ShaderMercMat skel_matrix_buffer[MAX_SKEL_BONES];
+  auto* matrix_array = (const u32*)(input_data + 128);
+  int i;
+  for (i = 0; i < 128; i++) {
+    if (input_data[i] == 0xff) {  // indicates end of string.
+      break;
+    }
+    // read goal addr of matrix (matrix data isn't known at merc dma time, bones runs after)
+    u32 addr;
+    memcpy(&addr, &matrix_array[i * 4], 4);
+    const u8* real_addr = setup.data - setup.data_offset + addr;
+    ASSERT(input_data[i] < MAX_SKEL_BONES);
+    // get the matrix data
+    memcpy(&skel_matrix_buffer[input_data[i]], real_addr, sizeof(MercMat));
+  }
+  input_data += 128 + 16 * i;
+
+  // Next part is some flags
+  auto mod_settings = *(const ModSettings*)input_data;
+  ASSERT(mod_settings.num_effects < kMaxEffect);
+  input_data += 16;
+
+  // Next is "fade data", indicating the color/intensity of envmap effect
+  u8 fade_buffer[4 * kMaxEffect];
+  for (int ei = 0; ei < mod_settings.num_effects; ei++) {
+    for (int j = 0; j < 4; j++) {
+      fade_buffer[ei * 4 + j] = input_data[ei * 4 + j];
+    }
+  }
+  input_data += (((mod_settings.num_effects * 4) + 15) / 16) * 16;
+
+  // Next is pointers to merc data, needed so we can update vertices
+
+  // will hold graphics vertex buffers for the updated vertices
+  std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>> mod_graphics_buffers;
+  if (mod_settings.model_uses_mod) {  // only if we've enabled, this path is slow.
+    auto p = scoped_prof("update-verts");
+
+    // loop over effects. Mod vertices are done per effect (possibly a bad idea?)
+    for (unsigned ei = 0; ei < mod_settings.num_effects; ei++) {
+      const auto& effect = model_ref->model->effects[ei];
+      // some effects might have no mod draw info, and no modifiable vertices
+      if (effect.mod.mod_draw.empty()) {
+        continue;
+      }
+
+      prof().begin_event("start1");
+      std::unique_ptr<VertexBuffer> mod_vertex_buffer = std::make_unique<VertexBuffer>(*model_ref->level->merc_vertices);
+      mod_graphics_buffers.insert({ei, std::move(mod_vertex_buffer)});
+
+      // check that we have enough room for the finished thing.
+      if (effect.mod.vertices.size() > MAX_MOD_VTX) {
+        fmt::print("More mod vertices than MAX_MOD_VTX. {} > {}\n", effect.mod.vertices.size(),
+                   MAX_MOD_VTX);
+        ASSERT_NOT_REACHED();
+      }
+
+      // check that we have enough room for unpack
+      if (effect.mod.expect_vidx_end > MAX_MOD_VTX) {
+        fmt::print("More mod vertices (temp) than MAX_MOD_VTX. {} > {}\n",
+                   effect.mod.expect_vidx_end, MAX_MOD_VTX);
+        ASSERT_NOT_REACHED();
+      }
+
+      handle_mod_vertices(setup, effect, input_data, ei, model);
+
+      // and upload to GPU
+      m_stats.num_uploads++;
+      m_stats.num_upload_bytes += effect.mod.vertices.size() * sizeof(tfrag3::MercVertex);
+      {
+        auto pp = scoped_prof("update-verts-upload");
+        mod_graphics_buffers.at(ei)->writeToGpuBuffer(
+            m_mod_vtx_temp.data(), effect.mod.vertices.size() * sizeof(tfrag3::MercVertex), 0);
+      }
+    }
+
+    // stats
+    m_stats.num_models++;
+    for (const auto& effect : model_ref->model->effects) {
+      bool envmap = effect.has_envmap;
+      m_stats.num_effects++;
+      m_stats.num_predicted_draws += effect.all_draws.size();
+      if (envmap) {
+        m_stats.num_envmap_effects++;
+        m_stats.num_predicted_draws += effect.all_draws.size();
+      }
+      for (const auto& draw : effect.all_draws) {
+        m_stats.num_predicted_tris += draw.num_triangles;
+        if (envmap) {
+          m_stats.num_predicted_tris += draw.num_triangles;
+        }
+      }
+    }
+
+    if (m_debug_mode) {
+      auto& d = m_debug.model_list.emplace_back();
+      d.name = model->name;
+      d.level = model_ref->level->level->level_name;
+      for (auto& e : model->effects) {
+        auto& de = d.effects.emplace_back();
+        de.envmap = e.has_envmap;
+        de.envmap_mode = e.envmap_mode;
+        for (auto& draw : e.all_draws) {
+          auto& dd = de.draws.emplace_back();
+          dd.mode = draw.mode;
+          dd.num_tris = draw.num_triangles;
+        }
+      }
+    }
+
+    // allocate bones in shared bone buffer to be sent to GPU at flush-time
+    u32 first_bone = alloc_bones(bone_count, skel_matrix_buffer);
+
+    // allocate lights
+    u32 lights = alloc_lights(current_lights);
+
+    // loop over effects, creating draws for each
+    for (size_t ei = 0; ei < model->effects.size(); ei++) {
+      // game has disabled it?
+      if (!(mod_settings.current_effect_enable_bits & (1 << ei))) {
+        continue;
+      }
+
+      // imgui menu disabled it?
+      if (!m_effect_debug_mask[ei]) {
+        continue;
+      }
+
+      do_mod_draws(model->effects[ei], mod_settings, lev_bucket,
+                   fade_buffer, ei, first_bone, lights, mod_graphics_buffers);
+    }
+  }
+}
+
+void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect, ModSettings mod_settings,
+                               LevelDrawBucketVulkan* lev_bucket, u8* fade_buffer,
+                               uint32_t index,
+                               uint32_t first_bone,
+                               uint32_t lights,
+                               std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>>& mod_graphics_buffers) {
+  u8 ignore_alpha = (mod_settings.current_ignore_alpha_bits & (1 << index));
+
+  bool should_envmap = effect.has_envmap;
+  bool should_mod = mod_settings.model_uses_mod && effect.has_mod_draw;
+
+  if (should_mod) {
+    // draw as two parts, fixed and mod
+
+    // do fixed draws:
+    for (auto& fdraw : effect.mod.fix_draw) {
+      alloc_normal_draw(fdraw, ignore_alpha, lev_bucket, first_bone, lights);
+      if (should_envmap) {
+        try_alloc_envmap_draw(fdraw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
+                              fade_buffer + 4 * index, first_bone, lights);
+      }
+    }
+
+    // do mod draws
+    for (auto& mdraw : effect.mod.mod_draw) {
+      auto normal_draw = alloc_normal_draw(mdraw, ignore_alpha, lev_bucket, first_bone, lights);
+      // modify the draw, set the mod flag and point it to the opengl buffer
+      normal_draw->flags |= MOD_VTX;
+      normal_draw->mod_vtx_buffer = std::move(mod_graphics_buffers[index]);
+      if (should_envmap) {
+        auto envmap_draw = try_alloc_envmap_draw(mdraw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
+                                       fade_buffer + 4 * index, first_bone, lights);
+        envmap_draw->flags |= MOD_VTX;
+        envmap_draw->mod_vtx_buffer = std::move(mod_graphics_buffers[index]);
+      }
+    }
+  } else {
+    // no mod, just do all_draws
+    for (auto& draw : effect.all_draws) {
+      if (should_envmap) {
+        try_alloc_envmap_draw(draw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
+                              fade_buffer + 4 * index, first_bone, lights);
+      }
+      alloc_normal_draw(draw, ignore_alpha, lev_bucket, first_bone, lights);
+    }
+  }
+}
+
+MercVulkan2::VulkanDraw* MercVulkan2::try_alloc_envmap_draw(const tfrag3::MercDraw& mdraw, const DrawMode& envmap_mode,
+                                                            u32 envmap_texture, LevelDrawBucketVulkan* lev_bucket,
+                                                            const u8* fade, u32 first_bone, u32 lights) {
+  bool nonzero_fade = false;
+  for (int i = 0; i < 4; i++) {
+    if (fade[i]) {
+      nonzero_fade = true;
+      break;
+    }
+  }
+  if (!nonzero_fade) {
+    return nullptr;
+  }
+
+  VulkanDraw* draw = &lev_bucket->envmap_draws[lev_bucket->next_free_envmap_draw++];
+  draw->flags = 0;
+  draw->first_index = mdraw.first_index;
+  draw->index_count = mdraw.index_count;
+  draw->mode = envmap_mode;
+  draw->texture = envmap_texture;
+  draw->first_bone = first_bone;
+  draw->light_idx = lights;
+  draw->num_triangles = mdraw.num_triangles;
+  for (int i = 0; i < 4; i++) {
+    draw->fade[i] = fade[i];
+  }
+  return draw;
+}
+
+MercVulkan2::VulkanDraw* MercVulkan2::alloc_normal_draw(const tfrag3::MercDraw& mdraw,
+                                      bool ignore_alpha,
+                                      LevelDrawBucketVulkan* lev_bucket,
+                                      u32 first_bone,
+                                      u32 lights) {
+  VulkanDraw* draw = &lev_bucket->draws[lev_bucket->next_free_draw++];
+  draw->flags = 0;
+  draw->first_index = mdraw.first_index;
+  draw->index_count = mdraw.index_count;
+  draw->mode = mdraw.mode;
+  draw->texture = mdraw.tree_tex_id;
+  draw->first_bone = first_bone;
+  draw->light_idx = lights;
+  draw->num_triangles = mdraw.num_triangles;
+  if (ignore_alpha) {
+    draw->flags |= IGNORE_ALPHA;
+  }
+  for (int i = 0; i < 4; i++) {
+    draw->fade[i] = 0;
+  }
+  return draw;
 }
 
 void MercVulkan2::init_shaders() {

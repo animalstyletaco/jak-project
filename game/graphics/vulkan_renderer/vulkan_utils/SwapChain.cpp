@@ -276,17 +276,17 @@ void SwapChain::createDepthResources() {
   swapChainDepthFormat = depthFormat;
   VkExtent2D swapChainExtent = getSwapChainExtent();
 
-  depthImages.resize(imageCount(), VulkanTexture{device});
-  for (int i = 0; i < imageCount(); i++) {
-    depthImages[i].createImage({
+  depthImages.resize(imageCount(), device);
+  for (auto& depthImage : depthImages) {
+    depthImage.createImage({
         swapChainExtent.width,
         swapChainExtent.height,
         1,
-    }, 1, VK_IMAGE_TYPE_2D, device->getMsaaCount(),
+    }, 1, VK_IMAGE_TYPE_2D,
     depthFormat, VK_IMAGE_TILING_OPTIMAL,
     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-   depthImages[i].createImageView(
+   depthImage.createImageView(
         VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
   }
 }

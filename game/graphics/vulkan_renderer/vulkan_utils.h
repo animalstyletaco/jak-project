@@ -40,7 +40,10 @@ class FramebufferVulkanTexturePair {
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 
   VulkanSamplerHelper m_sampler_helper;
-  std::vector<VulkanTexture> m_textures;
+
+  // This is ok since it's only set once. Only need to avoid std::vector<VulkanTexture> if the container is
+  // expected to add or remove elements
+  std::vector<VulkanTexture> m_textures; 
 };
 
 class FramebufferVulkanTexturePairContext {

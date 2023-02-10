@@ -80,7 +80,7 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
 
         tree_cache.time_of_day_texture = std::make_unique<VulkanTexture>(get_logical_device());
         tree_cache.time_of_day_texture->createImage(
-            {TIME_OF_DAY_COLOR_COUNT, 0, 0}, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
+            {TIME_OF_DAY_COLOR_COUNT, 0, 0}, 1, VK_IMAGE_TYPE_1D, 
             VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
@@ -114,7 +114,7 @@ bool Tfrag3Vulkan::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>&
   if (m_level_name != level) {
     update_load(tree_kinds, lev_data);
     m_has_level = true;
-    m_textures = &lev_data->textures;
+    m_textures = &lev_data->textures_map;
     m_level_name = level;
   } else {
     m_has_level = true;
@@ -197,8 +197,10 @@ void Tfrag3Vulkan::render_tree(int geom,
     }
 
     ASSERT(m_textures);
+    VulkanTexture& vulkanTexture = m_textures->at(draw.tree_tex_id);
+
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
-        render_state, draw.mode, (VulkanTexture*)&m_textures->at(draw.tree_tex_id),
+        render_state, draw.mode, &vulkanTexture,
         m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
         m_time_of_day_color);
     tree.tris_this_frame += draw.num_triangles;

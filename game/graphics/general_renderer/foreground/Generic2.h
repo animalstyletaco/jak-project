@@ -14,6 +14,16 @@ class BaseGeneric2 : public BaseBucketRenderer {
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
+  enum class Mode {
+    NORMAL,
+    LIGHTNING,
+  };
+
+  void render_in_mode(DmaFollower& dma,
+                      BaseSharedRenderState* render_state,
+                      ScopedProfilerNode& prof,
+                      Mode mode);
+
   struct Vertex {
     math::Vector<float, 3> xyz;
     math::Vector<u8, 4> rgba;
@@ -27,14 +37,15 @@ class BaseGeneric2 : public BaseBucketRenderer {
   static_assert(sizeof(Vertex) == 32);
 
  protected:
-  void determine_draw_modes();
+  void determine_draw_modes(bool enable_at);
   void build_index_buffer();
   void link_adgifs_back_to_frags();
   void draws_to_buckets();
   void reset_buffers();
   void process_matrices();
   void process_dma(DmaFollower& dma, u32 next_bucket);
-  void setup_draws();
+  void process_dma_lightning(DmaFollower& dma, u32 next_bucket);
+  void setup_draws(bool enable_at);
   virtual void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
 
   bool check_for_end_of_generic_data(DmaFollower& dma, u32 next_bucket);

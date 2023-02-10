@@ -10,6 +10,7 @@ GenericVulkan2::GenericVulkan2(const std::string& name,
                                u32 num_adgif,
                                u32 num_buckets)
     : BucketVulkanRenderer(device, vulkan_info), BaseGeneric2(name, my_id, num_verts, num_frags, num_adgif, num_buckets) {
+  m_push_constant.height_scale = (vulkan_info.shaders.GetVersion() == GameVersion::Jak2) ? 0.5 : 1;
   graphics_setup();
 }
 
@@ -87,13 +88,21 @@ void GenericVulkan2::create_pipeline_layout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VkPushConstantRange pushConstantRange = {};
-  pushConstantRange.offset = 0;
-  pushConstantRange.size = sizeof(int);
-  pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  VkPushConstantRange pushConstantVertexRange = {};
+  pushConstantVertexRange.offset = 0;
+  pushConstantVertexRange.size = sizeof(float);
+  pushConstantVertexRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
+  VkPushConstantRange pushConstantFragmentRange = {};
+  pushConstantFragmentRange.offset = pushConstantVertexRange.size;
+  pushConstantFragmentRange.size = sizeof(int);
+  pushConstantFragmentRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  std::array<VkPushConstantRange, 2> pushConstantRanges = {pushConstantVertexRange,
+                                                           pushConstantFragmentRange};
+
+  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
+  pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) !=
@@ -205,7 +214,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
       // (Cs - 0) * As + Cd
       // Cs * As + (1) * Cd
       // s, d
-      ASSERT(fix == 0);
+      // fix is ignored. it's usually 0, except for lightning, which sets it to 0x80.
 
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
@@ -500,9 +509,11 @@ void GenericVulkan2::FinalizeVulkanDraws() {
     m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
         m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer.get(), m_ogl.index_buffer.get(),
         m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+    m_push_constant.bucket_id = i;
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                       VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(int), (void*)&i);
+                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant.height_scale),
+                       sizeof(m_push_constant.bucket_id), (void*)&m_push_constant.bucket_id);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
                      m_ogl.index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
   }

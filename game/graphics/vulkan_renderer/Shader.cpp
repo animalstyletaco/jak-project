@@ -63,7 +63,7 @@ VulkanShader::~VulkanShader() {
   }
 }
 
-VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device, GameVersion version) : m_device(device) {
+VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device, GameVersion version) : m_device(device), m_version(version) {
   at(ShaderId::SOLID_COLOR).initialize_shader(m_device->getLogicalDevice(), "solid_color", version);
   at(ShaderId::DIRECT_BASIC).initialize_shader(m_device->getLogicalDevice(), "direct_basic", version);
   at(ShaderId::DIRECT_BASIC_TEXTURED).initialize_shader(m_device->getLogicalDevice(), "direct_basic_textured", version);

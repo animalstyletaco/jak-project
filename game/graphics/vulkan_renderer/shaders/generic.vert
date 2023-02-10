@@ -21,6 +21,13 @@ layout (location = 2) out float fog;
  
 layout (location = 3) out flat uvec2 tex_info;
 
+layout(push_constant) uniform HeightScale
+{
+	layout(offset = 0) float height_scale;
+}height_scale;
+
+const float SCISSOR_ADJUST = 512.0/448.0;
+
 void main() {
     // lq.xy vf22, 0(vi10)          texture load?
     // lq_buffer(Mask::xy, vu.vf22, vu.vi10);
@@ -81,7 +88,7 @@ void main() {
 
     gl_Position = transformed;
     // scissoring area adjust
-    gl_Position.y *= 512.0/448.0;
+    gl_Position.y *= (SCISSOR_ADJUST * height_scale.height_scale);
 
     fragment_color = vec4(rgba_in.rgb, rgba_in.a * 2);
     tex_info = byte_info.xy;

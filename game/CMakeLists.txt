@@ -261,6 +261,7 @@ endif()
         graphics/opengl_renderer/DirectRenderer.cpp
         graphics/opengl_renderer/DirectRenderer2.cpp
         graphics/opengl_renderer/EyeRenderer.cpp
+        graphics/opengl_renderer/LightningRenderer.cpp
         graphics/opengl_renderer/opengl_utils.cpp
         graphics/opengl_renderer/OpenGLRenderer.cpp
         graphics/opengl_renderer/Shader.cpp

@@ -44,6 +44,7 @@ MercVulkan2::MercVulkan2(const std::string& name,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info) :
   BaseMerc2(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
+  m_push_constant.height_scale = (vulkan_info.shaders.GetVersion() == GameVersion::Jak2) ? 0.5 : 1;
 
     // annoyingly, glBindBufferRange can have alignment restrictions that vary per platform.
   // the GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT gives us the minimum alignment for views into the bone
@@ -156,7 +157,7 @@ void MercVulkan2::create_pipeline_layout() {
 
     VkPushConstantRange pushConstantRange = {};
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(float);
+    pushConstantRange.size = sizeof(m_push_constant.height_scale);
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     VkPipelineLayoutCreateInfo mercPipelineLayoutInfo{};
@@ -188,6 +189,10 @@ void MercVulkan2::create_pipeline_layout() {
 
 void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
                                      ScopedProfilerNode& prof) {
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.height_scale),
+                     (void*)&m_push_constant.height_scale);
+
   m_stats.num_draw_flush++;
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {

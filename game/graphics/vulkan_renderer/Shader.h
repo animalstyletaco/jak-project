@@ -45,7 +45,10 @@ class VulkanShaderLibrary {
   VulkanShader& operator[](ShaderId id) { return m_shaders[(int)id]; }
   VulkanShader& at(ShaderId id) { return m_shaders[(int)id]; }
 
+  GameVersion GetVersion() { return m_version; }
+
  private:
   VulkanShader m_shaders[(int)ShaderId::MAX_SHADERS];
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  GameVersion m_version;
 };

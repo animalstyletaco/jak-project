@@ -99,6 +99,10 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
 
     std::unique_ptr<VertexBuffer> vertex;
 
+    struct PushConstant {
+      float height_scale = 0;
+    } m_push_constant;
+
     struct VulkanDraw : Draw {
       std::unique_ptr<VulkanBuffer> mod_vtx_buffer;
     };

@@ -866,15 +866,19 @@ void VulkanRenderer::finish_screenshot(const std::string& output_name,
 
   VkImage srcImage = m_vulkan_info.swap_chain->getImage(currentImageIndex);
 
-  VulkanBuffer screenshotBuffer(m_device, device_memory_size, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+  StagingBuffer screenshotBuffer(m_device, device_memory_size, 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
   if (screenshotBuffer.map() != VK_SUCCESS) {
     lg::error("Error can't get screenshot memory buffer");
   }
 
-  m_device->copyBufferToImage(screenshotBuffer.getBuffer(), srcImage, static_cast<uint32_t>(width),
-                             static_cast<uint32_t>(height), x, y, 1);
+  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  m_device->copyImageToBuffer(srcImage, static_cast<uint32_t>(width),
+                              static_cast<uint32_t>(height),
+                              x, y, 1, screenshotBuffer.getBuffer());
+  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
   VkDeviceSize memory_offset = sizeof(u32) * ((y * width) + x);
 

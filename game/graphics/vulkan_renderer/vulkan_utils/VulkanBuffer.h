@@ -87,7 +87,7 @@ class StagingBuffer : public VulkanBuffer {
   StagingBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                 VkDeviceSize instanceSize,
                 uint32_t instanceCount,
-                VkBufferUsageFlagBits properties,
+                VkBufferUsageFlags properties,
                 VkDeviceSize minOffsetAlignment = 1);
 };
 

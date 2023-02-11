@@ -53,8 +53,8 @@ class BaseCommonOceanRenderer {
   std::vector<Vertex> m_vertices;
   u32 m_next_free_vertex = 0;
 
-  std::vector<u32> m_indices[2 * NUM_BUCKETS];
-  u32 m_next_free_index[2 * NUM_BUCKETS] = {0};
+  std::vector<u32> m_indices[NUM_BUCKETS];
+  u32 m_next_free_index[NUM_BUCKETS] = {0};
 
   u32 m_envmap_tex = 0;
 };

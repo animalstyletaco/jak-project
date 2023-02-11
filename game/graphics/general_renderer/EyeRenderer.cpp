@@ -21,12 +21,12 @@ void BaseEyeRenderer::render(DmaFollower& dma,
   m_debug.clear();
 
   // skip if disabled
-  //if (!m_enabled) {
+  if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
       dma.read_and_advance();
     }
     return;
-  //}
+  }
 
   // jump to bucket
   auto data0 = dma.read_and_advance();

@@ -396,7 +396,7 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
   write_descriptors_info[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
       1, &m_descriptor_image_info, 1);
 
- // m_fragment_descriptor_writer->overwrite(m_descriptor_sets[0]);
+  m_fragment_descriptor_writer->overwrite(m_descriptor_sets[0]);
 }
 
 void DirectVulkanRenderer::update_graphics_blend() {

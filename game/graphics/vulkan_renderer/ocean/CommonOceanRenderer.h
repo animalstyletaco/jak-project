@@ -52,7 +52,8 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
-    std::unique_ptr<IndexBuffer> index_buffers[2 * NUM_BUCKETS];
+    std::unique_ptr<IndexBuffer> near_ocean_index_buffers[NUM_BUCKETS];
+    std::unique_ptr<IndexBuffer> mid_ocean_index_buffers[NUM_BUCKETS];
   } m_ogl;
 
   struct PushConstant{
@@ -80,7 +81,9 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
 
   std::vector<VkDescriptorSet> m_descriptor_sets;
 
-  VkSamplerCreateInfo m_sampler_info{};
-  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
-  std::vector<VkSampler> m_samplers;
+  std::vector<VkDescriptorImageInfo> m_near_ocean_descriptor_image_infos;
+  std::vector<VkDescriptorImageInfo> m_mid_ocean_descriptor_image_infos;
+
+  std::vector<VulkanSamplerHelper> m_near_ocean_samplers;
+  std::vector<VulkanSamplerHelper> m_mid_ocean_samplers;
 };

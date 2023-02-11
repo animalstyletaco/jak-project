@@ -5,6 +5,7 @@
 class VulkanSamplerHelper {
 public:
   VulkanSamplerHelper(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+    m_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     m_create_info.maxAnisotropy = m_device->getMaxSamplerAnisotropy();
   };
   VkSamplerCreateInfo& GetSamplerCreateInfo() { return m_create_info; }

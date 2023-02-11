@@ -90,7 +90,6 @@ class GraphicsDeviceVulkan {
                        uint32_t mipLevels);
 
   void transitionImageLayout(VkImage image,
-                             VkFormat format,
                              VkImageLayout oldLayout,
                              VkImageLayout newLayout);
 

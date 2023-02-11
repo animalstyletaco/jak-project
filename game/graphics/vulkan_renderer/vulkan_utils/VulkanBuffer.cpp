@@ -247,6 +247,10 @@ VkResult VulkanBuffer::invalidateIndex(int index) {
  *
  */
 void VulkanBuffer::writeToGpuBuffer(void* data, VkDeviceSize size, VkDeviceSize offset) {
+  if (size == 0) {
+    return;
+  }
+
   StagingBuffer stagingBuffer(m_device, instanceSize, instanceCount,
                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT, alignmentSize);
 
@@ -263,7 +267,7 @@ void VulkanBuffer::writeToGpuBuffer(void* data, VkDeviceSize size, VkDeviceSize 
 StagingBuffer::StagingBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                            VkDeviceSize instanceSize,
                            uint32_t instanceCount,
-                           VkBufferUsageFlagBits properties,
+                           VkBufferUsageFlags properties,
                            VkDeviceSize minOffsetAlignment)
     : VulkanBuffer(device,
                    instanceSize,

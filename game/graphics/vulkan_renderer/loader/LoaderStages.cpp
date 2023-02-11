@@ -14,7 +14,7 @@ void vk_loader_stage::update_texture(VulkanTexturePool& pool,
   VkExtent3D extents{tex.w, tex.h, 1};
   texture_info->createImage(extents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
                            VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_LINEAR,
-                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
   texture_info->writeToImage((u32*)tex.data.data());
 

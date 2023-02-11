@@ -62,11 +62,6 @@ void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
       }
     }
   }
-
-  // set up vertices for GPU mode
-
-  float vertexValue[VTX_BUFFER_FLOATS] = {0};
-  //CreateBuffer(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexValue, VTX_BUFFER_FLOATS);
 }
 
 void EyeVulkanRenderer::render(DmaFollower& dma,
@@ -129,8 +124,7 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
       r_draw.pair = pair_idx;
       if (tex0) {
         StagingBuffer stagingBuffer{
-            m_device, vulkan_texture->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+            m_device, vulkan_texture->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT};
 
         vulkan_texture->getImageData(stagingBuffer.getBuffer(), vulkan_texture->getWidth(),
                                      vulkan_texture->getHeight(), 0, 0);
@@ -266,8 +260,13 @@ void EyeVulkanRenderer::run_gpu(const std::vector<EyeVulkanRenderer::SingleEyeDr
 
 
   // the first thing we'll do is prepare the vertices
-  m_gpu_vertex_buffer->map();
-  float* vertex_data = reinterpret_cast<float*>(m_gpu_vertex_buffer->getMappedMemory());
+  StagingBuffer vertexStagingBuffer(m_device, sizeof(float) * VTX_BUFFER_FLOATS, 1,
+      VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  m_device->copyBuffer(m_gpu_vertex_buffer->getBuffer(), vertexStagingBuffer.getBuffer(),
+                       sizeof(float) * VTX_BUFFER_FLOATS);
+
+  vertexStagingBuffer.map();
+  float* vertex_data = reinterpret_cast<float*>(vertexStagingBuffer.getMappedMemory());
 
   int buffer_idx = 0;
   for (const auto& draw : draws) {
@@ -279,7 +278,9 @@ void EyeVulkanRenderer::run_gpu(const std::vector<EyeVulkanRenderer::SingleEyeDr
   ASSERT(buffer_idx <= VTX_BUFFER_FLOATS);
   int check = buffer_idx;
 
-  m_gpu_vertex_buffer->unmap();
+  m_device->copyBuffer(vertexStagingBuffer.getBuffer(), m_gpu_vertex_buffer->getBuffer(),
+                     sizeof(float) * VTX_BUFFER_FLOATS);
+  vertexStagingBuffer.unmap();
 
   FramebufferVulkanTexturePairContext ctxt(m_gpu_eye_textures[draws.front().tex_slot()]->fb);
 
@@ -421,9 +422,8 @@ void EyeVulkanRenderer::draw_eye_impl(u32* out,
   float tys = tex->getHeight() * inv_yl;
 
   float ty = ty0;
-  VulkanBuffer imageDataBuffer{
-      m_device, tex->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT};
+  StagingBuffer imageDataBuffer{
+      m_device, tex->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT};
 
   tex->getImageData(imageDataBuffer.getBuffer(), tex->getWidth(), tex->getHeight(), 0, 0);
   imageDataBuffer.map();

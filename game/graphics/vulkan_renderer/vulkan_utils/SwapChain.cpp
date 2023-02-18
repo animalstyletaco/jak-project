@@ -2,22 +2,27 @@
 #include <stdexcept>
 
 SwapChain::SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef, VkExtent2D extent)
-    : device{deviceRef}, windowExtent{extent} {
+    : device{deviceRef}, windowExtent{extent}, m_render_pass_sample{deviceRef->getMsaaCount()} {
   init();
 }
 
 SwapChain::SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef,
                      VkExtent2D extent,
                      std::shared_ptr<SwapChain> previous)
-    : device{deviceRef}, windowExtent{extent}, oldSwapChain{previous} {
+    : device{deviceRef},
+      windowExtent{extent},
+      oldSwapChain{previous},
+      m_render_pass_sample{deviceRef->getMsaaCount()} {
   init();
   oldSwapChain = nullptr;
 }
 
 void SwapChain::init() {
+  m_render_pass_sample = device->getMsaaCount();
   createSwapChain();
   createImageViews();
   createRenderPass();
+  createColorResources();
   createDepthResources();
   createFramebuffers();
   createSyncObjects();
@@ -104,6 +109,10 @@ VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_
 }
 
 void SwapChain::createSwapChain() {
+  if (swapChain) {
+    vkDestroySwapchainKHR(device->getLogicalDevice(), swapChain, nullptr);
+  }
+
   SwapChainSupportDetails swapChainSupport = device->getSwapChainSupport();
 
   VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
@@ -168,6 +177,11 @@ void SwapChain::createSwapChain() {
 }
 
 void SwapChain::createImageViews() {
+  for (auto& swapChainImageView : swapChainImageViews) {
+    vkDestroyImageView(device->getLogicalDevice(), swapChainImageView, nullptr);
+  }
+  swapChainImageViews.clear();
+
   swapChainImageViews.resize(imageCount());
   for (int i = 0; i < imageCount(); i++) {
     VkImageViewCreateInfo viewInfo{};
@@ -189,6 +203,11 @@ void SwapChain::createImageViews() {
 }
 
 void SwapChain::createRenderPass() {
+  if (renderPass) {
+    vkDestroyRenderPass(device->getLogicalDevice(), renderPass, nullptr);
+    renderPass = VK_NULL_HANDLE;
+  }
+
   VkAttachmentDescription colorAttachment = {};
   colorAttachment.format = getSwapChainImageFormat();
   colorAttachment.samples = device->getMsaaCount();
@@ -208,6 +227,16 @@ void SwapChain::createRenderPass() {
   depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+  VkAttachmentDescription colorAttachmentResolve{};
+  colorAttachmentResolve.format = swapChainImageFormat;
+  colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
+  colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+  colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+  colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+  colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
   VkAttachmentReference colorAttachmentRef = {};
   colorAttachmentRef.attachment = 0;
@@ -238,7 +267,7 @@ void SwapChain::createRenderPass() {
   dependency.srcStageMask =
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 
-  std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
+  std::array<VkAttachmentDescription, 3> attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
   VkRenderPassCreateInfo renderPassInfo = {};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
@@ -254,9 +283,15 @@ void SwapChain::createRenderPass() {
 }
 
 void SwapChain::createFramebuffers() {
+  for (auto& framebuffer : swapChainFramebuffers) {
+    vkDestroyFramebuffer(device->getLogicalDevice(), framebuffer, nullptr);
+  }
+  swapChainFramebuffers.clear();
+
   swapChainFramebuffers.resize(imageCount());
   for (size_t i = 0; i < imageCount(); i++) {
-    std::array<VkImageView, 2> attachments = {swapChainImageViews[i], depthImages[i].getImageView()};
+    std::array<VkImageView, 3> attachments = {
+        colorImages[i].getImageView(), depthImages[i].getImageView(), swapChainImageViews[i]};
 
     VkExtent2D swapChainExtent = getSwapChainExtent();
     VkFramebufferCreateInfo framebufferInfo = {};
@@ -275,7 +310,29 @@ void SwapChain::createFramebuffers() {
   }
 }
 
+void SwapChain::createColorResources() {
+  colorImages.clear();
+
+  VkExtent2D swapChainExtent = getSwapChainExtent();
+
+  colorImages.resize(imageCount(), device);
+  for (auto& colorImage : colorImages) {
+    colorImage.createImage(
+        {
+            swapChainExtent.width,
+            swapChainExtent.height,
+            1,
+        },
+        1, VK_IMAGE_TYPE_2D, swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+
+    colorImage.createImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  }
+}
+
 void SwapChain::createDepthResources() {
+  depthImages.clear();
+
   VkFormat depthFormat = findDepthFormat();
   swapChainDepthFormat = depthFormat;
   VkExtent2D swapChainExtent = getSwapChainExtent();
@@ -296,6 +353,21 @@ void SwapChain::createDepthResources() {
 }
 
 void SwapChain::createSyncObjects() {
+  for (auto& imageAvailableSemaphore : imageAvailableSemaphores) {
+    vkDestroySemaphore(device->getLogicalDevice(), imageAvailableSemaphore, nullptr);
+  }
+  for (auto& renderFinishedSemaphore : renderFinishedSemaphores) {
+    vkDestroySemaphore(device->getLogicalDevice(), renderFinishedSemaphore, nullptr);
+  }
+  for (auto& inFlightFence : inFlightFences){
+    vkDestroyFence(device->getLogicalDevice(), inFlightFence, nullptr);
+  }
+
+  imageAvailableSemaphores.clear();
+  renderFinishedSemaphores.clear();
+  inFlightFences.clear();
+  imagesInFlight.clear();
+
   imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
   renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
   inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);

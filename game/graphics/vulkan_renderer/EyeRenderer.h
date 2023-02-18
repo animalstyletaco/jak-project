@@ -7,33 +7,63 @@
 #include "game/graphics/general_renderer/EyeRenderer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-class EyeRendererUniformBuffer : public UniformVulkanBuffer {
- public:
-  EyeRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                           VkDeviceSize minOffsetAlignment = 1);
-};
-
 class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
  public:
   EyeVulkanRenderer(const std::string& name,
                     int my_id,
                     std::unique_ptr<GraphicsDeviceVulkan>& device,
                     VulkanInitializationInfo& vulkan_info);
+  ~EyeVulkanRenderer();
   void init_textures(VulkanTexturePool& texture_pool) override;
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
               ScopedProfilerNode& prof) override;
 
+  struct EyeVulkanGraphics {
+    EyeVulkanGraphics(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                      std::unique_ptr<DescriptorLayout>& setLayout,
+                      VulkanInitializationInfo& vulkan_info)
+        : pipeline_layout(device), descriptor_writer(setLayout, vulkan_info.descriptor_pool) {
+      descriptor_writer.build(descriptor_set);
+      descriptor_writer.writeImage(
+          0, vulkan_info.texture_pool->get_placeholder_descriptor_image_info()); 
+    }
+    VulkanGpuTextureMap* texture = VK_NULL_HANDLE;
+    VkDescriptorImageInfo descriptor_image_info;
+    GraphicsPipelineLayout pipeline_layout;
+    VkDescriptorSet descriptor_set;
+    DescriptorWriter descriptor_writer;
+  };
+
   struct SingleEyeDrawsVulkan : SingleEyeDraws {
-    VulkanGpuTextureMap* iris_tex = VK_NULL_HANDLE;
-    VulkanGpuTextureMap* pupil_tex = VK_NULL_HANDLE;
-    VulkanGpuTextureMap* lid_tex = VK_NULL_HANDLE;
+    SingleEyeDrawsVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                         std::unique_ptr<DescriptorLayout>& layout,
+                         VulkanInitializationInfo& vulkan_info)
+        : iris_vulkan_graphics(device, layout, vulkan_info),
+          pupil_vulkan_graphics(device, layout, vulkan_info),
+          lid_vulkan_graphics(device, layout, vulkan_info) {
+    }                                                   
+
+    EyeVulkanGraphics iris_vulkan_graphics;
+    EyeVulkanGraphics pupil_vulkan_graphics;
+    EyeVulkanGraphics lid_vulkan_graphics;
   };
 
  private:
   void run_dma_draws_in_gpu(DmaFollower& dma,
                             BaseSharedRenderState* render_state) override;
   void InitializeInputVertexAttribute();
+  void create_pipeline_layout() override;
+  void init_shaders();
+  void recreate_swap_chain();
+  
+  VkCommandBuffer begin_frame();
+  void end_frame();
+
+  void create_command_buffers();
+  void free_command_buffers();
+
+  std::vector<VkCommandBuffer> m_render_commands;
 
   struct CpuEyeTextures {
     std::unique_ptr<VulkanTexture> texture;
@@ -74,9 +104,18 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   static constexpr int VTX_BUFFER_FLOATS = 4 * 4 * 3 * NUM_EYE_PAIRS * 2;
 
   std::vector<SingleEyeDrawsVulkan> get_draws(DmaFollower& dma, BaseSharedRenderState* render_state);
-  void run_cpu(const std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
-  void run_gpu(const std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
+  void run_cpu(std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
+  void run_gpu(std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
+  void ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
+                         EyeVulkanGraphics& image_info,
+                         uint32_t firstVertex,
+                         uint32_t vertexCount);
 
   std::unique_ptr<VertexBuffer> m_gpu_vertex_buffer;
-  std::unique_ptr<EyeRendererUniformBuffer> m_uniform_buffer;
+  std::unique_ptr<SwapChain> m_swap_chain;
+
+  VkExtent2D m_extents;
+
+  bool isFrameStarted = false;
+  uint32_t eye_renderer_frame_count = 0;
 };

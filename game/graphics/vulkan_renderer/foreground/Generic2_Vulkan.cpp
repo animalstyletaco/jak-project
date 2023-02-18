@@ -515,7 +515,7 @@ void GenericVulkan2::FinalizeVulkanDraws() {
                        VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant.height_scale),
                        sizeof(m_push_constant.bucket_id), (void*)&m_push_constant.bucket_id);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
-                     m_ogl.index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
+                     m_next_free_idx, 1, 0, 0, 0);
   }
 }
 

@@ -8,6 +8,16 @@
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/background/background_common.h"
 
+struct BaseTieProtoVisibility {
+  void init(const std::vector<std::string>& names);
+  void update(const u8* data, size_t size);
+
+  std::vector<u8> vis_flags;
+  std::unordered_map<std::string, std::vector<u32>> name_to_idx;
+
+  bool all_visible = true;
+};
+
 class BaseTie3 : public BaseBucketRenderer {
  public:
    BaseTie3(const std::string& name, int my_id, int level);
@@ -57,12 +67,16 @@ class BaseTie3 : public BaseBucketRenderer {
     bool has_wind = false;
     std::vector<u32> wind_vertex_index_offsets;
 
+    bool has_proto_visibility = false;
+    BaseTieProtoVisibility proto_visibility;
+
     struct {
       u32 draws = 0;
       u32 wind_draws = 0;
       Filtered<float> cull_time;
       Filtered<float> index_time;
       Filtered<float> tod_time;
+      Filtered<float> proto_vis_time;
       Filtered<float> setup_time;
       Filtered<float> draw_time;
       Filtered<float> tree_time;

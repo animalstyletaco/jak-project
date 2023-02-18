@@ -15,7 +15,7 @@
 
 class VkDisplay : public GfxDisplay {
  public:
-  VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>&, bool is_main);
+  VkDisplay(GLFWwindow* window, std::unique_ptr<GraphicsDeviceVulkan>&, bool is_main);
   virtual ~VkDisplay();
 
   void* get_window() const override { return m_window; }

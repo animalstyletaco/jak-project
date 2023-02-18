@@ -6,10 +6,10 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 
-class SkyBlendGPU {
+class SkyBlendVulkanGPU {
  public:
-  SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
-  ~SkyBlendGPU();
+  SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
+  ~SkyBlendVulkanGPU();
   void init_textures(VulkanTexturePool& tex_pool);
   SkyBlendStats do_sky_blends(DmaFollower& dma,
                               BaseSharedRenderState* render_state,

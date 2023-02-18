@@ -341,6 +341,64 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<VkMult
   return num_tris;
 }
 
+u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
+                                              background_common::DrawSettings* draw_ptrs_out,
+                                              GLsizei* counts_out,
+                                              void** index_offsets_out,
+                                              const std::vector<tfrag3::StripDraw>& draws,
+                                              const std::vector<u8>& vis_data,
+                                              const std::vector<u8>& proto_vis_data) {
+  u64 md_idx = 0;
+  u32 num_tris = 0;
+  u32 sanity_check = 0;
+  for (size_t i = 0; i < draws.size(); i++) {
+    const auto& draw = draws[i];
+    u64 iidx = draw.unpacked.idx_of_first_idx_in_full_buffer;
+    ASSERT(sanity_check == iidx);
+    background_common::DrawSettings ds;
+    ds.draw_index = md_idx;
+    ds.number_of_draws = 0;
+    bool building_run = false;
+    u64 run_start = 0;
+    for (auto& grp : draw.vis_groups) {
+      sanity_check += grp.num_inds;
+      bool vis = (grp.vis_idx_in_pc_bvh == UINT16_MAX || vis_data[grp.vis_idx_in_pc_bvh]) &&
+                 proto_vis_data[grp.tie_proto_idx];
+      if (vis) {
+        num_tris += grp.num_tris;
+      }
+
+      if (building_run) {
+        if (!vis) {
+          building_run = false;
+          counts_out[md_idx] = iidx - run_start;
+          index_offsets_out[md_idx] = (void*)(run_start * sizeof(u32));
+          ds.number_of_draws++;
+          md_idx++;
+        }
+      } else {
+        if (vis) {
+          building_run = true;
+          run_start = iidx;
+        }
+      }
+
+      iidx += grp.num_inds;
+    }
+
+    if (building_run) {
+      building_run = false;
+      counts_out[md_idx] = iidx - run_start;
+      index_offsets_out[md_idx] = (void*)(run_start * sizeof(u32));
+      ds.number_of_draws++;
+      md_idx++;
+    }
+
+    draw_ptrs_out[i] = ds;
+  }
+  return num_tris;
+}
+
 u32 vulkan_background_common::make_index_list_from_vis_string(DrawSettings* group_out,
                                                               u32* idx_out,
                                                               const std::vector<tfrag3::StripDraw>& draws,
@@ -359,6 +417,63 @@ u32 vulkan_background_common::make_index_list_from_vis_string(DrawSettings* grou
     int run_start_in = 0;
     for (auto& grp : draw.vis_groups) {
       bool vis = grp.vis_idx_in_pc_bvh == 0xffffffff || vis_data[grp.vis_idx_in_pc_bvh];
+      if (vis) {
+        num_tris += grp.num_tris;
+      }
+
+      if (building_run) {
+        if (vis) {
+          idx_buffer_ptr += grp.num_inds;
+        } else {
+          building_run = false;
+          memcpy(&idx_out[run_start_out],
+                 idx_in + draw.unpacked.idx_of_first_idx_in_full_buffer + run_start_in,
+                 (idx_buffer_ptr - run_start_out) * sizeof(u32));
+        }
+      } else {
+        if (vis) {
+          building_run = true;
+          run_start_out = idx_buffer_ptr;
+          run_start_in = vtx_idx;
+          idx_buffer_ptr += grp.num_inds;
+        }
+      }
+      vtx_idx += grp.num_inds;
+    }
+
+    if (building_run) {
+      memcpy(&idx_out[run_start_out],
+             idx_in + draw.unpacked.idx_of_first_idx_in_full_buffer + run_start_in,
+             (idx_buffer_ptr - run_start_out) * sizeof(u32));
+    }
+
+    ds.number_of_draws = idx_buffer_ptr - ds.draw_index;
+    group_out[i] = ds;
+  }
+  *num_tris_out = num_tris;
+  return idx_buffer_ptr;
+}
+u32 vulkan_background_common::make_index_list_from_vis_and_proto_string(
+    background_common::DrawSettings* group_out,
+    u32* idx_out,
+    const std::vector<tfrag3::StripDraw>& draws,
+    const std::vector<u8>& vis_data,
+    const std::vector<u8>& proto_vis_data,
+    const u32* idx_in,
+    u32* num_tris_out){
+  int idx_buffer_ptr = 0;
+  u32 num_tris = 0;
+  for (size_t i = 0; i < draws.size(); i++) {
+    const auto& draw = draws[i];
+    int vtx_idx = 0;
+    background_common::DrawSettings ds;
+    ds.draw_index = idx_buffer_ptr;
+    bool building_run = false;
+    int run_start_out = 0;
+    int run_start_in = 0;
+    for (auto& grp : draw.vis_groups) {
+      bool vis = (grp.vis_idx_in_pc_bvh == UINT16_MAX || vis_data[grp.vis_idx_in_pc_bvh]) &&
+                 proto_vis_data[grp.tie_proto_idx];
       if (vis) {
         num_tris += grp.num_tris;
       }

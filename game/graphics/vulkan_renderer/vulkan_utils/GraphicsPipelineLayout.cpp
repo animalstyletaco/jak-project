@@ -7,12 +7,19 @@ GraphicsPipelineLayout::GraphicsPipelineLayout(std::unique_ptr<GraphicsDeviceVul
 }
 
 GraphicsPipelineLayout::~GraphicsPipelineLayout() {
+  destroyPipeline();
+}
+
+void GraphicsPipelineLayout::destroyPipeline() {
   if (m_graphics_pipeline) {
     vkDestroyPipeline(m_device->getLogicalDevice(), m_graphics_pipeline, nullptr);
+    m_graphics_pipeline = nullptr;
   }
 }
 
 void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configInfo) {
+  destroyPipeline();
+
   assert(configInfo.pipelineLayout != VK_NULL_HANDLE &&
          "Cannot create graphics pipeline: no pipelineLayout provided in configInfo");
   assert(configInfo.renderPass != VK_NULL_HANDLE &&
@@ -41,7 +48,7 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
   }
   pipelineInfo.pRasterizationState = &configInfo.rasterizationInfo;
 
-  //configInfo.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  configInfo.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   pipelineInfo.pMultisampleState = &configInfo.multisampleInfo;
   pipelineInfo.pColorBlendState = &configInfo.colorBlendInfo;
   pipelineInfo.pDepthStencilState = &configInfo.depthStencilInfo;

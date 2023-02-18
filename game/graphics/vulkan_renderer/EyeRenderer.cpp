@@ -11,6 +11,30 @@
 /////////////////////////
 // note: eye texture increased to 128x128 (originally 32x32) here.
 EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device) : fb(128, 128, VK_FORMAT_A8B8G8R8_SRGB_PACK32, device) {
+  VkSamplerCreateInfo& samplerInfo =
+      fb.GetSamplerHelper().GetSamplerCreateInfo();
+  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+  samplerInfo.anisotropyEnable = VK_TRUE;
+  samplerInfo.maxAnisotropy = device->getPhysicalDeviceFeatures().samplerAnisotropy;
+  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+  samplerInfo.unnormalizedCoordinates = VK_FALSE;
+  samplerInfo.compareEnable = VK_FALSE;
+  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+  samplerInfo.minLod = 0.0f;
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
+  samplerInfo.mipLodBias = 0.0f;
+
+  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
+  samplerInfo.magFilter = VK_FILTER_LINEAR;
+  samplerInfo.minFilter = VK_FILTER_LINEAR;
+
+  fb.GetSamplerHelper().GetSampler();
 }
 
 EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
@@ -18,8 +42,14 @@ EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
                          std::unique_ptr<GraphicsDeviceVulkan>& device,
                          VulkanInitializationInfo& vulkan_info)
     : BaseEyeRenderer(name, id), BucketVulkanRenderer(device, vulkan_info) {
-      m_uniform_buffer = std::make_unique<EyeRendererUniformBuffer>(
-      m_device, 1);
+
+  m_extents = VkExtent2D{128, 128};
+  m_swap_chain = std::make_unique<SwapChain>(device, m_extents);
+
+  create_command_buffers();
+  init_shaders();
+  InitializeInputVertexAttribute();
+
   for (uint32_t i = 0; i < NUM_EYE_PAIRS * 2; i++) {
     m_gpu_eye_textures[i] = std::make_unique<EyeVulkanRenderer::GpuEyeTex>(m_device);
     m_cpu_eye_textures[i].texture = std::make_unique<VulkanTexture>(m_device);
@@ -28,6 +58,46 @@ EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
   VkDeviceSize device_size = sizeof(float) * VTX_BUFFER_FLOATS;
   m_gpu_vertex_buffer = std::make_unique<VertexBuffer>(
       m_device, device_size, 1, 1);
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
+          .build();
+
+  create_pipeline_layout();
+}
+
+void EyeVulkanRenderer::init_shaders() {
+  auto& shader = m_vulkan_info.shaders[ShaderId::EYE];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "main";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "main";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+}
+
+void EyeVulkanRenderer::create_pipeline_layout() {
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_fragment_descriptor_layout->getDescriptorSetLayout()};
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
 }
 
 void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
@@ -91,8 +161,8 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
   std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> draws;
   // now, loop over eyes. end condition is a 8 qw transfer to restore gs.
   while (dma.current_tag().qwc != 8) {
-    draws.emplace_back();
-    draws.emplace_back();
+    draws.emplace_back(m_device, m_fragment_descriptor_layout, m_vulkan_info);
+    draws.emplace_back(m_device, m_fragment_descriptor_layout, m_vulkan_info);
 
     auto& l_draw = draws[draws.size() - 2];
     auto& r_draw = draws[draws.size() - 1];
@@ -146,8 +216,8 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
     {
       l_draw.iris = read_eye_draw(dma);
       r_draw.iris = read_eye_draw(dma);
-      l_draw.iris_tex = tex0;
-      r_draw.iris_tex = tex0;
+      l_draw.iris_vulkan_graphics.texture = tex0;
+      r_draw.iris_vulkan_graphics.texture = tex0;
     }
 
     // now we'll draw the iris on top of that
@@ -163,8 +233,8 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
     if (tex1) {
       l_draw.pupil = read_eye_draw(dma);
       r_draw.pupil = read_eye_draw(dma);
-      l_draw.pupil_tex = tex1;
-      r_draw.pupil_tex = tex1;
+      l_draw.pupil_vulkan_graphics.texture = tex1;
+      r_draw.pupil_vulkan_graphics.texture = tex1;
     }
 
     // and finally the eyelid
@@ -180,8 +250,8 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
     {
       l_draw.lid = read_eye_draw(dma);
       r_draw.lid = read_eye_draw(dma);
-      l_draw.lid_tex = tex2;
-      r_draw.lid_tex = tex2;
+      l_draw.lid_vulkan_graphics.texture = tex2;
+      r_draw.lid_vulkan_graphics.texture = tex2;
     }
 
     auto end = dma.read_and_advance();
@@ -192,25 +262,25 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draw
   return draws;
 }
 
-void EyeVulkanRenderer::run_cpu(const std::vector<SingleEyeDrawsVulkan>& draws,
+void EyeVulkanRenderer::run_cpu(std::vector<SingleEyeDrawsVulkan>& draws,
                                 BaseSharedRenderState* render_state) {
   for (auto& draw : draws) {
     for (auto& x : m_temp_tex) {
       x = draw.clear_color;
     }
 
-    if (draw.iris_tex) {
-      draw_eye<false>(m_temp_tex, draw.iris, draw.iris_tex->get_selected_texture(), draw.pair, draw.lr, false,
+    if (draw.iris_vulkan_graphics.texture) {
+      draw_eye<false>(m_temp_tex, draw.iris, draw.iris_vulkan_graphics.texture->get_selected_texture(), draw.pair, draw.lr, false,
                       m_use_bilinear);
     }
 
-    if (draw.pupil_tex) {
-      draw_eye<true>(m_temp_tex, draw.pupil, draw.pupil_tex->get_selected_texture(), draw.pair, draw.lr, false,
+    if (draw.pupil_vulkan_graphics.texture) {
+      draw_eye<true>(m_temp_tex, draw.pupil, draw.pupil_vulkan_graphics.texture->get_selected_texture(), draw.pair, draw.lr, false,
                      m_use_bilinear);
     }
 
-    if (draw.lid_tex) {
-      draw_eye<false>(m_temp_tex, draw.lid, draw.lid_tex->get_selected_texture(), draw.pair, draw.lr, draw.lr == 1,
+    if (draw.lid_vulkan_graphics.texture) {
+      draw_eye<false>(m_temp_tex, draw.lid, draw.lid_vulkan_graphics.texture->get_selected_texture(), draw.pair, draw.lr, draw.lr == 1,
                       m_use_bilinear);
     }
 
@@ -228,7 +298,7 @@ void EyeVulkanRenderer::run_cpu(const std::vector<SingleEyeDrawsVulkan>& draws,
   }
 }
 
-void EyeVulkanRenderer::run_gpu(const std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan>& draws,
+void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan>& draws,
                           BaseSharedRenderState* render_state) {
   if (draws.empty()) {
     return;
@@ -282,36 +352,21 @@ void EyeVulkanRenderer::run_gpu(const std::vector<EyeVulkanRenderer::SingleEyeDr
                      sizeof(float) * VTX_BUFFER_FLOATS);
   vertexStagingBuffer.unmap();
 
-  FramebufferVulkanTexturePairContext ctxt(m_gpu_eye_textures[draws.front().tex_slot()]->fb);
+  //We store separate frame buffers in vulkan swap chain abstractions
+  auto& frame_buffer_texture_pair = m_gpu_eye_textures[draws.front().tex_slot()]->fb;
+  VkCommandBuffer renderCommand = begin_frame();
+  if (m_device->getMsaaCount() != m_swap_chain->get_render_pass_sample_count()) {
+    recreate_swap_chain();
+  }
 
-  // set up common opengl state
-  m_uniform_buffer->SetUniform1f("tex_T0", 0);
-
-  VkSamplerCreateInfo samplerInfo{};
-  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-  samplerInfo.anisotropyEnable = VK_TRUE;
-  // samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
-  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-  samplerInfo.unnormalizedCoordinates = VK_FALSE;
-  samplerInfo.compareEnable = VK_FALSE;
-  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  samplerInfo.minLod = 0.0f;
-  // samplerInfo.maxLod = static_cast<float>(mipLevels);
-  samplerInfo.mipLodBias = 0.0f;
-
-  samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-  samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-
-  samplerInfo.magFilter = VK_FILTER_LINEAR;
-  samplerInfo.minFilter = VK_FILTER_LINEAR;
+  m_swap_chain->beginSwapChainRenderPass(renderCommand,
+                                         eye_renderer_frame_count % m_swap_chain->imageCount());
+  m_pipeline_config_info.renderPass = m_swap_chain->getRenderPass();
+  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
 
   buffer_idx = 0;
   for (size_t draw_idx = 0; draw_idx < draws.size(); draw_idx++) {
-    const auto& draw = draws[draw_idx];
+    auto& draw = draws[draw_idx];
     const auto& out_tex = m_gpu_eye_textures[draw.tex_slot()];
 
     // first, the clear
@@ -322,17 +377,22 @@ void EyeVulkanRenderer::run_gpu(const std::vector<EyeVulkanRenderer::SingleEyeDr
     }
 
     // iris
-    if (draw.iris_tex) {
+    if (draw.iris_vulkan_graphics.texture) {
       // set alpha
       // set Z
       // set texture
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       //draw.iris_gl_tex;
-      //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
+      draw.iris_vulkan_graphics.descriptor_image_info =
+          VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
+                                draw.iris_vulkan_graphics.texture->get_selected_texture()->getImageView(),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      ExecuteVulkanDraw(renderCommand, draw.iris_vulkan_graphics, buffer_idx / 4, 4);
+
     }
     buffer_idx += 4 * 4;
 
-    if (draw.pupil_tex) {
+    if (draw.pupil_vulkan_graphics.texture) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
@@ -344,32 +404,59 @@ void EyeVulkanRenderer::run_gpu(const std::vector<EyeVulkanRenderer::SingleEyeDr
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
       //draw.pupil_gl_tex;
-      //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
+      draw.pupil_vulkan_graphics.descriptor_image_info =
+          VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
+                                draw.pupil_vulkan_graphics.texture->get_selected_texture()->getImageView(),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      ExecuteVulkanDraw(renderCommand, draw.pupil_vulkan_graphics, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
-    if (draw.lid_tex) {
+    if (draw.lid_vulkan_graphics.texture) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       //draw.lid_gl_tex;
+      draw.lid_vulkan_graphics.descriptor_image_info =
+          VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
+                                draw.lid_vulkan_graphics.texture->get_selected_texture()->getImageView(),
+                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      ExecuteVulkanDraw(renderCommand, draw.lid_vulkan_graphics, buffer_idx / 4, 4);
       //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
     // finally, give to "vram"
     m_vulkan_info.texture_pool->move_existing_to_vram(out_tex->gpu_texture, out_tex->tbp);
-
-    if (draw_idx != draws.size() - 1) {
-      ctxt.switch_to(m_gpu_eye_textures[draws[draw_idx + 1].tex_slot()]->fb);
-    }
   }
+  m_swap_chain->endSwapChainRenderPass(renderCommand);
+  end_frame();
 
   ASSERT(check == buffer_idx);
 }
 
-EyeRendererUniformBuffer::EyeRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                                   VkDeviceSize minOffsetAlignment) :
-  UniformVulkanBuffer(device, sizeof(int), 1, minOffsetAlignment) {
-  section_name_to_memory_offset_map = {{"tex_T0", 0}};
+void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
+                                          EyeVulkanGraphics& eye,
+                                          uint32_t firstVertex,
+                                          uint32_t vertexCount) {
+  auto& write_descriptors_info = eye.descriptor_writer.getWriteDescriptorSets();
+  write_descriptors_info[0] = eye.descriptor_writer.writeImageDescriptorSet(
+      0, &eye.descriptor_image_info, 1);
+
+  eye.descriptor_writer.overwrite(eye.descriptor_set);
+
+  eye.pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+  eye.pipeline_layout.bind(commandBuffer);
+
+  m_swap_chain->setViewportScissor(commandBuffer);
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = m_gpu_vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_config_info.pipelineLayout, 0, 1, &eye.descriptor_set, 0,
+                          nullptr);
+
+  vkCmdDraw(commandBuffer, vertexCount, 0, firstVertex, 0);
 }
 
 void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) {
@@ -467,3 +554,76 @@ void EyeVulkanRenderer::draw_eye(u32* out,
   }
 }
 
+void EyeVulkanRenderer::create_command_buffers() {
+  m_render_commands.resize(m_swap_chain->imageCount());
+
+  VkCommandBufferAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  allocInfo.commandPool = m_device->getCommandPool();
+  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  allocInfo.commandBufferCount = (uint32_t)m_render_commands.size();
+
+  if (vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo,
+                               m_render_commands.data()) != VK_SUCCESS) {
+    throw std::runtime_error("failed to allocate command buffers!");
+  }
+}
+
+void EyeVulkanRenderer::recreate_swap_chain() {
+  vkDeviceWaitIdle(m_device->getLogicalDevice());
+
+  if (m_swap_chain == nullptr) {
+    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents);
+  } else {
+    std::shared_ptr<SwapChain> oldSwapChain = std::move(m_swap_chain);
+    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents, oldSwapChain);
+
+    if (!oldSwapChain->compareSwapFormats(*m_swap_chain.get())) {
+      throw std::runtime_error("Swap chain image(or depth) format has changed!");
+    }
+  }
+}
+
+VkCommandBuffer EyeVulkanRenderer::begin_frame() {
+  auto result = m_swap_chain->acquireNextImage(&eye_renderer_frame_count);
+  if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+    recreate_swap_chain();
+    return nullptr;
+  }
+
+  if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    throw std::runtime_error("failed to acquire swap chain image!");
+  }
+
+  auto commandBuffer = m_render_commands[eye_renderer_frame_count];
+  VkCommandBufferBeginInfo beginInfo{};
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+  if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
+    throw std::runtime_error("failed to begin recording command buffer!");
+  }
+  return commandBuffer;
+}
+
+void EyeVulkanRenderer::end_frame() {
+  auto commandBuffer = m_render_commands[eye_renderer_frame_count];
+  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
+    throw std::runtime_error("failed to record command buffer!");
+  }
+
+  if (m_swap_chain->submitCommandBuffers(&commandBuffer, &eye_renderer_frame_count) != VK_SUCCESS) {
+    throw std::runtime_error("failed to present swap chain image!");
+  }
+
+  eye_renderer_frame_count = (eye_renderer_frame_count + 1) % m_swap_chain->imageCount();
+}
+
+void EyeVulkanRenderer::free_command_buffers() {
+  vkFreeCommandBuffers(m_device->getLogicalDevice(), m_device->getCommandPool(),
+                       static_cast<uint32_t>(m_render_commands.size()), m_render_commands.data());
+  m_render_commands.clear();
+}
+
+EyeVulkanRenderer::~EyeVulkanRenderer() {
+  free_command_buffers();
+}

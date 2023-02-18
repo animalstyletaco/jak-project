@@ -206,7 +206,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   // set up to get inputs for this window
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
-  auto display = std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer.GetSwapChain() , is_main);
+  auto display = std::make_shared<VkDisplay>(window, g_vulkan_device, is_main);
   display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
   display->update_cursor_visibility(window, display->is_imgui_visible());
   // lg::debug("init display #x{:x}", (uintptr_t)display);
@@ -214,7 +214,10 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   return std::static_pointer_cast<GfxDisplay>(display);
 }
 
-VkDisplay::VkDisplay(GLFWwindow* window, std::unique_ptr<SwapChain>& swap_chain, bool is_main) : m_window(window), m_imgui_helper(swap_chain) {
+VkDisplay::VkDisplay(GLFWwindow* window,
+                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                     bool is_main)
+    : m_imgui_helper(device) ,m_window(window) {
   m_main = is_main;
 
   // Get initial state
@@ -423,6 +426,7 @@ void vulkan_render_game_frame(int game_width,
     options.msaa_samples = msaa_samples;
     options.draw_render_debug_window = g_gfx_data->debug_gui.should_draw_render_debug();
     options.draw_profiler_window = g_gfx_data->debug_gui.should_draw_profiler();
+    options.draw_loader_window = g_gfx_data->debug_gui.should_draw_loader_menu();
     options.draw_subtitle_editor_window = g_gfx_data->debug_gui.should_draw_subtitle_editor();
     options.save_screenshot = false;
     options.gpu_sync = g_gfx_data->debug_gui.should_gl_finish();
@@ -798,7 +802,7 @@ void VkDisplay::render() {
   }
   {
     auto p = scoped_prof("imgui-render");
-    m_imgui_helper.Render();
+    m_imgui_helper.Render(Gfx::g_global_settings.game_res_w, Gfx::g_global_settings.game_res_h);
   }
 
   // actual vsync

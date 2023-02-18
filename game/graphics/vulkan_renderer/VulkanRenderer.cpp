@@ -76,6 +76,7 @@ class VisDataVulkanHandler : public BaseVisDataHandler, public BucketVulkanRende
 using namespace vulkan_renderer;
 
 VulkanRenderer::~VulkanRenderer() {
+  freeCommandBuffers();
 }
 
 VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
@@ -113,6 +114,8 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
   m_vulkan_info.descriptor_pool = std::make_unique<DescriptorPool>(m_device, maxSets, 0, poolSizes);
   m_collide_renderer = std::make_unique<CollideMeshVulkanRenderer>(m_device, m_vulkan_info);
 
+  m_blackout_renderer = std::make_unique<FullScreenDrawVulkan>(m_device, m_vulkan_info);
+
   // initialize all renderers
   // initialize all renderers
   switch (m_version) {
@@ -140,7 +143,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
                                                           tfrag3::TFragmentTreeKind::LOWRES};
   std::vector<tfrag3::TFragmentTreeKind> dirt_tfrags = {tfrag3::TFragmentTreeKind::DIRT};
   std::vector<tfrag3::TFragmentTreeKind> ice_tfrags = {tfrag3::TFragmentTreeKind::ICE};
-  auto sky_gpu_blender = std::make_shared<SkyBlendGPU>(m_device, m_vulkan_info);
+  auto sky_gpu_blender = std::make_shared<SkyBlendVulkanGPU>(m_device, m_vulkan_info);
   auto sky_cpu_blender = std::make_shared<SkyBlendCPU>(m_device, m_vulkan_info);
 
   //-------------
@@ -580,6 +583,10 @@ void VulkanRenderer::render(DmaFollower dma, const RenderOptions& settings) {
 
   m_last_pmode_alp = settings.pmode_alp_register;
 
+  if (settings.draw_loader_window) {
+    m_vulkan_info.loader->draw_debug_window();
+  }
+
   m_profiler.finish();
   if (settings.draw_profiler_window) {
     m_profiler.draw();
@@ -650,18 +657,21 @@ void VulkanRenderer::setup_frame(const RenderOptions& settings) {
   // glfw controls the window framebuffer, so we just update the size:
   bool window_changed = m_vulkan_info.swap_chain->width() != settings.window_framebuffer_width ||
                         m_vulkan_info.swap_chain->height() != settings.window_framebuffer_height;
+  bool msaa_changed = (m_device->getMsaaCount() != settings.msaa_samples);
+
   bool isValidWindow = true;
 
   if (window_changed) {
     m_extents.height = settings.window_framebuffer_height;
     m_extents.width = settings.window_framebuffer_width;
-    recreateSwapChain();
-    ImGui_ImplVulkan_Data* bd = (ImGui_ImplVulkan_Data*)ImGui::GetIO().BackendRendererUserData;
-    bd->RenderPass = m_vulkan_info.swap_chain->getRenderPass();
   }
 
-  if (m_device->getMsaaCount() != settings.msaa_samples) { //FIXME: Add check to see if requested msaa is higher than available gpu sampling
+  if (msaa_changed) { 
     m_device->setMsaaCount((VkSampleCountFlagBits)settings.msaa_samples);
+  }
+
+  if (msaa_changed || window_changed) {
+    recreateSwapChain();
   }
 
   ASSERT_MSG(settings.game_res_w > 0 && settings.game_res_h > 0,
@@ -933,7 +943,7 @@ void VulkanRenderer::do_pcrtc_effects(float alp,
     colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     m_vulkan_info.swap_chain->setSwapChainOffsetExtent({0, 0});
 
-    //m_blackout_renderer.draw(Vector4f(0, 0, 0, 1.f - alp), render_state, prof);
+    m_blackout_renderer->draw(Vector4f(0, 0, 0, 1.f - alp), render_state, prof);
 
     depthStencil.depthTestEnable = VK_TRUE;
   }

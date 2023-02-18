@@ -13,6 +13,8 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
                                VulkanInitializationInfo& vulkan_info,
                                int batch_size)
     : BaseDirectRenderer(name, my_id, batch_size), BucketVulkanRenderer(device, vulkan_info) {
+  m_push_constant.height_scale = (m_vulkan_info.shaders.GetVersion() == GameVersion::Jak2) ? 0.5 : 1;
+
   m_pipeline_layouts.resize(2, m_device);
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
   m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(BaseDirectRenderer::Vertex);
@@ -156,6 +158,10 @@ DirectVulkanRenderer::~DirectVulkanRenderer() {
 }
 
 void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.height_scale),
+                     (void*)&m_push_constant.height_scale);
+
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;

@@ -266,6 +266,7 @@ void BaseTie3::draw_debug_window() {
     ImGui::Text("draw: %d", perf.draws);
     ImGui::Text("wind draw: %d", perf.wind_draws);
     ImGui::Text("total: %.2f", perf.tree_time.get());
+    ImGui::Text("proto vis: %.2f", perf.proto_vis_time.get() * 1000.f);
     ImGui::Text("cull: %.2f index: %.2f tod: %.2f setup: %.2f draw: %.2f",
                 perf.cull_time.get() * 1000.f, perf.index_time.get() * 1000.f,
                 perf.tod_time.get() * 1000.f, perf.setup_time.get() * 1000.f,
@@ -273,4 +274,56 @@ void BaseTie3::draw_debug_window() {
     ImGui::Separator();
   }
   ImGui::Text("All trees: %.2f", 1000.f * m_all_tree_time.get());
+}
+
+void BaseTieProtoVisibility::init(const std::vector<std::string>& names) {
+  vis_flags.resize(names.size());
+  for (auto& x : vis_flags) {
+    x = 1;
+  }
+  all_visible = true;
+  name_to_idx.clear();
+  size_t i = 0;
+  for (auto& name : names) {
+    name_to_idx[name].push_back(i++);
+  }
+}
+
+void BaseTieProtoVisibility::update(const u8* data, size_t size) {
+  char name_buffer[256];  // ??
+
+  if (!all_visible) {
+    for (auto& x : vis_flags) {
+      x = 1;
+    }
+    all_visible = true;
+  }
+
+  const u8* end = data + size;
+
+  while (true) {
+    int name_idx = 0;
+    while (*data) {
+      name_buffer[name_idx++] = *data;
+      data++;
+    }
+    if (name_idx) {
+      ASSERT(name_idx < 254);
+      name_buffer[name_idx] = '\0';
+      const auto& it = name_to_idx.find(name_buffer);
+      if (it != name_to_idx.end()) {
+        all_visible = false;
+        for (auto x : name_to_idx.at(name_buffer)) {
+          vis_flags[x] = 0;
+        }
+      }
+    }
+
+    while (*data == 0) {
+      if (data >= end) {
+        return;
+      }
+      data++;
+    }
+  }
 }

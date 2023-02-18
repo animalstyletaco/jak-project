@@ -10,6 +10,8 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
     VulkanInitializationInfo& vulkan_info)
     : BaseShadowRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
+  m_pipeline_layouts.resize(5, m_device);
+
   // set up the vertex array
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
       device, sizeof(Vertex), MAX_VERTICES, 1);
@@ -20,11 +22,11 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
   }
 
   m_uniform_buffer = std::make_unique<ShadowRendererUniformBuffer>(
-      device, 1);
+      device, 5);
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   create_pipeline_layout();
@@ -32,7 +34,12 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
                                                                     m_vulkan_info.descriptor_pool);
 
   m_descriptor_sets.resize(1);
-  m_fragment_buffer_descriptor_info = m_uniform_buffer->descriptorInfo();
+  m_fragment_buffer_descriptor_info = VkDescriptorBufferInfo{
+      m_uniform_buffer->getBuffer(),
+      0,
+      sizeof(math::Vector4f),
+  };
+
   m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
 
@@ -98,6 +105,7 @@ ShadowVulkanRenderer::~ShadowVulkanRenderer() {
 }
 
 void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  u32 draw_idx = 0;
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
 
   u32 clear_vertices = m_next_vertex;
@@ -164,7 +172,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   {
     m_uniform_buffer->SetUniform4f("color_uniform",
-                0., 0.4, 0., 0.5);
+                0., 0.4, 0., 0.5, draw_idx);
     m_ogl.index_buffers[0]->writeToGpuBuffer(m_back_indices, m_next_front_index * sizeof(u32), 0);
 
     m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
@@ -176,14 +184,14 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
 
-    VulkanDrawWithIndexBufferId(0);
+    VulkanDraw(draw_idx, 0);
 
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_uniform_buffer->SetUniform4f("color_uniform", 0.,
-          0.0, 0., 0.5);
+          0.0, 0., 0.5, draw_idx);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-      VulkanDrawWithIndexBufferId(0);
+      VulkanDraw(draw_idx, 0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -193,7 +201,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   {
     m_uniform_buffer->SetUniform4f("color_uniform",
-                0.4, 0.0, 0., 0.5);
+                0.4, 0.0, 0., 0.5, draw_idx);
 
     m_ogl.index_buffers[1]->writeToGpuBuffer(m_back_indices, m_next_back_index * sizeof(u32), 0);
 
@@ -207,12 +215,12 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-    VulkanDrawWithIndexBufferId(1);
+    VulkanDraw(draw_idx, 1);
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-      m_uniform_buffer->SetUniform4f("color_uniform", 0., 0.0, 0., 0.5);
+      m_uniform_buffer->SetUniform4f("color_uniform", 0., 0.0, 0., 0.5, draw_idx);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-      VulkanDrawWithIndexBufferId(1);
+      VulkanDraw(draw_idx, 1);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -222,7 +230,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   }
 
   // finally, draw shadow.
-  m_uniform_buffer->SetUniform4f("color_uniform", 0.13, 0.13, 0.13, 0.5);
+  m_uniform_buffer->SetUniform4f("color_uniform", 0.13, 0.13, 0.13, 0.5, draw_idx);
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
@@ -246,7 +254,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-  VulkanDrawWithIndexBufferId(0);
+  VulkanDraw(draw_idx, 0);
 
   prof.add_draw_call();
   prof.add_tri(2);
@@ -258,13 +266,31 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 }
 
-void ShadowVulkanRenderer::VulkanDrawWithIndexBufferId(uint32_t indexBufferId) {
-  m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
-  m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
+void ShadowVulkanRenderer::VulkanDraw(uint32_t& pipeline_layout_id, uint32_t indexBufferId) {
+  auto& index_buffer = m_ogl.index_buffers[indexBufferId % 2];
+  m_fragment_buffer_descriptor_info = m_uniform_buffer->descriptorInfo();
 
-  m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
-      m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer, m_ogl.index_buffers[indexBufferId],
-      m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+  m_pipeline_layouts[pipeline_layout_id].createGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layouts[pipeline_layout_id].bind(m_vulkan_info.render_command_buffer);
+
+  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = m_ogl.vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+                       index_buffer->getBuffer(), 0,
+                       VK_INDEX_TYPE_UINT32);
+
+  uint32_t dynamicDescriptorOffset = pipeline_layout_id * sizeof(math::Vector4f);
+  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
+                          m_descriptor_sets.data(), 1, &dynamicDescriptorOffset);
+
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
+                   index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
+  pipeline_layout_id++;
 }
 
 ShadowRendererUniformBuffer::ShadowRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,

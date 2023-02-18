@@ -18,6 +18,8 @@ class SwapChain {
   SwapChain(const SwapChain&) = delete;
   SwapChain& operator=(const SwapChain&) = delete;
 
+  void init();
+
   VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
   VkRenderPass getRenderPass() { return renderPass; }
   VkImage getImage(int index) { return swapChainImages[index]; }
@@ -85,10 +87,12 @@ class SwapChain {
            swapChain.swapChainImageFormat == swapChainImageFormat;
   }
 
+  VkSampleCountFlagBits get_render_pass_sample_count() { return m_render_pass_sample; }
+
  private:
-  void init();
   void createSwapChain();
   void createImageViews();
+  void createColorResources();
   void createDepthResources();
   void createRenderPass();
   void createFramebuffers();
@@ -107,7 +111,7 @@ class SwapChain {
   VkOffset2D offsetSwapChainExtent;
 
   std::vector<VkFramebuffer> swapChainFramebuffers;
-  VkRenderPass renderPass;
+  VkRenderPass renderPass = VK_NULL_HANDLE;
 
   std::vector<VkImage> swapChainImages;
   std::vector<VkImageView> swapChainImageViews;
@@ -115,17 +119,21 @@ class SwapChain {
   //Typically don't like using vector for VulkanTexture since std::vector calls
   // all elements copy constructors when appending/removing elements from the container
   //This is ok since it will only be set once during initialization
+  std::vector<VulkanTexture> colorImages;
   std::vector<VulkanTexture> depthImages;
 
   std::unique_ptr<GraphicsDeviceVulkan>& device;
   VkExtent2D windowExtent;
 
-  VkSwapchainKHR swapChain;
+  VkSwapchainKHR swapChain = VK_NULL_HANDLE;
   std::shared_ptr<SwapChain> oldSwapChain;
 
   std::vector<VkSemaphore> imageAvailableSemaphores;
   std::vector<VkSemaphore> renderFinishedSemaphores;
   std::vector<VkFence> inFlightFences;
   std::vector<VkFence> imagesInFlight;
+
+  VkSampleCountFlagBits m_render_pass_sample;
+
   size_t currentFrame = 0;
 };

@@ -43,8 +43,7 @@ void SkyBlendCPU::setup_gpu_texture(u32 slot,
                                     int buffer_idx,
                                     SkyBlendStats& stats) {
   // look up the source texture
-  auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(slot);
-  VulkanTexture* vulkan_texture = tex->get_selected_texture();
+  auto vulkan_texture = m_vulkan_info.texture_pool->lookup_vulkan_texture(slot);
   ASSERT(vulkan_texture);
 
   StagingBuffer stagingBuffer{

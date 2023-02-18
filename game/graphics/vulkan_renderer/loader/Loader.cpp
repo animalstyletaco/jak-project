@@ -1,8 +1,11 @@
 #include "game/graphics/vulkan_renderer/loader/Loader.h"
 
+#include "common/global_profiler/GlobalProfiler.h"
 #include "common/util/FileUtil.h"
 #include "common/util/Timer.h"
 #include "common/util/compress.h"
+
+#include "third-party/imgui/imgui.h"
 
 #include "game/graphics/vulkan_renderer/loader/LoaderStages.h"
 
@@ -116,9 +119,65 @@ void VulkanLoader::load_common(VulkanTexturePool& tex_pool, const std::string& n
   }
 }
 
+void VulkanLoader::draw_debug_window() {
+  ImGui::Begin("Loader");
+  std::unique_lock<std::mutex> lk(m_loader_mutex);
+  ImVec4 blue(0.3, 0.3, 0.8, 1.0);
+  ImVec4 red(0.8, 0.3, 0.3, 1.0);
+  ImVec4 green(0.3, 0.8, 0.3, 1.0);
+
+  if (!m_desired_levels.empty()) {
+    ImGui::Text("desired levels");
+    for (auto& lev : m_desired_levels) {
+      auto lev_color = red;
+      if (m_initializing_tfrag3_levels.find(lev) != m_initializing_tfrag3_levels.end()) {
+        lev_color = blue;
+      }
+      if (m_loaded_tfrag3_levels.find(lev) != m_loaded_tfrag3_levels.end()) {
+        lev_color = green;
+      }
+      ImGui::TextColored(lev_color, "%s", lev.c_str());
+      ImGui::SameLine();
+    }
+    ImGui::NewLine();
+    ImGui::Separator();
+  }
+
+  if (!m_initializing_tfrag3_levels.empty()) {
+    ImGui::Text("init levels");
+    for (auto& lev : m_initializing_tfrag3_levels) {
+      ImGui::TextColored(blue, "%s", lev.first.c_str());
+      ImGui::SameLine();
+    }
+    ImGui::NewLine();
+    ImGui::Separator();
+  }
+
+  if (!m_loaded_tfrag3_levels.empty()) {
+    ImGui::Text("loaded levels");
+    for (auto& lev : m_loaded_tfrag3_levels) {
+      auto lev_color = green;
+      if (lev.second->frames_since_last_used > 0) {
+        lev_color = blue;
+      }
+      if (lev.second->frames_since_last_used > 180) {
+        lev_color = red;
+      }
+      ImGui::TextColored(lev_color, "%20s : %3d", lev.first.c_str(),
+                         lev.second->frames_since_last_used);
+      ImGui::Text("  %d textures", (int)lev.second->textures_map.size());
+      ImGui::Text("  %d merc", (int)lev.second->merc_model_lookup.size());
+    }
+    ImGui::NewLine();
+    ImGui::Separator();
+  }
+
+  ImGui::End();
+}
+
 bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTexturePool& texture_pool) {
   // try to move level from initializing to initialized:
-
+  auto evt = scoped_prof("upload-textures");
   constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 128;
 
   int bytes_this_run = 0;
@@ -271,6 +330,22 @@ void VulkanLoader::loader_thread() {
   }
 }
 
+const std::string* VulkanLoader::get_most_unloadable_level() {
+  for (const auto& [name, lev] : m_loaded_tfrag3_levels) {
+    if (lev->frames_since_last_used > 180 &&
+        std::find(m_desired_levels.begin(), m_desired_levels.end(), name) ==
+            m_desired_levels.end()) {
+      return &name;
+    }
+  }
+
+  for (const auto& [name, lev] : m_loaded_tfrag3_levels) {
+    if (lev->frames_since_last_used > 180) {
+      return &name;
+    }
+  }
+  return nullptr;
+}
 
 void VulkanLoader::update(VulkanTexturePool& texture_pool) {
   Timer loader_timer;
@@ -328,36 +403,52 @@ void VulkanLoader::update(VulkanTexturePool& texture_pool) {
   }
 
   if (!did_gpu_stuff) {
+    auto evt = scoped_prof("gpu-unload");
     // try to remove levels.
     Timer unload_timer;
-    if (m_loaded_tfrag3_levels.size() > MAX_LEVELS_LOADED) {
-      for (auto& [level_name, level_data] : m_loaded_tfrag3_levels) {
-        if (level_data->frames_since_last_used > 180) {
-          std::unique_lock<std::mutex> lk(texture_pool.mutex());
-          fmt::print("------------------------- PC unloading {}\n", level_name);
-          for (size_t i = 0; i < level_data->level->textures.size(); i++) {
-            auto& tex = level_data->level->textures[i];
-            if (tex.load_to_pool) {
-              auto& texture = level_data->textures_map.at(i);
-
-              texture_pool.unload_texture(PcTextureId::from_combo_id(tex.combo_id),
-                                          texture.GetTextureId());
+    if (m_loaded_tfrag3_levels.size() >= MAX_LEVELS_LOADED) {
+      auto to_unload = get_most_unloadable_level();
+      if (to_unload) {
+        auto& lev = m_loaded_tfrag3_levels.at(*to_unload);
+        std::unique_lock<std::mutex> lk(texture_pool.mutex());
+        fmt::print("------------------------- PC unloading {}\n", *to_unload);
+        for (size_t i = 0; i < lev->level->textures.size(); i++) {
+          auto& tex = lev->level->textures[i];
+          if (tex.load_to_pool) {
+            texture_pool.unload_texture(PcTextureId::from_combo_id(tex.combo_id), i);
+          }
+        }
+        lk.unlock();
+        for (auto [texture_id, texture] : lev->textures_map) {
+          if (EXTRA_TEX_DEBUG) {
+            for (auto& slot : texture_pool.all_textures()) {
+              if (slot.source) {
+                ASSERT(slot.texture != &texture);
+              } else {
+                ASSERT(slot.texture != &texture);
+              }
             }
           }
-          lk.unlock();
-          level_data->textures_map.clear();
-
-          for (auto& model : level_data->level->merc_data.models) {
-            auto& mercs = m_all_merc_models.at(model.name);
-            MercRefVulkan ref{&model, level_data->load_id, NULL};
-            auto it = std::find(mercs.begin(), mercs.end(), ref);
-            ASSERT_MSG(it != mercs.end(), fmt::format("missing merc: {}\n", model.name));
-            mercs.erase(it);
-          }
-
-          m_loaded_tfrag3_levels.erase(level_name);
-          break;
         }
+        lev->textures_map.clear();
+
+        for (auto& tie_geo : lev->tie_data) {
+          tie_geo.clear();
+        }
+
+        for (auto& tfrag_geo : lev->tfrag_vertex_data) {
+          tfrag_geo.clear();
+        }
+
+        for (auto& model : lev->level->merc_data.models) {
+          auto& mercs = m_all_merc_models.at(model.name);
+          MercRefVulkan ref{&model, lev->load_id, nullptr};
+          auto it = std::find(mercs.begin(), mercs.end(), ref);
+          ASSERT_MSG(it != mercs.end(), fmt::format("missing merc: {}\n", model.name));
+          mercs.erase(it);
+        }
+
+        m_loaded_tfrag3_levels.erase(*to_unload);
       }
     }
 

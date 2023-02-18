@@ -39,6 +39,9 @@ struct MercRefVulkan : BaseMercRef {
   const tfrag3::MercModel* model = nullptr;
   u64 load_id = 0;
   LevelDataVulkan* level = nullptr;
+  bool operator==(const MercRefVulkan& other) const {
+    return model == other.model && load_id == other.load_id;
+  }
 };
 
 struct LoaderInputVulkan {

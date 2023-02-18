@@ -2,13 +2,6 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/ocean/CommonOceanRenderer.h"
 
-class CommonOceanVertexUniformBuffer : public UniformVulkanBuffer {
- public:
-  CommonOceanVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                 uint32_t instanceCount,
-                                 VkDeviceSize minOffsetAlignment = 1);
-};
-
 struct CommonOceanFragmentUniformShaderData {
   float color_mult;
   float alpha_mult;
@@ -49,11 +42,15 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
  protected:
   void InitializeVertexInputAttributes();
   void CreatePipelineLayout();
+  void InitializeShaders();
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> near_ocean_index_buffers[NUM_BUCKETS];
     std::unique_ptr<IndexBuffer> mid_ocean_index_buffers[NUM_BUCKETS];
+    //Maybe overkill to have two separate arrays for vulkan pipeline layouts 
+    std::unique_ptr<GraphicsPipelineLayout> near_ocean_pipeline_layouts[NUM_BUCKETS];
+    std::unique_ptr<GraphicsPipelineLayout> mid_ocean_pipeline_layouts[NUM_BUCKETS];
   } m_ogl;
 
   struct PushConstant{
@@ -64,19 +61,14 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
 
   PipelineConfigInfo m_pipeline_config_info;
-  GraphicsPipelineLayout m_pipeline_layout;
   VulkanInitializationInfo& m_vulkan_info;
   
-  std::unique_ptr<CommonOceanVertexUniformBuffer> m_ocean_uniform_vertex_buffer;
   std::unique_ptr<CommonOceanFragmentUniformBuffer> m_ocean_uniform_fragment_buffer;
 
-  VkDescriptorBufferInfo m_vertex_buffer_descriptor_info;
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
 
-  std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
 
-  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
 
   std::vector<VkDescriptorSet> m_descriptor_sets;

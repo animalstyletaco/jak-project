@@ -11,6 +11,7 @@
 #include "game/graphics/general_renderer/Profiler.h"
 #include "game/graphics/vulkan_renderer/Shader.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/vulkan_renderer/FullScreenDraw.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
 #include "game/tools/subtitles/subtitle_editor.h"
 
@@ -102,9 +103,9 @@ class VulkanRenderer {
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::vector<VkCommandBuffer> commandBuffers;
-  FullScreenDrawVulkan m_blackout_renderer{m_device};
 
   VulkanInitializationInfo m_vulkan_info;
+  std::unique_ptr<FullScreenDrawVulkan> m_blackout_renderer;
 
   std::unique_ptr<CollideMeshVulkanRenderer> m_collide_renderer;
 

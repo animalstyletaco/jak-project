@@ -30,6 +30,7 @@ class GraphicsPipelineLayout {
 
   void bind(VkCommandBuffer commandBuffer);
   void createGraphicsPipeline(PipelineConfigInfo& configInfo);
+  void destroyPipeline();
 
   static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
 

@@ -101,6 +101,7 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
   size_t time_of_day_count = 0;
   size_t max_inds = 0;
   for (u32 l_geo = 0; l_geo < tfrag3::TIE_GEOS; l_geo++) {
+    texture_maps[l_geo].clear();
     for (u32 l_tree = 0; l_tree < lev_data->tie_trees[l_geo].size(); l_tree++) {
       size_t wind_idx_buffer_len = 0;
       size_t num_grps = 0;
@@ -147,11 +148,11 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
         }
       }
 
-      textures[l_geo].emplace_back(VulkanTexture{m_device});
+      texture_maps[l_geo].insert(std::pair<u32, VulkanTexture>(l_tree, VulkanTexture{m_device}));
       VkDeviceSize size = 0;
       //CreateIndexBuffer(tree.unpacked.indices);
       VkExtent3D extents{TIME_OF_DAY_COLOR_COUNT, 1, 1};
-      textures[l_geo][l_tree].createImage(
+      texture_maps[l_geo].at(l_tree).createImage(
           extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
           VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);

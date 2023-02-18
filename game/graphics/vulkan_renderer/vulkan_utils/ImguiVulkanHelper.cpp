@@ -1,7 +1,7 @@
 #include "ImguiVulkanHelper.h"
 #include "common/util/FileUtil.h"
 
-ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swap_chain) : m_swap_chain(swap_chain) {
+ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
 
   // May be overkill for descriptor pool
   std::vector<VkDescriptorPoolSize> pool_sizes = {
@@ -22,7 +22,8 @@ ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swap_chain) : m
   for (auto& pool_size : pool_sizes) {
     max_sets += pool_size.descriptorCount;
   }
-  m_descriptor_pool = std::make_unique<DescriptorPool>(m_swap_chain->getLogicalDevice(), max_sets, 0, pool_sizes);
+  m_descriptor_pool = std::make_unique<DescriptorPool>(m_device, max_sets, 0, pool_sizes);
+  RecreateSwapChain();
 
     // set up the renderer
   ImGui_ImplVulkan_InitInfo imgui_vulkan_info = {};
@@ -36,7 +37,7 @@ ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swap_chain) : m
   imgui_vulkan_info.Subpass = 0;
   imgui_vulkan_info.MinImageCount = 2;  // Minimum image count need for initialization
   imgui_vulkan_info.ImageCount = 2;
-  imgui_vulkan_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+  imgui_vulkan_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT; //No need to do multi sampling for debug menu
   imgui_vulkan_info.Allocator = NULL;
   imgui_vulkan_info.CheckVkResultFn = NULL;
 
@@ -78,13 +79,39 @@ ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swap_chain) : m
   }
 }
 
+void ImguiVulkanHelper::RecreateSwapChain() {
+  while (m_extents.width == 0 || m_extents.height == 0) {
+    glfwWaitEvents();
+  }
+  vkDeviceWaitIdle(m_device->getLogicalDevice());
+
+  if (m_swap_chain == nullptr) {
+    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents);
+  } else {
+    std::shared_ptr<SwapChain> oldSwapChain = std::move(m_swap_chain);
+    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents, oldSwapChain);
+
+    if (!oldSwapChain->compareSwapFormats(*m_swap_chain.get())) {
+      throw std::runtime_error("Swap chain image(or depth) format has changed!");
+    }
+  }
+}
+
 void ImguiVulkanHelper::InitializeNewFrame() {
   ImGui_ImplVulkan_NewFrame();
   ImGui_ImplGlfw_NewFrame();
   ImGui::NewFrame();
 }
 
-void ImguiVulkanHelper::Render() {
+void ImguiVulkanHelper::Render(uint32_t width, uint32_t height) {
+  if (m_extents.width != width || m_extents.height != height) {
+    m_extents = {width, height};
+    RecreateSwapChain();
+
+    ImGui_ImplVulkan_Data* bd = (ImGui_ImplVulkan_Data*)ImGui::GetIO().BackendRendererUserData;
+    bd->RenderPass = m_swap_chain->getRenderPass();
+  }
+
   ImGui::Render();
   VkCommandBuffer commandBuffer = m_swap_chain->getLogicalDevice()->beginSingleTimeCommands();
   m_swap_chain->beginSwapChainRenderPass(commandBuffer, m_current_image_index++ % m_swap_chain->imageCount());

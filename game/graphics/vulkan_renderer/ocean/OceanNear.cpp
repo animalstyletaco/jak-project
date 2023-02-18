@@ -13,6 +13,7 @@ OceanNearVulkan::OceanNearVulkan(const std::string& name,
 }
 
 void OceanNearVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   BaseOceanNear::render(dma, render_state, prof);
 }
 

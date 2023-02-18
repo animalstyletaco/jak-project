@@ -26,7 +26,7 @@ SkyBlendVulkanHandler::SkyBlendVulkanHandler(const std::string& name,
                                  std::unique_ptr<GraphicsDeviceVulkan>& device,
                                  VulkanInitializationInfo& vulkan_info,
                                  int level_id,
-                                 std::shared_ptr<SkyBlendGPU> shared_blender,
+                                 std::shared_ptr<SkyBlendVulkanGPU> shared_blender,
                                  std::shared_ptr<SkyBlendCPU> shared_blender_cpu)
     : BaseSkyBlendHandler(name, my_id, level_id), BucketVulkanRenderer(device, vulkan_info),
       m_shared_gpu_blender(shared_blender),
@@ -107,8 +107,9 @@ void SkyVulkanRenderer::direct_renderer_draw_debug_window() {
 
 void SkyVulkanRenderer::direct_renderer_flush_pending(BaseSharedRenderState* render_state,
                                                       ScopedProfilerNode& prof) {
-  //m_direct_renderer.flush_pending(render_state, prof);
+  m_direct_renderer.flush_pending(render_state, prof);
 }
+
 void SkyVulkanRenderer::direct_renderer_render_gif(const u8* data,
                                                    u32 size,
                                                    BaseSharedRenderState* render_state,

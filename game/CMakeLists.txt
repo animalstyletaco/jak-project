@@ -222,6 +222,7 @@ if(WIN32)
         graphics/vulkan_renderer/DirectRenderer.cpp
         graphics/vulkan_renderer/DirectRenderer2.cpp
         graphics/vulkan_renderer/EyeRenderer.cpp
+        graphics/vulkan_renderer/FullScreenDraw.cpp
         graphics/vulkan_renderer/vulkan_utils.cpp
         graphics/vulkan_renderer/Shader.cpp
         graphics/vulkan_renderer/ShadowRenderer.cpp

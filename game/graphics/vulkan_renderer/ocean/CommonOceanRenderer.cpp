@@ -1,21 +1,22 @@
 #include "CommonOceanRenderer.h"
 
 CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info)
-    : m_device(device), m_pipeline_layout{device}, m_vulkan_info{vulkan_info} {
+    : m_device(device), m_vulkan_info{vulkan_info} {
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
+
+  InitializeVertexInputAttributes();
+  InitializeShaders();
+
   for (int i = 0; i < NUM_BUCKETS; i++) {
     m_ogl.near_ocean_index_buffers[i] = std::make_unique<IndexBuffer>(
         device, sizeof(u32), m_indices[i].size(), 1);
     m_ogl.mid_ocean_index_buffers[i] =
         std::make_unique<IndexBuffer>(device, sizeof(u32), m_indices[i].size(), 1);
+    m_ogl.near_ocean_pipeline_layouts[i] = std::make_unique<GraphicsPipelineLayout>(device);
+    m_ogl.mid_ocean_pipeline_layouts[i] = std::make_unique<GraphicsPipelineLayout>(device);
   }
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
       device, sizeof(Vertex), m_vertices.size(), 1);
-
-  m_vertex_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -25,37 +26,30 @@ CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDev
 
   CreatePipelineLayout();
 
-  m_vertex_descriptor_writer =
-      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
-
   m_fragment_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
 
-  m_descriptor_sets.resize(2);
-  m_ocean_uniform_vertex_buffer = std::make_unique<CommonOceanVertexUniformBuffer>(m_device, 1, 1);
+  m_descriptor_sets.resize(1);
   m_ocean_uniform_fragment_buffer =
       std::make_unique<CommonOceanFragmentUniformBuffer>(m_device, 1, 1);
 
-  auto vertex_buffer_descriptor_info = m_ocean_uniform_vertex_buffer->descriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &vertex_buffer_descriptor_info)
-      .build(m_descriptor_sets[0]);
   auto fragment_buffer_descriptor_info = m_ocean_uniform_fragment_buffer->descriptorInfo();
 
-  m_vertex_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
-      .build(m_descriptor_sets[1]);
+  m_fragment_descriptor_writer->writeBuffer(0, &fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[0]);
 
   m_near_ocean_samplers.resize(NUM_BUCKETS, m_device);
   m_mid_ocean_samplers.resize(NUM_BUCKETS, m_device);
 
+  m_near_ocean_descriptor_image_infos.resize(NUM_BUCKETS);
+  m_mid_ocean_descriptor_image_infos.resize(NUM_BUCKETS);
+
   m_fragment_descriptor_writer->writeImage(
       1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
-
-  InitializeVertexInputAttributes();
 }
 
 void CommonOceanVulkanRenderer::CreatePipelineLayout() {
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
-      m_vertex_descriptor_layout->getDescriptorSetLayout(),
       m_fragment_descriptor_layout->getDescriptorSetLayout()};
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
@@ -81,6 +75,23 @@ void CommonOceanVulkanRenderer::CreatePipelineLayout() {
   }
 }
 
+void CommonOceanVulkanRenderer::InitializeShaders() {
+  auto& shader = m_vulkan_info.shaders[ShaderId::EYE];
+
+  VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+  vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+  vertShaderStageInfo.module = shader.GetVertexShader();
+  vertShaderStageInfo.pName = "main";
+
+  VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+  fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+  fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+  fragShaderStageInfo.module = shader.GetFragmentShader();
+  fragShaderStageInfo.pName = "main";
+
+  m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
+}
 void CommonOceanVulkanRenderer::InitializeVertexInputAttributes() {
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
@@ -91,18 +102,18 @@ void CommonOceanVulkanRenderer::InitializeVertexInputAttributes() {
   std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
   attributeDescriptions[0].location = 0;
-  attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[0].offset = offsetof(Vertex, xyz);
 
   attributeDescriptions[1].binding = 0;
   attributeDescriptions[1].location = 1;
-  attributeDescriptions[1].format = VK_FORMAT_R4G4_UNORM_PACK8;
+  attributeDescriptions[1].format = VK_FORMAT_R8G8B8A8_UINT;
   attributeDescriptions[1].offset = offsetof(Vertex, rgba);
 
   // FIXME: Make sure format for byte and shorts are correct
   attributeDescriptions[2].binding = 0;
   attributeDescriptions[2].location = 2;
-  attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+  attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[2].offset = offsetof(Vertex, stq);
 
   attributeDescriptions[3].binding = 0;
@@ -115,7 +126,9 @@ void CommonOceanVulkanRenderer::InitializeVertexInputAttributes() {
 }
 
 void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
-  VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+
+  VkPipelineInputAssemblyStateCreateInfo& inputAssembly = m_pipeline_config_info.inputAssemblyInfo;
   inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   inputAssembly.primitiveRestartEnable = VK_TRUE;
@@ -198,7 +211,7 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
       case 2:
         tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(m_envmap_tex);
         if (!tex) {
-          m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
+          tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
 
         //glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
@@ -224,6 +237,9 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
           1, &m_near_ocean_descriptor_image_infos[bucket], 1);
     }
 
+    m_ogl.near_ocean_pipeline_layouts[bucket]->createGraphicsPipeline(m_pipeline_config_info);
+    m_ogl.near_ocean_pipeline_layouts[bucket]->bind(m_vulkan_info.render_command_buffer);
+
     m_push_constant.bucket = bucket;
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstant),
@@ -244,6 +260,7 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
 void CommonOceanVulkanRenderer::flush_mid(
     BaseSharedRenderState* render_state,
     ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
@@ -307,7 +324,7 @@ void CommonOceanVulkanRenderer::flush_mid(
                                                               : ocean_common::OCEAN_TEX_TBP_JAK2;
         tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(tbp)->get_selected_texture();
         if (!tex) {
-          m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
+          tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
         sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -325,7 +342,7 @@ void CommonOceanVulkanRenderer::flush_mid(
       case 1:
         tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(m_envmap_tex)->get_selected_texture();
         if (!tex) {
-          m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
+          tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
 
         //glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
@@ -362,6 +379,9 @@ void CommonOceanVulkanRenderer::flush_mid(
     m_ogl.mid_ocean_index_buffers[bucket]->writeToGpuBuffer(
         m_indices[bucket].data(), m_next_free_index[bucket] * sizeof(u32));
 
+    m_ogl.mid_ocean_pipeline_layouts[bucket]->createGraphicsPipeline(m_pipeline_config_info);
+    m_ogl.mid_ocean_pipeline_layouts[bucket]->bind(m_vulkan_info.render_command_buffer);
+
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(int), (void*)&bucket);
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
@@ -380,15 +400,6 @@ void CommonOceanVulkanRenderer::flush_mid(
 }
 
 CommonOceanVulkanRenderer::~CommonOceanVulkanRenderer() {
-}
-
-CommonOceanVertexUniformBuffer::CommonOceanVertexUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
-    uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device, sizeof(int), instanceCount, minOffsetAlignment) {
-  section_name_to_memory_offset_map = 
-    {{"bucket", 0}};
 }
 
 CommonOceanFragmentUniformBuffer::CommonOceanFragmentUniformBuffer(

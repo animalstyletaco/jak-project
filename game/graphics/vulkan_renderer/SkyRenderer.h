@@ -20,7 +20,7 @@ class SkyBlendVulkanHandler : public BaseSkyBlendHandler, public BucketVulkanRen
                   std::unique_ptr<GraphicsDeviceVulkan>& device,
                   VulkanInitializationInfo& vulkan_info,
                   int level_id,
-                  std::shared_ptr<SkyBlendGPU> shared_gpu_blender,
+                  std::shared_ptr<SkyBlendVulkanGPU> shared_gpu_blender,
                   std::shared_ptr<SkyBlendCPU> shared_cpu_blender);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
 
@@ -44,7 +44,7 @@ class SkyBlendVulkanHandler : public BaseSkyBlendHandler, public BucketVulkanRen
                              BaseSharedRenderState* render_state,
                              ScopedProfilerNode& tfrag_prof) override;
 
-  std::shared_ptr<SkyBlendGPU> m_shared_gpu_blender;
+  std::shared_ptr<SkyBlendVulkanGPU> m_shared_gpu_blender;
   std::shared_ptr<SkyBlendCPU> m_shared_cpu_blender;
   SkyBlendStats m_gpu_stats;
   TFragmentVulkan m_tfrag_renderer;

@@ -86,5 +86,5 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color;
-  std::vector<VulkanTexture> textures[tfrag3::TIE_GEOS];
+  std::unordered_map<u32, VulkanTexture> texture_maps[tfrag3::TIE_GEOS];
 };

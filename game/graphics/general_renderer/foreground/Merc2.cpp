@@ -39,6 +39,11 @@ void BaseMerc2::draw_debug_window() {
  * Main BaseMerc2 rendering.
  */
 void BaseMerc2::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  m_stats = {};
+  if (m_debug_mode) {
+    m_debug = {};
+  }
+
   // skip if disabled
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -47,11 +52,17 @@ void BaseMerc2::render(DmaFollower& dma, BaseSharedRenderState* render_state, Sc
     return;
   }
 
-  // iterate through the dma chain, filling buckets
-  handle_all_dma(dma, render_state, prof);
+  {
+    auto pp = scoped_prof("handle-all-dma");
+    // iterate through the dma chain, filling buckets
+    handle_all_dma(dma, render_state, prof);
+  }
 
-  // flush buckets to draws
-  flush_draw_buckets(render_state, prof);
+  {
+    auto pp = scoped_prof("flush-buckets");
+    // flush buckets to draws
+    flush_draw_buckets(render_state, prof);
+  }
 }
 
 u32 BaseMerc2::alloc_lights(const VuLights& lights) {
@@ -102,10 +113,10 @@ void BaseMerc2::handle_all_dma(DmaFollower& dma,
     ASSERT(dma.current_tag_offset() == render_state->next_bucket);
     return;
   }
-  ASSERT(data0.size_bytes == 0);
-  ASSERT(data0.vif0() == 0);
-  ASSERT(data0.vif1() == 0);
 
+  if (dma.current_tag_offset() == render_state->next_bucket) {
+    return;
+  }
   // if we reach here, there's stuff to draw
   // this handles merc-specific setup DMA
   handle_setup_dma(dma, render_state);

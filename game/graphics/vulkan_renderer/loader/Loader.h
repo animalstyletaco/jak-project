@@ -21,6 +21,7 @@ class VulkanLoader : public BaseLoader {
   void load_common(VulkanTexturePool& tex_pool, const std::string& name);
   void set_want_levels(const std::vector<std::string>& levels);
   LevelDataVulkan* get_tfrag3_level(const std::string& level_name);
+  void draw_debug_window();
   std::optional<MercRefVulkan> get_merc_model(const char* model_name);
   std::vector<LevelDataVulkan*> get_in_use_levels();
   bool upload_textures(Timer& timer,
@@ -29,6 +30,8 @@ class VulkanLoader : public BaseLoader {
 
  private:
   void loader_thread();
+
+  const std::string* get_most_unloadable_level();
   // used only by game thread
   std::unordered_map<std::string, std::unique_ptr<LevelDataVulkan>> m_loaded_tfrag3_levels;
   std::unordered_map<std::string, std::unique_ptr<LevelDataVulkan>> m_initializing_tfrag3_levels;

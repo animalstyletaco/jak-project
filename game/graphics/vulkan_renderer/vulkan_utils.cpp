@@ -1,5 +1,6 @@
 #include "vulkan_utils.h"
 
+#include <cassert>
 #include <array>
 #include <cstdio>
 
@@ -13,7 +14,6 @@ FramebufferVulkanTexturePair::FramebufferVulkanTexturePair(unsigned w,
                                                            std::unique_ptr<GraphicsDeviceVulkan>& device, int num_levels)
     : m_device(device), m_sampler_helper{device} {
   extents = {w, h};
-  m_swap_chain = std::make_unique<SwapChain>(m_device, extents);
 
   VkSamplerCreateInfo& samplerInfo = m_sampler_helper.GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -47,80 +47,6 @@ FramebufferVulkanTexturePair::FramebufferVulkanTexturePair(unsigned w,
   }
 }
 
-FramebufferVulkanTexturePair::~FramebufferVulkanTexturePair() {
-}
 
-FramebufferVulkanTexturePairContext::FramebufferVulkanTexturePairContext(FramebufferVulkanTexturePair& fb, int level)
-    : m_fb(&fb) {
-  //TODO: store previous viewport settings
-  //recreateSwapChain();
-  //TODO: CopyImageToBuffer
-}
 
-void FramebufferVulkanTexturePairContext::switch_to(FramebufferVulkanTexturePair& fb) {
-  if (&fb != m_fb) {
-    m_fb = &fb;
-    // swapChainExtent.width = m_fb->m_w;
-    // swapChainExtent.height = m_fb->m_h;
-    // recreateSwapChain();
-    //glViewport(0, 0, m_fb->m_w, m_fb->m_h);
-  }
-}
-
-FramebufferVulkanTexturePairContext::~FramebufferVulkanTexturePairContext() {
-}
-
-FullScreenDrawVulkan::FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device), m_pipeline_layout(device) {
-  m_fragment_uniform_buffer = std::make_unique<UniformVulkanBuffer>(
-      m_device, sizeof(math::Vector4f), 1, 1);
-
-  struct Vertex {
-    float x, y;
-  };
-
-  std::array<Vertex, 4> vertices = {
-      Vertex{-1, -1},
-      Vertex{-1, 1},
-      Vertex{1, -1},
-      Vertex{1, 1},
-  };
-
-  VkDeviceSize device_size = sizeof(Vertex) * 4;
-  m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, device_size, 1, 1);
-  m_vertex_buffer->writeToGpuBuffer(vertices.data(), device_size, 0);
-
-  VkVertexInputBindingDescription bindingDescription{};
-  bindingDescription.binding = 0;
-  bindingDescription.stride = sizeof(Vertex);
-  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-  VkVertexInputAttributeDescription attributeDescription{};
-  // TODO: This value needs to be normalized
-  attributeDescription.binding = 0;
-  attributeDescription.location = 0;
-  attributeDescription.format = VK_FORMAT_R32G32_SFLOAT;
-  attributeDescription.offset = 0;
-
-  VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-  vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-  vertexInputInfo.vertexBindingDescriptionCount = 1;
-  vertexInputInfo.vertexAttributeDescriptionCount = sizeof(attributeDescription);
-  vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-  vertexInputInfo.pVertexAttributeDescriptions = &attributeDescription;
-}
-
-FullScreenDrawVulkan::~FullScreenDrawVulkan() {
-}
-
-void FullScreenDrawVulkan::draw(const math::Vector4f& color,
-                          SharedVulkanRenderState* render_state,
-                          ScopedProfilerNode& prof) {
-  m_fragment_uniform_buffer->SetUniform4f("fragment_color", color[0], color[1], color[2],
-              color[3]);
-
-  prof.add_tri(2);
-  prof.add_draw_call();
-  //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-}
 

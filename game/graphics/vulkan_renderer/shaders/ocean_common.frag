@@ -11,14 +11,14 @@ layout(push_constant) uniform PER_OBJECT
 	layout (offset = 8) int bucket;
 }pc;
 
-layout (set = 1, binding = 0) uniform UniformBufferObject {
+layout (set = 0, binding = 0) uniform UniformBufferObject {
   float color_mult;
   float alpha_mult;
   vec4 fog_color;
 } ubo;
 
 
-layout (set = 1, binding = 1) uniform sampler2D tex_T0;
+layout (set = 0, binding = 1) uniform sampler2D tex_T0;
 
 void main() {
     vec4 T0 = texture(tex_T0, tex_coord.xy / tex_coord.z);

@@ -26,8 +26,6 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
   init_pc();
   SetupShader(ShaderId::OCEAN_TEXTURE);
 
-  m_common_uniform_vertex_buffer =
-      std::make_unique<CommonOceanVertexUniformBuffer>(m_device, 1, 1);
   m_common_uniform_fragment_buffer =
       std::make_unique<CommonOceanFragmentUniformBuffer>(m_device, 1, 1);
 
@@ -86,11 +84,13 @@ void OceanVulkanTexture::handle_ocean_texture(DmaFollower& dma,
  */
 void OceanVulkanTexture::make_texture_with_mipmaps(BaseSharedRenderState* render_state,
                                              ScopedProfilerNode& prof) {
+  SetupShader(ShaderId::OCEAN_TEXTURE_MIPMAP);
+
   m_ocean_mipmap_uniform_fragment_buffer->SetUniform1f("alpha_intensity", 1.0);
   m_ocean_mipmap_uniform_vertex_buffer->SetUniform1f("tex_T0", 0);
 
   for (int i = 0; i < NUM_MIPS; i++) {
-    FramebufferVulkanTexturePairContext ctxt(m_result_texture, i);
+    //FramebufferVulkanTexturePair ctxt(m_result_texture, i);
     m_ocean_mipmap_uniform_fragment_buffer->SetUniform1f("alpha_intensity", std::max(0.f, 1.f - 0.51f * i));
     m_ocean_mipmap_uniform_vertex_buffer->SetUniform1f("scale", 1.f / (1 << i));
     //glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);

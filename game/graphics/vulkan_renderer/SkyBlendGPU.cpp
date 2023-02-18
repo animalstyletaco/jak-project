@@ -4,7 +4,7 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
   m_device(device), m_pipeline_layout(device), m_vulkan_info(vulkan_info) {
   // generate textures for sky blending
 
@@ -106,11 +106,11 @@ SkyBlendGPU::SkyBlendGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanIn
   m_vertex_buffer->writeToGpuBuffer(m_vertex_data, sizeof(m_vertex_data), 0);
 }
 
-SkyBlendGPU::~SkyBlendGPU() {
+SkyBlendVulkanGPU::~SkyBlendVulkanGPU() {
   vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
 }
 
-void SkyBlendGPU::init_textures(VulkanTexturePool& tex_pool) {
+void SkyBlendVulkanGPU::init_textures(VulkanTexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
     VulkanTextureInput in;
     in.texture = m_textures[i].get();
@@ -121,7 +121,7 @@ void SkyBlendGPU::init_textures(VulkanTexturePool& tex_pool) {
   }
 }
 
-SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
+SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
                                          BaseSharedRenderState* render_state,
                                          ScopedProfilerNode& prof) {
   SkyBlendStats stats;
@@ -213,12 +213,7 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
 
     //glDisable(GL_DEPTH_TEST);
 
-    // setup draw data
-    if (m_vertex_buffer->map() != VK_SUCCESS) {
-      lg::error("Failed to get mapped Sky Blend GPU memory");
-    }
     m_vertex_buffer->writeToGpuBuffer(m_vertex_data);
-    m_vertex_buffer->unmap();
 
     // Draw a sqaure
     //glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -244,8 +239,6 @@ SkyBlendStats SkyBlendGPU::do_sky_blends(DmaFollower& dma,
       }
     }
   }
-
-  //glViewport(old_viewport[0], old_viewport[1], old_viewport[2], old_viewport[3]);
 
   return stats;
 }

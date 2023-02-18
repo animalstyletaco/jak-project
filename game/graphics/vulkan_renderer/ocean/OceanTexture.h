@@ -59,7 +59,6 @@ class OceanVulkanTexture : public BaseOceanTexture {
   } m_vulkan_pc;
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  std::unique_ptr<CommonOceanVertexUniformBuffer> m_common_uniform_vertex_buffer;
   std::unique_ptr<CommonOceanFragmentUniformBuffer> m_common_uniform_fragment_buffer;
 
   std::unique_ptr<OceanMipMapVertexUniformBuffer> m_ocean_mipmap_uniform_vertex_buffer;

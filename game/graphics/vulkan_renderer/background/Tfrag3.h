@@ -10,13 +10,7 @@
 
 class Tfrag3Vulkan : public BaseTfrag3 {
  public:
-  Tfrag3Vulkan(VulkanInitializationInfo& vulkan_info,
-         PipelineConfigInfo& pipeline_config_info,
-         GraphicsPipelineLayout& pipeline_layout,
-         std::unique_ptr<DescriptorWriter>& vertex_description_writer,
-         std::unique_ptr<DescriptorWriter>& fragment_description_writer,
-         std::unique_ptr<BackgroundCommonVertexUniformBuffer>& vertex_shader_uniform_buffer,
-         std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& fragment_shader_uniform_buffer);
+  Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo & vulkan_info);
   ~Tfrag3Vulkan();
   void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
@@ -43,6 +37,9 @@ class Tfrag3Vulkan : public BaseTfrag3 {
                    const LevelDataVulkan* loader_data);
 
  private:
+  void InitializeInputVertexAttribute();
+  void InitializeDebugInputVertexAttribute();
+
   TreeCache& get_cached_tree(int bucket_index, int cache_index) override;
   size_t get_total_cached_trees_count(int bucket_index) override;
   void initialize_debug_pipeline();
@@ -67,16 +64,27 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   std::unordered_map<u32, VulkanTexture>* m_textures = nullptr;
   std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
 
-  PipelineConfigInfo m_debug_pipeline_config_info{};
-  PipelineConfigInfo& m_pipeline_config_info;
-  GraphicsPipelineLayout& m_pipeline_layout;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   VulkanInitializationInfo& m_vulkan_info;
 
-  std::unique_ptr<DescriptorWriter>& m_vertex_descriptor_writer;
-  std::unique_ptr<DescriptorWriter>& m_fragment_descriptor_writer;
+  PipelineConfigInfo m_debug_pipeline_config_info{};
+  PipelineConfigInfo m_pipeline_config_info{};
+  GraphicsPipelineLayout m_pipeline_layout;
 
-  std::unique_ptr<BackgroundCommonVertexUniformBuffer>& m_vertex_shader_uniform_buffer;
-  std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& m_time_of_day_color;
+  VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
+
+  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+
+  std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+
+  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
+  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_uniform_buffer;
+
+  std::vector<VkDescriptorSet> m_vertex_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_fragment_shader_descriptor_sets;
 
   std::unique_ptr<VertexBuffer> m_debug_vertex_buffer;
 };

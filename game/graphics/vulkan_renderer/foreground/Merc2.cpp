@@ -129,6 +129,7 @@ MercVulkan2::MercVulkan2(const std::string& name,
   for (int i = 0; i < MAX_LEVELS; i++) {
     auto& bucket = m_level_draw_buckets.emplace_back();
     bucket.draws.resize(MAX_DRAWS_PER_LEVEL);
+    bucket.envmap_draws.resize(MAX_ENVMAP_DRAWS_PER_LEVEL);
     bucket.samplers.resize(MAX_DRAWS_PER_LEVEL, m_device);
     bucket.descriptor_image_infos.resize(MAX_DRAWS_PER_LEVEL);
     bucket.pipeline_layouts.resize(MAX_DRAWS_PER_LEVEL, m_device);

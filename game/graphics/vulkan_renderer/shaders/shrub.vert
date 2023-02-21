@@ -2,10 +2,10 @@
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
-layout (location = 2) in vec3 rgba_base;
-layout (location = 3) in int time_of_day_index;
+layout (location = 2) in int time_of_day_index;
+layout (location = 3) in vec3 rgba_base;
 
-layout (set = 1, binding = 0) uniform UniformBufferObject {
+layout (set = 0, binding = 0) uniform UniformBufferObject {
   vec4 hvdf_offset;
   mat4 camera;
   float fog_constant;
@@ -14,7 +14,13 @@ layout (set = 1, binding = 0) uniform UniformBufferObject {
   float height_scale;
 } ubo;
 
-layout (set = 1, binding = 10) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
+layout(push_constant) uniform PER_OBJECT
+{
+	layout(offset = 0) int textureIndex;
+}pc;
+
+const int TIME_OF_DAY_COLORS = 8192;
+layout (set = 0, binding = 1) uniform sampler1D tex_T1[TIME_OF_DAY_COLORS]; // note, sampled in the vertex shader on purpose.
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
@@ -73,7 +79,7 @@ void main() {
     // start with the vertex color (only rgb, VIF filled in the 255.)
     fragment_color =  vec4(rgba_base, 1);
     // get the time of day multiplier
-    vec4 tod_color = texelFetch(tex_T1, time_of_day_index, 0);
+    vec4 tod_color = texelFetch(tex_T1[pc.textureIndex], time_of_day_index, 0);
     // combine
     fragment_color *= tod_color * 4;
     fragment_color.a *= 2;

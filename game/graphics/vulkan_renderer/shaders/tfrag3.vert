@@ -15,7 +15,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
 
 layout(push_constant) uniform PER_OBJECT
 {
-	int textureIndex;
+	layout(offset = 0)int textureIndex;
 }pc;
 
 const int MAX_TIME_OF_DAY_COUNT = 8192;

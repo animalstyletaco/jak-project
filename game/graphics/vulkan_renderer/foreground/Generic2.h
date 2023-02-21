@@ -99,4 +99,6 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
   std::vector<VkSampler> m_samplers;
   std::unique_ptr<GenericCommonVertexUniformBuffer> m_vertex_uniform_buffer;
   std::unique_ptr<GenericCommonFragmentUniformBuffer> m_fragment_uniform_buffer;
+
+  std::vector<VkDescriptorSet> m_descriptor_sets;
 };

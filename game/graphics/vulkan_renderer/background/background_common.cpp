@@ -228,9 +228,10 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
     VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_info,
     std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer) {
   auto draw_settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, texture, sampler, pipeline_info, true);
-  uniform_buffer->SetUniform1f("alpha_min",
-              draw_settings.aref_first);
-  uniform_buffer->SetUniform1f("alpha_max", 10.f);
+  for (uint32_t instanceIdx = 0; instanceIdx < uniform_buffer->getInstanceCount(); instanceIdx++) {
+    uniform_buffer->SetUniform1f("alpha_min", draw_settings.aref_first, instanceIdx);
+    uniform_buffer->SetUniform1f("alpha_max", 10.f, instanceIdx);
+  }
   return draw_settings;
 }
 
@@ -238,17 +239,19 @@ void vulkan_background_common::first_tfrag_draw_setup(
   const TfragRenderSettings& settings,
   BaseSharedRenderState* render_state,
   std::unique_ptr<BackgroundCommonVertexUniformBuffer>& uniform_vertex_shader_buffer) {
-  uniform_vertex_shader_buffer->SetUniform1i("tex_T0", 0);
-  uniform_vertex_shader_buffer->Set4x4MatrixDataInVkDeviceMemory("camera", 1, GL_FALSE,
-                  (float*)settings.math_camera.data());
-  uniform_vertex_shader_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
-                  settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
-  uniform_vertex_shader_buffer->SetUniform1f("fog_constant", settings.fog.x());
-  uniform_vertex_shader_buffer->SetUniform1f("fog_min", settings.fog.y());
-  uniform_vertex_shader_buffer->SetUniform1f("fog_max", settings.fog.z());
-  uniform_vertex_shader_buffer->SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
-              render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
-              render_state->fog_intensity / 255);
+  for (uint32_t instanceIdx = 0; instanceIdx < uniform_vertex_shader_buffer->getInstanceCount(); instanceIdx++) {
+    uniform_vertex_shader_buffer->Set4x4MatrixDataInVkDeviceMemory(
+        "camera", 1, GL_FALSE, (float*)settings.math_camera.data(), instanceIdx);
+    uniform_vertex_shader_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
+                                               settings.hvdf_offset[1], settings.hvdf_offset[2],
+                                               settings.hvdf_offset[3], instanceIdx);
+    uniform_vertex_shader_buffer->SetUniform1f("fog_constant", settings.fog.x(), instanceIdx);
+    uniform_vertex_shader_buffer->SetUniform1f("fog_min", settings.fog.y(), instanceIdx);
+    uniform_vertex_shader_buffer->SetUniform1f("fog_max", settings.fog.z(), instanceIdx);
+    uniform_vertex_shader_buffer->SetUniform4f(
+        "fog_color", render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
+        render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255, instanceIdx);
+  }
 }
 
 void vulkan_background_common::make_all_visible_multidraws(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,

@@ -3,21 +3,105 @@
 #include "third-party/imgui/imgui.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
-Tfrag3Vulkan::Tfrag3Vulkan(VulkanInitializationInfo& vulkan_info,
-       PipelineConfigInfo& pipeline_config_info,
-       GraphicsPipelineLayout& pipeline_layout,
-       std::unique_ptr<DescriptorWriter>& vertex_description_writer,
-       std::unique_ptr<DescriptorWriter>& fragment_description_writer,
-       std::unique_ptr<BackgroundCommonVertexUniformBuffer>& vertex_shader_uniform_buffer,
-       std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& fragment_shader_uniform_buffer) :
-  m_pipeline_config_info(pipeline_config_info), m_pipeline_layout(pipeline_layout), m_vulkan_info(vulkan_info),
-  m_vertex_descriptor_writer(vertex_description_writer), m_fragment_descriptor_writer(fragment_description_writer),
-  m_vertex_shader_uniform_buffer(vertex_shader_uniform_buffer), m_time_of_day_color(fragment_shader_uniform_buffer){
+Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           VulkanInitializationInfo& vulkan_info)
+    : m_device(device), m_vulkan_info(vulkan_info), m_pipeline_layout(device) {
+  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
+  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_debug_pipeline_config_info);
+
+  m_vertex_shader_uniform_buffer =
+      std::make_unique<BackgroundCommonVertexUniformBuffer>(device, TIME_OF_DAY_COLOR_COUNT, 1);
+  m_time_of_day_color_uniform_buffer =
+      std::make_unique<BackgroundCommonFragmentUniformBuffer>(device, TIME_OF_DAY_COLOR_COUNT, 1);
+
+  m_vertex_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT, TIME_OF_DAY_COLOR_COUNT)
+          .build();
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, TIME_OF_DAY_COLOR_COUNT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
+
+  m_fragment_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
 
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
   m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
+  m_vertex_shader_descriptor_sets.resize(TIME_OF_DAY_COLOR_COUNT);
+  m_fragment_shader_descriptor_sets.resize(TIME_OF_DAY_COLOR_COUNT);
+
+  m_vertex_shader_buffer_descriptor_info =
+      VkDescriptorBufferInfo{m_vertex_shader_uniform_buffer->getBuffer(), 0,
+                             sizeof(BackgroundCommonVertexUniformShaderData)};
+  m_fragment_buffer_descriptor_info =
+      VkDescriptorBufferInfo{m_time_of_day_color_uniform_buffer->getBuffer(), 0,
+                             sizeof(BackgroundCommonVertexUniformShaderData)};
+
+}
+
+
+void Tfrag3Vulkan::InitializeDebugInputVertexAttribute() {
+  m_debug_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_debug_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
+
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(BaseTfrag3::DebugVertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_debug_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
+
+  std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(BaseTfrag3::DebugVertex, position);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(BaseTfrag3::DebugVertex, rgba);
+  m_debug_pipeline_config_info.attributeDescriptions.insert(
+      m_debug_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
+}
+
+void Tfrag3Vulkan::InitializeInputVertexAttribute() {
+  //            glBufferData(GL_ARRAY_BUFFER, verts * sizeof(tfrag3::PreloadedVertex),
+  //            nullptr,
+  //                         GL_STREAM_DRAW);
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(tfrag3::PreloadedVertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
+
+  std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = offsetof(tfrag3::PreloadedVertex, x);
+
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(tfrag3::PreloadedVertex, s);
+
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R16_UINT;
+  attributeDescriptions[2].offset = offsetof(tfrag3::PreloadedVertex, color_index);
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }
 
 Tfrag3Vulkan::~Tfrag3Vulkan() {
@@ -93,6 +177,8 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
   m_cache.vis_temp.resize(vis_temp_len);
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
+  m_cache.multidraw_offset_per_stripdraw.resize(max_draws);
+  m_cache.multi_draw_indexed_infos.resize(max_draws);
   ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
 }
 
@@ -202,7 +288,7 @@ void Tfrag3Vulkan::render_tree(int geom,
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
         render_state, draw.mode, &vulkanTexture,
         m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
-        m_time_of_day_color);
+        m_time_of_day_color_uniform_buffer);
     tree.tris_this_frame += draw.num_triangles;
     tree.draws_this_frame++;
 
@@ -222,8 +308,9 @@ void Tfrag3Vulkan::render_tree(int geom,
         break;
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
         prof.add_draw_call();
-        m_time_of_day_color->SetUniform1f("alpha_min", -10.f);
-        m_time_of_day_color->SetUniform1f("alpha_max", double_draw.aref_second);
+        m_time_of_day_color_uniform_buffer->SetUniform1f("alpha_min", -10.f, draw_idx);
+        m_time_of_day_color_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second,
+                                                         draw_idx);
         //glDepthMask(GL_FALSE);
         if (render_state->no_multidraw) {
           //glDrawElements(tree.draw_mode, singledraw_indices.second, GL_UNSIGNED_INT,
@@ -281,13 +368,15 @@ void Tfrag3Vulkan::render_tree_cull_debug(const TfragRenderSettings& settings,
   debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
                  tree.vis->vis_nodes, m_debug_vert_data);
 
-   m_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "camera", 1,
-      GL_FALSE, (float*)settings.math_camera.data());
-  m_vertex_shader_uniform_buffer->SetUniform4f("hvdf_offset",
-      settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
-      settings.hvdf_offset[3]);
-   m_vertex_shader_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
+  for (uint32_t instanceIdx = 0; instanceIdx < m_vertex_shader_uniform_buffer->getInstanceCount();
+       instanceIdx++) {
+    m_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+        "camera", 1, GL_FALSE, (float*)settings.math_camera.data(), instanceIdx);
+    m_vertex_shader_uniform_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
+                                                 settings.hvdf_offset[1], settings.hvdf_offset[2],
+                                                 settings.hvdf_offset[3], instanceIdx);
+    m_vertex_shader_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x(), instanceIdx);
+  }
 
   m_debug_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_debug_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
@@ -309,14 +398,10 @@ void Tfrag3Vulkan::render_tree_cull_debug(const TfragRenderSettings& settings,
    m_debug_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor =
        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-  int remaining = (m_debug_vert_data.size() < DEBUG_TRI_COUNT * 3) ? m_debug_vert_data.size() : DEBUG_TRI_COUNT * 3;
-  int start = 0;
+  int vertex_size = (m_debug_vert_data.size() < DEBUG_TRI_COUNT * 3) ? m_debug_vert_data.size() : DEBUG_TRI_COUNT * 3;
 
-  std::unique_ptr<VertexBuffer> m_debug_vertex_buffer =
-      std::make_unique<VertexBuffer>(m_vulkan_info.swap_chain->getLogicalDevice(),
-                                     sizeof(BaseTfrag3::DebugVertex), remaining, 1);
-
-  m_debug_vertex_buffer->writeToGpuBuffer(m_debug_vert_data.data(), remaining, 0);
+  VertexBuffer m_debug_vertex_buffer(m_device, sizeof(BaseTfrag3::DebugVertex), vertex_size, 1);
+  m_debug_vertex_buffer.writeToGpuBuffer(m_debug_vert_data.data(), vertex_size, 0);
   // TODO: Add draw function here
 
 }

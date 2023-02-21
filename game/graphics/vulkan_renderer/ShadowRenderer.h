@@ -35,4 +35,6 @@ class ShadowVulkanRenderer : public BaseShadowRenderer, public BucketVulkanRende
 
   bool m_debug_draw_volume = false;
   std::unique_ptr<ShadowRendererUniformBuffer> m_uniform_buffer;
+
+  VkDescriptorSet m_descriptor_set = VK_NULL_HANDLE;
 };

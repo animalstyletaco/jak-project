@@ -189,5 +189,6 @@ void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect,
   PipelineConfigInfo m_emerc_pipeline_config_info;
 
   VkDescriptorBufferInfo m_emerc_vertex_buffer_descriptor_info{};
+  std::vector<VkDescriptorSet> m_descriptor_sets;
 };
 

@@ -34,10 +34,9 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
       m_direct_basic_fragment_descriptor_layout,
       m_vulkan_info.descriptor_pool);
 
-  m_descriptor_sets.resize(1);
   m_fragment_buffer_descriptor_info = m_direct_basic_fragment_uniform_buffer->descriptorInfo();
   m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
-      .build(m_descriptor_sets[0]);
+      .build(m_descriptor_set);
   m_fragment_descriptor_writer->writeImage(
       1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
 
@@ -157,14 +156,16 @@ DirectVulkanRenderer::~DirectVulkanRenderer() {
   }
 }
 
-void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
+                                         ScopedProfilerNode& prof) {
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.height_scale),
                      (void*)&m_push_constant.height_scale);
 
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
   if (m_blend_state_needs_graphics_update) {
@@ -214,7 +215,8 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
 
   // hacks
   if (m_debug_state.always_draw) {
-    m_pipeline_config_info.depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    m_pipeline_config_info.depthStencilInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
     m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
   }
@@ -229,10 +231,10 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
   m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
   m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
 
+  std::vector<VkDescriptorSet> descriptor_sets{m_descriptor_set};
   m_vulkan_info.swap_chain->drawCommandBuffer(
       m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
-      m_pipeline_config_info.pipelineLayout,
-      m_descriptor_sets);
+      m_pipeline_config_info.pipelineLayout, descriptor_sets);
 
   draw_count++;
   VkPipelineRasterizationStateCreateInfo& rasterizer = m_pipeline_config_info.rasterizationInfo;
@@ -247,8 +249,7 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state, Sc
 
     m_vulkan_info.swap_chain->drawCommandBuffer(
         m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
-        m_pipeline_config_info.pipelineLayout,
-        m_descriptor_sets);
+        m_pipeline_config_info.pipelineLayout, descriptor_sets);
 
     rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
     rasterizer.lineWidth = 1.0f;
@@ -402,7 +403,7 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
   write_descriptors_info[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
       1, &m_descriptor_image_info, 1);
 
-  m_fragment_descriptor_writer->overwrite(m_descriptor_sets[0]);
+  m_fragment_descriptor_writer->overwrite(m_descriptor_set);
 }
 
 void DirectVulkanRenderer::update_graphics_blend() {

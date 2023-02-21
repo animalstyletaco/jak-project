@@ -33,7 +33,6 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
                                                                     m_vulkan_info.descriptor_pool);
 
-  m_descriptor_sets.resize(1);
   m_fragment_buffer_descriptor_info = VkDescriptorBufferInfo{
       m_uniform_buffer->getBuffer(),
       0,
@@ -41,7 +40,7 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
   };
 
   m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
-      .build(m_descriptor_sets[0]);
+      .build(m_descriptor_set);
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   // xyz
@@ -285,8 +284,8 @@ void ShadowVulkanRenderer::VulkanDraw(uint32_t& pipeline_layout_id, uint32_t ind
 
   uint32_t dynamicDescriptorOffset = pipeline_layout_id * sizeof(math::Vector4f);
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
-                          m_descriptor_sets.data(), 1, &dynamicDescriptorOffset);
+                          m_pipeline_config_info.pipelineLayout, 0, 1,
+                          &m_descriptor_set, 1, &dynamicDescriptorOffset);
 
   vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
                    index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);

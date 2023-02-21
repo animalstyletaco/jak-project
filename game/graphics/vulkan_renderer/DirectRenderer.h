@@ -87,5 +87,6 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info{};
   VkDescriptorImageInfo m_descriptor_image_info{};
   VkSampler m_sampler = VK_NULL_HANDLE;
+  VkDescriptorSet m_descriptor_set = VK_NULL_HANDLE;
 };
 

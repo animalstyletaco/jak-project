@@ -434,12 +434,8 @@ class CollideVulkanLoaderStage : public LoaderStageVulkan {
                                            (end - start) * sizeof(tfrag3::CollisionMesh::Vertex), 0);
     m_vtx = end;
 
-    if (m_vtx == data.lev_data->level->collision.vertices.size()) {
-      m_done = true;
-      return true;
-    } else {
-      return false;
-    }
+    m_done = (m_vtx == data.lev_data->level->collision.vertices.size());
+    return m_done;
   }
   void reset() override {
     m_vulkan_created = false;
@@ -459,11 +455,7 @@ class StallVulkanLoaderStage : public LoaderStageVulkan {
  public:
   StallVulkanLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStageVulkan(device, "stall") {}
   bool run(Timer&, LoaderInputVulkan& /*data*/) override {
-    m_count++;
-    if (m_count > 10) {
-      return true;
-    }
-    return false;
+    return m_count++ > 10;
   }
 
   void reset() override { m_count = 0; }
@@ -504,27 +496,26 @@ bool MercVulkanLoaderStage::run(Timer& /*timer*/, LoaderInputVulkan& data) {
       start * sizeof(u32));
     if (m_idx != data.lev_data->level->merc_data.indices.size()) {
       return false;
-    } else {
-      m_idx = 0;
-      m_vtx_uploaded = true;
     }
+
+    m_idx = 0;
+    m_vtx_uploaded = true;
   }
 
   u32 start = m_idx;
   m_idx = std::min(start + 32768, (u32)data.lev_data->level->merc_data.vertices.size());
   data.lev_data->merc_vertices->writeToGpuBuffer(
-      (tfrag3::MercVertex*)data.lev_data->level->merc_data.vertices.data(),
+      data.lev_data->level->merc_data.vertices.data(),
       (m_idx - start) * sizeof(tfrag3::MercVertex), start * sizeof(tfrag3::MercVertex));
 
   if (m_idx != data.lev_data->level->merc_data.vertices.size()) {
     return false;
-  } else {
-    m_done = true;
-    for (auto& model : data.lev_data->level->merc_data.models) {
-      data.lev_data->merc_model_lookup[model.name] = &model;
-      (*data.mercs)[model.name].push_back({&model, data.lev_data->load_id, data.lev_data});
-    }
-    return true;
+  }
+
+  m_done = true;
+  for (auto& model : data.lev_data->level->merc_data.models) {
+    data.lev_data->merc_model_lookup[model.name] = &model;
+    (*data.mercs)[model.name].push_back({&model, data.lev_data->load_id, data.lev_data});
   }
   return true;
 }

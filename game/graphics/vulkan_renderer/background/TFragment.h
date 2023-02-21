@@ -33,10 +33,6 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
 
   int tfrag3_lod() override;
 
-  void InitializeInputVertexAttribute();
-  void InitializeDebugInputVertexAttribute();
-  void handle_initialization(DmaFollower& dma);
-
   bool m_child_mode = false;
   bool m_override_time_of_day = false;
   float m_time_of_days[8] = {1, 0, 0, 0, 0, 0, 0, 0};

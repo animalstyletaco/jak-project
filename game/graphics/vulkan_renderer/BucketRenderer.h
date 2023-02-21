@@ -75,8 +75,6 @@ class BucketVulkanRenderer {
 
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
-
-  std::vector<VkDescriptorSet> m_descriptor_sets;
 };
 
 class RenderVulkanMux : public BucketVulkanRenderer, public BaseRenderMux {

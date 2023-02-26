@@ -69,8 +69,6 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   std::unordered_map<u32, VulkanSamplerHelper> m_time_of_day_samplers;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
-
-  static constexpr int TIME_OF_DAY_COLOR_COUNT = 8192;
   bool m_has_level = false;
 
   struct Cache {
@@ -83,6 +81,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
 
+  std::vector<VkDescriptorImageInfo> m_time_of_day_descriptor_image_infos;
   std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
 
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
@@ -93,5 +92,13 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_buffer;
 
   std::vector<VkDescriptorSet> m_descriptor_sets;
+
+  std::unique_ptr<VulkanTexture> m_time_of_day_placeholder_texture;
+  std::unique_ptr<VulkanSamplerHelper> m_time_of_day_placeholder_sampler;
+  VkDescriptorImageInfo m_time_of_day_placeholder_descriptor_image_info;
+
+  std::unique_ptr<VulkanTexture> m_placeholder_texture;
+  std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
+  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 };
 

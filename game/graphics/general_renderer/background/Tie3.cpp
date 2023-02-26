@@ -10,7 +10,7 @@ BaseTie3::BaseTie3(const std::string& name,
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
-  m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
+  m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 
 BaseTie3::~BaseTie3() {

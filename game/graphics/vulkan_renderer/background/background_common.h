@@ -36,7 +36,6 @@ class BackgroundCommonFragmentUniformBuffer : public UniformVulkanBuffer {
 };
 
 namespace vulkan_background_common {
-
 void make_all_visible_multidraws(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
                                  const std::vector<tfrag3::ShrubDraw>& draws);
 
@@ -83,12 +82,10 @@ u32 make_index_list_from_vis_and_proto_string(background_common::DrawSettings* g
 DoubleDraw setup_tfrag_shader(
     BaseSharedRenderState* render_state,
     DrawMode mode,
-    VulkanTexture* texture,
     VulkanSamplerHelper& sampler,
     PipelineConfigInfo& pipeline_info,
     std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer);
 DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
-                                       VulkanTexture* texture,
                                        VulkanSamplerHelper& sampler,
                                        PipelineConfigInfo& pipeline_config,
                                        bool mipmap);
@@ -96,4 +93,8 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             BaseSharedRenderState* render_state,
                             std::unique_ptr<BackgroundCommonVertexUniformBuffer>& uniform_buffer);
+
+VkDescriptorImageInfo create_placeholder_descriptor_image_info(
+    std::unique_ptr<VulkanTexture>& texture,
+    std::unique_ptr<VulkanSamplerHelper>& sampler, VkImageType image_type);
 }

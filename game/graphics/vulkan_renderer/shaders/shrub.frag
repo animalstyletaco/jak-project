@@ -11,14 +11,14 @@ layout(push_constant) uniform PER_OBJECT
 	layout (offset = 4) int textureIndex;
 }pc;
 
-const int TIME_OF_DAY_COLORS = 8192;
-layout (set = 1, binding = 0) uniform sampler2D tex_T0[TIME_OF_DAY_COLORS];
-
-layout (set = 1, binding = 1) uniform UniformBufferObject {
+layout (set = 1, binding = 0) uniform UniformBufferObject {
   float alpha_min;
   float alpha_max;
   vec4 fog_color;
 } ubo;
+
+const int TIME_OF_DAY_COLORS = 8192;
+layout (set = 1, binding = 1) uniform sampler2D tex_T0[TIME_OF_DAY_COLORS];
 
 void main() {
     vec4 T0 = texture(tex_T0[pc.textureIndex], tex_coord.xy / 4096.f);

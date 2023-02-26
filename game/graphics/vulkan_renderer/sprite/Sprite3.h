@@ -7,11 +7,12 @@
 #include "common/math/Vector.h"
 
 
-#include "game/graphics/general_renderer/Sprite3.h"
-#include "game/graphics/vulkan_renderer/SpriteCommon.h"
+#include "game/graphics/general_renderer/sprite/Sprite3.h"
+#include "game/graphics/vulkan_renderer/sprite/SpriteCommon.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
+#include "game/graphics/vulkan_renderer/sprite/GlowRenderer.h"
 
 class SpriteDistortInstancedVertexUniformBuffer : public UniformVulkanBuffer {
  public:
@@ -43,6 +44,11 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void graphics_setup_normal() override;
   void graphics_setup_distort() override;
 
+  void glow_renderer_cancel_sprite() override;
+  SpriteGlowOutput* glow_renderer_alloc_sprite() override;
+  void glow_renderer_flush(BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) override;
+
   void distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void distort_draw_instanced(BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof) override;
@@ -53,13 +59,6 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void flush_sprites(BaseSharedRenderState* render_state,
                      ScopedProfilerNode& prof,
                      bool double_draw) override;
-
-  void render_distorter(DmaFollower& dma,
-                        SharedVulkanRenderState* render_state,
-                        ScopedProfilerNode& prof);
-
-  // void handle_mip(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_clamp(u64 val, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
 
   struct VulkanDistortOgl : BaseSprite3::GraphicsDistortOgl {
     std::unique_ptr<VertexBuffer>
@@ -102,6 +101,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void EnableSprite3GraphicsBlending() override;
 
   DirectVulkanRenderer m_direct;
+  GlowVulkanRenderer m_glow_renderer;
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;

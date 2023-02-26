@@ -11,7 +11,7 @@
 using namespace background_common;
 
 DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
-  DrawMode mode, VulkanTexture* texture, VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_config_info, bool mipmap) {
+  DrawMode mode, VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_config_info, bool mipmap) {
   pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
@@ -224,10 +224,10 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
 }
 
 DoubleDraw vulkan_background_common::setup_tfrag_shader(
-  BaseSharedRenderState* render_state, DrawMode mode, VulkanTexture* texture,
+  BaseSharedRenderState* render_state, DrawMode mode, 
     VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_info,
     std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer) {
-  auto draw_settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, texture, sampler, pipeline_info, true);
+  auto draw_settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, sampler, pipeline_info, true);
   for (uint32_t instanceIdx = 0; instanceIdx < uniform_buffer->getInstanceCount(); instanceIdx++) {
     uniform_buffer->SetUniform1f("alpha_min", draw_settings.aref_first, instanceIdx);
     uniform_buffer->SetUniform1f("alpha_max", 10.f, instanceIdx);
@@ -314,7 +314,12 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<VkMult
     u64 run_start = 0;
     for (auto& grp : draw.vis_groups) {
       sanity_check += grp.num_inds;
-      bool vis = grp.vis_idx_in_pc_bvh == 0xffffffff || vis_data[grp.vis_idx_in_pc_bvh];
+
+      bool vis = false;
+      if (grp.vis_idx_in_pc_bvh < vis_data.size()) {
+        vis = grp.vis_idx_in_pc_bvh == 0xffffffff || vis_data[grp.vis_idx_in_pc_bvh];
+      }
+
       if (vis) {
         num_tris += grp.num_tris;
       }
@@ -540,6 +545,26 @@ u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_ou
   return idx_buffer_ptr;
 }
 
+VkDescriptorImageInfo vulkan_background_common::create_placeholder_descriptor_image_info(
+    std::unique_ptr<VulkanTexture>& texture, std::unique_ptr<VulkanSamplerHelper>& sampler, VkImageType image_type ) {
+  if (image_type != VK_IMAGE_TYPE_1D && image_type != VK_IMAGE_TYPE_2D) {
+    return VkDescriptorImageInfo{};
+  }
+
+  texture->createImage(
+      {TIME_OF_DAY_COLOR_COUNT, 1, 1}, 1, image_type, VK_FORMAT_R8G8B8A8_UNORM,
+      VK_IMAGE_TILING_LINEAR,
+      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+  VkImageViewType image_view_type = (image_type == VK_IMAGE_TYPE_1D) ? VK_IMAGE_VIEW_TYPE_1D : VK_IMAGE_VIEW_TYPE_2D;
+  texture->createImageView(image_view_type, VK_FORMAT_R8G8B8A8_UNORM,
+                                         VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  sampler->CreateSampler();
+
+  return VkDescriptorImageInfo{
+      sampler->GetSampler(), texture->getImageView(),
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+}
 
 BackgroundCommonVertexUniformBuffer::BackgroundCommonVertexUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,

@@ -8,33 +8,6 @@
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-namespace {
-
-/*!
- * Does the next DMA transfer look like it could be the start of a 2D group?
- */
-bool looks_like_2d_chunk_start(const DmaFollower& dma) {
-  return dma.current_tag().qwc == 1 && dma.current_tag().kind == DmaTag::Kind::CNT;
-}
-
-/*!
- * Read the header. Asserts if it's bad.
- * Returns the number of sprites.
- * Advances 1 dma transfer
- */
-u32 process_sprite_chunk_header(DmaFollower& dma) {
-  auto transfer = dma.read_and_advance();
-  // note that flg = true, this should use double buffering
-  bool ok = verify_unpack_with_stcycl(transfer, VifCode::Kind::UNPACK_V4_32, 4, 4, 1,
-                                      SpriteDataMem::Header, false, true);
-  ASSERT(ok);
-  u32 header[4];
-  memcpy(header, transfer.data, 16);
-  ASSERT(header[0] <= BaseSpriteRenderer::SPRITES_PER_CHUNK);
-  return header[0];
-}
-}  // namespace
-
 BaseSpriteRenderer::BaseSpriteRenderer(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
   auto verts = SPRITE_RENDERER_MAX_SPRITES * 3 * 2;
   auto bytes = verts * sizeof(SpriteVertex3D);
@@ -223,12 +196,12 @@ void BaseSpriteRenderer::render_2d_group1(DmaFollower& dma,
   m_prim_graphics_state.from_register(m_frame_data.sprite_2d_giftag2.prim());
 
   // loop through chunks.
-  while (looks_like_2d_chunk_start(dma)) {
+  while (sprite_common::looks_like_2d_chunk_start(dma)) {
     m_debug_stats.blocks_2d_grp1++;
     // 4 packets per chunk
 
     // first is the header
-    u32 sprite_count = process_sprite_chunk_header(dma);
+    u32 sprite_count = sprite_common::process_sprite_chunk_header(dma);
     m_debug_stats.count_2d_grp1 += sprite_count;
 
     // second is the vector data

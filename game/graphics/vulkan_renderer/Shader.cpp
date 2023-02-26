@@ -89,6 +89,14 @@ VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& 
   at(ShaderId::POST_PROCESSING).initialize_shader(m_device->getLogicalDevice(), "post_processing", version);
   at(ShaderId::DEPTH_CUE).initialize_shader(m_device->getLogicalDevice(), "depth_cue", version);
   at(ShaderId::EMERC).initialize_shader(m_device->getLogicalDevice(), "emerc", version);
+  at(ShaderId::GLOW_PROBE).initialize_shader(m_device->getLogicalDevice(), "glow_probe", version);
+  at(ShaderId::GLOW_PROBE_READ).initialize_shader(m_device->getLogicalDevice(), "glow_probe_read", version);
+  at(ShaderId::GLOW_PROBE_READ_DEBUG)
+      .initialize_shader(m_device->getLogicalDevice(), "glow_probe_read_debug", version);
+  at(ShaderId::GLOW_PROBE_DOWNSAMPLE)
+      .initialize_shader(m_device->getLogicalDevice(), "glow_probe_downsample", version);
+  at(ShaderId::GLOW_DRAW).initialize_shader(m_device->getLogicalDevice(), "glow_draw", version);
+
 
   for (auto& shader : m_shaders) {
     ASSERT_MSG(shader.okay(), "Shader compiled");

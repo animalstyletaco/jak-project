@@ -6,86 +6,67 @@
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
 
-#include "game/graphics/general_renderer/BucketRenderer.h"
-#include "game/graphics/general_renderer/DirectRenderer.h"
-#include "game/graphics/general_renderer/background/background_common.h"
-#include "game/graphics/general_renderer/sprite_common.h"
+#include "game/graphics/general_renderer/sprite/Sprite3.h"
+#include "game/graphics/opengl_renderer/BucketRenderer.h"
+#include "game/graphics/opengl_renderer/DirectRenderer.h"
+#include "game/graphics/opengl_renderer/background/background_common.h"
+#include "game/graphics/opengl_renderer/sprite/GlowRenderer.h"
+#include "game/graphics/general_renderer/sprite/sprite_common.h"
 
-class BaseSprite3 : public BaseBucketRenderer {
+class Sprite3 : public BucketRenderer {
  public:
-  BaseSprite3(const std::string& name, int my_id);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  Sprite3(const std::string& name, int my_id);
+  void render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
+  static constexpr int SPRITES_PER_CHUNK = 48;
 
- protected:
-  virtual void setup_graphics_for_2d_group_0_render() = 0;
-  virtual void direct_renderer_reset_state() = 0;
-  virtual void direct_renderer_render_vif(u32 vif0,
-                                          u32 vif1,
-                                          const u8* data,
-                                          u32 size,
-                                          BaseSharedRenderState* render_state,
-                                          ScopedProfilerNode& prof) = 0;
-  virtual void direct_renderer_flush_pending(BaseSharedRenderState * render_state,
-                                              ScopedProfilerNode& prof) = 0;
-  virtual void SetSprite3UniformVertexFourFloatVector(const char* name,
-                                         u32 numberOfFloats,
-                                         float* data, u32 flags = 0) = 0;
-  virtual void SetSprite3UniformMatrixFourFloatVector(const char* name,
-                                         u32 numberOfFloats,
-                                         bool isTransponsedMatrix,
-                                         float* data, u32 flags = 0) = 0;
+ private:
+  void render_jak1(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void render_jak2(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof);
 
-  void render_jak1(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void render_jak2(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void opengl_setup();
+  void opengl_setup_normal();
+  void opengl_setup_distort();
 
-  virtual void graphics_setup() = 0;
-  virtual void graphics_setup_normal() = 0;
-  virtual void graphics_setup_distort() = 0;
-
-  virtual void distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
-  virtual void distort_draw_instanced(BaseSharedRenderState* render_state,
-                                      ScopedProfilerNode& prof) = 0;
-  virtual void distort_draw_common(BaseSharedRenderState* render_state,
-                                   ScopedProfilerNode& prof) = 0;
-  virtual void distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) = 0;
-  virtual void flush_sprites(BaseSharedRenderState* render_state,
-                             ScopedProfilerNode& prof,
-                             bool double_draw) = 0;
-  virtual void EnableSprite3GraphicsBlending() = 0;  // TODO: May need to have game version passed
-                                                     // in as parameter
-
-  void render_2d_group0(DmaFollower& dma,
-                       BaseSharedRenderState* render_state,
-                       ScopedProfilerNode& prof);
   void render_distorter(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
+                        SharedRenderState* render_state,
                         ScopedProfilerNode& prof);
   void distort_dma(DmaFollower& dma, ScopedProfilerNode& prof);
   void distort_setup(ScopedProfilerNode& prof);
   void distort_setup_instanced(ScopedProfilerNode& prof);
-
+  void distort_draw(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void distort_draw_instanced(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void distort_draw_common(SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void distort_setup_framebuffer_dims(SharedRenderState* render_state);
   void handle_sprite_frame_setup(DmaFollower& dma, GameVersion version);
   void render_3d(DmaFollower& dma);
-
+  void render_2d_group0(DmaFollower& dma,
+                        SharedRenderState* render_state,
+                        ScopedProfilerNode& prof);
   void render_fake_shadow(DmaFollower& dma);
   void render_2d_group1(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
+                        SharedRenderState* render_state,
                         ScopedProfilerNode& prof);
   enum SpriteMode { Mode2D = 1, ModeHUD = 2, Mode3D = 3 };
   void do_block_common(SpriteMode mode,
                        u32 count,
-                       BaseSharedRenderState* render_state,
+                       SharedRenderState* render_state,
                        ScopedProfilerNode& prof);
 
   void update_mode_from_alpha1(u64 val, DrawMode& mode);
-  void handle_tex0(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_tex1(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  // void handle_mip(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_zbuf(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_clamp(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void handle_alpha(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void handle_tex0(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void handle_tex1(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  // void handle_mip(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void handle_zbuf(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void handle_clamp(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
+  void handle_alpha(u64 val, SharedRenderState* render_state, ScopedProfilerNode& prof);
 
+  void flush_sprites(SharedRenderState* render_state, ScopedProfilerNode& prof, bool double_draw);
+
+  GlowRenderer m_glow_renderer;
+  void glow_dma_and_draw(DmaFollower& dma,
+                         SharedRenderState* render_state,
+                         ScopedProfilerNode& prof);
 
   struct SpriteDistorterSetup {
     GifTag gif_tag;
@@ -133,20 +114,28 @@ class BaseSprite3 : public BaseBucketRenderer {
   };
 
   struct {
-    int total_sprites;
-    int total_tris;
-  } m_distort_stats;
-
-  struct GraphicsDistortOgl {
+    GLuint vao;
+    GLuint vertex_buffer;
+    GLuint index_buffer;
+    GLuint fbo;
+    GLuint fbo_texture;
     int fbo_width = 640;
     int fbo_height = 480;
-  };
+  } m_distort_ogl;
 
-  struct GraphicsDistortInstancedOgl {
+  struct {
+    GLuint vao;
+    GLuint vertex_buffer;    // contains vertex data for each possible sprite resolution (3-11)
+    GLuint instance_buffer;  // contains all instance specific data for each sprite per frame
     float last_aspect_x = -1.0;
     float last_aspect_y = -1.0;
     bool vertex_data_changed = false;
   } m_distort_instanced_ogl;
+
+  struct {
+    int total_sprites;
+    int total_tris;
+  } m_distort_stats;
 
   std::vector<SpriteDistortVertex> m_sprite_distorter_vertices;
   std::vector<u32> m_sprite_distorter_indices;
@@ -161,9 +150,10 @@ class BaseSprite3 : public BaseBucketRenderer {
   SpriteFrameData m_frame_data;  // qwa: 980
   Sprite3DMatrixData m_3d_matrix_data;
   SpriteHudMatrixData m_hud_matrix_data;
+  DirectRenderer m_direct;
 
-  SpriteVecData2d m_vec_data_2d[sprite_common::SPRITES_PER_CHUNK];
-  AdGifData m_adgif[sprite_common::SPRITES_PER_CHUNK];
+  SpriteVecData2d m_vec_data_2d[SPRITES_PER_CHUNK];
+  AdGifData m_adgif[SPRITES_PER_CHUNK];
 
   struct DebugStats {
     int blocks_2d_grp0 = 0;
@@ -191,6 +181,12 @@ class BaseSprite3 : public BaseBucketRenderer {
 
   std::vector<SpriteVertex3D> m_vertices_3d;
 
+  struct {
+    GLuint vertex_buffer;
+    GLuint vao;
+    GLuint index_buffer;
+  } m_ogl;
+
   DrawMode m_current_mode, m_default_mode;
   u32 m_current_tbp = 0;
 
@@ -209,7 +205,4 @@ class BaseSprite3 : public BaseBucketRenderer {
   u64 m_sprite_idx = 0;
 
   std::vector<u32> m_index_buffer_data;
-  static constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
-  static constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
-      256 * 10;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
 };

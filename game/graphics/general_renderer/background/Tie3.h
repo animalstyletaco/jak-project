@@ -89,8 +89,6 @@ class BaseTie3 : public BaseBucketRenderer {
 
   std::vector<math::Vector<u8, 4>> m_color_result;
 
-  static constexpr int TIME_OF_DAY_COLOR_COUNT = 8192;
-
   bool m_has_level = false;
   char m_user_level[255] = "vi1";
   std::optional<std::string> m_pending_user_level = std::nullopt;

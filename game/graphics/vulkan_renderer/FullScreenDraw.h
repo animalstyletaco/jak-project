@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/graphics/general_renderer/Profiler.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
@@ -9,7 +10,6 @@
 
 struct SharedVulkanRenderState;
 struct VulkanInitializationInfo;
-struct ScopedProfilerNode;
 
 // draw over the full screen.
 // you must set alpha/ztest/etc.

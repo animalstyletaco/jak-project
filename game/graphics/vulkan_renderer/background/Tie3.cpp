@@ -10,19 +10,19 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
                        int level_id)
     : BaseTie3(name, my_id, level_id),
       BucketVulkanRenderer(device, vulkan_info) {
-  m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(device, TIME_OF_DAY_COLOR_COUNT, 1);
+  m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
   m_time_of_day_color_uniform_buffer = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
-      device, TIME_OF_DAY_COLOR_COUNT, 1);
+      device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT, TIME_OF_DAY_COLOR_COUNT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT, background_common::TIME_OF_DAY_COLOR_COUNT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, TIME_OF_DAY_COLOR_COUNT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, background_common::TIME_OF_DAY_COLOR_COUNT)
           .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
@@ -42,8 +42,8 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
       VkDescriptorBufferInfo{m_time_of_day_color_uniform_buffer->getBuffer(), 0,
                              sizeof(BackgroundCommonVertexUniformShaderData)};
 
-  m_vertex_shader_descriptor_sets.resize(TIME_OF_DAY_COLOR_COUNT);
-  m_fragment_shader_descriptor_sets.resize(TIME_OF_DAY_COLOR_COUNT);
+  m_vertex_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
+  m_fragment_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 
   const VkDescriptorSetLayout vertexDescriptorSetLayout =
       m_vertex_descriptor_layout->getDescriptorSetLayout();
@@ -53,7 +53,7 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
-  m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
+  m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   InitializeInputAttributes();
 }
 
@@ -157,11 +157,10 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
       texture_maps[l_geo].insert(std::pair<u32, VulkanTexture>(l_tree, VulkanTexture{m_device}));
       VkDeviceSize size = 0;
       //CreateIndexBuffer(tree.unpacked.indices);
-      VkExtent3D extents{TIME_OF_DAY_COLOR_COUNT, 1, 1};
+      VkExtent3D extents{background_common::TIME_OF_DAY_COLOR_COUNT, 1, 1};
       texture_maps[l_geo].at(l_tree).createImage(
           extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
-          VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+          VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
     }
   }
 
@@ -169,7 +168,7 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
   m_wind_vectors.resize(4 * max_wind_idx + 4);  // 4x u32's per wind.
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
-  ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
+  ASSERT(time_of_day_count <= background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 
 /*!
@@ -277,7 +276,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
     auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
 
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
-        render_state, draw.mode, &time_of_day_texture,
+        render_state, draw.mode,
         time_of_day_sampler, m_pipeline_config_info,
         m_time_of_day_color_uniform_buffer);
 
@@ -439,7 +438,7 @@ void Tie3Vulkan::render_tree(int idx,
     auto& time_of_day_texture = m_textures->at(draw.tree_tex_id);
     auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
 
-    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &time_of_day_texture,
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode,
         time_of_day_sampler, m_pipeline_config_info, m_time_of_day_color_uniform_buffer);
 
     prof.add_draw_call();

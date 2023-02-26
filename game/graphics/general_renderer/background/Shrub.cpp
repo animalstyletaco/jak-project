@@ -3,7 +3,7 @@
 #include "common/log/log.h"
 
 BaseShrub::BaseShrub(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
-  m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
+  m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 
 BaseShrub::~BaseShrub() {

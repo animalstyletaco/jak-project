@@ -241,7 +241,7 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
             "light_ambient", m_lights_buffer[draw.light_idx].ambient, di);
         last_light = draw.light_idx;
       }
-      vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, &textureInfo, sampler, m_pipeline_config_info, true);
+      vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, sampler, m_pipeline_config_info, true);
 
       m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
 
@@ -286,8 +286,8 @@ void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerN
    
      VulkanTexture& textureInfo = lev->textures_map.at(draw.texture);
 
-     vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, &textureInfo,
-                                                           sampler, m_pipeline_config_info, true);
+     vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, sampler,
+                                                           m_pipeline_config_info, true);
    
      m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
    

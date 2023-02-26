@@ -23,7 +23,8 @@ void VulkanTexturePool::upload_to_gpu(const u8* data, u16 w, u16 h, VulkanTextur
   VkExtent3D extents{w, h, 1};
   texture.createImage(extents, mipLevels, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(),
                       VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_LINEAR,
-                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+                      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 
   texture.writeToImage((u8*)data);
 

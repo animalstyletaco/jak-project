@@ -5,14 +5,13 @@
 
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DirectRenderer.h"
-#include "game/graphics/general_renderer/sprite_common.h"
+#include "game/graphics/general_renderer/sprite/sprite_common.h"
 
 class BaseSpriteRenderer : public BaseBucketRenderer {
  public:
   BaseSpriteRenderer(const std::string& name, int my_id);
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
-  static constexpr int SPRITES_PER_CHUNK = 48;
 
  protected:
   virtual void graphics_sprite_frame_setup() = 0;
@@ -55,8 +54,8 @@ class BaseSpriteRenderer : public BaseBucketRenderer {
   Sprite3DMatrixData m_3d_matrix_data;
   SpriteHudMatrixData m_hud_matrix_data;
 
-  SpriteVecData2d m_vec_data_2d[SPRITES_PER_CHUNK];
-  AdGifData m_adgif[SPRITES_PER_CHUNK];
+  SpriteVecData2d m_vec_data_2d[sprite_common::SPRITES_PER_CHUNK];
+  AdGifData m_adgif[sprite_common::SPRITES_PER_CHUNK];
 
   struct DebugStats {
     int blocks_2d_grp0 = 0;

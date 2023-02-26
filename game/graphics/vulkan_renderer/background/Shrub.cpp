@@ -5,14 +5,15 @@ ShrubVulkan::ShrubVulkan(const std::string& name,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info)
     : BaseShrub(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
-  m_color_result.resize(TIME_OF_DAY_COLOR_COUNT);
-  m_descriptor_image_infos.resize(TIME_OF_DAY_COLOR_COUNT);
+  m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
+  m_time_of_day_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
+  m_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 
   m_vertex_shader_uniform_buffer =
-      std::make_unique<BackgroundCommonVertexUniformBuffer>(device, TIME_OF_DAY_COLOR_COUNT, 1);
+      std::make_unique<BackgroundCommonVertexUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
 
   m_time_of_day_color_buffer =
-      std::make_unique<BackgroundCommonFragmentUniformBuffer>(device, TIME_OF_DAY_COLOR_COUNT, 1);
+      std::make_unique<BackgroundCommonFragmentUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
 
   InitializeShaders();
   InitializeVertexDescriptions();
@@ -29,13 +30,13 @@ ShrubVulkan::ShrubVulkan(const std::string& name,
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT, TIME_OF_DAY_COLOR_COUNT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT, background_common::TIME_OF_DAY_COLOR_COUNT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, TIME_OF_DAY_COLOR_COUNT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, background_common::TIME_OF_DAY_COLOR_COUNT)
           .build();
 
   create_pipeline_layout();
@@ -54,8 +55,33 @@ ShrubVulkan::ShrubVulkan(const std::string& name,
   m_descriptor_sets.resize(2);
   m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
-  m_vertex_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
+  m_vertex_descriptor_writer->writeImage(
+      1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+
+  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
       .build(m_descriptor_sets[1]);
+  m_fragment_descriptor_writer->writeImage(
+      1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+
+  //TODO: Should move this to background_common
+  m_time_of_day_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
+  m_time_of_day_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
+
+  m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
+  m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
+
+  m_time_of_day_placeholder_descriptor_image_info =
+      vulkan_background_common::create_placeholder_descriptor_image_info(
+          m_time_of_day_placeholder_texture, m_time_of_day_placeholder_sampler, VK_IMAGE_TYPE_1D);
+
+  m_placeholder_descriptor_image_info =
+    vulkan_background_common::create_placeholder_descriptor_image_info(
+        m_placeholder_texture, m_placeholder_sampler, VK_IMAGE_TYPE_2D);
+
+  for (uint32_t i = 0; i < background_common::TIME_OF_DAY_COLOR_COUNT; i++) {
+    m_time_of_day_descriptor_image_infos[i] = m_time_of_day_placeholder_descriptor_image_info;
+    m_descriptor_image_infos[i] = m_placeholder_descriptor_image_info; 
+  }
 }
 
 ShrubVulkan::~ShrubVulkan() {
@@ -77,13 +103,17 @@ void ShrubVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VkPushConstantRange pushConstantRange = {};
-  pushConstantRange.offset = 0;
-  pushConstantRange.size = sizeof(int);
-  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  std::array<VkPushConstantRange, 2> pushConstantRanges;
+  pushConstantRanges[0].offset = 0;
+  pushConstantRanges[0].size = sizeof(int);
+  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
+  pushConstantRanges[1].offset = pushConstantRanges[0].size;
+  pushConstantRanges[1].size = sizeof(int);
+  pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
+  pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
@@ -147,7 +177,7 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
   m_cache.index_temp.resize(max_inds);
   m_cache.multidraw_offset_per_stripdraw.resize(max_draws);
   m_cache.multi_draw_indexed_infos.resize(max_draws);
-  ASSERT(time_of_day_count <= TIME_OF_DAY_COLOR_COUNT);
+  ASSERT(time_of_day_count <= background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 
 bool ShrubVulkan::setup_for_level(const std::string& level, BaseSharedRenderState* render_state) {
@@ -305,24 +335,24 @@ void ShrubVulkan::render_tree(int idx,
 
   Timer draw_timer;
 
+  m_pipeline_layouts[idx].createGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layouts[idx].bind(m_vulkan_info.render_command_buffer);
+
+  PrepareVulkanDraw(idx);
+
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->at(draw_idx);
     const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
-    m_pipeline_layouts[idx].createGraphicsPipeline(m_pipeline_config_info);
-    m_pipeline_layouts[idx].bind(m_vulkan_info.render_command_buffer);
-
     if (render_state->no_multidraw) {
       if (singledraw_indices.number_of_draws == 0) {
-        PrepareVulkanDraw(idx);
         vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
                                  m_cache.multi_draw_indexed_infos.data(),
                                  1, 0, sizeof(VkMultiDrawIndexedInfoEXT), NULL);
       }
     } else {
       if (multidraw_indices.number_of_draws == 0) {
-        PrepareVulkanDraw(idx);
         vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
                          singledraw_indices.draw_index, 0, 0);
       }
@@ -330,10 +360,9 @@ void ShrubVulkan::render_tree(int idx,
     auto& time_of_day_texture = m_textures->at(draw.tree_tex_id);
     auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
 
-    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode, &time_of_day_texture,
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode,
         time_of_day_sampler, m_pipeline_config_info,
         m_time_of_day_color_buffer);
-    time_of_day_texture.writeToImage(m_color_result.data());
 
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);
@@ -349,15 +378,11 @@ void ShrubVulkan::render_tree(int idx,
         m_time_of_day_color_buffer->SetUniform1f("alpha_min", -10.f);
         m_time_of_day_color_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
 
-
         if (render_state->no_multidraw) {
-          PrepareVulkanDraw(idx);
           vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,
                            1, singledraw_indices.draw_index, 0, 0);
 
         } else {
-          // TODO: Initialize MultidrawBuffer
-          PrepareVulkanDraw(idx);
           vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
                                    m_cache.multi_draw_indexed_infos.data(), 1, 0,
                                    sizeof(VkMultiDrawIndexedInfoEXT), NULL);
@@ -373,19 +398,26 @@ void ShrubVulkan::render_tree(int idx,
 }
 
 void ShrubVulkan::PrepareVulkanDraw(int index) {
-  m_descriptor_image_infos[index] = VkDescriptorImageInfo{
+  m_time_of_day_samplers.at(index).CreateSampler();
+
+  m_time_of_day_descriptor_image_infos[index] = VkDescriptorImageInfo{
       m_time_of_day_samplers.at(index).GetSampler(), m_time_of_day_textures.at(index).getImageView(),
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
+  m_descriptor_image_infos[index] = VkDescriptorImageInfo{
+      m_time_of_day_samplers.at(index).GetSampler(), m_textures->at(index).getImageView(),
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
   auto& vertex_write_descriptors_sets = m_vertex_descriptor_writer->getWriteDescriptorSets();
-  vertex_write_descriptors_sets[0] =
-      m_vertex_descriptor_writer->writeImageDescriptorSet(1, &m_descriptor_image_infos[index], 1);
+  vertex_write_descriptors_sets[1] = m_vertex_descriptor_writer->writeImageDescriptorSet(
+      1, m_time_of_day_descriptor_image_infos.data(), m_time_of_day_descriptor_image_infos.size());
 
   auto& fragment_write_descriptors_sets =
       m_fragment_descriptor_writer->getWriteDescriptorSets();
-  fragment_write_descriptors_sets[0] =
+
+  fragment_write_descriptors_sets[1] =
       m_fragment_descriptor_writer->writeImageDescriptorSet(
-          0, &m_descriptor_image_infos[index], 1);
+          1, m_descriptor_image_infos.data(), m_descriptor_image_infos.size());
 
   m_vertex_descriptor_writer->overwrite(m_descriptor_sets[0]);
   m_fragment_descriptor_writer->overwrite(m_descriptor_sets[1]);
@@ -399,10 +431,20 @@ void ShrubVulkan::PrepareVulkanDraw(int index) {
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  uint32_t dynamicDescriptorOffset = index * sizeof(BackgroundCommonFragmentUniformShaderData);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(index),
+                     (void*)&index);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(index), sizeof(index),
+                     (void*)&index);
+
+  
+  std::array<uint32_t, 2> dynamicDescriptorOffsets = {
+      index * sizeof(BackgroundCommonVertexUniformShaderData),
+      index * sizeof(BackgroundCommonFragmentUniformShaderData)};
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
-                          m_descriptor_sets.data(), 1,
-                          &dynamicDescriptorOffset);
+                          m_descriptor_sets.data(), dynamicDescriptorOffsets.size(),
+                          dynamicDescriptorOffsets.data());
 }

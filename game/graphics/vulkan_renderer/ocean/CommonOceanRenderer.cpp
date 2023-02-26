@@ -129,8 +129,6 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
   m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
 
-  m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
-
   m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_TRUE;
   m_pipeline_config_info.colorBlendInfo.attachmentCount = 1;
   m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
@@ -163,19 +161,11 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
         if (!tex) {
           tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
-
-        sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-                
-        sampler_create_info.magFilter = VK_FILTER_LINEAR;
-        sampler_create_info.minFilter = VK_FILTER_LINEAR;
-
-        m_ocean_near.m_ocean_samplers[bucket]->CreateSampler();
+        break;
       }
 
-      break;
-      case 1:
-        //glBlendFuncSeparate(GL_ZERO, GL_ONE, GL_ONE, GL_ZERO);
+      case 1: {
+        // glBlendFuncSeparate(GL_ZERO, GL_ONE, GL_ONE, GL_ZERO);
 
         m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
         m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -184,7 +174,17 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
         m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
         m_ocean_near.m_uniform_fragment_buffers[bucket]->SetUniform1f("alpha_mult", 1.f);
+
+        auto tbp = render_state->version == GameVersion::Jak1 ? ocean_common::OCEAN_TEX_TBP_JAK1
+                                                              : ocean_common::OCEAN_TEX_TBP_JAK2;
+        tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(tbp);
+        if (!tex) {
+          tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
+        }
+
         break;
+      }
+
       case 2:
         tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(m_envmap_tex);
         if (!tex) {
@@ -201,6 +201,14 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
         m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
     }
+    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+
+    sampler_create_info.magFilter = VK_FILTER_LINEAR;
+    sampler_create_info.minFilter = VK_FILTER_LINEAR;
+
+    m_ocean_near.m_ocean_samplers[bucket]->CreateSampler();
+
     FinalizeVulkanDraw(m_ocean_near, tex, bucket);
 
     //glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);

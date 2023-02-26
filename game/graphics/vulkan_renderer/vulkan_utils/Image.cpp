@@ -180,7 +180,7 @@ void VulkanTexture::getImageData(VkBuffer buffer, uint32_t width, uint32_t heigh
   }
   m_device->copyImageToBuffer(m_image, width, height, x_offset, y_offset, 1, buffer);
   if (needsToTransitionImageLayout) {
-    m_device->transitionImageLayout(m_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, originalLayout);
+    transitionImageLayout(originalLayout);
   }
 }
 

@@ -3,10 +3,10 @@
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
 
-#include "game/graphics/general_renderer/SpriteRenderer.h"
+#include "game/graphics/general_renderer/sprite/SpriteRenderer.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
-#include "game/graphics/vulkan_renderer/SpriteCommon.h"
+#include "game/graphics/vulkan_renderer/sprite/SpriteCommon.h"
 
 class SpriteVulkanRenderer : public BaseSpriteRenderer, public BucketVulkanRenderer {
  public:

@@ -50,6 +50,5 @@ class BaseShrub : public BaseBucketRenderer {
   TfragPcPortData m_pc_port_data;
   std::vector<math::Vector<u8, 4>> m_color_result;
 
-  static constexpr int TIME_OF_DAY_COLOR_COUNT = 8192;
   bool m_has_level = false;
 };

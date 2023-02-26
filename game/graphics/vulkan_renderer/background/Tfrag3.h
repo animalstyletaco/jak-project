@@ -39,11 +39,11 @@ class Tfrag3Vulkan : public BaseTfrag3 {
  private:
   void InitializeInputVertexAttribute();
   void InitializeDebugInputVertexAttribute();
+  void create_pipeline_layout();
 
   TreeCache& get_cached_tree(int bucket_index, int cache_index) override;
   size_t get_total_cached_trees_count(int bucket_index) override;
   void initialize_debug_pipeline();
-  std::unique_ptr<GraphicsDeviceVulkan>& get_logical_device();
 
   struct Cache {
     std::vector<u8> vis_temp;
@@ -60,6 +60,8 @@ class Tfrag3Vulkan : public BaseTfrag3 {
     std::unique_ptr<VulkanTexture> time_of_day_texture;
   };
 
+  void PrepareVulkanDraw(TreeCacheVulkan& tree, int index);
+
   std::array<std::vector<TreeCacheVulkan>, GEOM_MAX> m_cached_trees;
   std::unordered_map<u32, VulkanTexture>* m_textures = nullptr;
   std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
@@ -69,7 +71,7 @@ class Tfrag3Vulkan : public BaseTfrag3 {
 
   PipelineConfigInfo m_debug_pipeline_config_info{};
   PipelineConfigInfo m_pipeline_config_info{};
-  GraphicsPipelineLayout m_pipeline_layout;
+  std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
 
   VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
@@ -87,4 +89,16 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   std::vector<VkDescriptorSet> m_fragment_shader_descriptor_sets;
 
   std::unique_ptr<VertexBuffer> m_debug_vertex_buffer;
+  std::vector<VkDescriptorSet> m_descriptor_sets;
+
+  std::vector<VkDescriptorImageInfo> m_time_of_day_descriptor_image_infos;
+  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
+
+  std::unique_ptr<VulkanTexture> m_time_of_day_placeholder_texture;
+  std::unique_ptr<VulkanSamplerHelper> m_time_of_day_placeholder_sampler;
+  VkDescriptorImageInfo m_time_of_day_placeholder_descriptor_image_info;
+
+  std::unique_ptr<VulkanTexture> m_placeholder_texture;
+  std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
+  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 };

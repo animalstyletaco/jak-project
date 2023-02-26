@@ -91,10 +91,6 @@ class BaseTfrag3 {
 
   u64 m_load_id = -1;
 
-  // in theory could be up to 4096, I think, but we don't see that many...
-  // should be easy to increase
-  static constexpr int TIME_OF_DAY_COLOR_COUNT = 8192;
-
   static constexpr int DEBUG_TRI_COUNT = 4096;
   std::vector<DebugVertex> m_debug_vert_data;
 

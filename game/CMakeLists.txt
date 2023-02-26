@@ -152,14 +152,18 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/EyeRenderer.cpp
         graphics/general_renderer/dma_helpers.cpp
         graphics/general_renderer/Profiler.cpp
+        graphics/general_renderer/LightningRenderer.cpp
         graphics/general_renderer/Shadow_PS2.cpp
         graphics/general_renderer/ShadowRenderer.cpp
         graphics/general_renderer/SkyBlendCPU.cpp
         graphics/general_renderer/SkyBlendGPU.cpp
         graphics/general_renderer/SkyRenderer.cpp
-        graphics/general_renderer/sprite_common.cpp
-        graphics/general_renderer/Sprite3.cpp
-        graphics/general_renderer/SpriteRenderer.cpp
+        graphics/general_renderer/sprite/sprite_common.cpp
+        graphics/general_renderer/sprite/GlowRenderer.cpp
+        graphics/general_renderer/sprite/Sprite3.cpp
+        graphics/general_renderer/sprite/Sprite3_Distort.cpp
+        graphics/general_renderer/sprite/Sprite3_Glow.cpp
+        graphics/general_renderer/sprite/SpriteRenderer.cpp
         graphics/general_renderer/DepthCue.cpp
         graphics/general_renderer/TextureUploadHandler.cpp
         graphics/general_renderer/VisDataHandler.cpp
@@ -223,14 +227,17 @@ if(WIN32)
         graphics/vulkan_renderer/DirectRenderer2.cpp
         graphics/vulkan_renderer/EyeRenderer.cpp
         graphics/vulkan_renderer/FullScreenDraw.cpp
+        graphics/vulkan_renderer/LightningRenderer.cpp
         graphics/vulkan_renderer/vulkan_utils.cpp
         graphics/vulkan_renderer/Shader.cpp
         graphics/vulkan_renderer/ShadowRenderer.cpp
         graphics/vulkan_renderer/SkyBlendCPU.cpp
         graphics/vulkan_renderer/SkyBlendGPU.cpp
         graphics/vulkan_renderer/SkyRenderer.cpp
-        graphics/vulkan_renderer/Sprite3.cpp
-        graphics/vulkan_renderer/SpriteRenderer.cpp
+        graphics/vulkan_renderer/sprite/GlowRenderer.cpp
+        graphics/vulkan_renderer/sprite/Sprite3.cpp
+        graphics/vulkan_renderer/sprite/Sprite3_Distort.cpp
+        graphics/vulkan_renderer/sprite/SpriteRenderer.cpp
         graphics/vulkan_renderer/DepthCue.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
         graphics/texture/VulkanTexturePool.cpp
@@ -247,6 +254,11 @@ endif()
         graphics/opengl_renderer/foreground/Generic2_DMA.cpp
         graphics/opengl_renderer/foreground/Generic2_Build.cpp
         graphics/opengl_renderer/foreground/Generic2_OpenGL.cpp
+        graphics/opengl_renderer/sprite/GlowRenderer.cpp
+        graphics/opengl_renderer/sprite/Sprite3.cpp
+        graphics/opengl_renderer/sprite/Sprite3_Distort.cpp
+        graphics/opengl_renderer/sprite/Sprite3_Glow.cpp
+        graphics/opengl_renderer/sprite/SpriteRenderer.cpp
         graphics/opengl_renderer/ocean/CommonOceanRenderer.cpp
         graphics/opengl_renderer/ocean/OceanMid.cpp
         graphics/opengl_renderer/ocean/OceanMid_PS2.cpp
@@ -271,8 +283,6 @@ endif()
         graphics/opengl_renderer/SkyBlendCPU.cpp
         graphics/opengl_renderer/SkyBlendGPU.cpp
         graphics/opengl_renderer/SkyRenderer.cpp
-        graphics/opengl_renderer/Sprite3.cpp
-        graphics/opengl_renderer/SpriteRenderer.cpp
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/VisDataHandler.cpp
         graphics/opengl_renderer/DepthCue.cpp

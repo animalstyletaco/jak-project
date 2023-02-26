@@ -44,6 +44,7 @@ struct SwizzledTimeOfDay {
 
 namespace background_common {
 
+static constexpr int TIME_OF_DAY_COLOR_COUNT = 8192;
 // TODO: Come up with better struct name
 struct DrawSettings {
   int draw_index = 0;

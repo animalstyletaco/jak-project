@@ -10,8 +10,8 @@
 #include "game/graphics/vulkan_renderer/EyeRenderer.h"
 #include "game/graphics/vulkan_renderer/ShadowRenderer.h"
 #include "game/graphics/vulkan_renderer/SkyRenderer.h"
-#include "game/graphics/vulkan_renderer/Sprite3.h"
-#include "game/graphics/vulkan_renderer/SpriteRenderer.h"
+#include "game/graphics/vulkan_renderer/sprite/Sprite3.h"
+#include "game/graphics/vulkan_renderer/sprite/SpriteRenderer.h"
 #include "game/graphics/vulkan_renderer/background/Shrub.h"
 #include "game/graphics/vulkan_renderer/background/TFragment.h"
 #include "game/graphics/vulkan_renderer/background/Tie3.h"
@@ -19,6 +19,7 @@
 #include "game/graphics/vulkan_renderer/foreground/Merc2.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanMidAndFar.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanNear.h"
+#include "game/graphics/vulkan_renderer/LightningRenderer.h"
 
 #include "third-party/imgui/imgui.h"
 #include "third-party/imgui/imgui_impl_vulkan.h"
@@ -94,16 +95,11 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
 
   //May be overkill for descriptor pool
   std::vector<VkDescriptorPoolSize> poolSizes = {
-    {VK_DESCRIPTOR_TYPE_SAMPLER, 10000},
-    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10000},
+    {VK_DESCRIPTOR_TYPE_SAMPLER, 100},
+    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100000},
     {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 10000},
-    {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 10000},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 10000},
-    {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 10000},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10000},
-    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10000},
+    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
     {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10000},
-    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 10000},
     {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 10000}
   };
 
@@ -373,6 +369,8 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
                                              BucketId::TEX_LCOM_SKY_PRE, m_device, m_vulkan_info);
   init_bucket_renderer<DirectVulkanRenderer>("sky-draw", BucketCategory::OTHER, BucketId::SKY_DRAW,
                                              m_device, m_vulkan_info, 1024);
+  init_bucket_renderer<OceanVulkanMidAndFar>("ocean-mid-far", BucketCategory::OCEAN,
+                                       BucketId::OCEAN_MID_FAR, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-tfrag", BucketCategory::TEX,
                                              BucketId::TEX_L0_TFRAG, m_device, m_vulkan_info);
   init_bucket_renderer<TFragmentVulkan>("tfrag-l0-tfrag", BucketCategory::TFRAG,
@@ -414,12 +412,28 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
                              BucketId::TIE_L3_TFRAG, m_device, m_vulkan_info, 3);
   init_bucket_renderer<MercVulkan2>("merc-l3-tfrag", BucketCategory::MERC, BucketId::MERC_L3_TFRAG, m_device, m_vulkan_info);
   // 50
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l4-tfrag", BucketCategory::TEX,
+                                             BucketId::TEX_L4_TFRAG, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-l4-tfrag", BucketCategory::TFRAG,
+                                        BucketId::TFRAG_L4_TFRAG, m_device, m_vulkan_info,
+                                        std::vector{tfrag3::TFragmentTreeKind::NORMAL}, false, 4);
+  init_bucket_renderer<Tie3Vulkan>("tie-l4-tfrag", BucketCategory::TIE, BucketId::TIE_L4_TFRAG,
+                                   m_device, m_vulkan_info, 4);
+  init_bucket_renderer<MercVulkan2>("merc-l4-tfrag", BucketCategory::MERC, BucketId::MERC_L4_TFRAG, m_device, m_vulkan_info);
   // 60
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l5-tfrag", BucketCategory::TEX,
+                                             BucketId::TEX_L5_TFRAG, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-l5-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_L5_TFRAG, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::NORMAL}, false, 5);
+  init_bucket_renderer<Tie3Vulkan>("tie-l5-tfrag", BucketCategory::TIE, BucketId::TIE_L5_TFRAG, m_device, m_vulkan_info, 5);
+  init_bucket_renderer<MercVulkan2>("merc-l5-tfrag", BucketCategory::MERC, BucketId::MERC_L5_TFRAG, m_device, m_vulkan_info);
   // 70
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-shrub", BucketCategory::TEX,
+                                             BucketId::TEX_L0_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<ShrubVulkan>("shrub-l0-shrub", BucketCategory::SHRUB, BucketId::SHRUB_L0_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l0-shrub", BucketCategory::MERC, BucketId::MERC_L0_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-shrub", BucketCategory::TEX,
                                                    BucketId::TEX_L0_SHRUB, m_device, m_vulkan_info);
-  init_bucket_renderer<ShrubVulkan>("shrub-l0-shrub", BucketCategory::SHRUB,
-                                    BucketId::SHRUB_L0_SHRUB, m_device, m_vulkan_info);
   // 80
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-shrub", BucketCategory::TEX,
                                                    BucketId::TEX_L1_SHRUB, m_device, m_vulkan_info);
@@ -428,12 +442,20 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   // 90
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-shrub", BucketCategory::TEX,
                                              BucketId::TEX_L2_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l2-shrub", BucketCategory::MERC, BucketId::MERC_L2_SHRUB, m_device, m_vulkan_info);
   init_bucket_renderer<ShrubVulkan>("shrub-l2-shrub", BucketCategory::SHRUB, BucketId::SHRUB_L2_SHRUB, m_device, m_vulkan_info);
   // 100
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-shrub", BucketCategory::TEX,
                                              BucketId::TEX_L3_SHRUB, m_device, m_vulkan_info);
   init_bucket_renderer<ShrubVulkan>("shrub-l3-shrub", BucketCategory::SHRUB, BucketId::SHRUB_L3_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l3-shrub", BucketCategory::MERC, BucketId::MERC_L3_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l4-shrub", BucketCategory::TEX,
+                                             BucketId::TEX_L4_SHRUB, m_device, m_vulkan_info);
   // 110
+  init_bucket_renderer<ShrubVulkan>("shrub-l4-shrub", BucketCategory::SHRUB, BucketId::SHRUB_L4_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l5-shrub", BucketCategory::TEX,
+                                             BucketId::TEX_L5_SHRUB, m_device, m_vulkan_info);
+  init_bucket_renderer<ShrubVulkan>("shrub-l5-shrub", BucketCategory::SHRUB, BucketId::SHRUB_L5_SHRUB, m_device, m_vulkan_info);
   // 120
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-alpha", BucketCategory::TEX,
                                                    BucketId::TEX_L0_ALPHA, m_device, m_vulkan_info);
@@ -443,9 +465,28 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-alpha", BucketCategory::TEX,
                                              BucketId::TEX_L1_ALPHA, m_device, m_vulkan_info);
   // 140
+  init_bucket_renderer<MercVulkan2>("merc-l1-alpha", BucketCategory::MERC, BucketId::MERC_L1_ALPHA, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-alpha", BucketCategory::TEX,
+                                             BucketId::TEX_L2_ALPHA, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-t-l2-alpha", BucketCategory::TFRAG,
+                                  BucketId::TFRAG_T_L2_ALPHA, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::TRANS}, false, 2);
   // 150
+  init_bucket_renderer<MercVulkan2>("merc-l2-alpha", BucketCategory::MERC, BucketId::MERC_L2_ALPHA, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-alpha", BucketCategory::TEX,
+                                             BucketId::TEX_L3_ALPHA, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-t-l3-alpha", BucketCategory::TFRAG,
+                                  BucketId::TFRAG_T_L3_ALPHA, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::TRANS}, false, 3);
   // 160
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l4-alpha", BucketCategory::TEX,
+                                             BucketId::TEX_L4_ALPHA, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-t-l4-alpha", BucketCategory::TFRAG,
+                                  BucketId::TFRAG_T_L4_ALPHA, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::TRANS}, false, 4);
   // 170
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l5-alpha", BucketCategory::TEX,
+                                             BucketId::TEX_L5_ALPHA, m_device, m_vulkan_info);
   // 180
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-tfrag", BucketCategory::TEX, BucketId::TEX_LCOM_TFRAG, m_device, m_vulkan_info);
   init_bucket_renderer<MercVulkan2>("merc-lcom-tfrag", BucketCategory::MERC, BucketId::MERC_LCOM_TFRAG, m_device, m_vulkan_info);
@@ -465,11 +506,36 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-pris", BucketCategory::TEX,
                                                    BucketId::TEX_L3_PRIS, m_device, m_vulkan_info);
   // 210
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l4-pris", BucketCategory::TEX,
+                                             BucketId::TEX_L4_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l4-pris", BucketCategory::MERC, BucketId::MERC_L4_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l5-pris", BucketCategory::TEX,
+                                             BucketId::TEX_L5_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l5-pris", BucketCategory::MERC, BucketId::MERC_L5_PRIS, m_device, m_vulkan_info);
   // 220
-  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-pris", BucketCategory::TEX, BucketId::TEX_LCOM_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-pris", BucketCategory::TEX,
+                                             BucketId::TEX_LCOM_PRIS, m_device, m_vulkan_info);
   init_bucket_renderer<MercVulkan2>("merc-lcom-pris", BucketCategory::MERC, BucketId::MERC_LCOM_PRIS, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-pris2", BucketCategory::TEX,
+                                             BucketId::TEX_L0_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l0-pris2", BucketCategory::MERC, BucketId::MERC_L0_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-pris2", BucketCategory::TEX,
+                                             BucketId::TEX_L1_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l1-pris2", BucketCategory::MERC, BucketId::MERC_L1_PRIS2, m_device, m_vulkan_info);
   // 230
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-pris2", BucketCategory::TEX,
+                                             BucketId::TEX_L2_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l2-pris2", BucketCategory::MERC, BucketId::MERC_L2_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-pris2", BucketCategory::TEX,
+                                             BucketId::TEX_L3_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l3-pris2", BucketCategory::MERC, BucketId::MERC_L3_PRIS2, m_device, m_vulkan_info);
   // 240
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l4-pris2", BucketCategory::TEX,
+                                             BucketId::TEX_L4_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l4-pris2", BucketCategory::MERC, BucketId::MERC_L4_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l5-pris2", BucketCategory::TEX,
+                                             BucketId::TEX_L5_PRIS2, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l5-pris2", BucketCategory::MERC, BucketId::MERC_L5_PRIS2, m_device, m_vulkan_info);
   // 250
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l0-water", BucketCategory::TEX,
                                                    BucketId::TEX_L0_WATER, m_device, m_vulkan_info);
@@ -478,23 +544,46 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
       m_vulkan_info, std::vector{tfrag3::TFragmentTreeKind::WATER}, false, 0);
   // 260
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l1-water", BucketCategory::TEX,
-                                                   BucketId::TEX_L1_WATER, m_device, m_vulkan_info);
+                                             BucketId::TEX_L1_WATER, m_device, m_vulkan_info);
   init_bucket_renderer<MercVulkan2>("merc-l1-water", BucketCategory::MERC, BucketId::MERC_L1_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-w-l1-alpha", BucketCategory::TFRAG,
+                                  BucketId::TFRAG_W_L1_WATER, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::WATER}, false, 1);
   // 270
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-l2-water", BucketCategory::TEX,
-                                                   BucketId::TEX_L2_WATER, m_device, m_vulkan_info);
+                                             BucketId::TEX_L2_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l2-water", BucketCategory::MERC, BucketId::MERC_L2_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-w-l2-alpha", BucketCategory::TFRAG,
+                                  BucketId::TFRAG_W_L2_WATER, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::WATER}, false, 2);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l3-water", BucketCategory::TEX,
+                                             BucketId::TEX_L3_WATER, m_device, m_vulkan_info);
   // 280
+  init_bucket_renderer<MercVulkan2>("merc-l3-water", BucketCategory::MERC, BucketId::MERC_L3_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<TFragmentVulkan>("tfrag-w-l3-water", BucketCategory::TFRAG,
+                                  BucketId::TFRAG_W_L3_WATER, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::WATER}, false, 3);
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l4-water", BucketCategory::TEX,
+                                             BucketId::TEX_L4_WATER, m_device, m_vulkan_info);
+  init_bucket_renderer<MercVulkan2>("merc-l4-water", BucketCategory::MERC, BucketId::MERC_L4_WATER, m_device, m_vulkan_info);
   // 290
+  init_bucket_renderer<VulkanTextureUploadHandler>("tex-l5-water", BucketCategory::TEX,
+                                             BucketId::TEX_L5_WATER, m_device, m_vulkan_info);
   // 300
+  init_bucket_renderer<TFragmentVulkan>("tfrag-w-l5-water", BucketCategory::TFRAG,
+                                  BucketId::TFRAG_W_L5_WATER, m_device, m_vulkan_info,
+                                  std::vector{tfrag3::TFragmentTreeKind::WATER}, false, 5);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-water", BucketCategory::TEX, BucketId::TEX_LCOM_WATER, m_device, m_vulkan_info);
   init_bucket_renderer<MercVulkan2>("merc-lcom-water", BucketCategory::MERC, BucketId::MERC_LCOM_WATER, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-sky-post", BucketCategory::TEX,
                                                    BucketId::TEX_LCOM_SKY_POST, m_device,
                                                    m_vulkan_info);
   // 310
+  init_bucket_renderer<OceanNearVulkan>("ocean-near", BucketCategory::OCEAN, BucketId::OCEAN_NEAR, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-sprite", BucketCategory::TEX, BucketId::TEX_ALL_SPRITE, m_device, m_vulkan_info);
   init_bucket_renderer<SpriteVulkan3>("particles", BucketCategory::SPRITE, BucketId::PARTICLES, m_device,
                                 m_vulkan_info);
+  init_bucket_renderer<LightningVulkanRenderer>("lightning", BucketCategory::OTHER, BucketId::LIGHTNING, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-warp", BucketCategory::TEX,
                                                    BucketId::TEX_ALL_WARP, m_device, m_vulkan_info);
   init_bucket_renderer<DirectVulkanRenderer>("debug-no-zbuf1", BucketCategory::OTHER,
@@ -504,6 +593,11 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
                                                    BucketId::TEX_ALL_MAP, m_device, m_vulkan_info);
   // 320
   init_bucket_renderer<DirectVulkanRenderer>("progress", BucketCategory::OTHER, BucketId::PROGRESS, m_device, m_vulkan_info,
+                                       0x8000);
+  init_bucket_renderer<DirectVulkanRenderer>("screen-filter", BucketCategory::OTHER,
+                                             BucketId::SCREEN_FILTER, m_device, m_vulkan_info,
+                                             0x8000);
+  init_bucket_renderer<DirectVulkanRenderer>("bucket-322", BucketCategory::OTHER, BucketId::BUCKET_322, m_device, m_vulkan_info,
                                        0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("debug2", BucketCategory::OTHER, BucketId::DEBUG2,
                                              m_device, m_vulkan_info, 0x8000);

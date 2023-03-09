@@ -228,7 +228,7 @@ if(WIN32)
         graphics/vulkan_renderer/EyeRenderer.cpp
         graphics/vulkan_renderer/FullScreenDraw.cpp
         graphics/vulkan_renderer/LightningRenderer.cpp
-        graphics/vulkan_renderer/vulkan_utils.cpp
+        graphics/vulkan_renderer/FramebufferHelper.cpp
         graphics/vulkan_renderer/Shader.cpp
         graphics/vulkan_renderer/ShadowRenderer.cpp
         graphics/vulkan_renderer/SkyBlendCPU.cpp

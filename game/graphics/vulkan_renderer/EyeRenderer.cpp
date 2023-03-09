@@ -42,11 +42,8 @@ EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
                          std::unique_ptr<GraphicsDeviceVulkan>& device,
                          VulkanInitializationInfo& vulkan_info)
     : BaseEyeRenderer(name, id), BucketVulkanRenderer(device, vulkan_info) {
+  m_eye_renderer_extents = VkExtent2D{128, 128};
 
-  m_extents = VkExtent2D{128, 128};
-  m_swap_chain = std::make_unique<SwapChain>(device, m_extents);
-
-  create_command_buffers();
   init_shaders();
   InitializeInputVertexAttribute();
 
@@ -354,15 +351,6 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
 
   //We store separate frame buffers in vulkan swap chain abstractions
   auto& frame_buffer_texture_pair = m_gpu_eye_textures[draws.front().tex_slot()]->fb;
-  VkCommandBuffer renderCommand = begin_frame();
-  if (m_device->getMsaaCount() != m_swap_chain->get_render_pass_sample_count()) {
-    recreate_swap_chain();
-  }
-
-  m_swap_chain->beginSwapChainRenderPass(renderCommand,
-                                         eye_renderer_frame_count % m_swap_chain->imageCount());
-  m_pipeline_config_info.renderPass = m_swap_chain->getRenderPass();
-  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
 
   buffer_idx = 0;
   for (size_t draw_idx = 0; draw_idx < draws.size(); draw_idx++) {
@@ -387,7 +375,7 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
           VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
                                 draw.iris_vulkan_graphics.texture->get_selected_texture()->getImageView(),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      ExecuteVulkanDraw(renderCommand, draw.iris_vulkan_graphics, buffer_idx / 4, 4);
+      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.iris_vulkan_graphics, buffer_idx / 4, 4);
 
     }
     buffer_idx += 4 * 4;
@@ -408,7 +396,8 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
           VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
                                 draw.pupil_vulkan_graphics.texture->get_selected_texture()->getImageView(),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      ExecuteVulkanDraw(renderCommand, draw.pupil_vulkan_graphics, buffer_idx / 4, 4);
+      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.pupil_vulkan_graphics,
+                        buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
@@ -419,7 +408,8 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
           VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
                                 draw.lid_vulkan_graphics.texture->get_selected_texture()->getImageView(),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      ExecuteVulkanDraw(renderCommand, draw.lid_vulkan_graphics, buffer_idx / 4, 4);
+      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.lid_vulkan_graphics,
+                        buffer_idx / 4, 4);
       //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
@@ -427,8 +417,6 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
     // finally, give to "vram"
     m_vulkan_info.texture_pool->move_existing_to_vram(out_tex->gpu_texture, out_tex->tbp);
   }
-  m_swap_chain->endSwapChainRenderPass(renderCommand);
-  end_frame();
 
   ASSERT(check == buffer_idx);
 }
@@ -554,76 +542,5 @@ void EyeVulkanRenderer::draw_eye(u32* out,
   }
 }
 
-void EyeVulkanRenderer::create_command_buffers() {
-  m_render_commands.resize(m_swap_chain->imageCount());
-
-  VkCommandBufferAllocateInfo allocInfo{};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.commandPool = m_device->getCommandPool();
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = (uint32_t)m_render_commands.size();
-
-  if (vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo,
-                               m_render_commands.data()) != VK_SUCCESS) {
-    throw std::runtime_error("failed to allocate command buffers!");
-  }
-}
-
-void EyeVulkanRenderer::recreate_swap_chain() {
-  vkDeviceWaitIdle(m_device->getLogicalDevice());
-
-  if (m_swap_chain == nullptr) {
-    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents);
-  } else {
-    std::shared_ptr<SwapChain> oldSwapChain = std::move(m_swap_chain);
-    m_swap_chain = std::make_unique<SwapChain>(m_device, m_extents, oldSwapChain);
-
-    if (!oldSwapChain->compareSwapFormats(*m_swap_chain.get())) {
-      throw std::runtime_error("Swap chain image(or depth) format has changed!");
-    }
-  }
-}
-
-VkCommandBuffer EyeVulkanRenderer::begin_frame() {
-  auto result = m_swap_chain->acquireNextImage(&eye_renderer_frame_count);
-  if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-    recreate_swap_chain();
-    return nullptr;
-  }
-
-  if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-    throw std::runtime_error("failed to acquire swap chain image!");
-  }
-
-  auto commandBuffer = m_render_commands[eye_renderer_frame_count];
-  VkCommandBufferBeginInfo beginInfo{};
-  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-
-  if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-    throw std::runtime_error("failed to begin recording command buffer!");
-  }
-  return commandBuffer;
-}
-
-void EyeVulkanRenderer::end_frame() {
-  auto commandBuffer = m_render_commands[eye_renderer_frame_count];
-  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-    throw std::runtime_error("failed to record command buffer!");
-  }
-
-  if (m_swap_chain->submitCommandBuffers(&commandBuffer, &eye_renderer_frame_count) != VK_SUCCESS) {
-    throw std::runtime_error("failed to present swap chain image!");
-  }
-
-  eye_renderer_frame_count = (eye_renderer_frame_count + 1) % m_swap_chain->imageCount();
-}
-
-void EyeVulkanRenderer::free_command_buffers() {
-  vkFreeCommandBuffers(m_device->getLogicalDevice(), m_device->getCommandPool(),
-                       static_cast<uint32_t>(m_render_commands.size()), m_render_commands.data());
-  m_render_commands.clear();
-}
-
 EyeVulkanRenderer::~EyeVulkanRenderer() {
-  free_command_buffers();
 }

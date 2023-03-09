@@ -80,14 +80,30 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
 
+  struct PushConstantTie : PushConstant {
+    int index;
+  }m_push_constant_tie;
+
+  void PrepareVulkanDraw(Tree& tree, int index);
+
   std::array<std::vector<Tree>, 4> m_trees;  // includes 4 lods!
   std::unordered_map<u32, VulkanTexture>* m_textures;
-  std::unordered_map<u32, VulkanSamplerHelper> m_time_of_day_samplers;
+  std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
+
+  VkDescriptorBufferInfo m_time_of_day_descriptor_info;
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_uniform_buffer;
+  std::unique_ptr<UniformVulkanBuffer> m_time_of_day_uniform_buffer;
   std::unordered_map<u32, VulkanTexture> texture_maps[tfrag3::TIE_GEOS];
-  
+
   std::vector<VkDescriptorSet> m_vertex_shader_descriptor_sets;
   std::vector<VkDescriptorSet> m_fragment_shader_descriptor_sets;
+
+  std::vector<VkDescriptorSet> m_descriptor_sets;
+  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
+
+  std::unique_ptr<VulkanTexture> m_placeholder_texture;
+  std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
+  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 };

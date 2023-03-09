@@ -5,7 +5,7 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/EyeRenderer.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 
 class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
  public:
@@ -55,15 +55,6 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   void InitializeInputVertexAttribute();
   void create_pipeline_layout() override;
   void init_shaders();
-  void recreate_swap_chain();
-  
-  VkCommandBuffer begin_frame();
-  void end_frame();
-
-  void create_command_buffers();
-  void free_command_buffers();
-
-  std::vector<VkCommandBuffer> m_render_commands;
 
   struct CpuEyeTextures {
     std::unique_ptr<VulkanTexture> texture;
@@ -76,7 +67,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   struct GpuEyeTex {
     VulkanGpuTextureMap* gpu_texture;
     u32 tbp;
-    FramebufferVulkanTexturePair fb;
+    FramebufferVulkanHelper fb;
 
     GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device);
   };
@@ -114,7 +105,8 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   std::unique_ptr<VertexBuffer> m_gpu_vertex_buffer;
   std::unique_ptr<SwapChain> m_swap_chain;
 
-  VkExtent2D m_extents;
+  VkExtent2D m_eye_renderer_extents;
+  VkExtent2D m_original_swap_chain_extents;
 
   bool isFrameStarted = false;
   uint32_t eye_renderer_frame_count = 0;

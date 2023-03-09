@@ -5,7 +5,6 @@
 #include "game/graphics/general_renderer/SkyBlendCommon.h"
 #include "game/graphics/general_renderer/SkyBlendCPU.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 class SkyBlendCPU : public BaseSkyBlendCPU {
  public:

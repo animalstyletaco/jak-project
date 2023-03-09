@@ -21,10 +21,11 @@ layout(set = 0, binding = 0) uniform EmercUniformBufferObject {
    mat4 perspective_matrix;
 }emerc_ubo;
 
-layout(push_constant) uniform HeightScale
+layout(push_constant) uniform PushConstant
 {
 	float height_scale;
-}height_scale;
+  float scissor_adjust;
+}pc;
 
 struct MercMatrixData {
     mat4 X;
@@ -32,7 +33,7 @@ struct MercMatrixData {
     vec4 pad;
 };
 
-layout (std140, binding = 1) uniform ub_bones {
+layout (std140, set=0, binding = 1) uniform ub_bones {
     MercMatrixData bones[128];
 };
 
@@ -124,7 +125,7 @@ void main() {
     transformed.x /= (256);
     transformed.y /= -(128);
     transformed.xyz *= transformed.w;
-    transformed.y *= height_scale.height_scale;
+    transformed.y *= pc.height_scale * pc.scissor_adjust;
     gl_Position = transformed;
 
 

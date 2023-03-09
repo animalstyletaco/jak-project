@@ -8,9 +8,9 @@ class SwapChain {
  public:
   static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
-  SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef, VkExtent2D windowExtent);
+  SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef, VkExtent2D windowExtent, bool vsyncEnabled);
   SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef,
-               VkExtent2D windowExtent,
+               VkExtent2D windowExtent, bool vsyncEnabled,
                std::shared_ptr<SwapChain> previous);
 
   ~SwapChain();
@@ -18,7 +18,7 @@ class SwapChain {
   SwapChain(const SwapChain&) = delete;
   SwapChain& operator=(const SwapChain&) = delete;
 
-  void init();
+  void init(bool vsyncEnabled);
 
   VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
   VkRenderPass getRenderPass() { return renderPass; }
@@ -90,7 +90,7 @@ class SwapChain {
   VkSampleCountFlagBits get_render_pass_sample_count() { return m_render_pass_sample; }
 
  private:
-  void createSwapChain();
+  void createSwapChain(bool vsyncEnabled);
   void createImageViews();
   void createColorResources();
   void createDepthResources();
@@ -101,8 +101,8 @@ class SwapChain {
   // Helper functions
   VkSurfaceFormatKHR chooseSwapSurfaceFormat(
       const std::vector<VkSurfaceFormatKHR>& availableFormats);
-  VkPresentModeKHR chooseSwapPresentMode(
-      const std::vector<VkPresentModeKHR>& availablePresentModes);
+  VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes,
+                                         VkPresentModeKHR desiredPresentMode);
   VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
   VkFormat swapChainImageFormat;

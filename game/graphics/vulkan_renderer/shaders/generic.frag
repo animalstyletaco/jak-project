@@ -14,7 +14,7 @@ layout (set = 1, binding = 0) uniform UniformBufferObject {
 
 layout(push_constant) uniform PER_OBJECT
 {
-	layout(offset = 4) int imgIdx;
+	layout(offset = 8) int imgIdx;
 }pc;
 
 //FIXME: This should be texture2Darray

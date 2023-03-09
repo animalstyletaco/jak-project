@@ -50,8 +50,10 @@ class GraphicsDeviceVulkan {
   VkQueue presentQueue() { return m_present_queue; }
   VkInstance getInstance() { return m_instance; }
   VkPhysicalDeviceFeatures getPhysicalDeviceFeatures() { return m_physical_device_features; }
-  VkPhysicalDeviceProperties getPhysicalDeviceLimits() { return m_physical_device_properties; }
+  VkPhysicalDeviceProperties getPhysicalDeviceProperties() { return m_physical_device_properties; }
+  VkPhysicalDeviceLimits getPhysicalDeviceLimits() { return m_physical_device_properties.limits; }
 
+  uint32_t getMinimumBufferOffsetAlignment() { return m_physical_device_properties.limits.minUniformBufferOffsetAlignment; }
   float getMaxSamplerAnisotropy() { return m_physical_device_properties.limits.maxSamplerAnisotropy; }
 
   SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(m_physical_device); }
@@ -60,6 +62,7 @@ class GraphicsDeviceVulkan {
   VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
                                VkImageTiling tiling,
                                VkFormatFeatureFlags features);
+  uint32_t getMinimumBufferOffsetAlignment(uint32_t originalOffset);
   VkSampleCountFlagBits GetMaxUsableSampleCount();
 
   VkCommandBuffer allocateCommandBuffers(VkCommandBufferUsageFlags flags);
@@ -92,6 +95,8 @@ class GraphicsDeviceVulkan {
   void transitionImageLayout(VkImage image,
                              VkImageLayout oldLayout,
                              VkImageLayout newLayout);
+
+  VkFormatProperties getPhysicalDeviceFormatProperties(VkFormat format);
 
  private:
   void createInstance();
@@ -126,7 +131,9 @@ class GraphicsDeviceVulkan {
   GLFWwindow* m_window = nullptr;
 
   const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-  const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+  const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+                                                     VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+                                                     VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME};
 
   VkPhysicalDeviceFeatures m_physical_device_features{};
   VkPhysicalDeviceProperties m_physical_device_properties{};

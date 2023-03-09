@@ -4,7 +4,6 @@
 
 #include "game/graphics/general_renderer/background/background_common.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
 
 struct BackgroundCommonVertexUniformShaderData {

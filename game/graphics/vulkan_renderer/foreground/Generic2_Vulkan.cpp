@@ -1,5 +1,4 @@
 #include "Generic2.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 GenericVulkan2::GenericVulkan2(const std::string& name,
                                int my_id,
@@ -10,7 +9,6 @@ GenericVulkan2::GenericVulkan2(const std::string& name,
                                u32 num_adgif,
                                u32 num_buckets)
     : BucketVulkanRenderer(device, vulkan_info), BaseGeneric2(name, my_id, num_verts, num_frags, num_adgif, num_buckets) {
-  m_push_constant.height_scale = (vulkan_info.shaders.GetVersion() == GameVersion::Jak2) ? 0.5 : 1;
   graphics_setup();
 }
 
@@ -90,7 +88,7 @@ void GenericVulkan2::create_pipeline_layout() {
 
   VkPushConstantRange pushConstantVertexRange = {};
   pushConstantVertexRange.offset = 0;
-  pushConstantVertexRange.size = sizeof(float);
+  pushConstantVertexRange.size = sizeof(m_push_constant);
   pushConstantVertexRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   VkPushConstantRange pushConstantFragmentRange = {};
@@ -495,8 +493,6 @@ void GenericVulkan2::FinalizeVulkanDraws() {
   }
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-  //TODO: See if upgrading to Vulkan 1.2 would be worth it since there's a flag to only update
-  //      a subset of buffer/image descriptor sets instead of entire descriptor set
   write_descriptors_info[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(1, m_descriptor_image_infos.data(),
                                                                                     m_descriptor_image_infos.size());
 
@@ -505,15 +501,19 @@ void GenericVulkan2::FinalizeVulkanDraws() {
   m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
   m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
 
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                 VK_SHADER_STAGE_VERTEX_BIT, 0,
+                 sizeof(m_push_constant), (void*)&m_push_constant);
+
   for (uint32_t i = 0; i < m_next_free_bucket; i++) {
     m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
         m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer.get(), m_ogl.index_buffer.get(),
         m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
-    m_push_constant.bucket_id = i;
+    push_constant_bucket_id = i;
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant.height_scale),
-                       sizeof(m_push_constant.bucket_id), (void*)&m_push_constant.bucket_id);
+                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant),
+                       sizeof(push_constant_bucket_id), (void*)&push_constant_bucket_id);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
                      m_next_free_idx, 1, 0, 0, 0);
   }

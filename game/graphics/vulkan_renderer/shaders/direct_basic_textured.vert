@@ -13,12 +13,13 @@ layout (location = 3) out flat uvec4 tex_info;
 layout(push_constant) uniform PER_OBJECT
 {
 	float height_scale;
+  float scissor_adjust;
 }pc;
 
 void main() {
   gl_Position = vec4((position_in.x - 0.5) * 16., -(position_in.y - 0.5) * 32 * pc.height_scale, position_in.z * 2 - 1., 1.0);
   // scissoring area adjust
-  gl_Position.y *= 512.0/448.0;
+  gl_Position.y *= pc.scissor_adjust;
   fragment_color = vec4(rgba_in.x, rgba_in.y, rgba_in.z, rgba_in.w * 2.);
   tex_coord = tex_coord_in;
   tex_info = tex_info_in;

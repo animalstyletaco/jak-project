@@ -33,12 +33,11 @@ layout (set = 0, binding = 2) uniform PerspectiveMatrixUniformBufferObject {
    mat4 perspective_matrix;
 } perspective_matrix;
 
-layout(push_constant) uniform HeightScale
+layout(push_constant) uniform PushConstant
 {
 	float height_scale;
-}height_scale;
-
-const float SCISSOR_ADJUST = 512.0/448.0;
+  float scissor_adjust;
+}pc;
 
 // output
 layout (location = 0) out vec3 vtx_color;
@@ -121,7 +120,7 @@ void main() {
     transformed.x /= (256);
     transformed.y /= -(128);
     transformed.xyz *= transformed.w;
-    transformed.y *= (SCISSOR_ADJUST * height_scale.height_scale);
+    transformed.y *= (pc.scissor_adjust * pc.height_scale);
     gl_Position = transformed;
 
 

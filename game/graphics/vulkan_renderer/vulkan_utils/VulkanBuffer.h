@@ -43,7 +43,7 @@ class VulkanBuffer {
   void* getMappedMemory() const { return mapped; }
   uint32_t getInstanceCount() const { return instanceCount; }
   VkDeviceSize getInstanceSize() const { return instanceSize; }
-  VkDeviceSize getAlignmentSize() const { return instanceSize; }
+  VkDeviceSize getAlignmentSize() const { return alignmentSize; }
   VkBufferUsageFlags getUsageFlags() const { return usageFlags; }
   VkMemoryPropertyFlags getMemoryPropertyFlags() const { return memoryPropertyFlags; }
   VkDeviceSize getBufferSize() const { return bufferSize; }
@@ -107,6 +107,41 @@ class UniformVulkanBuffer : public UniformBuffer, public VulkanBuffer {
 
  protected:
   std::unordered_map<std::string, uint32_t> section_name_to_memory_offset_map;
+};
+
+class TexelVulkanBuffer : public VulkanBuffer {
+ public:
+  TexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                    VkDeviceSize instanceSize,
+                    uint32_t instanceCount,
+                    VkBufferUsageFlagBits bufferUsage,
+                    VkDeviceSize minOffsetAlignment = 1);
+
+  ~TexelVulkanBuffer();
+
+  VkBufferView GetBufferView() { return m_buffer_view; };
+  VkBufferViewCreateInfo& GetBufferViewCreateInfo() { return m_buffer_view_create_info; };
+  void CreateBufferView();
+
+ protected:
+  VkBufferView m_buffer_view = VK_NULL_HANDLE;
+  VkBufferViewCreateInfo m_buffer_view_create_info{};
+};
+
+class UniformTexelVulkanBuffer : public TexelVulkanBuffer {
+ public:
+  UniformTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           VkDeviceSize instanceSize,
+                           uint32_t instanceCount,
+                           VkDeviceSize minOffsetAlignment = 1);
+};
+
+class StorageTexelVulkanBuffer : public TexelVulkanBuffer {
+ public:
+  StorageTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           VkDeviceSize instanceSize,
+                           uint32_t instanceCount,
+                           VkDeviceSize minOffsetAlignment = 1);
 };
 
 class MultiDrawVulkanBuffer : public UniformBuffer, public VulkanBuffer {

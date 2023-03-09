@@ -8,21 +8,23 @@
 
 class ImguiVulkanHelper {
  public:
-  ImguiVulkanHelper(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  ImguiVulkanHelper(std::unique_ptr<SwapChain>& swapChain);
   ~ImguiVulkanHelper();
 
   void InitializeNewFrame();
-  void Render(uint32_t width, uint32_t height);
+  void Render(uint32_t width, uint32_t height, std::unique_ptr<SwapChain>& swapChain);
   void Shutdown();
-  void RecreateSwapChain();
 
   private:
+  void recreateGraphicsPipeline(ImGui_ImplVulkan_Data* bd,
+                                VkSampleCountFlagBits msaaCount);
+
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unique_ptr<DescriptorPool> m_descriptor_pool;
   uint64_t m_current_image_index = 0;
 
-  std::shared_ptr<SwapChain> m_swap_chain;
-  VkExtent2D m_extents = {640, 480};
+  VkSampleCountFlagBits currentMsaa = VK_SAMPLE_COUNT_1_BIT;
+  VkPipeline m_pipeline = VK_NULL_HANDLE;
 
    bool _isActive = true;
 };

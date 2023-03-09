@@ -69,10 +69,13 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
                         VulkanTexture* texture,
                         uint32_t bucket);
 
-  struct PushConstant{
-    int bucket = 0;
-    float scissor_adjust = 0;
-  }m_push_constant;
+  struct PushConstant {
+    float height_scale;
+    float scissor_adjust;
+    int bucket;
+  };
+
+  PushConstant m_push_constant;
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unique_ptr<VertexBuffer> vertex_buffer;

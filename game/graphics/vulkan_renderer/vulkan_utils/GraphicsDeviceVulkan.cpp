@@ -78,9 +78,9 @@ void GraphicsDeviceVulkan::createInstance() {
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.pApplicationName = "OpenGOAL";
-  appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+  appInfo.applicationVersion = VK_API_VERSION_1_0;
   appInfo.pEngineName = "OpenGOAL";
-  appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+  appInfo.engineVersion = VK_API_VERSION_1_0;
   appInfo.apiVersion = VK_API_VERSION_1_0;
 
   VkInstanceCreateInfo createInfo{};
@@ -154,7 +154,6 @@ void GraphicsDeviceVulkan::pickPhysicalDevice() {
   for (const auto& device : devices) {
     if (isDeviceSuitable(device)) {
       m_physical_device = device;
-      // msaaSamples = GetMaxUsableSampleCount();
       break;
     }
   }
@@ -165,7 +164,6 @@ void GraphicsDeviceVulkan::pickPhysicalDevice() {
 
   vkGetPhysicalDeviceMemoryProperties(m_physical_device, &m_physical_memory_properties);
   vkGetPhysicalDeviceProperties(m_physical_device, &m_physical_device_properties);
-  vkGetPhysicalDeviceFeatures(m_physical_device, &m_physical_device_features);
 }
 
 void GraphicsDeviceVulkan::createLogicalDevice() {
@@ -191,6 +189,15 @@ void GraphicsDeviceVulkan::createLogicalDevice() {
   createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
   createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
+  
+  VkPhysicalDeviceDescriptorIndexingFeaturesEXT physicalDeviceDescriptorIndexingFeatures{};
+  physicalDeviceDescriptorIndexingFeatures.sType =
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+  physicalDeviceDescriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+  physicalDeviceDescriptorIndexingFeatures.runtimeDescriptorArray = VK_TRUE;
+  physicalDeviceDescriptorIndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+
+  createInfo.pNext = &physicalDeviceDescriptorIndexingFeatures;
   createInfo.pEnabledFeatures = &m_physical_device_features;
 
   createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
@@ -458,6 +465,7 @@ std::vector<const char*> GraphicsDeviceVulkan::getRequiredExtensions() {
   glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
   std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+  extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
   if (enableValidationLayers) {
     extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -528,11 +536,10 @@ bool GraphicsDeviceVulkan::isDeviceSuitable(VkPhysicalDevice device) {
     swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
   }
 
-  VkPhysicalDeviceFeatures supportedFeatures;
-  vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
+  vkGetPhysicalDeviceFeatures(device, &m_physical_device_features);
 
   return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-         supportedFeatures.samplerAnisotropy;
+         m_physical_device_features.samplerAnisotropy;
 }
 
 bool GraphicsDeviceVulkan::checkDeviceExtensionSupport(VkPhysicalDevice device) {
@@ -711,4 +718,19 @@ VkSampleCountFlagBits GraphicsDeviceVulkan::GetMaxUsableSampleCount() {
   }
 
   return VK_SAMPLE_COUNT_1_BIT;
+}
+
+uint32_t GraphicsDeviceVulkan::getMinimumBufferOffsetAlignment(uint32_t originalOffset) {
+  if (originalOffset % m_physical_device_properties.limits.minUniformBufferOffsetAlignment == 0) {
+    return originalOffset;
+  }
+
+  uint32_t wrap_around_count = (originalOffset / m_physical_device_properties.limits.minUniformBufferOffsetAlignment) + 1;
+  return wrap_around_count * m_physical_device_properties.limits.minUniformBufferOffsetAlignment;
+}
+
+VkFormatProperties GraphicsDeviceVulkan::getPhysicalDeviceFormatProperties(VkFormat format) {
+  VkFormatProperties formatProperties;
+  vkGetPhysicalDeviceFormatProperties(m_physical_device, format, &formatProperties);
+  return formatProperties;
 }

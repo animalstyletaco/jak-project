@@ -26,6 +26,7 @@ class BaseGlowRenderer {
     bool show_probes = false;
     bool show_probe_copies = false;
     int num_sprites = 0;
+    float glow_boost = 1.f;
   } m_debug;
   void add_sprite_pass_1(const SpriteGlowOutput& data);
   void add_sprite_pass_2(const SpriteGlowOutput& data, int sprite_idx);
@@ -70,7 +71,7 @@ class BaseGlowRenderer {
   u32 m_next_index = 0;
   u32* alloc_index(int num);
 
-  static constexpr int kDownsampleBatchWidth = 16;
+  static constexpr int kDownsampleBatchWidth = 20;
   static constexpr int kMaxSprites = kDownsampleBatchWidth * kDownsampleBatchWidth;
   static constexpr int kMaxVertices = kMaxSprites * 32;  // check.
   static constexpr int kMaxIndices = kMaxSprites * 32;   // check.

@@ -5,18 +5,17 @@
 #include "common/common_types.h"
 #include "common/versions.h"
 #include "game/graphics/general_renderer/ShaderCommon.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.h"
 
 class VulkanShader {
  public:
   static constexpr char shader_folder[] = "game/graphics/vulkan_renderer/shaders/";
 
   VulkanShader() = default;
-  VulkanShader(VkDevice device, const std::string& shader_name, GameVersion version);
+  VulkanShader(VkDevice device, const std::string& shader_name);
   VulkanShader(const VulkanShader& shader);
   void initialize_shader(VkDevice device,
-                         const std::string& shader_name,
-                         GameVersion version);
+                         const std::string& shader_name);
   ~VulkanShader();
 
   VkShaderModule GetVertexShader() { return m_vert_shader; };
@@ -41,14 +40,11 @@ class VulkanShader {
 
 class VulkanShaderLibrary {
  public:
-  VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device, GameVersion version);
+  VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device);
   VulkanShader& operator[](ShaderId id) { return m_shaders[(int)id]; }
   VulkanShader& at(ShaderId id) { return m_shaders[(int)id]; }
-
-  GameVersion GetVersion() { return m_version; }
 
  private:
   VulkanShader m_shaders[(int)ShaderId::MAX_SHADERS];
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  GameVersion m_version;
 };

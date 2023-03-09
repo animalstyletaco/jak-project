@@ -1,4 +1,5 @@
 #version 430 core
+#extension GL_EXT_nonuniform_qualifier : enable
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
@@ -10,22 +11,23 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float fog_constant;
   float fog_min;
   float fog_max;
-  float height_scale;
 } ubo;
 
 layout(push_constant) uniform PER_OBJECT
 {
-	layout(offset = 0)int textureIndex;
+  layout(offset = 0)float height_scale;
+  layout(offset = 4)float scissor_adjust;
+ 	layout(offset = 8)int textureIndex;
 }pc;
 
-const int MAX_TIME_OF_DAY_COUNT = 8192;
-layout (set = 0, binding = 1) uniform sampler1D textures[MAX_TIME_OF_DAY_COUNT]; // note, sampled in the vertex shader on purpose.
+const int TIME_OF_DAY_COUNT = 8192;
+layout (set = 0, binding = 1) uniform TimeOfDayBufferData {
+   vec4 texels[TIME_OF_DAY_COUNT];
+}time_of_day_buffer; // note, sampled in the vertex shader on purpose.
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
 layout (location = 2) out float fogginess;
-
-const float SCISSOR_ADJUST = 512.0/448.0;
 
 void main() {
 
@@ -71,11 +73,11 @@ void main() {
     // hack
     transformed.xyz *= transformed.w;
     // scissoring area adjust
-    transformed.y *= (SCISSOR_ADJUST * ubo.height_scale);
+    transformed.y *= (pc.height_scale * pc.scissor_adjust);
     gl_Position = transformed;
 
     // time of day lookup
-    fragment_color = texelFetch(textures[pc.textureIndex], time_of_day_index, 0);
+    fragment_color = time_of_day_buffer.texels[time_of_day_index];
 
     // fog hack
     if (fragment_color.r < 0.0075 && fragment_color.g < 0.0075 && fragment_color.b < 0.0075) {

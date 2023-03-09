@@ -7,12 +7,15 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   vec4 hvdf_offset;
   mat4 camera;
   float fog_constant;
-  float height_scale;
 } ubo;
 
 layout (location = 0) out vec4 fragment_color;
 
-const float SCISSOR_ADJUST = 512.0/448.0;
+layout(push_constant) uniform PushConstant
+{
+  float height_scale;
+  float scissor_adjust;
+}pc;
 
 // this is just for debugging.
 void main() {
@@ -39,7 +42,7 @@ void main() {
     // hack
     transformed.xyz *= transformed.w;
     // scissoring area adjust
-    transformed.y *= (SCISSOR_ADJUST * ubo.height_scale);
+    transformed.y *= (pc.height_scale * pc.scissor_adjust);
     gl_Position = transformed;
 
     // time of day lookup

@@ -24,14 +24,17 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   vec4 xy_array[8];
   vec4 xyz_array[4];
   vec4 st_array[4];
-  float height_scale;
 }ubo;
 
 layout (location = 0) out flat vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
 layout (location = 2) out flat uvec2 tex_info;
 
-const float SCISSOR_ADJUST = 512.0/448.0;
+layout(push_constant) uniform PER_OBJECT
+{
+  layout(offset = 0) float height_scale;
+  layout(offset = 4) float scissor_adjust;
+}pc;
 
 vec4 matrix_transform(mat4 mtx, vec3 pt) {
     return mtx[3]
@@ -172,7 +175,7 @@ void main() {
     // hack
     transformed.xyz *= transformed.w;
     // scissoring area adjust
-    transformed.y *= (SCISSOR_ADJUST * ubo.height_scale);
+    transformed.y *= (pc.height_scale * pc.scissor_adjust);
     gl_Position = transformed;
 
     fragment_color *= 2;

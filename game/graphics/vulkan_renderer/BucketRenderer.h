@@ -15,6 +15,8 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
+
 
 class EyeVulkanRenderer;
 /*!
@@ -30,7 +32,7 @@ struct SharedVulkanRenderState : public BaseSharedRenderState {
 };
 
 struct VulkanInitializationInfo {
-  VulkanInitializationInfo(std::unique_ptr<GraphicsDeviceVulkan>& device, GameVersion version) : shaders(device, version){};
+  VulkanInitializationInfo(std::unique_ptr<GraphicsDeviceVulkan>& device, GameVersion version) : shaders(device), m_version(version){};
 
   std::unique_ptr<DescriptorPool> descriptor_pool;
   std::unique_ptr<SwapChain> swap_chain;
@@ -38,6 +40,7 @@ struct VulkanInitializationInfo {
   std::shared_ptr<VulkanTexturePool> texture_pool;
   std::shared_ptr<VulkanLoader> loader;
   VkCommandBuffer render_command_buffer;
+  GameVersion m_version;
 };
 
 /*!
@@ -51,6 +54,9 @@ class BucketVulkanRenderer {
         m_vulkan_info(vulkan_info) {
     GraphicsPipelineLayout graphicsPipelineLayout{m_device};
     graphicsPipelineLayout.defaultPipelineConfigInfo(m_pipeline_config_info);
+
+    m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
+    m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
     m_pipeline_layouts.resize(1, m_device);
   }
 
@@ -64,6 +70,12 @@ class BucketVulkanRenderer {
 
   VulkanInitializationInfo& m_vulkan_info;
 
+  struct PushConstant {
+    float height_scale;
+    float scissor_adjust;
+  };
+
+  PushConstant m_push_constant;
   std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
   PipelineConfigInfo m_pipeline_config_info;
 

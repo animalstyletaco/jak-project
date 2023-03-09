@@ -1,13 +1,15 @@
 #include "Tfrag3.h"
 
 #include "third-party/imgui/imgui.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
                            VulkanInitializationInfo& vulkan_info)
     : m_device(device), m_vulkan_info(vulkan_info) {
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_debug_pipeline_config_info);
+  
+  m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
+  m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
 
   InitializeInputVertexAttribute();
   initialize_debug_pipeline();
@@ -19,11 +21,14 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   m_time_of_day_color_uniform_buffer =
       std::make_unique<BackgroundCommonFragmentUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
 
+  m_time_of_day_uniform_buffer = std::make_unique<UniformVulkanBuffer>(
+      device, background_common::TIME_OF_DAY_COLOR_COUNT * sizeof(u32),
+      background_common::TIME_OF_DAY_COLOR_COUNT);
+
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT,
-                      background_common::TIME_OF_DAY_COLOR_COUNT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
@@ -48,13 +53,17 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
 
   m_vertex_shader_buffer_descriptor_info =
       VkDescriptorBufferInfo{m_vertex_shader_uniform_buffer->getBuffer(), 0,
-                             sizeof(BackgroundCommonVertexUniformShaderData)};
+                             m_vertex_shader_uniform_buffer->getAlignmentSize()};
+  m_vertex_time_of_day_buffer_descriptor_info =
+      VkDescriptorBufferInfo{m_time_of_day_color_uniform_buffer->getBuffer(), 0,
+                             m_time_of_day_color_uniform_buffer->getAlignmentSize()};
   m_fragment_buffer_descriptor_info =
       VkDescriptorBufferInfo{m_time_of_day_color_uniform_buffer->getBuffer(), 0,
-                             sizeof(BackgroundCommonVertexUniformShaderData)};
+                             m_time_of_day_color_uniform_buffer->getAlignmentSize()};
 
   m_descriptor_sets.resize(2);
   m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_shader_buffer_descriptor_info)
+      .writeBuffer(1, &m_vertex_time_of_day_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
   m_vertex_descriptor_writer->writeImage(
       1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
@@ -64,28 +73,17 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   m_fragment_descriptor_writer->writeImage(
       1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
 
-    // TODO: Should move this to background_common
-  m_time_of_day_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
-  m_time_of_day_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
-
   m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
   m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
-
-  m_time_of_day_placeholder_descriptor_image_info =
-      vulkan_background_common::create_placeholder_descriptor_image_info(
-          m_time_of_day_placeholder_texture, m_time_of_day_placeholder_sampler, VK_IMAGE_TYPE_1D);
 
   m_placeholder_descriptor_image_info =
       vulkan_background_common::create_placeholder_descriptor_image_info(
           m_placeholder_texture, m_placeholder_sampler, VK_IMAGE_TYPE_2D);
 
-  m_time_of_day_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   m_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
-
   m_time_of_day_samplers.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {device});
 
   for (uint32_t i = 0; i < background_common::TIME_OF_DAY_COLOR_COUNT; i++) {
-    m_time_of_day_descriptor_image_infos[i] = m_time_of_day_placeholder_descriptor_image_info;
     m_descriptor_image_infos[i] = m_placeholder_descriptor_image_info;
   }
 }
@@ -213,15 +211,6 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
             m_device, sizeof(tfrag3::PreloadedVertex), verts, 1);
         tree_cache.index_buffer = std::make_unique<IndexBuffer>(m_device, sizeof(u32),
                                                                 tree.unpacked.indices.size(), 1);
-
-        tree_cache.time_of_day_texture = std::make_unique<VulkanTexture>(m_device);
-        tree_cache.time_of_day_texture->createImage(
-            {background_common::TIME_OF_DAY_COLOR_COUNT, 1, 1}, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT,
-            VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-
-        tree_cache.time_of_day_texture->createImageView(
-            VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_ASPECT_COLOR_BIT, 1);
       }
     }
   }
@@ -499,7 +488,7 @@ void Tfrag3Vulkan::create_pipeline_layout() {
 
   std::array<VkPushConstantRange, 2> pushConstantRanges;
   pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(int);
+  pushConstantRanges[0].size = sizeof(PushConstant);
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   pushConstantRanges[1].offset = pushConstantRanges[0].size;
@@ -518,24 +507,16 @@ void Tfrag3Vulkan::create_pipeline_layout() {
 void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
   m_time_of_day_samplers.at(index).CreateSampler();
 
-  m_time_of_day_descriptor_image_infos[index] = VkDescriptorImageInfo{
-      m_time_of_day_samplers.at(index).GetSampler(), tree.time_of_day_texture->getImageView(),
-      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
   m_descriptor_image_infos[index] = VkDescriptorImageInfo{
       m_time_of_day_samplers.at(index).GetSampler(), m_textures->at(index).getImageView(),
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
-  auto& vertex_write_descriptors_sets = m_vertex_descriptor_writer->getWriteDescriptorSets();
-  vertex_write_descriptors_sets[1] = m_vertex_descriptor_writer->writeImageDescriptorSet(
-      1, m_time_of_day_descriptor_image_infos.data(), m_time_of_day_descriptor_image_infos.size());
 
   auto& fragment_write_descriptors_sets = m_fragment_descriptor_writer->getWriteDescriptorSets();
 
   fragment_write_descriptors_sets[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
       1, m_descriptor_image_infos.data(), m_descriptor_image_infos.size());
 
-  m_vertex_descriptor_writer->overwrite(m_descriptor_sets[0]);
+  //m_vertex_descriptor_writer->overwrite(m_descriptor_sets[0]);
   m_fragment_descriptor_writer->overwrite(m_descriptor_sets[1]);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
@@ -547,14 +528,17 @@ void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
+  m_push_constant.index = index;
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(index), (void*)&index);
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant), (void*)&m_push_constant);
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(index), sizeof(index), (void*)&index);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant), sizeof(index),
+                     (void*)&index);
 
-  std::array<uint32_t, 2> dynamicDescriptorOffsets = {
-      index * sizeof(BackgroundCommonVertexUniformShaderData),
-      index * sizeof(BackgroundCommonFragmentUniformShaderData)};
+  std::array<uint32_t, 3> dynamicDescriptorOffsets = {
+      index * m_vertex_shader_uniform_buffer->getAlignmentSize(),
+      index * m_time_of_day_uniform_buffer->getAlignmentSize(),
+      index * m_time_of_day_color_uniform_buffer->getAlignmentSize()};
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),

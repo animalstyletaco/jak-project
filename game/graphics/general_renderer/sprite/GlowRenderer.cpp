@@ -313,6 +313,7 @@ void BaseGlowRenderer::add_sprite_pass_3(const SpriteGlowOutput& data, int sprit
 void BaseGlowRenderer::draw_debug_window() {
   ImGui::Checkbox("Show Probes", &m_debug.show_probes);
   ImGui::Checkbox("Show Copy", &m_debug.show_probe_copies);
+  ImGui::SliderFloat("Boost Glow", &m_debug.glow_boost, 0, 10);
   ImGui::Text("Count: %d", m_debug.num_sprites);
 }
 

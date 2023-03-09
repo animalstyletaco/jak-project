@@ -27,7 +27,8 @@ std::unique_ptr<DescriptorLayout> DescriptorLayout::Builder::build() const {
 
 DescriptorLayout::DescriptorLayout(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
-    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings)
+    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings,
+    VkDescriptorSetLayoutCreateFlags descriptor_layout_create_flag)
     : m_device{device}, m_bindings{bindings} {
   std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings{};
   for (auto kv : m_bindings) {
@@ -36,6 +37,7 @@ DescriptorLayout::DescriptorLayout(
 
   VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{};
   descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+  descriptorSetLayoutInfo.flags = descriptor_layout_create_flag;
   descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
   descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
 
@@ -44,6 +46,7 @@ DescriptorLayout::DescriptorLayout(
     throw std::runtime_error("failed to create descriptor set layout!");
   }
 }
+
 
 DescriptorLayout::~DescriptorLayout() {
   vkDestroyDescriptorSetLayout(m_device->getLogicalDevice(), m_descriptor_set_layout, nullptr);
@@ -159,6 +162,24 @@ VkWriteDescriptorSet DescriptorWriter::writeImageDescriptorSet(uint32_t binding,
   return write;
 }
 
+VkWriteDescriptorSet DescriptorWriter::writeBufferViewDescriptorSet(uint32_t binding,
+                                                                VkBufferView* bufferViews,
+                                                                uint32_t bufferViewCount) const {
+  assert(m_set_layout->m_bindings.count(binding) == 1 &&
+         "Layout does not contain specified binding");
+
+  auto& bindingDescription = m_set_layout->m_bindings[binding];
+
+  VkWriteDescriptorSet write{};
+  write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+  write.descriptorType = bindingDescription.descriptorType;
+  write.dstBinding = binding;
+  write.pTexelBufferView = bufferViews;
+  write.descriptorCount = bufferViewCount;
+
+  return write;
+}
+
 DescriptorWriter& DescriptorWriter::writeBuffer(uint32_t binding,
                                                 VkDescriptorBufferInfo* bufferInfo,
                                                 uint32_t bufferInfoCount) {
@@ -170,6 +191,13 @@ DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding,
                                                VkDescriptorImageInfo* imageInfo,
                                                uint32_t imageInfoCount) {
   m_writes.push_back(writeImageDescriptorSet(binding, imageInfo, imageInfoCount));
+  return *this;
+}
+
+DescriptorWriter& DescriptorWriter::writeBufferView(uint32_t binding,
+                                                    VkBufferView* bufferViews,
+                                                    uint32_t bufferViewCount) {
+  m_writes.push_back(writeBufferViewDescriptorSet(binding, bufferViews, bufferViewCount));
   return *this;
 }
 

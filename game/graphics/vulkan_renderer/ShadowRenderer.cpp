@@ -78,6 +78,14 @@ void ShadowVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
+  VkPushConstantRange pushConstantRange = {};
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(m_push_constant.scissor_adjust);
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
+
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
@@ -106,6 +114,9 @@ ShadowVulkanRenderer::~ShadowVulkanRenderer() {
 void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   u32 draw_idx = 0;
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.scissor_adjust),
+                     (void*)&m_push_constant.scissor_adjust);
 
   u32 clear_vertices = m_next_vertex;
   m_vertices[m_next_vertex++] = Vertex{math::Vector3f(0.3, 0.3, 0), 0};

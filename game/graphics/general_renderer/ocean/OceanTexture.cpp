@@ -1,6 +1,7 @@
 #include "OceanTexture.h"
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
+#include "game/graphics/general_renderer/ocean/CommonOceanRenderer.h"
 
 #include "third-party/imgui/imgui.h"
 

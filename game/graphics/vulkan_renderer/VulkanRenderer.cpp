@@ -91,12 +91,14 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
   createCommandBuffers();
 
   m_extents = {640, 480};
-  recreateSwapChain();
+  recreateSwapChain(false);
 
   //May be overkill for descriptor pool
   std::vector<VkDescriptorPoolSize> poolSizes = {
     {VK_DESCRIPTOR_TYPE_SAMPLER, 100},
     {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100000},
+    {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 100},
+    {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 100},
     {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 10000},
     {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
     {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10000},
@@ -596,7 +598,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
                                        0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("screen-filter", BucketCategory::OTHER,
                                              BucketId::SCREEN_FILTER, m_device, m_vulkan_info,
-                                             0x8000);
+                                             256);
   init_bucket_renderer<DirectVulkanRenderer>("bucket-322", BucketCategory::OTHER, BucketId::BUCKET_322, m_device, m_vulkan_info,
                                        0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("debug2", BucketCategory::OTHER, BucketId::DEBUG2,
@@ -752,6 +754,7 @@ void VulkanRenderer::setup_frame(const RenderOptions& settings) {
   bool window_changed = m_vulkan_info.swap_chain->width() != settings.window_framebuffer_width ||
                         m_vulkan_info.swap_chain->height() != settings.window_framebuffer_height;
   bool msaa_changed = (m_device->getMsaaCount() != settings.msaa_samples);
+  bool vsync_changed = false; //FIXME
 
   bool isValidWindow = true;
 
@@ -764,8 +767,8 @@ void VulkanRenderer::setup_frame(const RenderOptions& settings) {
     m_device->setMsaaCount((VkSampleCountFlagBits)settings.msaa_samples);
   }
 
-  if (msaa_changed || window_changed) {
-    recreateSwapChain();
+  if (msaa_changed || window_changed || vsync_changed) {
+    recreateSwapChain(settings.gpu_sync);
   }
 
   ASSERT_MSG(settings.game_res_w > 0 && settings.game_res_h > 0,
@@ -886,7 +889,7 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
 
     auto bucket_prof = prof.make_scoped_child(renderer->name_and_id());
     g_current_render = renderer->name_and_id();
-    // lg::info("Render: {} start", g_current_render);
+    lg::info("Render: {} start", g_current_render);
     graphics_renderer->render(dma, &m_render_state, bucket_prof);
     if (sync_after_buckets) {
       auto pp = scoped_prof("finish");
@@ -1058,17 +1061,18 @@ void VulkanRenderer::createCommandBuffers() {
   }
 }
 
-void VulkanRenderer::recreateSwapChain() {
+void VulkanRenderer::recreateSwapChain(bool vsyncEnabled) {
   while (m_extents.width == 0 || m_extents.height == 0) {
     glfwWaitEvents();
   }
   vkDeviceWaitIdle(m_device->getLogicalDevice());
 
   if (m_vulkan_info.swap_chain == nullptr) {
-    m_vulkan_info.swap_chain = std::make_unique<SwapChain>(m_device, m_extents);
+    m_vulkan_info.swap_chain = std::make_unique<SwapChain>(m_device, m_extents, vsyncEnabled);
   } else {
     std::shared_ptr<SwapChain> oldSwapChain = std::move(m_vulkan_info.swap_chain);
-    m_vulkan_info.swap_chain = std::make_unique<SwapChain>(m_device, m_extents, oldSwapChain);
+    m_vulkan_info.swap_chain =
+        std::make_unique<SwapChain>(m_device, m_extents, vsyncEnabled, oldSwapChain);
 
     if (!oldSwapChain->compareSwapFormats(*m_vulkan_info.swap_chain.get())) {
       throw std::runtime_error("Swap chain image(or depth) format has changed!");
@@ -1081,7 +1085,7 @@ VkCommandBuffer VulkanRenderer::beginFrame() {
 
   auto result = m_vulkan_info.swap_chain->acquireNextImage(&currentImageIndex);
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-    recreateSwapChain();
+    recreateSwapChain(false);
     return nullptr;
   }
 

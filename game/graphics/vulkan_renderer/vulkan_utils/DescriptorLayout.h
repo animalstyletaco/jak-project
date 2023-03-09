@@ -21,7 +21,8 @@ class DescriptorLayout {
   };
 
   DescriptorLayout(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                   std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings);
+                   std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings,
+                   VkDescriptorSetLayoutCreateFlags flags = 0);
   ~DescriptorLayout();
   DescriptorLayout(const DescriptorLayout&) = delete;
   DescriptorLayout& operator=(const DescriptorLayout&) = delete;
@@ -81,10 +82,15 @@ class DescriptorWriter {
  public:
   DescriptorWriter(std::unique_ptr<DescriptorLayout>& setLayout, std::unique_ptr<DescriptorPool>& pool);
 
-  VkWriteDescriptorSet writeBufferDescriptorSet (uint32_t binding, VkDescriptorBufferInfo* bufferInfo, uint32_t bufferInfoCount = 1) const;
+  VkWriteDescriptorSet writeBufferDescriptorSet(uint32_t binding,
+                                                VkDescriptorBufferInfo* bufferInfo,
+                                                uint32_t bufferInfoCount = 1) const;
   VkWriteDescriptorSet writeImageDescriptorSet(uint32_t binding,
                                  VkDescriptorImageInfo* imageInfo,
                                  uint32_t imageInfoCount = 1) const;
+  VkWriteDescriptorSet writeBufferViewDescriptorSet(uint32_t binding,
+                                                    VkBufferView* bufferView,
+                                                    uint32_t bufferViewCount) const;
 
   DescriptorWriter& writeBuffer(uint32_t binding,
                                 VkDescriptorBufferInfo* bufferInfo,
@@ -92,6 +98,10 @@ class DescriptorWriter {
   DescriptorWriter& writeImage(uint32_t binding,
                                VkDescriptorImageInfo* imageInfo,
                                uint32_t imageInfoCount = 1);
+  DescriptorWriter& writeBufferView(uint32_t binding,
+                                VkBufferView* bufferView,
+                                uint32_t bufferViewCount = 1);
+
 
   bool build(VkDescriptorSet& set);
   void overwrite(VkDescriptorSet& set);

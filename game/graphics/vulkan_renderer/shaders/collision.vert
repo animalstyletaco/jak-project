@@ -26,6 +26,11 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
 
 layout (location = 0) out vec4 fragment_color;
 
+layout(push_constant) uniform PER_OBJECT
+{
+	layout(offset = 0) float scissor_adjust;
+}pc;
+
 const int MODE_NONE = 0;
 const int MODE_MODE = 1;
 const int MODE_EVENT = 2;
@@ -70,7 +75,7 @@ void main() {
 
     gl_Position = transformed;
     // scissoring area adjust
-    gl_Position.y *= 512.0/448.0;
+    gl_Position.y *= pc.scissor_adjust;
 
     // wireframe check
     if (ubo.wireframe == 0) {

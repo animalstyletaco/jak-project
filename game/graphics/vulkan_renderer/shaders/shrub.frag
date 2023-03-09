@@ -1,4 +1,5 @@
 #version 430 core
+#extension GL_EXT_nonuniform_qualifier : enable
 
 layout (location = 0) out vec4 color;
 
@@ -8,7 +9,7 @@ layout (location = 2) in float fogginess;
 
 layout(push_constant) uniform PER_OBJECT
 {
-	layout (offset = 4) int textureIndex;
+	layout (offset = 12) int textureIndex;
 }pc;
 
 layout (set = 1, binding = 0) uniform UniformBufferObject {
@@ -17,11 +18,10 @@ layout (set = 1, binding = 0) uniform UniformBufferObject {
   vec4 fog_color;
 } ubo;
 
-const int TIME_OF_DAY_COLORS = 8192;
-layout (set = 1, binding = 1) uniform sampler2D tex_T0[TIME_OF_DAY_COLORS];
+layout (set = 1, binding = 1) uniform sampler2D textures[];
 
 void main() {
-    vec4 T0 = texture(tex_T0[pc.textureIndex], tex_coord.xy / 4096.f);
+    vec4 T0 = texture(textures[nonuniformEXT(pc.textureIndex)], tex_coord.xy / 4096.f);
     color = fragment_color * T0;
 
     if (color.a < ubo.alpha_min || color.a > ubo.alpha_max) {

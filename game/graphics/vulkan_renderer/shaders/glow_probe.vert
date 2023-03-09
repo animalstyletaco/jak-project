@@ -8,6 +8,7 @@ layout (location = 0) out vec4 fragment_color;
 layout(push_constant) uniform PER_OBJECT
 {
 	layout(offset = 0) float height_scale;
+  layout(offset = 4) float scissor_adjust;
 }pc;
 
 void main() {
@@ -19,7 +20,7 @@ void main() {
   transformed.y /= -(128);
   transformed.xyz *= transformed.w;
   // scissoring area adjust
-  transformed.y *= pc.height_scale;
+  transformed.y *= pc.height_scale * pc.scissor_adjust;
   gl_Position = transformed;
 
   fragment_color = rgba_in;

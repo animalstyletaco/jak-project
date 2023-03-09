@@ -305,10 +305,10 @@ UniformVulkanBuffer::UniformVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& 
                                          uint32_t instanceCount,
                                          VkDeviceSize minOffsetAlignment)
     : UniformBuffer(instanceSize), VulkanBuffer(device, instanceSize, instanceCount,
-                   VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                   VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
-                   minOffsetAlignment) {
-}
+                   device->getMinimumBufferOffsetAlignment(minOffsetAlignment)) {}
 
 
 void UniformVulkanBuffer::SetDataInVkDeviceMemory(uint32_t memory_offset,
@@ -317,7 +317,7 @@ void UniformVulkanBuffer::SetDataInVkDeviceMemory(uint32_t memory_offset,
                                                   uint32_t flags) {
   map(value_size, memory_offset);
   writeToCpuBuffer(value, value_size, memory_offset);
-  //flush(value_size, memory_offset);
+  //TODO: Add flush function here
   unmap();
 }
 
@@ -328,6 +328,54 @@ uint32_t UniformVulkanBuffer::GetDeviceMemoryOffset(const char* name) {
   }
   return 0;
 }
+
+TexelVulkanBuffer::TexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                     VkDeviceSize instanceSize,
+                                     uint32_t instanceCount,
+                                     VkBufferUsageFlagBits bufferUsage,
+                                     VkDeviceSize minOffsetAlignment)
+    : VulkanBuffer(device,
+                   instanceSize,
+                   instanceCount,
+                   bufferUsage,
+                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                   device->getMinimumBufferOffsetAlignment(minOffsetAlignment)) {
+  m_buffer_view_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
+  m_buffer_view_create_info.buffer = buffer;
+  m_buffer_view_create_info.offset = 0;
+  m_buffer_view_create_info.range = instanceSize;
+}
+
+void TexelVulkanBuffer::CreateBufferView() {
+  vkCreateBufferView(m_device->getLogicalDevice(), &m_buffer_view_create_info, nullptr, &m_buffer_view);
+}
+
+TexelVulkanBuffer::~TexelVulkanBuffer() {
+  if (m_buffer_view) {
+    vkDestroyBufferView(m_device->getLogicalDevice(), m_buffer_view, nullptr);
+    m_buffer_view = VK_NULL_HANDLE;
+  }
+}
+
+UniformTexelVulkanBuffer::UniformTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                   VkDeviceSize instanceSize,
+                                                   uint32_t instanceCount,
+                                                   VkDeviceSize minOffsetAlignment)
+    : TexelVulkanBuffer(device,
+                   instanceSize,
+                   instanceCount,
+                   VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT,
+                   device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
+
+StorageTexelVulkanBuffer::StorageTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                   VkDeviceSize instanceSize,
+                                                   uint32_t instanceCount,
+                                                   VkDeviceSize minOffsetAlignment)
+    : TexelVulkanBuffer(device,
+                        instanceSize,
+                        instanceCount,
+                        VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT,
+                        device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
 
 MultiDrawVulkanBuffer::MultiDrawVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                          uint32_t instanceCount,

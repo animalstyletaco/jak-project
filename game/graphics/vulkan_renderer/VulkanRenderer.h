@@ -10,7 +10,6 @@
 #include "game/graphics/vulkan_renderer/CollideMeshRenderer.h"
 #include "game/graphics/general_renderer/Profiler.h"
 #include "game/graphics/vulkan_renderer/Shader.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/vulkan_renderer/FullScreenDraw.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
 #include "game/tools/subtitles/subtitle_editor.h"
@@ -99,7 +98,7 @@ class VulkanRenderer {
 
   void createCommandBuffers();
   void freeCommandBuffers();
-  void recreateSwapChain();
+  void recreateSwapChain(bool vsyncEnabled);
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::vector<VkCommandBuffer> commandBuffers;

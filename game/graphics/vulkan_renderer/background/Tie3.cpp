@@ -1,7 +1,6 @@
 #include "Tie3.h"
 
 #include "third-party/imgui/imgui.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 Tie3Vulkan::Tie3Vulkan(const std::string& name,
                        int my_id,
@@ -10,20 +9,28 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
                        int level_id)
     : BaseTie3(name, my_id, level_id),
       BucketVulkanRenderer(device, vulkan_info) {
+  m_push_constant_tie.height_scale = m_push_constant.height_scale;
+  m_push_constant_tie.scissor_adjust = m_push_constant.scissor_adjust;
+
   m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
   m_time_of_day_color_uniform_buffer = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
       device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
 
+  m_time_of_day_uniform_buffer = std::make_unique<UniformVulkanBuffer>(
+      device, sizeof(u32), background_common::TIME_OF_DAY_COLOR_COUNT *
+      background_common::TIME_OF_DAY_COLOR_COUNT);
+
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT, background_common::TIME_OF_DAY_COLOR_COUNT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, background_common::TIME_OF_DAY_COLOR_COUNT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
+                      background_common::TIME_OF_DAY_COLOR_COUNT)
           .build();
 
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
@@ -35,26 +42,50 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
   m_fragment_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, vulkan_info.descriptor_pool);
 
-  m_vertex_buffer_descriptor_info =
-      VkDescriptorBufferInfo{m_vertex_shader_uniform_buffer->getBuffer(), 0,
-                             sizeof(BackgroundCommonVertexUniformShaderData)};
-  m_fragment_buffer_descriptor_info =
-      VkDescriptorBufferInfo{m_time_of_day_color_uniform_buffer->getBuffer(), 0,
-                             sizeof(BackgroundCommonVertexUniformShaderData)};
+  m_vertex_buffer_descriptor_info = VkDescriptorBufferInfo{
+      m_vertex_shader_uniform_buffer->getBuffer(), 0,
+      m_vertex_shader_uniform_buffer->getAlignmentSize()};
+  m_time_of_day_descriptor_info =
+      VkDescriptorBufferInfo{m_time_of_day_uniform_buffer->getBuffer(), 0,
+                             m_time_of_day_uniform_buffer->getAlignmentSize()};
+  m_fragment_buffer_descriptor_info = VkDescriptorBufferInfo{
+      m_time_of_day_color_uniform_buffer->getBuffer(), 0,
+      m_time_of_day_color_uniform_buffer->getAlignmentSize()};
 
   m_vertex_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   m_fragment_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 
-  const VkDescriptorSetLayout vertexDescriptorSetLayout =
-      m_vertex_descriptor_layout->getDescriptorSetLayout();
-  const VkDescriptorSetLayout fragmentDescriptorSetLayout =
-      m_fragment_descriptor_layout->getDescriptorSetLayout();
+  m_descriptor_sets.resize(2);
+  m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_buffer_descriptor_info)
+      .writeBuffer(1, &m_time_of_day_descriptor_info)
+      .build(m_descriptor_sets[0]);
+  m_vertex_descriptor_writer->writeImage(
+      1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+
+  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
+      .build(m_descriptor_sets[1]);
+  m_fragment_descriptor_writer->writeImage(
+      1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
 
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
   m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   InitializeInputAttributes();
+
+  m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
+  m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
+
+  m_placeholder_descriptor_image_info =
+      vulkan_background_common::create_placeholder_descriptor_image_info(
+          m_placeholder_texture, m_placeholder_sampler, VK_IMAGE_TYPE_2D);
+
+  m_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
+  m_time_of_day_samplers.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {device});
+
+  for (uint32_t i = 0; i < background_common::TIME_OF_DAY_COLOR_COUNT; i++) {
+    m_descriptor_image_infos[i] = m_placeholder_descriptor_image_info;
+  }
 }
 
 Tie3Vulkan::~Tie3Vulkan() {
@@ -69,21 +100,26 @@ void Tie3Vulkan::render(DmaFollower& dma,
 
 void Tie3Vulkan::create_pipeline_layout() {
   // If push constants are needed put them here
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{m_vertex_descriptor_layout->getDescriptorSetLayout(),
-                                                          m_fragment_descriptor_layout->getDescriptorSetLayout()};
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_vertex_descriptor_layout->getDescriptorSetLayout(),
+      m_fragment_descriptor_layout->getDescriptorSetLayout()};
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VkPushConstantRange pushConstantRange = {};
-  pushConstantRange.offset = 0;
-  pushConstantRange.size = sizeof(int);
-  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  std::array<VkPushConstantRange, 2> pushConstantRanges;
+  pushConstantRanges[0].offset = 0;
+  pushConstantRanges[0].size = sizeof(m_push_constant_tie);
+  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
+  pushConstantRanges[1].offset = pushConstantRanges[0].size;
+  pushConstantRanges[1].size = sizeof(int);
+  pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
+  pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
@@ -353,18 +389,9 @@ void Tie3Vulkan::render_tree(int idx,
 
   Timer setup_timer;
 
-  VulkanTexture timeOfDayTexture{m_device};
-  VkDeviceSize size = m_color_result.size() * sizeof(m_color_result[0]);
-
-  VkExtent3D extents{tree.colors->size(), 1, 1};
-  timeOfDayTexture.createImage(extents, 1, VK_IMAGE_TYPE_1D, VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
-                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-  timeOfDayTexture.createImageView(VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
-                                   VK_IMAGE_ASPECT_COLOR_BIT, 1);
-
-  timeOfDayTexture.writeToImage(m_color_result.data());
+  m_time_of_day_uniform_buffer->writeToGpuBuffer(
+      m_color_result.data(), sizeof(m_color_result[0]) * m_color_result.size(),
+      idx * m_time_of_day_uniform_buffer->getAlignmentSize());
 
   // setup Vulkan shader
   vulkan_background_common::first_tfrag_draw_setup(settings, render_state, m_vertex_shader_uniform_buffer);
@@ -572,4 +599,45 @@ void Tie3Vulkan::InitializeInputAttributes() {
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
+}
+
+void Tie3Vulkan::PrepareVulkanDraw(Tree& tree, int index) {
+  m_descriptor_image_infos[index] = VkDescriptorImageInfo{
+      m_time_of_day_samplers.at(index).GetSampler(), m_textures->at(index).getImageView(),
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+  auto& fragment_write_descriptors_sets = m_fragment_descriptor_writer->getWriteDescriptorSets();
+
+  fragment_write_descriptors_sets[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
+      1, m_descriptor_image_infos.data(), m_descriptor_image_infos.size());
+
+  m_fragment_descriptor_writer->overwrite(m_descriptor_sets[1]);
+
+  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = tree.vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
+                       VK_INDEX_TYPE_UINT32);
+
+  m_push_constant_tie.index = index;
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant_tie),
+                     (void*)&m_push_constant_tie);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant_tie), sizeof(index),
+                     (void*)&index);
+
+  std::array<uint32_t, 2> dynamicDescriptorOffsets = {
+      index * m_device->getMinimumBufferOffsetAlignment(
+                  sizeof(BackgroundCommonVertexUniformShaderData)),
+      index * m_device->getMinimumBufferOffsetAlignment(
+                  sizeof(BackgroundCommonFragmentUniformShaderData))};
+
+  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
+                          m_descriptor_sets.data(), dynamicDescriptorOffsets.size(),
+                          dynamicDescriptorOffsets.data());
 }

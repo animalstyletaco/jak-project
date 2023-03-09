@@ -4,7 +4,7 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/ocean/OceanTexture.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/vulkan_renderer/ocean/CommonOceanRenderer.h"
 
 class OceanMipMapVertexUniformBuffer : public UniformVulkanBuffer {
@@ -68,8 +68,8 @@ class OceanVulkanTexture : public BaseOceanTexture {
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   PipelineConfigInfo m_pipeline_info;
   VulkanInitializationInfo& m_vulkan_info;
-  FramebufferVulkanTexturePair m_result_texture;
-  FramebufferVulkanTexturePair m_temp_texture;
+  FramebufferVulkanHelper m_result_texture;
+  FramebufferVulkanHelper m_temp_texture;
 
   VkSamplerCreateInfo m_sampler_create_info{};
   VkSampler m_sampler = VK_NULL_HANDLE;

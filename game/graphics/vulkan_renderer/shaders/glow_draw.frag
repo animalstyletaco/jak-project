@@ -8,9 +8,13 @@ layout (location = 2) in vec2 uv_texture;
 
 layout (set = 1, binding = 0) uniform sampler2D tex;
 
+layout(push_constant) uniform PER_OBJECT
+{
+	layout(offset = 8) float glow_boost;
+}pc;
 
 void main() {
   vec4 texture_color = texture(tex, uv_texture);
-  color.xyz = texture_color.xyz * fragment_color.xyz * 2.f * discard_flag / 128.f;
+  color.xyz = texture_color.xyz * fragment_color.xyz * 2.f * discard_flag / 128.f * pc.glow_boost;
   color.w = fragment_color.w * texture_color.w;
 }

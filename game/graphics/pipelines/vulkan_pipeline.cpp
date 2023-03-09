@@ -206,7 +206,7 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   // set up to get inputs for this window
   ImGui_ImplGlfw_InitForVulkan(window, true);
 
-  auto display = std::make_shared<VkDisplay>(window, g_vulkan_device, is_main);
+  auto display = std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer.GetSwapChain(), is_main);
   display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
   display->update_cursor_visibility(window, display->is_imgui_visible());
   // lg::debug("init display #x{:x}", (uintptr_t)display);
@@ -215,9 +215,9 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
 }
 
 VkDisplay::VkDisplay(GLFWwindow* window,
-                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                     std::unique_ptr<SwapChain>& swapChain,
                      bool is_main)
-    : m_imgui_helper(device) ,m_window(window) {
+    : m_imgui_helper(swapChain) ,m_window(window) {
   m_main = is_main;
 
   // Get initial state
@@ -802,7 +802,8 @@ void VkDisplay::render() {
   }
   {
     auto p = scoped_prof("imgui-render");
-    m_imgui_helper.Render(Gfx::g_global_settings.game_res_w, Gfx::g_global_settings.game_res_h);
+    m_imgui_helper.Render(Gfx::g_global_settings.game_res_w, Gfx::g_global_settings.game_res_h,
+                          g_gfx_data->vulkan_renderer.GetSwapChain());
   }
 
   // actual vsync
@@ -956,5 +957,5 @@ const GfxRendererModule gRendererVulkan = {
     vk_set_levels,          // set_levels
     vk_set_pmode_alp,       // set_pmode_alp
     GfxPipeline::Vulkan,    // pipeline
-    "Vulkan 1.3"            // name
+    "Vulkan 1.2"            // name
 };

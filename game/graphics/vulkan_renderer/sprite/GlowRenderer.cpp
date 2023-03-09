@@ -69,7 +69,7 @@ GlowVulkanRenderer::GlowVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& de
   InitializeGlowProbeDownsampleInputAttributes();
 
   //TODO: Figure out how to implement GL_DEPTH_COMPONENT24 in swap chain
-  m_ogl.probe_fbo = std::make_unique<SwapChain>(m_device, VkExtent2D{m_ogl.probe_fbo_w, m_ogl.probe_fbo_h});
+  //m_ogl.probe_fbo = std::make_unique<SwapChain>(m_device, VkExtent2D{m_ogl.probe_fbo_w, m_ogl.probe_fbo_h});
 
   // downsample fbo setup: each will hold a grid of probes.
   // there's one fbo for each size.
@@ -377,7 +377,7 @@ void GlowVulkanRenderer::blit_depth(BaseSharedRenderState* render_state) {
 
     //TODO: Recreate swap chain here
     m_ogl.probe_fbo =
-        std::make_unique<SwapChain>(m_device, VkExtent2D{m_ogl.probe_fbo_w, m_ogl.probe_fbo_h});
+        std::make_unique<SwapChain>(m_device, VkExtent2D{m_ogl.probe_fbo_w, m_ogl.probe_fbo_h}, false);
 
     m_ogl.probe_fbo_rgba_tex->createImage(
         {m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, 1}, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UINT,
@@ -529,6 +529,8 @@ void GlowVulkanRenderer::draw_sprites(BaseSharedRenderState* render_state, Scope
   VkPipelineInputAssemblyStateCreateInfo& inputAssembly = m_pipeline_config_info.inputAssemblyInfo;
   inputAssembly.primitiveRestartEnable = VK_TRUE;
 
+  SwitchToShader(ShaderId::GLOW_DRAW);
+
   auto& sampler_create_info = m_ogl.downsample_fbos[kDownsampleIterations - 1].sampler->GetSamplerCreateInfo();
 
   sampler_create_info.minFilter = VK_FILTER_LINEAR;
@@ -553,6 +555,10 @@ void GlowVulkanRenderer::draw_sprites(BaseSharedRenderState* render_state, Scope
 
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+
+  //vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  //                 VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float),
+  //                 (void*)&m_debug.glow_boost);
 
   for (u32 i = 0; i < m_next_sprite; i++) {
     const auto& record = m_sprite_records[i];

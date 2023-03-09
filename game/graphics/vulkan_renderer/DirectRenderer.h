@@ -73,10 +73,6 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
     float alpha_mult = 1.0;
   } m_ogl;
 
-  struct PushConstant {
-    float height_scale = 0;
-  } m_push_constant;
-
   std::array<VkVertexInputAttributeDescription, 1> debugRedAttributeDescriptions{};
   std::array<VkVertexInputAttributeDescription, 2> directBasicAttributeDescriptions{};
   std::array<VkVertexInputAttributeDescription, 4> directBasicTexturedAttributeDescriptions{};

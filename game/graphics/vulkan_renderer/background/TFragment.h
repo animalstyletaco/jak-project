@@ -33,41 +33,6 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
 
   int tfrag3_lod() override;
 
-  bool m_child_mode = false;
-  bool m_override_time_of_day = false;
-  float m_time_of_days[8] = {1, 0, 0, 0, 0, 0, 0, 0};
-
-  // GS setup data
-  u8 m_test_setup[32];
-
-  // VU data
-  TFragData m_tfrag_data;
-
-  TfragPcPortData m_pc_port_data;
-
-  // buffers
-  TFragBufferedData m_buffered_data[2];
-
-  enum TFragDataMem {
-    Buffer0_Start = 0,
-    TFragMatrix0 = 5,
-
-    Buffer1_Start = 328,
-    TFragMatrix1 = TFragMatrix0 + Buffer1_Start,
-
-    TFragFrameData = 656,
-    TFragKickZoneData = 670,
-  };
-
-  enum TFragProgMem {
-    TFragSetup = 0,
-  };
-
   std::unique_ptr<Tfrag3Vulkan> m_tfrag3;
-  std::vector<tfrag3::TFragmentTreeKind> m_tree_kinds;
-  int m_level_id;
-
-  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
-  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color;
 };
 

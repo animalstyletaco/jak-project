@@ -5,7 +5,6 @@
 #include "game/graphics/general_renderer/ocean/OceanMidAndFar.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanTexture.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanMid.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 
 /*!
  * OceanMidAndFar is the handler for the first ocean bucket.

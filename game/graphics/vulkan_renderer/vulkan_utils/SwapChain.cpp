@@ -1,25 +1,25 @@
 #include "SwapChain.h"
 #include <stdexcept>
 
-SwapChain::SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef, VkExtent2D extent)
+SwapChain::SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef, VkExtent2D extent, bool vsyncEnabled)
     : device{deviceRef}, windowExtent{extent}, m_render_pass_sample{deviceRef->getMsaaCount()} {
-  init();
+  init(vsyncEnabled);
 }
 
 SwapChain::SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef,
-                     VkExtent2D extent,
+                     VkExtent2D extent, bool vsyncEnabled,
                      std::shared_ptr<SwapChain> previous)
     : device{deviceRef},
       windowExtent{extent},
       oldSwapChain{previous},
       m_render_pass_sample{deviceRef->getMsaaCount()} {
-  init();
+  init(vsyncEnabled);
   oldSwapChain = nullptr;
 }
 
-void SwapChain::init() {
+void SwapChain::init(bool vsyncEnabled) {
   m_render_pass_sample = device->getMsaaCount();
-  createSwapChain();
+  createSwapChain(vsyncEnabled);
   createImageViews();
   createRenderPass();
   createColorResources();
@@ -108,7 +108,7 @@ VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_
   return result;
 }
 
-void SwapChain::createSwapChain() {
+void SwapChain::createSwapChain(bool vsyncEnabled) {
   if (swapChain) {
     vkDestroySwapchainKHR(device->getLogicalDevice(), swapChain, nullptr);
   }
@@ -116,7 +116,9 @@ void SwapChain::createSwapChain() {
   SwapChainSupportDetails swapChainSupport = device->getSwapChainSupport();
 
   VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
-  VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+  VkPresentModeKHR presentMode = chooseSwapPresentMode(
+      swapChainSupport.presentModes,
+      (vsyncEnabled) ? VK_PRESENT_MODE_FIFO_KHR : VK_PRESENT_MODE_MAILBOX_KHR);
 
   uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
   if (swapChainSupport.capabilities.maxImageCount > 0 &&
@@ -404,9 +406,9 @@ VkSurfaceFormatKHR SwapChain::chooseSwapSurfaceFormat(
 }
 
 VkPresentModeKHR SwapChain::chooseSwapPresentMode(
-    const std::vector<VkPresentModeKHR>& availablePresentModes) {
+    const std::vector<VkPresentModeKHR>& availablePresentModes, VkPresentModeKHR presentMode) {
   for (const auto& availablePresentMode : availablePresentModes) {
-    if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+    if (availablePresentMode == presentMode) {
       lg::info("Present mode: Mailbox");
       return availablePresentMode;
     }

@@ -3,8 +3,6 @@
 #include "game/common/vu.h"
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DirectRenderer.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
-#include "game/graphics/vulkan_renderer/ocean/CommonOceanRenderer.h"
 
 class BaseOceanTexture {
  public:

@@ -4,6 +4,9 @@ CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDev
     : m_device(device), m_vulkan_info{vulkan_info} {
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
 
+  m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
+  m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
+
   InitializeVertexInputAttributes();
   InitializeShaders();
 
@@ -387,9 +390,10 @@ void CommonOceanVulkanRenderer::FinalizeVulkanDraw(OceanVulkanGraphicsHelper& oc
   m_push_constant.bucket = bucket;
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstant), (void*)&m_push_constant);
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant), (void*)&m_push_constant);
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, 8, sizeof(int), (void*)&bucket);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant), sizeof(int),
+                     (void*)&bucket);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 

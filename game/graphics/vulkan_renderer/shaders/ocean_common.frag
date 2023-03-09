@@ -8,7 +8,7 @@ layout (location = 2) in float fog;
 
 layout(push_constant) uniform PER_OBJECT
 {
-	layout (offset = 8) int bucket;
+	layout (offset = 12) int bucket;
 }pc;
 
 layout (set = 0, binding = 0) uniform UniformBufferObject {

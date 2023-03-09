@@ -57,8 +57,15 @@ class Tfrag3Vulkan : public BaseTfrag3 {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
     std::unique_ptr<IndexBuffer> single_draw_index_buffer;
-    std::unique_ptr<VulkanTexture> time_of_day_texture;
   };
+
+  struct PushConstant {
+    float height_scale;
+    float scissor_adjust;
+    int index;
+  };
+
+  PushConstant m_push_constant;
 
   void PrepareVulkanDraw(TreeCacheVulkan& tree, int index);
 
@@ -74,6 +81,7 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
 
   VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_vertex_time_of_day_buffer_descriptor_info;
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
 
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
@@ -84,6 +92,8 @@ class Tfrag3Vulkan : public BaseTfrag3 {
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_uniform_buffer;
+  // Ideally wanted this to be a texel buffer but dynamic texel buffer is not supported in Vulkan yet
+  std::unique_ptr<UniformVulkanBuffer> m_time_of_day_uniform_buffer;
 
   std::vector<VkDescriptorSet> m_vertex_shader_descriptor_sets;
   std::vector<VkDescriptorSet> m_fragment_shader_descriptor_sets;
@@ -91,12 +101,7 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   std::unique_ptr<VertexBuffer> m_debug_vertex_buffer;
   std::vector<VkDescriptorSet> m_descriptor_sets;
 
-  std::vector<VkDescriptorImageInfo> m_time_of_day_descriptor_image_infos;
   std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
-
-  std::unique_ptr<VulkanTexture> m_time_of_day_placeholder_texture;
-  std::unique_ptr<VulkanSamplerHelper> m_time_of_day_placeholder_sampler;
-  VkDescriptorImageInfo m_time_of_day_placeholder_descriptor_image_info;
 
   std::unique_ptr<VulkanTexture> m_placeholder_texture;
   std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;

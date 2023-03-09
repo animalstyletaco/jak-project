@@ -3,8 +3,6 @@
 #include <mutex>
 
 #include "game/graphics/vulkan_renderer/background/background_common.h"
-
-#include "game/graphics/vulkan_renderer/vulkan_utils.h"
 #include "game/graphics/gfx.h"
 
 
@@ -44,13 +42,9 @@ MercVulkan2::MercVulkan2(const std::string& name,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info) :
   BaseMerc2(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
-  m_push_constant.height_scale = (vulkan_info.shaders.GetVersion() == GameVersion::Jak2) ? 0.5 : 1;
+  m_push_constant.height_scale = (vulkan_info.m_version == GameVersion::Jak2) ? 0.5 : 1;
 
-    // annoyingly, glBindBufferRange can have alignment restrictions that vary per platform.
-  // the GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT gives us the minimum alignment for views into the bone
-  // buffer. The bone buffer stores things per-16-byte "quadword".
-  //TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
-  m_graphics_buffer_alignment = 1;
+
 
   m_light_control_vertex_uniform_buffer =
       std::make_unique<MercLightControlVertexUniformBuffer>(m_device, MAX_DRAWS_PER_LEVEL, 1);
@@ -58,6 +52,23 @@ MercVulkan2::MercVulkan2(const std::string& name,
   m_perspective_matrix_vertex_uniform_buffer = std::make_unique<MercPerspectiveMatrixVertexUniformBuffer>(m_device, 1, 1);
   m_bone_vertex_uniform_buffer = std::make_unique<MercBoneVertexUniformBuffer>(device);
   m_emerc_vertex_uniform_buffer = std::make_unique<EmercVertexUniformBuffer>(device, 1, 1);
+
+  // annoyingly, glBindBufferRange can have alignment restrictions that vary per platform.
+  // the GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT gives us the minimum alignment for views into the bone
+  // buffer. The bone buffer stores things per-16-byte "quadword".
+  // TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
+  uint32_t minimum_uniform_buffer_alignment_size = m_device->getMinimumBufferOffsetAlignment();
+  if (minimum_uniform_buffer_alignment_size <= 16) {
+    // somehow doubt this can happen, but just in case
+    m_graphics_buffer_alignment = 1;
+  } else {
+    m_graphics_buffer_alignment =
+        minimum_uniform_buffer_alignment_size / 16;  // number of bone vectors
+    if (m_graphics_buffer_alignment * 16 != (u32)minimum_uniform_buffer_alignment_size) {
+      ASSERT_MSG(false, fmt::format("Vulkan uniform buffer alignment is {}, which is strange\n",
+                                    minimum_uniform_buffer_alignment_size));
+    }
+  }
 
   m_fragment_uniform_buffer = std::make_unique<MercFragmentUniformBuffer>(
       m_device, sizeof(MercUniformBufferFragmentData), 1);

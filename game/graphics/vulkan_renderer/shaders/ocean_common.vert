@@ -11,14 +11,15 @@ layout (location = 2) out float fog;
 
 layout(push_constant) uniform PER_OBJECT
 {
-	int   bucket;
+  float height_scale;
   float scissor_adjust;
+  int   bucket;
 }pc;
 
 void main() {
     gl_Position = vec4((position_in.x - 0.5) * 16., -(position_in.y - 0.5) * 32, position_in.z * 2 - 1., 1.0);
     // scissoring area adjust
-    gl_Position.y *= pc.scissor_adjust;
+    gl_Position.y *= pc.height_scale * pc.scissor_adjust;
     fragment_color = vec4(rgba_in.rgb, rgba_in.a * 2);
     tex_coord = tex_coord_in;
     fog = 255 - fog_in;

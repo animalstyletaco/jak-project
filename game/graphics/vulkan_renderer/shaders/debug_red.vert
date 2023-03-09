@@ -6,9 +6,14 @@ layout (location = 0) in vec3 position_in;
 
 layout (location = 0) out vec4 fragment_color;
 
+layout(push_constant) uniform PER_OBJECT
+{
+	layout(offset = 0) float scissor_adjust;
+}pc;
+
 void main() {
   gl_Position = vec4((position_in.x - 0.5) * 16., -(position_in.y - 0.5) * 32, position_in.z * 2 - 1., 1.0);
   // scissoring area adjust
-  gl_Position.y *= 512.0/448.0;
+  gl_Position.y *= pc.scissor_adjust;
   fragment_color = vec4(1.0, 0, 0, 0.7);
 }

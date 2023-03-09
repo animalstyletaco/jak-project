@@ -52,10 +52,7 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
                           bool hud);
   void init_shaders(VulkanShaderLibrary& shaders) override;
 
-  struct PushConstant {
-    float height_scale = 0;
-    int bucket_id = 0;
-  } m_push_constant;
+  int push_constant_bucket_id = 0;
 
   struct Vertex {
     math::Vector<float, 3> xyz;

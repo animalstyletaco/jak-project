@@ -12,6 +12,7 @@ layout (location = 2) out float discard_flag;
 layout(push_constant) uniform PER_OBJECT
 {
 	layout(offset = 0) float height_scale;
+  layout(offset = 4) float scissor_adjust;
 }pc;
 
 layout (set = 0, binding = 0) uniform sampler2D probe_tex;
@@ -26,7 +27,7 @@ void main() {
   transformed.y /= -(128);
   transformed.xyz *= transformed.w;
   // scissoring area adjust
-  transformed.y *= pc.height_scale;
+  transformed.y *= pc.height_scale * pc.scissor_adjust;
   gl_Position = transformed;
   fragment_color = rgba_in;
   uv_texture = uv_texture_in;

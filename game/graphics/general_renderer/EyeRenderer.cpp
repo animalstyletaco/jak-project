@@ -29,10 +29,12 @@ void BaseEyeRenderer::render(DmaFollower& dma,
   //}
 
   // jump to bucket
-  auto data0 = dma.read_and_advance();
-  ASSERT(data0.vif1() == 0);
-  ASSERT(data0.vif0() == 0);
-  ASSERT(data0.size_bytes == 0);
+  if (render_state->version == GameVersion::Jak1) {
+    auto data0 = dma.read_and_advance();
+    ASSERT(data0.vif1() == 0);
+    ASSERT(data0.vif0() == 0);
+    ASSERT(data0.size_bytes == 0);
+  }
 
   // see if bucket is empty or not
   if (dma.current_tag().kind == DmaTag::Kind::CALL) {
@@ -172,11 +174,13 @@ void BaseEyeRenderer::handle_eye_dma2(DmaFollower& dma,
   ASSERT(alpha_setup.vifcode1().kind == VifCode::Kind::DIRECT);
 
   // from the add to bucket
-  ASSERT(dma.current_tag().kind == DmaTag::Kind::NEXT);
-  ASSERT(dma.current_tag().qwc == 0);
-  ASSERT(dma.current_tag_vif0() == 0);
-  ASSERT(dma.current_tag_vif1() == 0);
-  dma.read_and_advance();
+  if (render_state->version == GameVersion::Jak1) {
+    ASSERT(dma.current_tag().kind == DmaTag::Kind::NEXT);
+    ASSERT(dma.current_tag().qwc == 0);
+    ASSERT(dma.current_tag_vif0() == 0);
+    ASSERT(dma.current_tag_vif1() == 0);
+    dma.read_and_advance();
+  }
 
   run_dma_draws_in_gpu(dma, render_state);
 
@@ -184,48 +188,34 @@ void BaseEyeRenderer::handle_eye_dma2(DmaFollower& dma,
   m_average_time_ms = m_average_time_ms * 0.95 + time_ms * 0.05;
 }
 
-//////////////////////
-// CPU Drawing
-//////////////////////
+int BaseEyeRenderer::add_draw_to_buffer_32(int idx,
+                          const BaseEyeRenderer::EyeDraw& draw,
+                          float* data,
+                          int pair,
+                          int lr) {
+  int x_off = lr * SINGLE_EYE_SIZE * 16;
+  int y_off = pair * SINGLE_EYE_SIZE * 16;
 
-u32 BaseEyeRenderer::bilinear_sample_eye(const u8* tex, float tx, float ty, int texw) {
-  int tx0 = tx;
-  int ty0 = ty;
-  int tx1 = tx0 + 1;
-  int ty1 = ty0 + 1;
-  tx1 = std::min(tx1, texw - 1);
-  ty1 = std::min(ty1, texw - 1);
-
-  u8 tex0[4];
-  u8 tex1[4];
-  u8 tex2[4];
-  u8 tex3[4];
-  memcpy(tex0, tex + (4 * (tx0 + ty0 * texw)), 4);
-  memcpy(tex1, tex + (4 * (tx1 + ty0 * texw)), 4);
-  memcpy(tex2, tex + (4 * (tx0 + ty1 * texw)), 4);
-  memcpy(tex3, tex + (4 * (tx1 + ty1 * texw)), 4);
-
-  u8 result[4] = {0, 0, 0, 0};
-  float x0w = float(tx1) - tx;
-  float y0w = float(ty1) - ty;
-  float weights[4] = {x0w * y0w, (1.f - x0w) * y0w, x0w * (1.f - y0w), (1.f - x0w) * (1.f - y0w)};
-
-  for (int i = 0; i < 4; i++) {
-    float total = 0;
-    total += weights[0] * tex0[i];
-    total += weights[1] * tex1[i];
-    total += weights[2] * tex2[i];
-    total += weights[3] * tex3[i];
-    result[i] = total;
-  }
-
-  // clamp
-  u32 tex_out;
-  memcpy(&tex_out, result, 4);
-  return tex_out;
+  data[idx++] = draw.sprite.xyz0[0] - x_off;
+  data[idx++] = draw.sprite.xyz0[1] - y_off;
+  data[idx++] = 0;
+  data[idx++] = 0;
+  data[idx++] = draw.sprite.xyz1[0] - x_off;
+  data[idx++] = draw.sprite.xyz0[1] - y_off;
+  data[idx++] = 1;
+  data[idx++] = 0;
+  data[idx++] = draw.sprite.xyz0[0] - x_off;
+  data[idx++] = draw.sprite.xyz1[1] - y_off;
+  data[idx++] = 0;
+  data[idx++] = 1;
+  data[idx++] = draw.sprite.xyz1[0] - x_off;
+  data[idx++] = draw.sprite.xyz1[1] - y_off;
+  data[idx++] = 1;
+  data[idx++] = 1;
+  return idx;
 }
 
-int BaseEyeRenderer::add_draw_to_buffer(int idx, const BaseEyeRenderer::EyeDraw& draw, float* data, int pair, int lr) {
+int BaseEyeRenderer::add_draw_to_buffer_64(int idx, const BaseEyeRenderer::EyeDraw& draw, float* data, int pair, int lr) {
   int x_off = lr * SINGLE_EYE_SIZE * 16;
   int y_off = pair * SINGLE_EYE_SIZE * 16;
   data[idx++] = draw.sprite.xyz0[0] - x_off;

@@ -16,18 +16,14 @@ struct DirectBasicTexturedFragmentUniformShaderData {
   float alpha_mult;
   float alpha_sub;
   math::Vector4f fog_color;
+  float ta0;
 };
 
 class DirectBasicTexturedFragmentUniformBuffer : public UniformVulkanBuffer {
  public:
   DirectBasicTexturedFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                           VkDeviceSize instanceSize,
                                            uint32_t instanceCount,
-                                           VkDeviceSize minOffsetAlignment)
-      : UniformVulkanBuffer(device,
-                            instanceSize,
-                            instanceCount,
-                            minOffsetAlignment) {}
+                                           VkDeviceSize minOffsetAlignment);
 };
 
 /*!

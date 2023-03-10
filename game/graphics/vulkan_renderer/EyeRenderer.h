@@ -50,19 +50,12 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   };
 
  private:
+  std::optional<u64> lookup_eye_texture(u8 eye_id);
   void run_dma_draws_in_gpu(DmaFollower& dma,
                             BaseSharedRenderState* render_state) override;
   void InitializeInputVertexAttribute();
   void create_pipeline_layout() override;
   void init_shaders();
-
-  struct CpuEyeTextures {
-    std::unique_ptr<VulkanTexture> texture;
-    VulkanGpuTextureMap* gpu_texture = nullptr;
-    u32 tbp = 0;
-  };
-
-  std::array<CpuEyeTextures, NUM_EYE_PAIRS * 2> m_cpu_eye_textures;
 
   struct GpuEyeTex {
     VulkanGpuTextureMap* gpu_texture;
@@ -95,7 +88,6 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   static constexpr int VTX_BUFFER_FLOATS = 4 * 4 * 3 * NUM_EYE_PAIRS * 2;
 
   std::vector<SingleEyeDrawsVulkan> get_draws(DmaFollower& dma, BaseSharedRenderState* render_state);
-  void run_cpu(std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
   void run_gpu(std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
   void ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
                          EyeVulkanGraphics& image_info,

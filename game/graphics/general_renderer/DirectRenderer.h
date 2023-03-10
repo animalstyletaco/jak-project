@@ -22,6 +22,8 @@ class BaseDirectRenderer : public BaseBucketRenderer {
   BaseDirectRenderer(const std::string& name, int my_id, int batch_size);
   ~BaseDirectRenderer();
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  virtual void pre_render() {}
+  virtual void post_render() {}
 
   /*!
    * Render directly from _VIF_ data.
@@ -93,7 +95,10 @@ class BaseDirectRenderer : public BaseBucketRenderer {
   void handle_tex0_1_packed(const u8* data);
   void handle_tex0_1(u64 val);
   void handle_tex1_1(u64 val);
-  void handle_texa(u64 val);
+  void handle_texa(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  virtual void handle_frame(u64, BaseSharedRenderState*, ScopedProfilerNode&);
+
+  void handle_xyoffset(u64 val);
 
   void handle_xyzf2_common(u32 x,
                            u32 y,
@@ -107,6 +112,7 @@ class BaseDirectRenderer : public BaseBucketRenderer {
   virtual void update_graphics_blend() = 0;
   virtual void update_graphics_test() = 0;
   virtual void update_graphics_texture(BaseSharedRenderState* render_state, int unit) = 0;
+  bool m_offscreen_mode = false;
 
   struct TestState {
     void from_register(GsTest reg);
@@ -121,7 +127,7 @@ class BaseDirectRenderer : public BaseBucketRenderer {
     bool datm = false;
     bool zte = true;
     GsTest::ZTest ztst = GsTest::ZTest::GEQUAL;
-
+    bool write_rgb = true;
     bool depth_writes = true;
 
   } m_test_state;
@@ -152,6 +158,7 @@ class BaseDirectRenderer : public BaseBucketRenderer {
     bool use_uv = false;  // todo: might not require a gl state change
     bool ctxt = false;    // do they ever use ctxt2?
     bool fix = false;     // what does this even do?
+    u32 ta0;
   } m_prim_graphics_state;
 
   static constexpr int TEXTURE_STATE_COUNT = 1;
@@ -218,7 +225,8 @@ class BaseDirectRenderer : public BaseBucketRenderer {
     u8 tcc;
     u8 decal;
     u8 fog_enable;
-    math::Vector<u8, 28> pad;
+    u8 use_uv;
+    math::Vector<u8, 27> pad;
   };
   static_assert(sizeof(Vertex) == 64);
   static_assert(offsetof(Vertex, tex_unit) == 32);
@@ -229,6 +237,8 @@ class BaseDirectRenderer : public BaseBucketRenderer {
     int vert_count = 0;
     int max_verts = 0;
 
+    float x_off = 0;
+    float y_off = 0;
     // leave 6 free on the end so we always have room to flush one last primitive.
     bool is_full() { return max_verts < (vert_count + 18); }
     void push(const math::Vector<u8, 4>& rgba,
@@ -237,7 +247,8 @@ class BaseDirectRenderer : public BaseBucketRenderer {
               int unit,
               bool tcc,
               bool decal,
-              bool fog_enable);
+              bool fog_enable,
+              bool use_uv);
   } m_prim_buffer;
 
   struct {
@@ -256,6 +267,7 @@ class BaseDirectRenderer : public BaseBucketRenderer {
     int flush_from_tex_1 = 0;
     int flush_from_zbuf = 0;
     int flush_from_test = 0;
+    int flush_from_ta0 = 0;
     int flush_from_alpha = 0;
     int flush_from_clamp = 0;
     int flush_from_prim = 0;

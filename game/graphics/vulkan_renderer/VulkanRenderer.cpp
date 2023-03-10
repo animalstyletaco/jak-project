@@ -19,6 +19,7 @@
 #include "game/graphics/vulkan_renderer/foreground/Merc2.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanMidAndFar.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanNear.h"
+#include "game/graphics/vulkan_renderer/ProgressRenderer.h"
 #include "game/graphics/vulkan_renderer/LightningRenderer.h"
 
 #include "third-party/imgui/imgui.h"
@@ -594,7 +595,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-map", BucketCategory::TEX,
                                                    BucketId::TEX_ALL_MAP, m_device, m_vulkan_info);
   // 320
-  init_bucket_renderer<DirectVulkanRenderer>("progress", BucketCategory::OTHER, BucketId::PROGRESS, m_device, m_vulkan_info,
+  init_bucket_renderer<ProgressVulkanRenderer>("progress", BucketCategory::OTHER, BucketId::PROGRESS, m_device, m_vulkan_info,
                                        0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("screen-filter", BucketCategory::OTHER,
                                              BucketId::SCREEN_FILTER, m_device, m_vulkan_info,
@@ -608,6 +609,10 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
                                              m_vulkan_info, 0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("debug3", BucketCategory::OTHER, BucketId::DEBUG3,
                                              m_device, m_vulkan_info, 0x8000);
+
+  auto eye_renderer = std::make_unique<EyeVulkanRenderer>("eyes", 0, m_device, m_vulkan_info);
+  m_render_state.eye_renderer = eye_renderer.get();
+  m_jak2_eye_renderer = std::move(eye_renderer);
 
   // for now, for any unset renderers, just set them to an EmptyBucketRenderer.
   for (size_t i = 0; i < m_bucket_renderers.size(); i++) {
@@ -742,6 +747,12 @@ void VulkanRenderer::draw_renderer_selection_window() {
   if (ImGui::TreeNode("Texture Pool")) {
     m_vulkan_info.texture_pool->draw_debug_window();
     ImGui::TreePop();
+  }
+  if (m_jak2_eye_renderer) {
+    if (ImGui::TreeNode("Eyes")) {
+      m_jak2_eye_renderer->draw_debug_window();
+      ImGui::TreePop();
+    }
   }
   ImGui::End();
 }

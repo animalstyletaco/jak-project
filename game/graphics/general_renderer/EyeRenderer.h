@@ -5,7 +5,7 @@
 #include "game/graphics/general_renderer/BucketRenderer.h"
 
 constexpr int EYE_BASE_BLOCK = 8160;
-constexpr int NUM_EYE_PAIRS = 11;
+constexpr int NUM_EYE_PAIRS = 20;
 constexpr int SINGLE_EYE_SIZE = 32;
 
 class BaseEyeRenderer : public BaseBucketRenderer {
@@ -48,13 +48,16 @@ class BaseEyeRenderer : public BaseBucketRenderer {
     auto sprite = decode_sprite(dma.read_and_advance());
     return {sprite, scissor};
   }
-
-  int add_draw_to_buffer(int idx,
+  int add_draw_to_buffer_32(int idx,
+                            const BaseEyeRenderer::EyeDraw& draw,
+                            float* data,
+                            int pair,
+                            int lr);
+  int add_draw_to_buffer_64(int idx,
                          const BaseEyeRenderer::EyeDraw& draw,
                          float* data,
                          int pair,
                          int lr);
-  u32 bilinear_sample_eye(const u8* tex, float tx, float ty, int texw);
 
   virtual void run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) = 0;
 
@@ -82,6 +85,7 @@ class BaseEyeRenderer : public BaseBucketRenderer {
   struct SingleEyeDraws {
     int lr;
     int pair;
+    bool using_64 = false;
 
     int tex_slot() const { return pair * 2 + lr; }
     u32 clear_color;

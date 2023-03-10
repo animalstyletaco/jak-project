@@ -19,13 +19,21 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, m_ogl.vertex_buffer_bytes, 1, 1);
 
   m_direct_basic_fragment_uniform_buffer = std::make_unique<DirectBasicTexturedFragmentUniformBuffer>(
-    m_device,
-    sizeof(DirectBasicTexturedFragmentUniformShaderData), 1, 1);
+    m_device, 1, 1);
 
   m_direct_basic_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(
@@ -83,7 +91,7 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
   m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
-  std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+  std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
   // TODO: This value needs to be normalized
   attributeDescriptions[0].binding = 0;
   attributeDescriptions[0].location = 0;
@@ -104,6 +112,11 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[3].location = 3;
   attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
   attributeDescriptions[3].offset = offsetof(BaseDirectRenderer::Vertex, tex_unit);
+
+  attributeDescriptions[4].binding = 0;
+  attributeDescriptions[4].location = 4;
+  attributeDescriptions[4].format = VK_FORMAT_R8_UINT;
+  attributeDescriptions[4].offset = offsetof(BaseDirectRenderer::Vertex, use_uv);
 
   debugRedAttributeDescriptions[0] = attributeDescriptions[0];
   directBasicAttributeDescriptions[0] = attributeDescriptions[0];
@@ -159,6 +172,9 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
                      (void*)&m_push_constant);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, sizeof(m_push_constant), sizeof(m_offscreen_mode),
+                     (void*)&m_offscreen_mode);
 
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
@@ -278,6 +294,7 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
         case GsTest::AlphaTest::ALWAYS:
           break;
         case GsTest::AlphaTest::GEQUAL:
+        case GsTest::AlphaTest::GREATER:
           alpha_reject = m_test_state.aref / 128.f;
           break;
         case GsTest::AlphaTest::NEVER:
@@ -294,6 +311,7 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
     m_direct_basic_fragment_uniform_buffer->SetUniform4f("fog_color",
                 render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
                 render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
+    m_direct_basic_fragment_uniform_buffer->SetUniform1f("offscreen_mode", state.ta0 / 255.f);
 
   } else {
     SetShaderModule(ShaderId::DIRECT_BASIC);
@@ -571,4 +589,20 @@ void DirectVulkanRenderer::update_graphics_test() {
 void DirectVulkanRenderer::render_and_draw_buffers() {
 }
 
-
+DirectBasicTexturedFragmentUniformBuffer::DirectBasicTexturedFragmentUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    uint32_t instanceCount,
+    VkDeviceSize minOffsetAlignment)
+    : UniformVulkanBuffer(device,
+                          sizeof(DirectBasicTexturedFragmentUniformShaderData),
+                          instanceCount,
+                          minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"alpha_reject", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_reject)},
+      {"color_mult", offsetof(DirectBasicTexturedFragmentUniformShaderData, color_mult)},
+      {"alpha_mult", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_mult)},
+      {"alpha_sub", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_sub)},
+      {"fog_color", offsetof(DirectBasicTexturedFragmentUniformShaderData, fog_color)},
+      {"ta0", offsetof(DirectBasicTexturedFragmentUniformShaderData, ta0)}
+  };
+}

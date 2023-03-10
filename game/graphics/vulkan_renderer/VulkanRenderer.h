@@ -79,6 +79,7 @@ class VulkanRenderer {
     return ret;
   }
 
+  std::unique_ptr<EyeVulkanRenderer> m_jak2_eye_renderer;
   GameVersion m_version;
   uint32_t currentFrame = 0;
 

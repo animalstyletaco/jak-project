@@ -4,6 +4,7 @@
 
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 #include "game/graphics/gfx.h"
+#include "game/graphics/vulkan_renderer/EyeRenderer.h"
 
 
 /* Merc 2 renderer:
@@ -43,8 +44,6 @@ MercVulkan2::MercVulkan2(const std::string& name,
              VulkanInitializationInfo& vulkan_info) :
   BaseMerc2(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
   m_push_constant.height_scale = (vulkan_info.m_version == GameVersion::Jak2) ? 0.5 : 1;
-
-
 
   m_light_control_vertex_uniform_buffer =
       std::make_unique<MercLightControlVertexUniformBuffer>(m_device, MAX_DRAWS_PER_LEVEL, 1);
@@ -231,7 +230,12 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
       auto& draw = lev_bucket.draws[di];
       auto& sampler = lev_bucket.samplers[di];
 
-      VulkanTexture& textureInfo = lev->textures_map.at(draw.texture);
+      VulkanTexture* textureInfo = nullptr;
+      if (draw.texture < lev->textures_map.size()) {
+        textureInfo = &lev->textures_map.at(draw.texture);
+      } else if ((draw.texture & 0xffffff00) == 0xffffff00) {
+        //textureInfo = &render_state->eye_renderer->lookup_eye_texture(draw.texture & 0xff);
+      }
 
       uint32_t dynamic_descriptors_offset = di * sizeof(MercLightControlVertexUniformBuffer);
 
@@ -270,7 +274,7 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
 
       lev_bucket.descriptor_image_infos[di] = {
           sampler.GetSampler(),
-          textureInfo.getImageView(),
+          textureInfo->getImageView(),
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
       };
 
@@ -677,7 +681,7 @@ MercVulkan2::VulkanDraw* MercVulkan2::alloc_normal_draw(const tfrag3::MercDraw& 
   draw->first_index = mdraw.first_index;
   draw->index_count = mdraw.index_count;
   draw->mode = mdraw.mode;
-  draw->texture = mdraw.tree_tex_id;
+  draw->texture = mdraw.eye_id == 0xff ? mdraw.tree_tex_id : (0xffffff00 | mdraw.eye_id);
   draw->first_bone = first_bone;
   draw->light_idx = lights;
   draw->num_triangles = mdraw.num_triangles;

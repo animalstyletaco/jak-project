@@ -6,6 +6,7 @@ BaseOceanMidAndFar::BaseOceanMidAndFar(const std::string& name, int my_id)
     : BaseBucketRenderer(name, my_id) {
 }
 
+namespace ocean_mid_and_far {
 void advance_and_print_dma(DmaFollower& dma) {
   auto data = dma.read_and_advance();
   printf(
@@ -14,6 +15,12 @@ void advance_and_print_dma(DmaFollower& dma) {
       dma.current_tag().print().c_str(), data.size_bytes, data.vifcode0().print().c_str(),
       data.vif0(), data.vifcode1().print().c_str(), data.vifcode1().num, data.vifcode1().immediate);
 }
+
+bool is_end_tag(const DmaTag& tag, const VifCode& v0, const VifCode& v1) {
+  return tag.qwc == 0 && tag.kind == DmaTag::Kind::NEXT && v0.kind == VifCode::Kind::NOP &&
+         v1.kind == VifCode::Kind::NOP;
+}
+}  // namespace ocean_mid_and_far
 
 void BaseOceanMidAndFar::render(DmaFollower& dma,
                                 BaseSharedRenderState* render_state,
@@ -158,11 +165,6 @@ void BaseOceanMidAndFar::handle_ocean_far(DmaFollower& dma,
   }
 }
 
-bool is_end_tag(const DmaTag& tag, const VifCode& v0, const VifCode& v1) {
-  return tag.qwc == 0 && tag.kind == DmaTag::Kind::NEXT && v0.kind == VifCode::Kind::NOP &&
-         v1.kind == VifCode::Kind::NOP;
-}
-
 void BaseOceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
                                       BaseSharedRenderState* render_state,
                                       ScopedProfilerNode& prof) {
@@ -173,7 +175,7 @@ void BaseOceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
     return;
   }
 
-  while (!is_end_tag(dma.current_tag(), dma.current_tag_vifcode0(), dma.current_tag_vifcode1())) {
+  while (!ocean_mid_and_far::is_end_tag(dma.current_tag(), dma.current_tag_vifcode0(), dma.current_tag_vifcode1())) {
     dma.read_and_advance();
   }
 }

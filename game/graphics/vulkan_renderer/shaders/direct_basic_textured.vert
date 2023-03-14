@@ -14,9 +14,9 @@ layout (location = 4) out flat uint use_uv;
 
 layout(push_constant) uniform PER_OBJECT
 {
-	float height_scale;
-  float scissor_adjust;
-  int offscreen_mode;
+	layout(offset = 0) float height_scale;
+  layout(offset = 4) float scissor_adjust;
+  layout(offset = 8) int offscreen_mode;
 }pc;
 
 void main() {

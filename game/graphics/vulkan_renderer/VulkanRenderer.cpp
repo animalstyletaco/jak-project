@@ -715,9 +715,6 @@ void VulkanRenderer::render(DmaFollower dma, const RenderOptions& settings) {
   if (settings.save_screenshot) {
     finish_screenshot(settings.screenshot_path, settings.game_res_w, settings.game_res_h, 0, 0);
   }
-  if (settings.gpu_sync) {
-    vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
-  }
 }
 
 /*!

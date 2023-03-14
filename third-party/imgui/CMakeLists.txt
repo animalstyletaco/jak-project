@@ -7,13 +7,14 @@ set(IMGUI_RUNTIME_SOURCES
     imgui_stdlib.cpp
     imgui_stdlib.h)
 
-if(WIN32)
+
   list(APPEND IMGUI_RUNTIME_SOURCES
      imgui_impl_vulkan.cpp)
-else()
+if(NOT APPLE)
    list(APPEND IMGUI_RUNTIME_SOURCES
      imgui_impl_opengl3.cpp)
 endif()
+
 
 add_library(imgui STATIC ${IMGUI_RUNTIME_SOURCES})
 target_link_libraries(imgui glfw)

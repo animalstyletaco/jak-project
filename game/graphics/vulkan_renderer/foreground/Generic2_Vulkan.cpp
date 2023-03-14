@@ -33,7 +33,7 @@ void GenericVulkan2::graphics_setup() {
   m_descriptor_image_infos.resize(m_buckets.size(), *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
   m_samplers.resize(m_buckets.size());
 
-  m_pipeline_layouts.resize(m_buckets.size(), m_device);
+  m_graphics_pipeline_layouts.resize(m_buckets.size(), m_device);
 
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
     m_device, sizeof(Vertex), m_verts.size(), 1);
@@ -203,7 +203,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
 
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -269,7 +269,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
       //glBlendFunc(GL_DST_ALPHA, GL_ONE);
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
-      color_mult = 0.5f;
+      color_mult = 1.0f;
 
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
       m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -498,8 +498,8 @@ void GenericVulkan2::FinalizeVulkanDraws() {
 
   m_fragment_descriptor_writer->overwrite(m_descriptor_sets[1]);
   
-  m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
-  m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                  VK_SHADER_STAGE_VERTEX_BIT, 0,

@@ -731,15 +731,6 @@ void GLDisplay::fullscreen_flush() {
   m_last_video_mode = *vmode;
 }
 
-void update_global_profiler() {
-  if (g_gfx_data->debug_gui.dump_events) {
-    prof().set_enable(false);
-    g_gfx_data->debug_gui.dump_events = false;
-    prof().dump_to_json((file_util::get_jak_project_dir() / "prof.json").string());
-  }
-  prof().set_enable(g_gfx_data->debug_gui.record_events);
-}
-
 void GLDisplay::VMode::set(const GLFWvidmode* vmode) {
   width = vmode->width;
   height = vmode->height;
@@ -892,7 +883,7 @@ void GLDisplay::render() {
   // Start timing for the next frame.
   g_gfx_data->debug_gui.start_frame();
   prof().instant_event("ROOT");
-  update_global_profiler();
+  Gfx::update_global_profiler();
 
   // toggle even odd and wake up engine waiting on vsync.
   // TODO: we could play with moving this earlier, right after the final bucket renderer.

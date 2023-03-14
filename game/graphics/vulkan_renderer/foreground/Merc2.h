@@ -133,14 +133,14 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
                                   bool ignore_alpha,
                                   LevelDrawBucketVulkan* lev_bucket,
                                   u32 first_bone,
-                                  u32 lights);
+                                  u32 lights, bool use_jak1_water);
     VulkanDraw* try_alloc_envmap_draw(const tfrag3::MercDraw& mdraw,
                                       const DrawMode& envmap_mode,
                                       u32 envmap_texture,
                                       LevelDrawBucketVulkan* lev_bucket,
                                       const u8* fade,
                                       u32 first_bone,
-                                      u32 lights);
+                                      u32 lights, bool use_jak1_water);
 
   class MercBoneVertexUniformBuffer : public UniformVulkanBuffer {
    public:
@@ -161,7 +161,7 @@ void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect,
                                u8* fade_buffer,
                                uint32_t index,
                                uint32_t first_bone,
-                               uint32_t lights,
+                               uint32_t lights, bool uses_water,
       std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>>& mod_graphics_buffers);
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;

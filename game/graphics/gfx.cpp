@@ -15,6 +15,7 @@
 #include "common/symbols.h"
 #include "common/util/FileUtil.h"
 #include "common/util/json_util.h"
+#include "common/global_profiler/GlobalProfiler.h"
 
 #include "game/common/file_paths.h"
 #include "game/kernel/common/kscheme.h"
@@ -22,16 +23,17 @@
 #include "game/runtime.h"
 #include "game/system/newpad.h"
 
-#ifdef _WIN32
+
 #include "pipelines/vulkan_pipeline.h"
 extern const GfxRendererModule gRendererVulkan;
-#else
+
 #include "pipelines/opengl.h"
 extern const GfxRendererModule gRendererOpenGL;
-#endif
 
 
-
+namespace Gfx {
+GraphicsDebugGui debug_gui;
+}
 
 namespace {
 // initializes a gfx settings.
@@ -283,17 +285,9 @@ const GfxRendererModule* GetRenderer(GfxPipeline pipeline) {
       lg::error("Requested invalid renderer", fmt::underlying(pipeline));
       return NULL;
     case GfxPipeline::OpenGL:
-#if _APPLE
       return &gRendererOpenGL;
-#else
-      return NULL;
-#endif
     case GfxPipeline::Vulkan:
-#if !_APPLE
       return &gRendererVulkan;
-#else
-      return NULL;
-#endif
     default:
       lg::error("Requested unknown renderer {}", fmt::underlying(pipeline));
       return NULL;
@@ -640,3 +634,13 @@ void CollisionRendererSetMode(GfxGlobalSettings::CollisionRendererMode mode) {
 }
 
 }  // namespace Gfx
+
+
+void Gfx::update_global_profiler() {
+  if (debug_gui.dump_events) {
+    prof().set_enable(false);
+    debug_gui.dump_events = false;
+    prof().dump_to_json((file_util::get_jak_project_dir() / "prof.json").string());
+  }
+  prof().set_enable(debug_gui.record_events);
+}

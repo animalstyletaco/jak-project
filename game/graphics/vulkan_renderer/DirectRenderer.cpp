@@ -13,7 +13,7 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
                                VulkanInitializationInfo& vulkan_info,
                                int batch_size)
     : BaseDirectRenderer(name, my_id, batch_size), BucketVulkanRenderer(device, vulkan_info) {
-  m_pipeline_layouts.resize(2, m_device);
+  m_graphics_pipeline_layouts.resize(2, m_device);
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
   m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(BaseDirectRenderer::Vertex);
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, m_ogl.vertex_buffer_bytes, 1, 1);
@@ -25,15 +25,6 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(9, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(10, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(
@@ -72,15 +63,35 @@ void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
     m_pipeline_config_info.attributeDescriptions.insert(
         m_pipeline_config_info.attributeDescriptions.end(), debugRedAttributeDescriptions.begin(),
         debugRedAttributeDescriptions.end());
+    m_pipeline_config_info.pipelineLayout = m_pipeline_layout;
+
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.scissor_adjust),
+                       (void*)&m_push_constant.scissor_adjust);
   } else if (shaderId == ShaderId::DIRECT_BASIC) {
     m_pipeline_config_info.attributeDescriptions.insert(
         m_pipeline_config_info.attributeDescriptions.end(),
         directBasicAttributeDescriptions.begin(), directBasicAttributeDescriptions.end());
+    m_pipeline_config_info.pipelineLayout = m_pipeline_layout;
+
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
+                       (void*)&m_push_constant);
   } else {
     m_pipeline_config_info.attributeDescriptions.insert(
         m_pipeline_config_info.attributeDescriptions.end(),
         directBasicTexturedAttributeDescriptions.begin(),
         directBasicTexturedAttributeDescriptions.end());
+    m_pipeline_config_info.pipelineLayout = m_textured_pipeline_layout;
+
+    m_textured_pipeline_push_constant.height_scale = m_push_constant.height_scale;
+    m_textured_pipeline_push_constant.scissor_adjust = m_push_constant.scissor_adjust;
+    m_textured_pipeline_push_constant.offscreen_mode = m_offscreen_mode;
+
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0,
+                       sizeof(m_textured_pipeline_push_constant),
+                       (void*)&m_textured_pipeline_push_constant);
   }
 }
 
@@ -127,6 +138,7 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
 
   directBasicTexturedAttributeDescriptions[2] = attributeDescriptions[2];
   directBasicTexturedAttributeDescriptions[3] = attributeDescriptions[3];
+  directBasicTexturedAttributeDescriptions[4] = attributeDescriptions[4];
 }
 
 void DirectVulkanRenderer::render(DmaFollower& dma,
@@ -137,7 +149,6 @@ void DirectVulkanRenderer::render(DmaFollower& dma,
 }
 
 void DirectVulkanRenderer::create_pipeline_layout() {
-  // If push constants are needed put them here
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
       m_direct_basic_fragment_descriptor_layout->getDescriptorSetLayout()};
 
@@ -155,27 +166,64 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+                             &m_pipeline_layout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
+
+  VkPipelineLayoutCreateInfo texturedPipelineLayoutInfo{};
+  texturedPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  texturedPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  texturedPipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange texturedPushConstantRange = {};
+  texturedPushConstantRange.offset = 0;
+  texturedPushConstantRange.size = sizeof(m_textured_pipeline_push_constant);
+  texturedPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  texturedPipelineLayoutInfo.pPushConstantRanges = &texturedPushConstantRange;
+  texturedPipelineLayoutInfo.pushConstantRangeCount = 1;
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr, &m_textured_pipeline_layout) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
+
+  VkPipelineLayoutCreateInfo debugRedPipelineLayoutInfo{};
+  debugRedPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  debugRedPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  debugRedPipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange debugRedPushConstantRange = {};
+  debugRedPushConstantRange.offset = 0;
+  debugRedPushConstantRange.size = sizeof(m_push_constant.scissor_adjust);
+  debugRedPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  debugRedPipelineLayoutInfo.pPushConstantRanges = &debugRedPushConstantRange;
+  debugRedPipelineLayoutInfo.pushConstantRangeCount = 1;
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &debugRedPipelineLayoutInfo, nullptr,
+                             &m_debug_red_pipeline_layout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
   }
 }
-
 
 DirectVulkanRenderer::~DirectVulkanRenderer() {
   if (m_sampler) {
     vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
   }
+  if (m_pipeline_layout) {
+    vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_pipeline_layout, nullptr);
+  }
+  if (m_textured_pipeline_layout) {
+    vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_textured_pipeline_layout, nullptr);
+  }
+  if (m_debug_red_pipeline_layout) {
+    vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_debug_red_pipeline_layout, nullptr);
+  }
 }
 
 void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
                                          ScopedProfilerNode& prof) {
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
-                     (void*)&m_push_constant);
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, sizeof(m_push_constant), sizeof(m_offscreen_mode),
-                     (void*)&m_offscreen_mode);
-
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
@@ -242,8 +290,8 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
-  m_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
 
   std::vector<VkDescriptorSet> descriptor_sets{m_descriptor_set};
   m_vulkan_info.swap_chain->drawCommandBuffer(
@@ -258,8 +306,8 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
 
-    m_pipeline_layouts[1].createGraphicsPipeline(m_pipeline_config_info);
-    m_pipeline_layouts[1].bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layouts[1].createGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layouts[1].bind(m_vulkan_info.render_command_buffer);
 
     m_vulkan_info.swap_chain->drawCommandBuffer(
         m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,

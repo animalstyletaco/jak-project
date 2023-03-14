@@ -113,6 +113,7 @@ void BaseGeneric2::reset_buffers() {
   m_next_free_idx = 0;
 }
 
+namespace generic_dma {
 bool is_nop_vif(const u8* data) {
   u32 tag0_data;
   memcpy(&tag0_data, data, 4);
@@ -157,6 +158,42 @@ u32 unpack_vtx_tcs(BaseGeneric2::Vertex* vtx, const u8* data, int vtx_count) {
   return vtx_count * 4;
 }
 
+bool is_nop_zero(const DmaTransfer& xf) {
+  return xf.size_bytes == 0 && xf.vifcode0().kind == VifCode::Kind::NOP &&
+         xf.vifcode1().kind == VifCode::Kind::NOP;
+}
+
+void unpack_vertex(BaseGeneric2::Vertex* out, const u8* in, int count) {
+  for (int i = 0; i < count; i++) {
+    // st:
+    s32 s, t;
+    memcpy(&s, in, 4);
+    memcpy(&t, in + 4, 4);
+    s32 s_masked = s & 0xfffffffe;
+    out->st[0] = s_masked;
+    out->st[1] = t;
+    out->adc = s_masked == s;
+
+    // rgba
+    u32 data[4];
+    memcpy(data, in + 16, 16);
+    for (int j = 0; j < 4; j++) {
+      out->rgba[j] = data[j];
+    }
+
+    // pos
+    float p[4];
+    memcpy(p, in + 32, 16);
+    for (int j = 0; j < 3; j++) {
+      out->xyz[j] = p[j];
+    }
+
+    out++;
+    in += (16 * 3);
+  }
+}
+}  // namespace generic_dma
+
 u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
                                                   u32 off,
                                                   u32 first_unpack_bytes,
@@ -190,7 +227,7 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
   }
 
   // the next thing is the vertex positions.
-  while (is_nop_vif(data + off) && off < end_of_vif) {
+  while (generic_dma::is_nop_vif(data + off) && off < end_of_vif) {
     off += 4;
   }
   u32 stcycl_tag_data;
@@ -215,10 +252,10 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
     frag->vtx_count = vtx_pos_unpack_tag.num;
     alloc_vtx(frag->vtx_count);
 
-    off += unpack_vtx_positions(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
+    off += generic_dma::unpack_vtx_positions(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
 
     ASSERT(off < end_of_vif);
-    while (is_nop_vif(data + off) && off < end_of_vif) {
+    while (generic_dma::is_nop_vif(data + off) && off < end_of_vif) {
       off += 4;
     }
     ASSERT(off < end_of_vif);
@@ -234,7 +271,7 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
     frag->vtx_idx = m_next_free_vert;
     frag->vtx_count = unpack_vtx_color_tag.num;
     alloc_vtx(frag->vtx_count);
-    off += unpack_vertex_colors(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
+    off += generic_dma::unpack_vertex_colors(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
   } else {
     // next, vertex colors
     u32 unpack_vtx_color_tag_data;
@@ -243,11 +280,11 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
     VifCode unpack_vtx_color_tag(unpack_vtx_color_tag_data);
     ASSERT(unpack_vtx_color_tag.kind == VifCode::Kind::UNPACK_V4_8);
     ASSERT(unpack_vtx_color_tag.num == frag->vtx_count);
-    off += unpack_vertex_colors(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
+    off += generic_dma::unpack_vertex_colors(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
   }
 
   ASSERT(off < end_of_vif);
-  while (is_nop_vif(data + off) && off < end_of_vif) {
+  while (generic_dma::is_nop_vif(data + off) && off < end_of_vif) {
     off += 4;
   }
   ASSERT(off < end_of_vif);
@@ -259,14 +296,14 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
   VifCode unpack_vtx_tc_tag(unpack_vtx_tc_tag_data);
   ASSERT(unpack_vtx_tc_tag.kind == VifCode::Kind::UNPACK_V2_16);
   ASSERT(unpack_vtx_tc_tag.num == frag->vtx_count);
-  off += unpack_vtx_tcs(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
+  off += generic_dma::unpack_vtx_tcs(&m_verts[frag->vtx_idx], data + off, frag->vtx_count);
 
   if (off == end_of_vif) {
     return off;
   }
 
   ASSERT(off < end_of_vif);
-  while (is_nop_vif(data + off) && off < end_of_vif) {
+  while (generic_dma::is_nop_vif(data + off) && off < end_of_vif) {
     off += 4;
   }
   ASSERT(off < end_of_vif);
@@ -277,7 +314,7 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
   VifCode stcycl_reset(stcycl_reset_data);
   if (stcycl_reset.kind == VifCode::Kind::STCYCL) {
     ASSERT(off < end_of_vif);
-    while (is_nop_vif(data + off) && off < end_of_vif) {
+    while (generic_dma::is_nop_vif(data + off) && off < end_of_vif) {
       off += 4;
     }
     ASSERT(off < end_of_vif);
@@ -293,7 +330,7 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
     frag->mscal_addr = stcycl_reset.immediate;
 
     ASSERT(off < end_of_vif);
-    while (is_nop_vif(data + off) && off < end_of_vif) {
+    while (generic_dma::is_nop_vif(data + off) && off < end_of_vif) {
       off += 4;
     }
     ASSERT(off < end_of_vif);
@@ -306,7 +343,7 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
   }
 
   ASSERT(off < end_of_vif);
-  while (is_nop_or_flushe_vif(data + off) && off < end_of_vif) {
+  while (generic_dma::is_nop_or_flushe_vif(data + off) && off < end_of_vif) {
     off += 4;
   }
   return off;
@@ -333,7 +370,7 @@ void BaseGeneric2::process_dma(DmaFollower& dma, u32 next_bucket) {
       ASSERT(up.kind == VifCode::Kind::UNPACK_V3_32);
       ASSERT(continue_vif_transfer.size_bytes * 4 / 48 == up.num);
       ASSERT(up.num == continued_fragment->vtx_count);
-      unpack_vtx_positions(&m_verts[continued_fragment->vtx_idx], continue_vif_transfer.data,
+      generic_dma::unpack_vtx_positions(&m_verts[continued_fragment->vtx_idx], continue_vif_transfer.data,
                            continued_fragment->vtx_count);
       continued_fragment = nullptr;
       auto call = dma.read_and_advance();
@@ -386,46 +423,12 @@ void BaseGeneric2::process_dma(DmaFollower& dma, u32 next_bucket) {
   }
 }
 
-bool is_nop_zero(const DmaTransfer& xf) {
-  return xf.size_bytes == 0 && xf.vifcode0().kind == VifCode::Kind::NOP &&
-         xf.vifcode1().kind == VifCode::Kind::NOP;
-}
-
-void unpack_vertex(BaseGeneric2::Vertex* out, const u8* in, int count) {
-  for (int i = 0; i < count; i++) {
-    // st:
-    s32 s, t;
-    memcpy(&s, in, 4);
-    memcpy(&t, in + 4, 4);
-    s32 s_masked = s & 0xfffffffe;
-    out->st[0] = s_masked;
-    out->st[1] = t;
-    out->adc = s_masked == s;
-
-    // rgba
-    u32 data[4];
-    memcpy(data, in + 16, 16);
-    for (int j = 0; j < 4; j++) {
-      out->rgba[j] = data[j];
-    }
-
-    // pos
-    float p[4];
-    memcpy(p, in + 32, 16);
-    for (int j = 0; j < 3; j++) {
-      out->xyz[j] = p[j];
-    }
-
-    out++;
-    in += (16 * 3);
-  }
-}
 
 void BaseGeneric2::process_dma_lightning(DmaFollower& dma, u32 next_bucket) {
   reset_buffers();
   auto first_data = dma.read_and_advance();
   // if unused, sends 0 nop nop
-  if (is_nop_zero(first_data) && next_bucket == dma.current_tag_offset()) {
+  if (generic_dma::is_nop_zero(first_data) && next_bucket == dma.current_tag_offset()) {
     return;
   }
 
@@ -472,7 +475,7 @@ void BaseGeneric2::process_dma_lightning(DmaFollower& dma, u32 next_bucket) {
          mscalf.vifcode1().kind == VifCode::Kind::STMOD);
   //  0: NOP NOP
   auto another_nop = dma.read_and_advance();
-  ASSERT(is_nop_zero(another_nop));
+  ASSERT(generic_dma::is_nop_zero(another_nop));
 
   auto maybe_first_upload = dma.read_and_advance();
   while (maybe_first_upload.vifcode1().kind == VifCode::Kind::UNPACK_V4_32) {
@@ -495,7 +498,7 @@ void BaseGeneric2::process_dma_lightning(DmaFollower& dma, u32 next_bucket) {
     frag->vtx_count = num_vtx;
     frag->vtx_idx = m_next_free_vert;
     alloc_vtx(num_vtx);
-    unpack_vertex(&m_verts[frag->vtx_idx], second_upload.data, num_vtx);
+    generic_dma::unpack_vertex(&m_verts[frag->vtx_idx], second_upload.data, num_vtx);
 
     // run
     //  192: NOP UNPACK-V4-32: 12 addr: 837 us: false tops: false

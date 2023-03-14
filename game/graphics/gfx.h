@@ -16,6 +16,7 @@
 #include "game/kernel/common/kboot.h"
 #include "game/system/newpad.h"
 #include "game/tools/filter_menu/filter_menu.h"
+#include "game/graphics/general_renderer/debug_gui.h"
 
 // forward declarations
 struct GfxSettings;
@@ -138,6 +139,9 @@ struct DebugSettings {
 extern DebugSettings g_debug_settings;
 
 const GfxRendererModule* GetCurrentRenderer();
+
+extern GraphicsDebugGui debug_gui;
+void update_global_profiler();
 
 u32 Init(GameVersion version);
 void SetRenderer(GfxPipeline pipeline);

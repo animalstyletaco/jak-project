@@ -147,6 +147,7 @@ class BaseMerc2 : public BaseBucketRenderer {
   struct UnpackTempVtx {
     float pos[4];
     float nrm[4];
+    float uv[2];
   };
   std::vector<UnpackTempVtx> m_mod_vtx_unpack_temp;
 

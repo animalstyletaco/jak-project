@@ -457,6 +457,13 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
   memcpy(&current_lights, input_data, sizeof(VuLights));
   input_data += sizeof(VuLights);
 
+  u64 uses_water = 0;
+  if (render_state->version == GameVersion::Jak1) {
+    // jak 1 figures out water at runtime sadly
+    memcpy(&uses_water, input_data, 8);
+    input_data += 16;
+  }
+
   // Next part is the matrix slot string. The game sends us a bunch of bone matrices,
   // but they may not be in order, or include all bones. The matrix slot string tells
   // us which bones go where. (the game doesn't go in order because it follows the merc format)
@@ -589,7 +596,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
       }
 
       do_mod_draws(model->effects[ei], mod_settings, lev_bucket,
-                   fade_buffer, ei, first_bone, lights, mod_graphics_buffers);
+                   fade_buffer, ei, first_bone, lights, uses_water, mod_graphics_buffers);
     }
   }
 }
@@ -599,6 +606,7 @@ void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect, ModSettings mod
                                uint32_t index,
                                uint32_t first_bone,
                                uint32_t lights,
+                               bool uses_water,
                                std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>>& mod_graphics_buffers) {
   u8 ignore_alpha = (mod_settings.current_ignore_alpha_bits & (1 << index));
 
@@ -610,22 +618,22 @@ void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect, ModSettings mod
 
     // do fixed draws:
     for (auto& fdraw : effect.mod.fix_draw) {
-      alloc_normal_draw(fdraw, ignore_alpha, lev_bucket, first_bone, lights);
+      alloc_normal_draw(fdraw, ignore_alpha, lev_bucket, first_bone, lights, uses_water);
       if (should_envmap) {
         try_alloc_envmap_draw(fdraw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
-                              fade_buffer + 4 * index, first_bone, lights);
+                              fade_buffer + 4 * index, first_bone, lights, uses_water);
       }
     }
 
     // do mod draws
     for (auto& mdraw : effect.mod.mod_draw) {
-      auto normal_draw = alloc_normal_draw(mdraw, ignore_alpha, lev_bucket, first_bone, lights);
+      auto normal_draw = alloc_normal_draw(mdraw, ignore_alpha, lev_bucket, first_bone, lights, uses_water);
       // modify the draw, set the mod flag and point it to the opengl buffer
       normal_draw->flags |= MOD_VTX;
       normal_draw->mod_vtx_buffer = std::move(mod_graphics_buffers[index]);
       if (should_envmap) {
         auto envmap_draw = try_alloc_envmap_draw(mdraw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
-                                       fade_buffer + 4 * index, first_bone, lights);
+                                       fade_buffer + 4 * index, first_bone, lights, uses_water);
         envmap_draw->flags |= MOD_VTX;
         envmap_draw->mod_vtx_buffer = std::move(mod_graphics_buffers[index]);
       }
@@ -635,16 +643,19 @@ void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect, ModSettings mod
     for (auto& draw : effect.all_draws) {
       if (should_envmap) {
         try_alloc_envmap_draw(draw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
-                              fade_buffer + 4 * index, first_bone, lights);
+                              fade_buffer + 4 * index, first_bone, lights, uses_water);
       }
-      alloc_normal_draw(draw, ignore_alpha, lev_bucket, first_bone, lights);
+      alloc_normal_draw(draw, ignore_alpha, lev_bucket, first_bone, lights, uses_water);
     }
   }
 }
 
 MercVulkan2::VulkanDraw* MercVulkan2::try_alloc_envmap_draw(const tfrag3::MercDraw& mdraw, const DrawMode& envmap_mode,
                                                             u32 envmap_texture, LevelDrawBucketVulkan* lev_bucket,
-                                                            const u8* fade, u32 first_bone, u32 lights) {
+                                                            const u8* fade,
+                                                            u32 first_bone,
+                                                            u32 lights,
+                                                            bool jak1_water_mode) {
   bool nonzero_fade = false;
   for (int i = 0; i < 4; i++) {
     if (fade[i]) {
@@ -661,6 +672,10 @@ MercVulkan2::VulkanDraw* MercVulkan2::try_alloc_envmap_draw(const tfrag3::MercDr
   draw->first_index = mdraw.first_index;
   draw->index_count = mdraw.index_count;
   draw->mode = envmap_mode;
+  if (jak1_water_mode) {
+    draw->mode.set_ab(true);
+    draw->mode.disable_depth_write();
+  }
   draw->texture = envmap_texture;
   draw->first_bone = first_bone;
   draw->light_idx = lights;
@@ -675,12 +690,16 @@ MercVulkan2::VulkanDraw* MercVulkan2::alloc_normal_draw(const tfrag3::MercDraw& 
                                       bool ignore_alpha,
                                       LevelDrawBucketVulkan* lev_bucket,
                                       u32 first_bone,
-                                      u32 lights) {
+                                      u32 lights, bool jak1_water_mode) {
   VulkanDraw* draw = &lev_bucket->draws[lev_bucket->next_free_draw++];
   draw->flags = 0;
   draw->first_index = mdraw.first_index;
   draw->index_count = mdraw.index_count;
   draw->mode = mdraw.mode;
+  if (jak1_water_mode) {
+    draw->mode.enable_ab();
+    draw->mode.disable_depth_write();
+  }
   draw->texture = mdraw.eye_id == 0xff ? mdraw.tree_tex_id : (0xffffff00 | mdraw.eye_id);
   draw->first_bone = first_bone;
   draw->light_idx = lights;

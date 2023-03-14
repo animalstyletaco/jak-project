@@ -1,5 +1,6 @@
 #include "game/graphics/general_renderer/sprite/Sprite3.h"
 
+namespace sprite_glow {
 struct SpriteGlowData {
   float pos[3];
   float size_x;
@@ -168,6 +169,7 @@ bool glow_math(const SpriteGlowConsts* consts,
   }
   return true;
 }
+}  // namespace sprite_glow
 
 /*!
  * Handle glow dma and draw glow sprites using GlowRenderer
@@ -214,7 +216,7 @@ void BaseSprite3::glow_dma_and_draw(DmaFollower& dma,
     ASSERT(shader_xfer.size_bytes == 5 * 16);
 
     auto* out = glow_renderer_alloc_sprite();
-    if (!glow_math(&consts, vecdata_xfer.data, shader_xfer.data, out)) {
+    if (!sprite_glow::glow_math(&consts, vecdata_xfer.data, shader_xfer.data, out)) {
       glow_renderer_cancel_sprite();
     }
     control_xfer = dma.read_and_advance();

@@ -69,9 +69,15 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
     float alpha_mult = 1.0;
   } m_ogl;
 
+  struct {
+    float height_scale;
+    float scissor_adjust;
+    int offscreen_mode;
+  } m_textured_pipeline_push_constant;
+
   std::array<VkVertexInputAttributeDescription, 1> debugRedAttributeDescriptions{};
   std::array<VkVertexInputAttributeDescription, 2> directBasicAttributeDescriptions{};
-  std::array<VkVertexInputAttributeDescription, 4> directBasicTexturedAttributeDescriptions{};
+  std::array<VkVertexInputAttributeDescription, 5> directBasicTexturedAttributeDescriptions{};
 
   std::unique_ptr<DirectBasicTexturedFragmentUniformBuffer> m_direct_basic_fragment_uniform_buffer;
   std::unique_ptr<DescriptorLayout> m_direct_basic_fragment_descriptor_layout;
@@ -80,5 +86,9 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   VkDescriptorImageInfo m_descriptor_image_info{};
   VkSampler m_sampler = VK_NULL_HANDLE;
   VkDescriptorSet m_descriptor_set = VK_NULL_HANDLE;
+
+  VkPipelineLayout m_pipeline_layout = VK_NULL_HANDLE;
+  VkPipelineLayout m_textured_pipeline_layout = VK_NULL_HANDLE;
+  VkPipelineLayout m_debug_red_pipeline_layout = VK_NULL_HANDLE;
 };
 

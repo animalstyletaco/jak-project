@@ -187,21 +187,3 @@ void TFragment::handle_initialization(DmaFollower& dma) {
          db_setup.vifcode1().immediate == (Buffer1_Start - Buffer0_Start));
 }
 
-std::string TFragData::print() const {
-  std::string result;
-  result += fmt::format("fog: {}\n", fog.to_string_aligned());
-  result += fmt::format("val: {}\n", val.to_string_aligned());
-  result += fmt::format("str-gif: {}\n", str_gif.print());
-  result += fmt::format("fan-gif: {}\n", fan_gif.print());
-  result += fmt::format("ad-gif: {}\n", ad_gif.print());
-  result += fmt::format("hvdf_offset: {}\n", hvdf_offset.to_string_aligned());
-  result += fmt::format("hmge_scale: {}\n", hmge_scale.to_string_aligned());
-  result += fmt::format("invh_scale: {}\n", invh_scale.to_string_aligned());
-  result += fmt::format("ambient: {}\n", ambient.to_string_aligned());
-  result += fmt::format("guard: {}\n", guard.to_string_aligned());
-  result += fmt::format("k0s[0]: {}\n", k0s[0].to_string_aligned());
-  result += fmt::format("k0s[1]: {}\n", k0s[1].to_string_aligned());
-  result += fmt::format("k1s[0]: {}\n", k1s[0].to_string_aligned());
-  result += fmt::format("k1s[1]: {}\n", k1s[1].to_string_aligned());
-  return result;
-}

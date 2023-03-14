@@ -102,16 +102,6 @@ void BaseDirectRenderer::draw_debug_window() {
               m_stats.draw_calls);
 }
 
-float u32_to_float(u32 in) {
-  double x = (double)in / UINT32_MAX;
-  return x;
-}
-
-float u32_to_sc(u32 in) {
-  float flt = u32_to_float(in);
-  return (flt - 0.5) * 16.0;
-}
-
 void BaseDirectRenderer::flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   // update opengl state
   if (m_blend_state_needs_graphics_update) {
@@ -538,7 +528,19 @@ void BaseDirectRenderer::handle_xyz2_packed(const u8* data,
   handle_xyzf2_common(x << 16, y << 16, z, 0, render_state, prof, !adc);
 }
 
+namespace direct_renderer {
 PerGameVersion<u32> normal_zbp = {448, 304};
+
+float u32_to_float(u32 in) {
+  double x = (double)in / UINT32_MAX;
+  return x;
+}
+
+float u32_to_sc(u32 in) {
+  float flt = u32_to_float(in);
+  return (flt - 0.5) * 16.0;
+}
+}
 void BaseDirectRenderer::handle_zbuf1(u64 val,
                                   BaseSharedRenderState* render_state,
                                   ScopedProfilerNode& prof) {
@@ -546,7 +548,7 @@ void BaseDirectRenderer::handle_zbuf1(u64 val,
   // way - 24-bit, at offset 448.
   GsZbuf x(val);
   ASSERT(x.psm() == TextureFormat::PSMZ24);
-  ASSERT(x.zbp() == normal_zbp[render_state->version]);
+  ASSERT(x.zbp() == direct_renderer::normal_zbp[render_state->version]);
 
   bool write = !x.zmsk();
   //  ASSERT(write);

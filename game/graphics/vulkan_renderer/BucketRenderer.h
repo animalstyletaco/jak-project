@@ -57,7 +57,7 @@ class BucketVulkanRenderer {
 
     m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
     m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
-    m_pipeline_layouts.resize(1, m_device);
+    m_graphics_pipeline_layouts.resize(1, m_device);
   }
 
   virtual void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) = 0;
@@ -76,7 +76,7 @@ class BucketVulkanRenderer {
   };
 
   PushConstant m_push_constant;
-  std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
+  std::vector<GraphicsPipelineLayout> m_graphics_pipeline_layouts;
   PipelineConfigInfo m_pipeline_config_info;
 
   VkDescriptorBufferInfo m_vertex_buffer_descriptor_info;

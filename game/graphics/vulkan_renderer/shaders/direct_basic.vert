@@ -9,8 +9,8 @@ layout (location = 0) out vec4 fragment_color;
 
 layout(push_constant) uniform PER_OBJECT
 {
-	float height_scale;
-  float scissor_adjust;
+	layout(offset = 0) float height_scale;
+  layout(offset = 4) float scissor_adjust;
 }pc;
 
 void main() {

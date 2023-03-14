@@ -289,7 +289,7 @@ void ShrubVulkan::render_tree(int idx,
 
   if (m_color_result.size() < tree.colors->size()) {
     m_color_result.resize(tree.colors->size());
-    m_pipeline_layouts.resize(tree.colors->size(), m_device);
+    m_graphics_pipeline_layouts.resize(tree.colors->size(), m_device);
   }
 
   Timer interp_timer;
@@ -320,8 +320,8 @@ void ShrubVulkan::render_tree(int idx,
 
   Timer draw_timer;
 
-  m_pipeline_layouts[idx].createGraphicsPipeline(m_pipeline_config_info);
-  m_pipeline_layouts[idx].bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layouts[idx].createGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layouts[idx].bind(m_vulkan_info.render_command_buffer);
 
   PrepareVulkanDraw(idx);
 

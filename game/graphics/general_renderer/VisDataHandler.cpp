@@ -18,6 +18,7 @@ void BaseVisDataHandler::draw_debug_window() {
   }
 }
 
+namespace vis_data_handler {
 int bitcount(const u8* data) {
   int result = 0;
   for (int byte = 0; byte < 16 * 128; byte++) {
@@ -31,6 +32,7 @@ int bitcount(const u8* data) {
   }
   return result;
 }
+}  // namespace vis_data_handler
 
 void BaseVisDataHandler::render(DmaFollower& dma,
                             BaseSharedRenderState* render_state,
@@ -62,7 +64,7 @@ void BaseVisDataHandler::render(DmaFollower& dma,
       render_state->occlusion_vis[i].valid = true;
       m_stats[i].has_vis = true;
       if (m_count_vis) {
-        m_stats[i].num_visible = bitcount(render_state->occlusion_vis[i].data);
+        m_stats[i].num_visible = vis_data_handler::bitcount(render_state->occlusion_vis[i].data);
       } else {
         m_stats[i].num_visible = -1;
       }

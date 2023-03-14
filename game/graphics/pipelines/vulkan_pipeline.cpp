@@ -52,8 +52,6 @@ struct VulkanGraphicsData {
 
   VulkanRenderer vulkan_renderer;
 
-  GraphicsDebugGui debug_gui;
-
   FrameLimiter frame_limiter;
   Timer engine_timer;
   double last_engine_time = 1. / 60.;
@@ -424,36 +422,36 @@ void vulkan_render_game_frame(int game_width,
     options.draw_region_width = draw_region_width;
     options.draw_region_height = draw_region_height;
     options.msaa_samples = msaa_samples;
-    options.draw_render_debug_window = g_gfx_data->debug_gui.should_draw_render_debug();
-    options.draw_profiler_window = g_gfx_data->debug_gui.should_draw_profiler();
-    options.draw_loader_window = g_gfx_data->debug_gui.should_draw_loader_menu();
-    options.draw_subtitle_editor_window = g_gfx_data->debug_gui.should_draw_subtitle_editor();
+    options.draw_render_debug_window = Gfx::debug_gui.should_draw_render_debug();
+    options.draw_profiler_window = Gfx::debug_gui.should_draw_profiler();
+    options.draw_loader_window = Gfx::debug_gui.should_draw_loader_menu();
+    options.draw_subtitle_editor_window = Gfx::debug_gui.should_draw_subtitle_editor();
     options.save_screenshot = false;
-    options.gpu_sync = g_gfx_data->debug_gui.should_gl_finish();
+    options.gpu_sync = Gfx::debug_gui.should_gl_finish();
     options.borderless_windows_hacks = windows_borderless_hack;
 
     want_hotkey_screenshot =
-        want_hotkey_screenshot && g_gfx_data->debug_gui.screenshot_hotkey_enabled;
+        want_hotkey_screenshot && Gfx::debug_gui.screenshot_hotkey_enabled;
     if (want_hotkey_screenshot) {
       want_hotkey_screenshot = false;
       options.save_screenshot = true;
       std::string screenshot_file_name = make_hotkey_screenshot_file_name();
       options.screenshot_path = make_full_screenshot_output_file_path(screenshot_file_name);
     }
-    if (g_gfx_data->debug_gui.get_screenshot_flag()) {
+    if (Gfx::debug_gui.get_screenshot_flag()) {
       options.save_screenshot = true;
-      options.game_res_w = g_gfx_data->debug_gui.screenshot_width;
-      options.game_res_h = g_gfx_data->debug_gui.screenshot_height;
+      options.game_res_w = Gfx::debug_gui.screenshot_width;
+      options.game_res_h = Gfx::debug_gui.screenshot_height;
       options.draw_region_width = options.game_res_w;
       options.draw_region_height = options.game_res_h;
-      options.msaa_samples = g_gfx_data->debug_gui.screenshot_samples;
-      std::string screenshot_file_name = g_gfx_data->debug_gui.screenshot_name();
+      options.msaa_samples = Gfx::debug_gui.screenshot_samples;
+      std::string screenshot_file_name = Gfx::debug_gui.screenshot_name();
       if (!endsWith(screenshot_file_name, ".png")) {
         screenshot_file_name += ".png";
       }
       options.screenshot_path = make_full_screenshot_output_file_path(screenshot_file_name);
     }
-    options.draw_small_profiler_window = g_gfx_data->debug_gui.small_profiler;
+    options.draw_small_profiler_window = Gfx::debug_gui.small_profiler;
     options.pmode_alp_register = g_gfx_data->pmode_alp;
 
     auto msaa_max = g_gfx_data->vulkan_renderer.GetMaxUsableSampleCount();
@@ -699,15 +697,6 @@ void VkDisplay::fullscreen_flush() {
   m_last_video_mode = *vmode;
 }
 
-void update_global_profiler() {
-  if (g_gfx_data->debug_gui.dump_events) {
-    prof().set_enable(false);
-    g_gfx_data->debug_gui.dump_events = false;
-    prof().dump_to_json((file_util::get_jak_project_dir() / "prof.json").string());
-  }
-  prof().set_enable(g_gfx_data->debug_gui.record_events);
-}
-
 void VkDisplay::VMode::set(const GLFWvidmode* vmode) {
   width = vmode->width;
   height = vmode->height;
@@ -780,7 +769,7 @@ void VkDisplay::render() {
 #endif
 
   // render game!
-  if (g_gfx_data->debug_gui.should_advance_frame()) {
+  if (Gfx::debug_gui.should_advance_frame()) {
     auto p = scoped_prof("game-render");
     int game_res_w = Gfx::g_global_settings.game_res_w;
     int game_res_h = Gfx::g_global_settings.game_res_h;
@@ -798,7 +787,7 @@ void VkDisplay::render() {
   // render debug
   if (is_imgui_visible()) {
     auto p = scoped_prof("debug-gui");
-    g_gfx_data->debug_gui.draw(g_gfx_data->dma_copier.get_last_result().stats);
+    Gfx::debug_gui.draw(g_gfx_data->dma_copier.get_last_result().stats);
   }
   {
     auto p = scoped_prof("imgui-render");
@@ -807,7 +796,7 @@ void VkDisplay::render() {
   }
 
   // actual vsync
-  g_gfx_data->debug_gui.finish_frame();
+  Gfx::debug_gui.finish_frame();
   {
     //auto p = scoped_prof("swap-buffers");
     //glfwSwapBuffers(m_window);
@@ -819,14 +808,14 @@ void VkDisplay::render() {
         Gfx::g_global_settings.sleep_in_frame_limiter, g_gfx_data->last_engine_time);
   }
   // actually wait for vsync
-  if (g_gfx_data->debug_gui.should_gl_finish()) {
+  if (Gfx::debug_gui.should_gl_finish()) {
     //glFinish();
   }
 
   // Start timing for the next frame.
-  g_gfx_data->debug_gui.start_frame();
+  Gfx::debug_gui.start_frame();
   prof().instant_event("ROOT");
-  update_global_profiler();
+  Gfx::update_global_profiler();
 
   // toggle even odd and wake up engine waiting on vsync.
   // TODO: we could play with moving this earlier, right after the final bucket renderer.
@@ -839,8 +828,8 @@ void VkDisplay::render() {
   }
 
   // reboot whole game, if requested
-  if (g_gfx_data->debug_gui.want_reboot_in_debug) {
-    g_gfx_data->debug_gui.want_reboot_in_debug = false;
+  if (Gfx::debug_gui.want_reboot_in_debug) {
+    Gfx::debug_gui.want_reboot_in_debug = false;
     MasterExit = RuntimeExitStatus::RESTART_IN_DEBUG;
   }
 
@@ -957,5 +946,5 @@ const GfxRendererModule gRendererVulkan = {
     vk_set_levels,          // set_levels
     vk_set_pmode_alp,       // set_pmode_alp
     GfxPipeline::Vulkan,    // pipeline
-    "Vulkan 1.2"            // name
+    "Vulkan 1.0"            // name
 };

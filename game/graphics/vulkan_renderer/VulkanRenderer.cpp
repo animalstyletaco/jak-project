@@ -888,6 +888,7 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
   m_render_state.next_bucket += 16;
 
   m_vulkan_info.render_command_buffer = beginFrame();
+  m_vulkan_info.currentFrame = currentFrame;
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, currentFrame);
 
   // loop over the buckets!

@@ -361,6 +361,10 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
   //We store separate frame buffers in vulkan swap chain abstractions
   auto& frame_buffer_texture_pair = m_gpu_eye_textures[draws.front().tex_slot()]->fb;
 
+  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  frame_buffer_texture_pair.beginSwapChainRenderPass(m_vulkan_info.render_command_buffer);
+  m_pipeline_config_info.renderPass = frame_buffer_texture_pair.GetRenderPass();
+
   buffer_idx = 0;
   for (size_t draw_idx = 0; draw_idx < draws.size(); draw_idx++) {
     auto& draw = draws[draw_idx];
@@ -426,6 +430,9 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
     // finally, give to "vram"
     m_vulkan_info.texture_pool->move_existing_to_vram(out_tex->gpu_texture, out_tex->tbp);
   }
+
+  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, m_vulkan_info.currentFrame);
 
   ASSERT(check == buffer_idx);
 }

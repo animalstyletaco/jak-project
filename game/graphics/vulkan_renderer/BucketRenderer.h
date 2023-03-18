@@ -41,6 +41,7 @@ struct VulkanInitializationInfo {
   std::shared_ptr<VulkanLoader> loader;
   VkCommandBuffer render_command_buffer;
   GameVersion m_version;
+  uint64_t currentFrame = 0;
 };
 
 /*!

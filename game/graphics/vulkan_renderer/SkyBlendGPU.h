@@ -4,9 +4,9 @@
 #include "game/graphics/general_renderer/SkyBlendGPU.h"
 #include "game/graphics/general_renderer/SkyBlendCommon.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 
-
-class SkyBlendVulkanGPU {
+class SkyBlendVulkanGPU : BaseSkyBlendGPU {
  public:
   SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
   ~SkyBlendVulkanGPU();
@@ -18,20 +18,19 @@ class SkyBlendVulkanGPU {
  private:
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   std::unique_ptr<VulkanTexture> m_textures[2];
+  std::unique_ptr<FramebufferVulkan> m_framebuffers[2];
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   GraphicsPipelineLayout m_pipeline_layout;
   VulkanInitializationInfo& m_vulkan_info;
   PipelineConfigInfo m_pipeline_config_info;
 
-  int m_sizes[2] = {32, 64};
+  unsigned m_sizes[2] = {32, 64};
 
   struct Vertex {
     float x = 0;
     float y = 0;
     float intensity = 0;
   };
-
-  Vertex m_vertex_data[6];
 
   struct TexInfo {
     VulkanGpuTextureMap* tex;

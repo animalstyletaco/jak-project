@@ -38,10 +38,10 @@ void DepthCueVulkan::graphics_setup() {
     m_device, sizeof(uint32_t), 1, 1);
 
   // Gen texture for sampling the framebuffer
-  m_ogl.framebuffer_sample_fbo = std::make_unique<VulkanTexture>(m_device);
+  m_ogl.framebuffer_sample_fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
   m_ogl.framebuffer_sample_tex = std::make_unique<VulkanTexture>(m_device);
 
-  m_ogl.fbo = std::make_unique<VulkanTexture>(m_device);
+  m_ogl.fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
   m_ogl.fbo_texture = std::make_unique<VulkanTexture>(m_device);
 
   m_ogl.depth_cue_page_vertex_buffer = std::make_unique<VertexBuffer>(

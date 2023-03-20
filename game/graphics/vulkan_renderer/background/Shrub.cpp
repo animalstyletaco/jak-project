@@ -303,7 +303,7 @@ void ShrubVulkan::render_tree(int idx,
       idx * m_time_of_day_uniform_buffer->getAlignmentSize());
 
   vulkan_background_common::first_tfrag_draw_setup(settings, render_state,
-                                            m_vertex_shader_uniform_buffer);
+                                            m_vertex_shader_uniform_buffer.get());
 
   tree.perf.tod_time.add(setup_timer.getSeconds());
   tree.perf.cull_time.add(0);

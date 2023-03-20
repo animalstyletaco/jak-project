@@ -272,6 +272,8 @@ void background_common::update_render_state_from_pc_settings(BaseSharedRenderSta
     for (int i = 0; i < 4; i++) {
       state->camera_planes[i] = data.planes[i];
       state->camera_matrix[i] = data.camera[i];
+      state->camera_no_persp[i] = data.camera_rot[i];
+      state->camera_persp[i] = data.camera_perspective[i];
     }
     state->camera_pos = data.cam_trans;
     state->camera_hvdf_off = data.hvdf_off;

@@ -3,6 +3,7 @@
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
 
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DepthCue.h"
 
@@ -31,7 +32,7 @@ class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
 
   struct {
     // Framebuffer for depth-cue-base-page
-    std::unique_ptr<VulkanTexture> fbo;
+    std::unique_ptr<FramebufferVulkan> fbo;
     std::unique_ptr<VulkanTexture> fbo_texture;
     int fbo_width = 0;
     int fbo_height = 0;
@@ -43,7 +44,7 @@ class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
     std::unique_ptr<VertexBuffer> on_screen_vertex_buffer;
 
     // Texture to sample the framebuffer from
-    std::unique_ptr<VulkanTexture> framebuffer_sample_fbo;
+    std::unique_ptr<FramebufferVulkan> framebuffer_sample_fbo;
     std::unique_ptr<VulkanTexture> framebuffer_sample_tex;
     int framebuffer_sample_width = 0;
     int framebuffer_sample_height = 0;

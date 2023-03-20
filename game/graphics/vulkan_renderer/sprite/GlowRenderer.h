@@ -1,5 +1,6 @@
 #pragma once
 
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/general_renderer/sprite/GlowRenderer.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
@@ -59,12 +60,12 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
 
-    std::unique_ptr<SwapChain> probe_fbo;
+    std::unique_ptr<FramebufferVulkan> probe_fbo;
     std::unique_ptr<VulkanTexture> probe_fbo_rgba_tex;
 
     // TODO: verify that this is right. Render objects sound more like swap chain images than
     // standard vulkan images
-    std::unique_ptr<VulkanTexture> probe_fbo_zbuf_rb; 
+    std::unique_ptr<FramebufferVulkan> probe_fbo_zbuf_rb; 
     uint32_t probe_fbo_w = 640;
     uint32_t probe_fbo_h = 480;
 

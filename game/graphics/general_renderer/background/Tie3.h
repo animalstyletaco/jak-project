@@ -20,21 +20,43 @@ struct BaseTieProtoVisibility {
 
 class BaseTie3 : public BaseBucketRenderer {
  public:
-   BaseTie3(const std::string& name, int my_id, int level);
+  BaseTie3(const std::string& name, int my_id, int level, tfrag3::TieCategory category);
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   virtual ~BaseTie3();
 
-  void render_all_trees(int geom,
-                        const TfragRenderSettings& settings,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& prof);
-  virtual void render_tree(int idx,
-                           int geom,
-                           const TfragRenderSettings& settings,
-                           BaseSharedRenderState* render_state,
-                           ScopedProfilerNode& prof) = 0;
-  virtual bool setup_for_level(const std::string& str, BaseSharedRenderState* render_state) = 0;
+  virtual bool try_loading_level(const std::string& str, BaseSharedRenderState* render_state) = 0;
+  bool set_up_common_data_from_dma(DmaFollower& dma, BaseSharedRenderState* render_state);
+  void setup_all_trees(int geom,
+                       const TfragRenderSettings& settings,
+                       const u8* proto_vis_data,
+                       size_t proto_vis_data_size,
+                       bool use_multidraw,
+                       ScopedProfilerNode& prof);
+  virtual void setup_tree(int idx,
+                          int geom,
+                          const TfragRenderSettings& settings,
+                          const u8* proto_vis_data,
+                          size_t proto_vis_data_size,
+                          bool use_multidraw,
+                          ScopedProfilerNode& prof) = 0;
+    
+  void render_from_another(BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof,
+                           tfrag3::TieCategory category);
+
+  void draw_matching_draws_for_all_trees(int geom,
+                                         const TfragRenderSettings& settings,
+                                         BaseSharedRenderState* render_state,
+                                         ScopedProfilerNode& prof,
+                                         tfrag3::TieCategory category);
+
+  virtual void draw_matching_draws_for_tree(int idx,
+                                            int geom,
+                                            const TfragRenderSettings& settings,
+                                            BaseSharedRenderState* render_state,
+                                            ScopedProfilerNode& prof,
+                                            tfrag3::TieCategory category) = 0;
 
   struct WindWork {
     u32 paused;
@@ -51,9 +73,19 @@ class BaseTie3 : public BaseBucketRenderer {
 
  protected:
   virtual void discard_tree_cache() = 0;
+  virtual size_t get_tree_count(int geom) = 0;
+
+  struct CommonData {
+    // data that the AnotherCategory renderers can use.
+    TfragRenderSettings settings;
+    const u8* proto_vis_data = nullptr;
+    u32 proto_vis_data_size = 0;
+    math::Vector4f envmap_color;
+    u64 frame_idx = -1;
+  } m_common_data;
 
   struct Tree {
-    u32 vert_count;
+    std::array<u32, tfrag3::kNumTieCategories + 1> category_draw_indices;
     const std::vector<tfrag3::StripDraw>* draws = nullptr;
     const std::vector<tfrag3::InstancedStripDraw>* wind_draws = nullptr;
     const std::vector<tfrag3::TieWindInstance>* instance_info = nullptr;
@@ -70,6 +102,9 @@ class BaseTie3 : public BaseBucketRenderer {
     bool has_proto_visibility = false;
     BaseTieProtoVisibility proto_visibility;
 
+    std::vector<u32> index_temp;
+    std::vector<u8> vis_temp;
+
     struct {
       u32 draws = 0;
       u32 wind_draws = 0;
@@ -83,7 +118,6 @@ class BaseTie3 : public BaseBucketRenderer {
     } perf;
   };
 
-  std::array<std::vector<Tree>, 4> m_trees;  // includes 4 lods!
   std::string m_level_name;
   u64 m_load_id = -1;
 
@@ -106,6 +140,8 @@ class BaseTie3 : public BaseBucketRenderer {
   float m_wind_multiplier = 1.f;
 
   int m_level_id;
+
+  tfrag3::TieCategory m_default_category;
 
   static_assert(sizeof(WindWork) == 84 * 16);
 

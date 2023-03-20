@@ -26,6 +26,9 @@ SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& devi
   // setup the framebuffers
   for (int i = 0; i < 2; i++) {
     m_textures[i] = std::make_unique<VulkanTexture>(m_device);
+    m_framebuffers[i] = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
+    m_framebuffers[i]->extents = {m_sizes[i], m_sizes[i]};
+
     VkExtent3D extents{m_sizes[i], m_sizes[i], 1};
     m_textures[i]->createImage(
         extents, 1, VK_IMAGE_TYPE_2D,
@@ -86,23 +89,6 @@ SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& devi
   m_pipeline_config_info.attributeDescriptions.push_back(attributeDescriptions[0]);
 
   // we only draw squares
-  m_vertex_data[0].x = 0;
-  m_vertex_data[0].y = 0;
-
-  m_vertex_data[1].x = 1;
-  m_vertex_data[1].y = 0;
-
-  m_vertex_data[2].x = 0;
-  m_vertex_data[2].y = 1;
-
-  m_vertex_data[3].x = 1;
-  m_vertex_data[3].y = 0;
-
-  m_vertex_data[4].x = 0;
-  m_vertex_data[4].y = 1;
-
-  m_vertex_data[5].x = 1;
-  m_vertex_data[5].y = 1;
   m_vertex_buffer->writeToGpuBuffer(m_vertex_data, sizeof(m_vertex_data), 0);
 }
 

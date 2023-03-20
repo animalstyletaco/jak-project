@@ -6,7 +6,7 @@
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
 
-
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/general_renderer/sprite/Sprite3.h"
 #include "game/graphics/vulkan_renderer/sprite/SpriteCommon.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
@@ -66,7 +66,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
     std::unique_ptr<IndexBuffer>
         index_buffer;  // contains all instance specific data for each sprite per frame
 
-    std::unique_ptr<VulkanTexture> fbo;
+    std::unique_ptr<FramebufferVulkan> fbo;
     std::unique_ptr<VulkanTexture> fbo_texture;
   };
   VulkanDistortOgl m_distort_ogl;

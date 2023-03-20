@@ -135,8 +135,8 @@ void EyeVulkanRenderer::InitializeInputVertexAttribute() {
   m_pipeline_config_info.attributeDescriptions.push_back(attributeDescriptions[0]);
 }
 
-std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> EyeVulkanRenderer::get_draws(DmaFollower& dma,
-                                                                                  BaseSharedRenderState* render_state) {
+std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan>& EyeVulkanRenderer::get_draws(DmaFollower& dma,
+                                                                                   BaseSharedRenderState* render_state) {
   std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> draws;
   // now, loop over eyes. end condition is a 8 qw transfer to restore gs.
   while (dma.current_tag().qwc != 8) {
@@ -388,8 +388,8 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
           VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
                                 draw.iris_vulkan_graphics.texture->get_selected_texture()->getImageView(),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      frame_buffer_texture_pair.setViewportScissor(m_vulkan_info.render_command_buffer);
       ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.iris_vulkan_graphics, buffer_idx / 4, 4);
-
     }
     buffer_idx += 4 * 4;
 
@@ -409,6 +409,7 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
           VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
                                 draw.pupil_vulkan_graphics.texture->get_selected_texture()->getImageView(),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      frame_buffer_texture_pair.setViewportScissor(m_vulkan_info.render_command_buffer);
       ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.pupil_vulkan_graphics,
                         buffer_idx / 4, 4);
     }
@@ -421,6 +422,7 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
           VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
                                 draw.lid_vulkan_graphics.texture->get_selected_texture()->getImageView(),
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      frame_buffer_texture_pair.setViewportScissor(m_vulkan_info.render_command_buffer);
       ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.lid_vulkan_graphics,
                         buffer_idx / 4, 4);
       //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
@@ -466,8 +468,6 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
   eye.pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
   eye.pipeline_layout.bind(commandBuffer);
 
-  m_swap_chain->setViewportScissor(commandBuffer);
-
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = m_gpu_vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
@@ -480,7 +480,7 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
 }
 
 void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) {
-  auto draws = get_draws(dma, render_state);
+  auto& draws = get_draws(dma, render_state);
   run_gpu(draws, render_state);
 }
 

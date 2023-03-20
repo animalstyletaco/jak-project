@@ -4,9 +4,10 @@
 
 BaseTie3::BaseTie3(const std::string& name,
            int my_id,
-           int level_id)
+                   int level_id,
+                   tfrag3::TieCategory category)
     : BaseBucketRenderer(name, my_id),
-      m_level_id(level_id) {
+      m_level_id(level_id), m_default_category(category) {
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
@@ -126,16 +127,6 @@ void BaseTie3::do_wind_math(u16 wind_idx,
   // sd s2, 0(s5)
 }
 
-void BaseTie3::discard_tree_cache() {
-  for (int geo = 0; geo < 4; ++geo) {
-    for (auto& tree : m_trees[geo]) {
-      //TODO: Delete textures and index buffers here
-    }
-
-    m_trees[geo].clear();
-  }
-}
-
 void BaseTie3::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -144,11 +135,17 @@ void BaseTie3::render(DmaFollower& dma, BaseSharedRenderState* render_state, Sco
     return;
   }
 
-  if (m_override_level && m_pending_user_level) {
-    m_has_level = setup_for_level(*m_pending_user_level, render_state);
-    m_pending_user_level = {};
-  }
+  if (set_up_common_data_from_dma(dma, render_state)) {
+    setup_all_trees(lod(), m_common_data.settings, m_common_data.proto_vis_data,
+                    m_common_data.proto_vis_data_size, !render_state->no_multidraw, prof);
 
+    draw_matching_draws_for_all_trees(lod(), m_common_data.settings, render_state, prof,
+                                      m_default_category);
+  }
+}
+
+bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
+                                           BaseSharedRenderState* render_state) {
   auto data0 = dma.read_and_advance();
   ASSERT(data0.vif1() == 0 || data0.vifcode1().kind == VifCode::Kind::NOP);
   ASSERT(data0.vif0() == 0 || data0.vifcode0().kind == VifCode::Kind::NOP ||
@@ -161,11 +158,11 @@ void BaseTie3::render(DmaFollower& dma, BaseSharedRenderState* render_state, Sco
       dma.read_and_advance();
     }
     ASSERT(dma.current_tag_offset() == render_state->next_bucket);
-    return;
+    return false;
   }
 
   if (dma.current_tag_offset() == render_state->next_bucket) {
-    return;
+    return false;
   }
 
   auto gs_test = dma.read_and_advance();
@@ -198,82 +195,89 @@ void BaseTie3::render(DmaFollower& dma, BaseSharedRenderState* render_state, Sco
     auto wind_data = dma.read_and_advance();
     ASSERT(wind_data.size_bytes == sizeof(WindWork));
     memcpy(&m_wind_data, wind_data.data, sizeof(WindWork));
-  } else {
   }
+
+  if (render_state->version == GameVersion::Jak2) {
+    // jak 2 proto visibility
+    auto proto_mask_data = dma.read_and_advance();
+    m_common_data.proto_vis_data = proto_mask_data.data;
+    m_common_data.proto_vis_data_size = proto_mask_data.size_bytes;
+    // jak 2 envmap color
+    auto envmap_color = dma.read_and_advance();
+    ASSERT(envmap_color.size_bytes == 16);
+    memcpy(m_common_data.envmap_color.data(), envmap_color.data, 16);
+    m_common_data.envmap_color /= 128.f;
+  }
+  m_common_data.frame_idx = render_state->frame_idx;
 
   while (dma.current_tag_offset() != render_state->next_bucket) {
     dma.read_and_advance();
   }
 
-  TfragRenderSettings settings;
-  settings.hvdf_offset = m_pc_port_data.hvdf_off;
-  settings.fog = m_pc_port_data.fog;
+  m_common_data.settings.hvdf_offset = m_pc_port_data.hvdf_off;
+  m_common_data.settings.fog = m_pc_port_data.fog;
 
-  memcpy(settings.math_camera.data(), m_pc_port_data.camera[0].data(), 64);
-  settings.tree_idx = 0;
+  memcpy(m_common_data.settings.math_camera.data(), m_pc_port_data.camera[0].data(), 64);
+  m_common_data.settings.tree_idx = 0;
 
   if (render_state->occlusion_vis[m_level_id].valid) {
-    settings.occlusion_culling = render_state->occlusion_vis[m_level_id].data;
+    m_common_data.settings.occlusion_culling = render_state->occlusion_vis[m_level_id].data;
+  } else {
+    m_common_data.settings.occlusion_culling = 0;
   }
 
   background_common::update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
   for (int i = 0; i < 4; i++) {
-    settings.planes[i] = m_pc_port_data.planes[i];
-    settings.itimes[i] = m_pc_port_data.itimes[i];
+    m_common_data.settings.planes[i] = m_pc_port_data.planes[i];
+    m_common_data.settings.itimes[i] = m_pc_port_data.itimes[i];
   }
 
-  if (!m_override_level) {
-    m_has_level = setup_for_level(m_pc_port_data.level_name, render_state);
-  }
-
-  render_all_trees(lod(), settings, render_state, prof);
+  m_has_level = try_loading_level(m_pc_port_data.level_name, render_state);
+  return true;
 }
 
-void BaseTie3::render_all_trees(int geom,
+void BaseTie3::setup_all_trees(int geom,
                             const TfragRenderSettings& settings,
-                            BaseSharedRenderState* render_state,
+                            const u8* proto_vis_data,
+                            size_t proto_vis_data_size,
+                            bool use_multidraw,
                             ScopedProfilerNode& prof) {
-  Timer all_tree_timer;
-  if (m_override_level && m_pending_user_level) {
-    m_has_level = setup_for_level(*m_pending_user_level, render_state);
-    m_pending_user_level = {};
+  for (u32 i = 0; i < get_tree_count(geom); i++) {
+    setup_tree(i, geom, settings, proto_vis_data, proto_vis_data_size, use_multidraw, prof);
   }
-  for (u32 i = 0; i < m_trees[geom].size(); i++) {
-    render_tree(i, geom, settings, render_state, prof);
-  }
-  m_all_tree_time.add(all_tree_timer.getSeconds());
 }
 
+void BaseTie3::render_from_another(BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof,
+                                   tfrag3::TieCategory category) {
+  if (render_state->frame_idx != m_common_data.frame_idx) {
+    return;
+  }
+  draw_matching_draws_for_all_trees(lod(), m_common_data.settings, render_state, prof, category);
+}
+
+void BaseTie3::draw_matching_draws_for_all_trees(int geom,
+                                                 const TfragRenderSettings& settings,
+                                                 BaseSharedRenderState* render_state,
+                                                 ScopedProfilerNode& prof,
+                                                 tfrag3::TieCategory category) {
+  for (u32 i = 0; i < get_tree_count(geom); i++) {
+    if (tfrag3::is_envmap_first_draw_category(category)) {
+      draw_matching_draws_for_tree(i, geom, settings, render_state, prof, category);
+    } else {
+      draw_matching_draws_for_tree(i, geom, settings, render_state, prof, category);
+    }
+  }
+}
 
 void BaseTie3::draw_debug_window() {
-  ImGui::InputText("Custom Level", m_user_level, sizeof(m_user_level));
-  if (ImGui::Button("Go!")) {
-    m_pending_user_level = m_user_level;
-  }
-  ImGui::Checkbox("Override level", &m_override_level);
   ImGui::Checkbox("Fast ToD", &m_use_fast_time_of_day);
-  ImGui::Checkbox("Wireframe", &m_debug_wireframe);
   ImGui::SameLine();
   ImGui::Checkbox("All Visible", &m_debug_all_visible);
   ImGui::Checkbox("Hide Wind", &m_hide_wind);
   ImGui::SliderFloat("Wind Multiplier", &m_wind_multiplier, 0., 40.f);
   ImGui::Separator();
-  for (u32 i = 0; i < m_trees[lod()].size(); i++) {
-    auto& perf = m_trees[lod()][i].perf;
-    ImGui::Text("Tree: %d", i);
-    ImGui::Text("time of days: %d", (int)m_trees[lod()][i].colors->size());
-    ImGui::Text("draw: %d", perf.draws);
-    ImGui::Text("wind draw: %d", perf.wind_draws);
-    ImGui::Text("total: %.2f", perf.tree_time.get());
-    ImGui::Text("proto vis: %.2f", perf.proto_vis_time.get() * 1000.f);
-    ImGui::Text("cull: %.2f index: %.2f tod: %.2f setup: %.2f draw: %.2f",
-                perf.cull_time.get() * 1000.f, perf.index_time.get() * 1000.f,
-                perf.tod_time.get() * 1000.f, perf.setup_time.get() * 1000.f,
-                perf.draw_time.get() * 1000.f);
-    ImGui::Separator();
-  }
-  ImGui::Text("All trees: %.2f", 1000.f * m_all_tree_time.get());
 }
 
 void BaseTieProtoVisibility::init(const std::vector<std::string>& names) {

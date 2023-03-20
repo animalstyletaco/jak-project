@@ -87,7 +87,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   // xyst per vertex, 4 vertices per square, 3 draws per eye, 11 pairs of eyes, 2 eyes per pair.
   static constexpr int VTX_BUFFER_FLOATS = 4 * 4 * 3 * NUM_EYE_PAIRS * 2;
 
-  std::vector<SingleEyeDrawsVulkan> get_draws(DmaFollower& dma, BaseSharedRenderState* render_state);
+  std::vector<SingleEyeDrawsVulkan>& get_draws(DmaFollower& dma, BaseSharedRenderState* render_state);
   void run_gpu(std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
   void ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
                          EyeVulkanGraphics& image_info,

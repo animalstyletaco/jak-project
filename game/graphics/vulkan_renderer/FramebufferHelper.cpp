@@ -8,11 +8,11 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
-FramebufferVulkan::FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device)
+FramebufferVulkan::FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VkFormat format)
     : color_texture(device),
       depth_texture(device),
       mipmap_texture(device),
-      sampler_helper(device), m_device(device) {
+      sampler_helper(device), m_device(device), m_format(format) {
   VkSamplerCreateInfo& samplerInfo = sampler_helper.GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 
@@ -26,6 +26,19 @@ FramebufferVulkan::FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& devi
   samplerInfo.magFilter = VK_FILTER_LINEAR;
   samplerInfo.minFilter = VK_FILTER_NEAREST;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+}
+
+void FramebufferVulkan::setViewportScissor(VkCommandBuffer commandBuffer) {
+  VkViewport viewport{};
+  viewport.x = 0.0f;
+  viewport.y = 0.0f;
+  viewport.width = static_cast<float>(extents.width);
+  viewport.height = static_cast<float>(extents.height);
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;
+  VkRect2D scissor{{0, 0}, extents};
+  vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+  vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
 FramebufferVulkan::~FramebufferVulkan() {
@@ -44,55 +57,66 @@ FramebufferVulkanHelper::FramebufferVulkanHelper(unsigned w,
     : m_device(device), m_format(format) {
   extents = {w, h};
 
-  m_framebuffers.resize(num_levels, m_device);
+  m_framebuffers.resize(num_levels, {m_device, format});
 
   uint32_t iterator = 0;
-  for (auto& framebuffer : m_framebuffers) {
-    VkExtent3D textureExtents = {extents.width >> iterator, extents.height >> iterator, 1};
-    framebuffer.extents.width = textureExtents.width;
-    framebuffer.extents.height = textureExtents.height;
+  for (uint32_t i = 0; i < m_framebuffers.size(); i++) {
+    VkExtent3D textureExtents = {extents.width >> i, extents.height >> i, 1};
+    m_framebuffers[i].extents.width = textureExtents.width;
+    m_framebuffers[i].extents.height = textureExtents.height;
 
-    //Check needed to avoid validation error. See https://vulkan-tutorial.com/Generating_Mipmaps#page_Image-creation for more info
-    uint32_t maxMinmapLevels =
-        static_cast<uint32_t>(std::floor(std::log2(std::max(textureExtents.width, textureExtents.height)))) + 1;
-    uint32_t mipmapLevel = (iterator + 1 > maxMinmapLevels) ? maxMinmapLevels : iterator + 1;
-    framebuffer.mipmap_texture.createImage(
-        textureExtents, mipmapLevel, VK_IMAGE_TYPE_2D, format, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT );
-
-    framebuffer.mipmap_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, format,
-                                               VK_IMAGE_ASPECT_COLOR_BIT, mipmapLevel);
-
-    framebuffer.color_texture.createImage(
-        textureExtents, 1, VK_IMAGE_TYPE_2D, format, VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-  
-    framebuffer.color_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-
-    framebuffer.depth_texture.createImage(textureExtents, 1, VK_IMAGE_TYPE_2D,
-                                          GetSupportedDepthFormat(), VK_IMAGE_TILING_OPTIMAL,
-                                          VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                              VK_IMAGE_USAGE_SAMPLED_BIT |
-                                              VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-    framebuffer.depth_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, GetSupportedDepthFormat(),
-                                        VK_IMAGE_ASPECT_DEPTH_BIT, 1);
-
-    auto& samplerInfo = framebuffer.sampler_helper.GetSamplerCreateInfo();
-    samplerInfo.maxLod = static_cast<float>(mipmapLevel);
-
-    framebuffer.sampler_helper.CreateSampler();
-
-    createRenderPass(framebuffer);
-    createFramebuffer(framebuffer);
-    iterator++;
+    uint32_t mipmapLevel = m_framebuffers[i].GetMipmapLevel(i);
+    m_framebuffers[i].initializeFramebufferAtLevel(mipmapLevel);
   }
 }
 
-void FramebufferVulkanHelper::createRenderPass(FramebufferVulkan& frame_buffer) {
-  if (frame_buffer.render_pass) {
-    vkDestroyRenderPass(m_device->getLogicalDevice(), frame_buffer.render_pass, nullptr);
-    frame_buffer.render_pass = VK_NULL_HANDLE;
+uint32_t FramebufferVulkan::GetMipmapLevel(int level) {
+  // Check needed to avoid validation error. See
+  // https://vulkan-tutorial.com/Generating_Mipmaps#page_Image-creation for more info
+  uint32_t maxMinmapLevels =
+      static_cast<uint32_t>(
+          std::floor(std::log2(std::max(extents.width, extents.height)))) +
+      1;
+  return (level + 1 > maxMinmapLevels) ? maxMinmapLevels : level + 1;
+}
+
+void FramebufferVulkan::initializeFramebufferAtLevel(int mipmapLevel) {
+  VkExtent3D textureExtents{extents.height, extents.width, 1};
+  mipmap_texture.createImage(
+      textureExtents, mipmapLevel, VK_IMAGE_TYPE_2D, m_format, VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+  mipmap_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, m_format,
+                                 VK_IMAGE_ASPECT_COLOR_BIT, mipmapLevel);
+
+  color_texture.createImage(
+      textureExtents, 1, VK_IMAGE_TYPE_2D, m_format, VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+
+  color_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, m_format,
+                                VK_IMAGE_ASPECT_COLOR_BIT, 1);
+
+  depth_texture.createImage(
+      textureExtents, 1, VK_IMAGE_TYPE_2D, GetSupportedDepthFormat(), VK_IMAGE_TILING_OPTIMAL,
+      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+  depth_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, GetSupportedDepthFormat(),
+                                            VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+
+  auto& samplerInfo = sampler_helper.GetSamplerCreateInfo();
+  samplerInfo.maxLod = static_cast<float>(mipmapLevel);
+
+  sampler_helper.CreateSampler();
+
+  createRenderPass();
+  createFramebuffer();
+}
+
+void FramebufferVulkan::createRenderPass() {
+  if (render_pass) {
+    vkDestroyRenderPass(m_device->getLogicalDevice(), render_pass, nullptr);
+    render_pass = VK_NULL_HANDLE;
   }
 
   VkAttachmentDescription colorAttachment = {};
@@ -158,36 +182,40 @@ void FramebufferVulkanHelper::createRenderPass(FramebufferVulkan& frame_buffer) 
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  if (vkCreateRenderPass(m_device->getLogicalDevice(), &renderPassInfo, nullptr, &frame_buffer.render_pass) !=
+  if (vkCreateRenderPass(m_device->getLogicalDevice(), &renderPassInfo, nullptr, &render_pass) !=
       VK_SUCCESS) {
     throw std::runtime_error("failed to create render pass!");
   }
 }
 
-void FramebufferVulkanHelper::createFramebuffer(FramebufferVulkan& framebuffer) {
-  if (framebuffer.frame_buffer) {
-    vkDestroyFramebuffer(m_device->getLogicalDevice(), framebuffer.frame_buffer, nullptr);
+void FramebufferVulkan::createFramebuffer() {
+  if (frame_buffer) {
+    vkDestroyFramebuffer(m_device->getLogicalDevice(), frame_buffer, nullptr);
   }
 
-  std::array<VkImageView, 2> attachments{framebuffer.color_texture.getImageView(),
-                                         framebuffer.depth_texture.getImageView()};
+  std::array<VkImageView, 2> attachments = {color_texture.getImageView(),
+                                            depth_texture.getImageView()};
 
   VkFramebufferCreateInfo framebufferInfo{};
   framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-  framebufferInfo.renderPass = framebuffer.render_pass;
+  framebufferInfo.renderPass = render_pass;
   framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
   framebufferInfo.pAttachments = attachments.data();
-  framebufferInfo.width = framebuffer.extents.width;
-  framebufferInfo.height = framebuffer.extents.height;
+  framebufferInfo.width = extents.width;
+  framebufferInfo.height = extents.height;
   framebufferInfo.layers = 1;
 
   if (vkCreateFramebuffer(m_device->getLogicalDevice(), &framebufferInfo, nullptr,
-                          &framebuffer.frame_buffer) != VK_SUCCESS) {
+                          &frame_buffer) != VK_SUCCESS) {
     throw std::runtime_error("failed to create framebuffer!");
   }
 }
 
 void FramebufferVulkanHelper::beginSwapChainRenderPass(VkCommandBuffer commandBuffer, int level) {
+  if (m_framebuffers[level].m_current_msaa != m_device->getMsaaCount()) {
+    m_framebuffers[level].initializeFramebufferAtLevel(level);
+  }
+
   VkRenderPassBeginInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   renderPassInfo.renderPass = m_framebuffers[level].render_pass;
@@ -205,7 +233,7 @@ void FramebufferVulkanHelper::beginSwapChainRenderPass(VkCommandBuffer commandBu
   vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
-VkFormat FramebufferVulkanHelper::GetSupportedDepthFormat() {
+VkFormat FramebufferVulkan::GetSupportedDepthFormat() {
   return m_device->findSupportedFormat(
       {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
       VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);

@@ -375,9 +375,7 @@ void GlowVulkanRenderer::blit_depth(BaseSharedRenderState* render_state) {
     m_ogl.probe_fbo_w = render_state->render_fb_w;
     m_ogl.probe_fbo_h = render_state->render_fb_h;
 
-    //TODO: Recreate swap chain here
-    m_ogl.probe_fbo =
-        std::make_unique<SwapChain>(m_device, VkExtent2D{m_ogl.probe_fbo_w, m_ogl.probe_fbo_h}, false);
+    m_ogl.probe_fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
 
     m_ogl.probe_fbo_rgba_tex->createImage(
         {m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, 1}, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UINT,

@@ -18,7 +18,19 @@ class BackgroundCommonVertexUniformBuffer : public UniformVulkanBuffer {
  public:
   BackgroundCommonVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                       uint32_t instanceCount,
-                                      VkDeviceSize minOffsetAlignment);
+                                      VkDeviceSize minOffsetAlignment,
+                                      VkDeviceSize instanceSize = sizeof(BackgroundCommonVertexUniformShaderData));
+};
+
+struct BackgroundCommonEtieVertexUniformShaderData : BackgroundCommonVertexUniformShaderData {
+  math::Vector4f envmap_tod_tint;
+};
+
+class BackgroundCommonEtieVertexUniformBuffer : public BackgroundCommonVertexUniformBuffer {
+ public:
+  BackgroundCommonEtieVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                          uint32_t instanceCount,
+                                          VkDeviceSize minOffsetAlignment);
 };
 
 struct BackgroundCommonFragmentUniformShaderData {
@@ -91,7 +103,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             BaseSharedRenderState* render_state,
-                            std::unique_ptr<BackgroundCommonVertexUniformBuffer>& uniform_buffer);
+                            BackgroundCommonVertexUniformBuffer* uniform_buffer);
 
 VkDescriptorImageInfo create_placeholder_descriptor_image_info(
     std::unique_ptr<VulkanTexture>& texture,

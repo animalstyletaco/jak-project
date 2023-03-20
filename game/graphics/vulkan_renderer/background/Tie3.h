@@ -15,18 +15,29 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
        int my_id,
        std::unique_ptr<GraphicsDeviceVulkan>& device,
        VulkanInitializationInfo& vulkan_info,
-       int level_id);
+             int level_id,
+             tfrag3::TieCategory category = tfrag3::TieCategory::NORMAL);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void init_shaders(VulkanShaderLibrary& shaders) override;
   ~Tie3Vulkan();
 
-  void update_load(const LevelDataVulkan* loader_data);
-  void render_tree(int idx,
-                   int geom,
-                   const TfragRenderSettings& settings,
-                   BaseSharedRenderState* render_state,
-                   ScopedProfilerNode& prof) override;
-  bool setup_for_level(const std::string& str, BaseSharedRenderState* render_state) override;
+  bool try_loading_level(const std::string& str, BaseSharedRenderState* render_state) override;
+
+  void draw_matching_draws_for_tree(int idx,
+                                    int geom,
+                                    const TfragRenderSettings& settings,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof,
+                                    tfrag3::TieCategory category) override;
+
+  void load_from_fr3_data(const LevelDataVulkan* loader_data);
+  void setup_tree(int idx,
+                  int geom,
+                  const TfragRenderSettings& settings,
+                  const u8* render_state,
+                  size_t proto_vis_data_size,
+                  bool use_multidraw,
+                  ScopedProfilerNode& prof) override;
 
   int lod() const { return Gfx::g_global_settings.lod_tie; }
 
@@ -40,37 +51,22 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
 
-  struct Tree {
+  struct TreeVulkan : Tree {
+    std::vector<background_common::DrawSettings> draw_idx_temp;
+    std::vector<background_common::DrawSettings> multidraw_idx_temp;
     VertexBuffer* vertex_buffer = nullptr;
     IndexBuffer* index_buffer = nullptr;
     IndexBuffer* single_draw_index_buffer = nullptr;
     VulkanTexture* time_of_day_texture = nullptr;
-    u32 vert_count;
-    const std::vector<tfrag3::StripDraw>* draws = nullptr;
-    const std::vector<tfrag3::InstancedStripDraw>* wind_draws = nullptr;
-    const std::vector<tfrag3::TieWindInstance>* instance_info = nullptr;
-    const std::vector<tfrag3::TimeOfDayColor>* colors = nullptr;
-    const tfrag3::BVH* vis = nullptr;
-    const u32* index_data = nullptr;
-    SwizzledTimeOfDay tod_cache;
 
-    std::vector<std::array<math::Vector4f, 4>> wind_matrix_cache;
-
-    bool has_wind = false;
     IndexBuffer* wind_vertex_index_buffer;
-    std::vector<u32> wind_vertex_index_offsets;
-
-    struct {
-      u32 draws = 0;
-      u32 wind_draws = 0;
-      Filtered<float> cull_time;
-      Filtered<float> index_time;
-      Filtered<float> tod_time;
-      Filtered<float> setup_time;
-      Filtered<float> draw_time;
-      Filtered<float> tree_time;
-    } perf;
   };
+
+  void envmap_second_pass_draw(const TreeVulkan& tree,
+                               const TfragRenderSettings& settings,
+                               BaseSharedRenderState* render_state,
+                               ScopedProfilerNode& prof,
+                               tfrag3::TieCategory category);
 
   struct Cache {
     std::vector<background_common::DrawSettings> draw_idx_temp;
@@ -82,11 +78,14 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   struct PushConstantTie : PushConstant {
     int index;
+    int decal;
   }m_push_constant_tie;
 
-  void PrepareVulkanDraw(Tree& tree, int index);
+  void PrepareVulkanDraw(TreeVulkan& tree, int index);
+  size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
+  void init_etie_cam_uniforms(const BaseSharedRenderState* render_state);
 
-  std::array<std::vector<Tree>, 4> m_trees;  // includes 4 lods!
+  std::array<std::vector<TreeVulkan>, 4> m_trees;  // includes 4 lods!
   std::unordered_map<u32, VulkanTexture>* m_textures;
   std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
 
@@ -94,6 +93,10 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_uniform_buffer;
+
+  std::unique_ptr<BackgroundCommonEtieVertexUniformBuffer> m_etie_vertex_shader_uniform_buffer;
+  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_etie_time_of_day_color_uniform_buffer;
+
   std::unique_ptr<UniformVulkanBuffer> m_time_of_day_uniform_buffer;
   std::unordered_map<u32, VulkanTexture> texture_maps[tfrag3::TIE_GEOS];
 
@@ -106,4 +109,23 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::unique_ptr<VulkanTexture> m_placeholder_texture;
   std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
   VkDescriptorImageInfo m_placeholder_descriptor_image_info;
+};
+
+class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkanRenderer {
+ public:
+  Tie3VulkanAnotherCategory(const std::string& name,
+                            int my_id,
+                            std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            VulkanInitializationInfo& vulkan_info,
+                            Tie3Vulkan* parent,
+                            tfrag3::TieCategory category);
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
+  void draw_debug_window() override;
+
+ private:
+  Tie3Vulkan* m_parent;
+  tfrag3::TieCategory m_category;
 };

@@ -95,7 +95,8 @@ VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& 
   at(ShaderId::GLOW_PROBE_DOWNSAMPLE)
       .initialize_shader(m_device->getLogicalDevice(), "glow_probe_downsample");
   at(ShaderId::GLOW_DRAW).initialize_shader(m_device->getLogicalDevice(), "glow_draw");
-
+  at(ShaderId::ETIE_BASE).initialize_shader(m_device->getLogicalDevice(), "etie_base");
+  at(ShaderId::ETIE).initialize_shader(m_device->getLogicalDevice(), "etie");
 
   for (auto& shader : m_shaders) {
     ASSERT_MSG(shader.okay(), "Shader compiled");

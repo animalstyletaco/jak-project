@@ -6,14 +6,20 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
                        int my_id,
                        std::unique_ptr<GraphicsDeviceVulkan>& device,
                        VulkanInitializationInfo& vulkan_info,
-                       int level_id)
-    : BaseTie3(name, my_id, level_id),
+                       int level_id,
+                       tfrag3::TieCategory category)
+    : BaseTie3(name, my_id, level_id, category),
       BucketVulkanRenderer(device, vulkan_info) {
   m_push_constant_tie.height_scale = m_push_constant.height_scale;
   m_push_constant_tie.scissor_adjust = m_push_constant.scissor_adjust;
 
   m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
   m_time_of_day_color_uniform_buffer = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
+      device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
+
+  m_etie_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonEtieVertexUniformBuffer>(
+      device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
+  m_etie_time_of_day_color_uniform_buffer = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
       device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
 
   m_time_of_day_uniform_buffer = std::make_unique<UniformVulkanBuffer>(
@@ -127,7 +133,7 @@ void Tie3Vulkan::create_pipeline_layout() {
   }
 }
 
-void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
+void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
   const tfrag3::Level* lev_data = loader_data->level.get();
   m_wind_vectors.clear();
   // We changed level!
@@ -165,7 +171,6 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
       auto& lod_tree = m_trees.at(l_geo);
 
       lod_tree[l_tree].vertex_buffer = loader_data->tie_data[l_geo][l_tree].vertex_buffer.get();
-      lod_tree[l_tree].vert_count = verts;
       lod_tree[l_tree].draws = &tree.static_draws;
       lod_tree[l_tree].colors = &tree.colors;
       lod_tree[l_tree].vis = &tree.bvh;
@@ -211,7 +216,7 @@ void Tie3Vulkan::update_load(const LevelDataVulkan* loader_data) {
  * Set up all Vulkan and temporary buffers for a given level name.
  * The level name should be the 3 character short name.
  */
-bool Tie3Vulkan::setup_for_level(const std::string& level, BaseSharedRenderState* render_state) {
+bool Tie3Vulkan::try_loading_level(const std::string& level, BaseSharedRenderState* render_state) {
   // make sure we have the level data.
   Timer tfrag3_setup_timer;
   auto lev_data = m_vulkan_info.loader->get_tfrag3_level(level);
@@ -226,7 +231,7 @@ bool Tie3Vulkan::setup_for_level(const std::string& level, BaseSharedRenderState
   m_load_id = lev_data->load_id;
 
   if (m_level_name != level) {
-    update_load(lev_data);
+    load_from_fr3_data(lev_data);
     m_has_level = true;
     m_level_name = level;
   } else {
@@ -324,8 +329,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
       }
 
       m_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-          "camera", 1,
-                                             GL_FALSE, (float*)tree.wind_matrix_cache.at(grp.instance_idx)[0].data());
+          "camera", 1, GL_FALSE, (float*)tree.wind_matrix_cache.at(grp.instance_idx)[0].data());
 
       prof.add_draw_call();
       prof.add_tri(grp.num);
@@ -358,96 +362,36 @@ void Tie3Vulkan::render_tree_wind(int idx,
 }
 
 
-void Tie3Vulkan::render_tree(int idx,
-                       int geom,
-                       const TfragRenderSettings& settings,
-                       BaseSharedRenderState* render_state,
-                       ScopedProfilerNode& prof) {
-  // reset perf
-  Timer tree_timer;
+void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
+                                        int geom,
+                                        const TfragRenderSettings& settings,
+                                        BaseSharedRenderState* render_state,
+                                        ScopedProfilerNode& prof,
+                                        tfrag3::TieCategory category) {
   auto& tree = m_trees.at(geom).at(idx);
-  tree.perf.draws = 0;
-  tree.perf.wind_draws = 0;
 
   // don't render if we haven't loaded
   if (!m_has_level) {
     return;
   }
-
-  // update time of day
-  if (m_color_result.size() < tree.colors->size()) {
-    m_color_result.resize(tree.colors->size());
-  }
-
-  Timer interp_timer;
-  if (m_use_fast_time_of_day) {
-    background_common::interp_time_of_day_fast(settings.itimes, tree.tod_cache, m_color_result.data());
+  bool use_envmap = tfrag3::is_envmap_first_draw_category(category);
+  if(use_envmap){
+    vulkan_background_common::first_tfrag_draw_setup(settings, render_state, m_etie_vertex_shader_uniform_buffer.get());
+    // if we use envmap, use the envmap-style math for the base draw to avoid rounding issue.
+    init_etie_cam_uniforms(render_state);
   } else {
-    background_common::interp_time_of_day_slow(settings.itimes, *tree.colors, m_color_result.data());
+    vulkan_background_common::first_tfrag_draw_setup(settings, render_state,
+                                                     m_vertex_shader_uniform_buffer.get());
   }
-  tree.perf.tod_time.add(interp_timer.getSeconds());
 
-  Timer setup_timer;
+  IndexBuffer* index_buffer = (render_state->no_multidraw) ? tree.single_draw_index_buffer : tree.index_buffer;
 
-  m_time_of_day_uniform_buffer->writeToGpuBuffer(
-      m_color_result.data(), sizeof(m_color_result[0]) * m_color_result.size(),
-      idx * m_time_of_day_uniform_buffer->getAlignmentSize());
-
-  // setup Vulkan shader
-  vulkan_background_common::first_tfrag_draw_setup(settings, render_state, m_vertex_shader_uniform_buffer);
-
-  tree.perf.tod_time.add(setup_timer.getSeconds());
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
   int last_texture = -1;
-
-  if (!m_debug_all_visible) {
-    // need culling data
-    Timer cull_timer;
-    background_common::cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
-                        m_cache.vis_temp.data());
-    tree.perf.cull_time.add(cull_timer.getSeconds());
-  } else {
-    // no culling.
-    tree.perf.cull_time.add(0);
-  }
-
-  u32 num_tris;
-  if (render_state->no_multidraw) {
-    Timer index_timer;
-    u32 idx_buffer_size;
-    if (m_debug_all_visible) {
-      idx_buffer_size =
-          vulkan_background_common::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(),
-                                      *tree.draws, tree.index_data, &num_tris);
-    } else {
-      idx_buffer_size = vulkan_background_common::make_index_list_from_vis_string(
-          m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, m_cache.vis_temp,
-          tree.index_data, &num_tris);
-    }
-
-    //CreateIndexBuffer(m_cache.index_temp);
-    //glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx_buffer_size * sizeof(u32), m_cache.index_temp.data(),
-    //             GL_STREAM_DRAW);
-    tree.perf.index_time.add(index_timer.getSeconds());
-
-  } else {
-    if (m_debug_all_visible) {
-      Timer index_timer;
-      num_tris = vulkan_background_common::make_all_visible_multidraws(
-          m_cache.multi_draw_indexed_infos, *tree.draws);
-      tree.perf.index_time.add(index_timer.getSeconds());
-    } else {
-      Timer index_timer;
-      num_tris = vulkan_background_common::make_multidraws_from_vis_string(
-          m_cache.multi_draw_indexed_infos, *tree.draws, m_cache.vis_temp);
-      tree.perf.index_time.add(index_timer.getSeconds());
-    }
-  }
-
-  Timer draw_timer;
-  prof.add_tri(num_tris);
-
-  for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
+  for (size_t draw_idx = tree.category_draw_indices[(int)category];
+       draw_idx < tree.category_draw_indices[(int)category + 1]; draw_idx++) {
     const auto& draw = tree.draws->operator[](draw_idx);
     const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
@@ -462,53 +406,50 @@ void Tie3Vulkan::render_tree(int idx,
       }
     }
 
-    auto& time_of_day_texture = m_textures->at(draw.tree_tex_id);
+    auto& texture = m_textures->at(draw.tree_tex_id);
     auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
 
-    auto double_draw = vulkan_background_common::setup_tfrag_shader(render_state, draw.mode,
-        time_of_day_sampler, m_pipeline_config_info, m_time_of_day_color_uniform_buffer);
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(
+        render_state, draw.mode, time_of_day_sampler, m_pipeline_config_info,
+        m_etie_time_of_day_color_uniform_buffer);
+
+    uint32_t decal_mode = draw.mode.get_decal();
+    if (use_envmap) {
+      //TODO: Set push constant e-tie settings here
+    } else {
+      // TODO: Set push constant tie settings here
+    }
 
     prof.add_draw_call();
-
-    tree.perf.draws++;
-
-    std::vector<VkDescriptorSet> descriptor_sets{
-        m_vertex_shader_descriptor_sets[draw.tree_tex_id],
-        m_fragment_shader_descriptor_sets[draw.tree_tex_id]
-    };
 
     if (render_state->no_multidraw) {
       m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
           m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-          m_pipeline_config_info.pipelineLayout, descriptor_sets);
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
     } else {
-      m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
-          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-          m_pipeline_config_info.pipelineLayout, descriptor_sets);
-
-      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
-                               m_cache.multi_draw_indexed_infos.data(), 1, 0,
-                               sizeof(VkMultiDrawIndexedInfoEXT), NULL);
+      vkCmdDrawMultiIndexedEXT(
+          m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
+          m_cache.multi_draw_indexed_infos.data(), 1, 0, sizeof(VkMultiDrawIndexedInfoEXT), NULL);
     }
 
     switch (double_draw.kind) {
       case DoubleDrawKind::NONE:
         break;
       case DoubleDrawKind::AFAIL_NO_DEPTH_WRITE:
-        tree.perf.draws++;
-        prof.add_draw_call();
+        ASSERT(false);
         m_time_of_day_color_uniform_buffer->SetUniform1f("alpha_min", -10.f);
         m_time_of_day_color_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
         if (render_state->no_multidraw) {
           m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
               m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-              m_pipeline_config_info.pipelineLayout, descriptor_sets);
+              m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
         } else {
           m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
               m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-              m_pipeline_config_info.pipelineLayout, descriptor_sets);
+              m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
 
-          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
+          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer,
+                                   multidraw_indices.number_of_draws,
                                    m_cache.multi_draw_indexed_infos.data(), 1, 0,
                                    sizeof(VkMultiDrawIndexedInfoEXT), NULL);
         }
@@ -516,38 +457,185 @@ void Tie3Vulkan::render_tree(int idx,
       default:
         ASSERT(false);
     }
-
-    if (m_debug_wireframe && !render_state->no_multidraw) {
-      m_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-          "camera", 1, GL_FALSE, (float*)settings.math_camera.data());
-      m_vertex_shader_uniform_buffer->SetUniform4f("hvdf_offset",
-          settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
-          settings.hvdf_offset[3]);
-      m_vertex_shader_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x());
-      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-      m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
-
-      m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
-          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-          m_pipeline_config_info.pipelineLayout, descriptor_sets);
-
-      vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
-                               m_cache.multi_draw_indexed_infos.data(), 1, 0,
-                               sizeof(VkMultiDrawIndexedInfoEXT), NULL);
-
-      m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-      m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
-      prof.add_draw_call();
-    }
   }
 
-  if (!m_hide_wind) {
+  if (!m_hide_wind && category == tfrag3::TieCategory::NORMAL) {
     auto wind_prof = prof.make_scoped_child("wind");
     render_tree_wind(idx, geom, settings, render_state, wind_prof);
   }
 
-  tree.perf.draw_time.add(draw_timer.getSeconds());
-  tree.perf.tree_time.add(tree_timer.getSeconds());
+  if (use_envmap) {
+    envmap_second_pass_draw(tree, settings, render_state, prof,
+                            tfrag3::get_second_draw_category(category));
+  }
+}
+
+void Tie3Vulkan::setup_tree(int idx,
+                            int geom,
+                            const TfragRenderSettings& settings,
+                            const u8* proto_vis_data,
+                            size_t proto_vis_data_size,
+                            bool use_multidraw,
+                            ScopedProfilerNode& prof) {
+  // reset perf
+  auto& tree = m_trees.at(geom).at(idx);
+  // don't render if we haven't loaded
+  if (!m_has_level) {
+    return;
+  }
+
+  // update time of day
+  if (m_color_result.size() < tree.colors->size()) {
+    m_color_result.resize(tree.colors->size());
+  }
+
+  if (m_use_fast_time_of_day) {
+    background_common::interp_time_of_day_fast(settings.itimes, tree.tod_cache, m_color_result.data());
+  } else {
+    background_common::interp_time_of_day_slow(settings.itimes, *tree.colors,
+                                               m_color_result.data());
+  }
+
+  tree.time_of_day_texture->writeToImage((tfrag3::TimeOfDayColor*)tree.colors->data(),
+                                         tree.colors->size() * sizeof(tfrag3::TimeOfDayColor));
+
+  // update proto vis mask
+  if (proto_vis_data) {
+    tree.proto_visibility.update(proto_vis_data, proto_vis_data_size);
+  }
+
+  if (!m_debug_all_visible) {
+    // need culling data
+    background_common::cull_check_all_slow(settings.planes, tree.vis->vis_nodes,
+                                           settings.occlusion_culling, tree.vis_temp.data());
+  }
+
+  u32 num_tris = 0;
+  if (use_multidraw) {
+    if (m_debug_all_visible) {
+      num_tris = vulkan_background_common::make_all_visible_multidraws(
+          m_cache.multi_draw_indexed_infos, *tree.draws);
+    } else {
+      Timer index_timer;
+      if (tree.has_proto_visibility) {
+        //num_tris = vulkan_background_common::make_multidraws_from_vis_and_proto_string(
+        //    tree.multidraw_offset_per_stripdraw.data(), tree.multidraw_count_buffer.data(),
+        //    tree.multidraw_index_offset_buffer.data(), *tree.draws, tree.vis_temp,
+        //    tree.proto_visibility.vis_flags);
+      } else {
+        num_tris = vulkan_background_common::make_multidraws_from_vis_string(
+            m_cache.multi_draw_indexed_infos, *tree.draws, tree.vis_temp);
+      }
+    }
+  } else {
+    u32 idx_buffer_size;
+    if (m_debug_all_visible) {
+      idx_buffer_size = vulkan_background_common::make_all_visible_index_list(
+          tree.draw_idx_temp.data(), tree.index_temp.data(), *tree.draws, tree.index_data,
+          &num_tris);
+    } else {
+      if (tree.has_proto_visibility) {
+        idx_buffer_size = vulkan_background_common::make_index_list_from_vis_and_proto_string(
+            tree.draw_idx_temp.data(), tree.index_temp.data(), *tree.draws, tree.vis_temp,
+            tree.proto_visibility.vis_flags, tree.index_data, &num_tris);
+      } else {
+        idx_buffer_size = vulkan_background_common::make_index_list_from_vis_string(
+            tree.draw_idx_temp.data(), tree.index_temp.data(), *tree.draws, tree.vis_temp,
+            tree.index_data, &num_tris);
+      }
+    }
+
+    tree.single_draw_index_buffer->writeToGpuBuffer(tree.index_temp.data(), idx_buffer_size * sizeof(u32));
+  }
+
+  prof.add_tri(num_tris);
+}
+
+void Tie3Vulkan::envmap_second_pass_draw(const TreeVulkan& tree,
+                                         const TfragRenderSettings& settings,
+                                         BaseSharedRenderState* render_state,
+                                         ScopedProfilerNode& prof,
+                                         tfrag3::TieCategory category) {
+  vulkan_background_common::first_tfrag_draw_setup(settings, render_state, m_etie_vertex_shader_uniform_buffer.get());
+  IndexBuffer* index_buffer = (render_state->no_multidraw) ? tree.single_draw_index_buffer : tree.index_buffer;
+
+  init_etie_cam_uniforms(render_state);
+  m_etie_vertex_shader_uniform_buffer->SetUniformMathVector4f("envmap_tod_tint", m_common_data.envmap_color);
+
+  int last_texture = -1;
+  for (size_t draw_idx = tree.category_draw_indices[(int)category];
+       draw_idx < tree.category_draw_indices[(int)category + 1]; draw_idx++) {
+    const auto& draw = tree.draws->operator[](draw_idx);
+    const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
+    const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
+
+    if (render_state->no_multidraw) {
+      if (singledraw_indices.number_of_draws == 0) {
+        continue;
+      }
+    } else {
+      if (multidraw_indices.number_of_draws == 0) {
+        continue;
+      }
+    }
+
+    auto& texture = m_textures->at(draw.tree_tex_id);
+    auto& time_of_day_sampler = m_time_of_day_samplers.at(draw.tree_tex_id);
+
+    auto double_draw = vulkan_background_common::setup_tfrag_shader(
+        render_state, draw.mode, time_of_day_sampler, m_pipeline_config_info,
+        m_etie_time_of_day_color_uniform_buffer);
+
+    prof.add_draw_call();
+
+    if (render_state->no_multidraw) {
+      m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
+          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+    } else {
+      m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
+          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
+          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+
+      vkCmdDrawMultiIndexedEXT(
+          m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
+          m_cache.multi_draw_indexed_infos.data(), 1, 0, sizeof(VkMultiDrawIndexedInfoEXT), NULL);
+    }
+
+    switch (double_draw.kind) {
+      case DoubleDrawKind::NONE:
+        break;
+      default:
+        ASSERT(false);
+    }
+  }
+}
+
+void Tie3Vulkan::init_etie_cam_uniforms(const BaseSharedRenderState* render_state) {
+  m_etie_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
+      "camera_no_presp", 1, GL_FALSE, (float*)render_state->camera_no_persp[0].data());
+
+  math::Vector4f perspective[2];
+  float inv_fog = 1.f / render_state->camera_fog[0];
+  auto& hvdf_off = render_state->camera_hvdf_off;
+  float pxx = render_state->camera_persp[0].x();
+  float pyy = render_state->camera_persp[1].y();
+  float pzz = render_state->camera_persp[2].z();
+  float pzw = render_state->camera_persp[2].w();
+  float pwz = render_state->camera_persp[3].z();
+  float scale = pzw * inv_fog;
+  perspective[0].x() = scale * hvdf_off.x();
+  perspective[0].y() = scale * hvdf_off.y();
+  perspective[0].z() = scale * hvdf_off.z() + pzz;
+  perspective[0].w() = scale;
+
+  perspective[1].x() = pxx;
+  perspective[1].y() = pyy;
+  perspective[1].z() = pwz;
+  perspective[1].w() = 0;
+
+  m_etie_vertex_shader_uniform_buffer->SetUniformMathVector4f("perspective0", perspective[0]);
+  m_etie_vertex_shader_uniform_buffer->SetUniformMathVector4f("perspective1", perspective[1]);
 }
 
 void Tie3Vulkan::init_shaders(VulkanShaderLibrary& shaders) {
@@ -601,7 +689,7 @@ void Tie3Vulkan::InitializeInputAttributes() {
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 }
 
-void Tie3Vulkan::PrepareVulkanDraw(Tree& tree, int index) {
+void Tie3Vulkan::PrepareVulkanDraw(TreeVulkan& tree, int index) {
   m_descriptor_image_infos[index] = VkDescriptorImageInfo{
       m_time_of_day_samplers.at(index).GetSampler(), m_textures->at(index).getImageView(),
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
@@ -640,4 +728,36 @@ void Tie3Vulkan::PrepareVulkanDraw(Tree& tree, int index) {
                           m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
                           m_descriptor_sets.data(), dynamicDescriptorOffsets.size(),
                           dynamicDescriptorOffsets.data());
+}
+
+Tie3VulkanAnotherCategory::Tie3VulkanAnotherCategory(const std::string& name,
+                            int my_id,
+                            std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            VulkanInitializationInfo& vulkan_info,
+                            Tie3Vulkan* parent,
+                            tfrag3::TieCategory category)
+    : BaseBucketRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info), m_parent(parent), m_category(category) {
+}
+
+void Tie3VulkanAnotherCategory::draw_debug_window() {
+  ImGui::Text("Child of this renderer:");
+  m_parent->draw_debug_window();
+}
+
+void Tie3VulkanAnotherCategory::render(DmaFollower& dma,
+                                       SharedVulkanRenderState* render_state,
+                                       ScopedProfilerNode& prof) {
+  render(dma, reinterpret_cast<BaseSharedRenderState*>(render_state), prof);
+}
+
+void Tie3VulkanAnotherCategory::render(DmaFollower& dma,
+                                 BaseSharedRenderState* render_state,
+                                 ScopedProfilerNode& prof) {
+  auto first_tag = dma.current_tag();
+  dma.read_and_advance();
+  if (first_tag.kind != DmaTag::Kind::CNT || first_tag.qwc != 0) {
+    fmt::print("Bucket renderer {} ({}) was supposed to be empty, but wasn't\n", m_my_id, m_name);
+    ASSERT(false);
+  }
+  m_parent->render_from_another(render_state, prof, m_category);
 }

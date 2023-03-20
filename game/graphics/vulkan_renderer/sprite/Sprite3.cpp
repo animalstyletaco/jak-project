@@ -90,7 +90,7 @@ void SpriteVulkan3::graphics_setup_normal() {
 
   m_current_mode = m_default_mode;
 
-  m_distort_ogl.fbo = std::make_unique<VulkanTexture>(m_device);
+  m_distort_ogl.fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
   m_distort_ogl.fbo_texture = std::make_unique<VulkanTexture>(m_device);
 }
 

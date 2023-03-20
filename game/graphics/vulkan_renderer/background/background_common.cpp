@@ -5,6 +5,7 @@
 #include <immintrin.h>
 
 #include "common/util/os.h"
+#include "game/graphics/gfx.h"
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
@@ -50,6 +51,9 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
   if (mode.get_ab_enable() && mode.get_alpha_blend() != DrawMode::AlphaBlend::DISABLED) {
     pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     switch (mode.get_alpha_blend()) {
+      case DrawMode::AlphaBlend::SRC_SRC_SRC_SRC:
+        pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
+        break;
       case DrawMode::AlphaBlend::SRC_DST_SRC_DST:
 
         pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
@@ -238,8 +242,10 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
 void vulkan_background_common::first_tfrag_draw_setup(
   const TfragRenderSettings& settings,
   BaseSharedRenderState* render_state,
-  std::unique_ptr<BackgroundCommonVertexUniformBuffer>& uniform_vertex_shader_buffer) {
+  BackgroundCommonVertexUniformBuffer* uniform_vertex_shader_buffer) {
   for (uint32_t instanceIdx = 0; instanceIdx < uniform_vertex_shader_buffer->getInstanceCount(); instanceIdx++) {
+    uniform_vertex_shader_buffer->SetUniform1f("gfx_hack_no_tex", Gfx::g_global_settings.hack_no_tex);
+    uniform_vertex_shader_buffer->SetUniform1i("decal", false);
     uniform_vertex_shader_buffer->Set4x4MatrixDataInVkDeviceMemory(
         "camera", 1, GL_FALSE, (float*)settings.math_camera.data(), instanceIdx);
     uniform_vertex_shader_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
@@ -569,9 +575,10 @@ VkDescriptorImageInfo vulkan_background_common::create_placeholder_descriptor_im
 BackgroundCommonVertexUniformBuffer::BackgroundCommonVertexUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
     uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment)
+    VkDeviceSize minOffsetAlignment,
+    VkDeviceSize instanceSize)
     : UniformVulkanBuffer(device,
-                    sizeof(BackgroundCommonVertexUniformShaderData),
+                    instanceSize,
                     instanceCount,
                     minOffsetAlignment) {
   section_name_to_memory_offset_map = {
@@ -580,6 +587,18 @@ BackgroundCommonVertexUniformBuffer::BackgroundCommonVertexUniformBuffer(
       {"fog_constant", offsetof(BackgroundCommonVertexUniformShaderData, fog_constant)},
       {"fog_min", offsetof(BackgroundCommonVertexUniformShaderData, fog_min)},
       {"fog_max", offsetof(BackgroundCommonVertexUniformShaderData, fog_max)}};
+}
+
+BackgroundCommonEtieVertexUniformBuffer::BackgroundCommonEtieVertexUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    uint32_t instanceCount,
+    VkDeviceSize minOffsetAlignment)
+    : BackgroundCommonVertexUniformBuffer(device,
+                                          instanceCount,
+                                          minOffsetAlignment,
+                                          sizeof(BackgroundCommonEtieVertexUniformShaderData)) {
+  section_name_to_memory_offset_map.insert(std::pair<std::string, uint32_t>(
+      "envmap_tod_tint", offsetof(BackgroundCommonEtieVertexUniformShaderData, envmap_tod_tint)));
 }
 
 BackgroundCommonFragmentUniformBuffer::BackgroundCommonFragmentUniformBuffer(

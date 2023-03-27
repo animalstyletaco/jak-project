@@ -66,7 +66,8 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
                                const TfragRenderSettings& settings,
                                BaseSharedRenderState* render_state,
                                ScopedProfilerNode& prof,
-                               tfrag3::TieCategory category);
+                               tfrag3::TieCategory category,
+                               std::vector<VkDescriptorSet>& descriptor_set);
 
   struct Cache {
     std::vector<background_common::DrawSettings> draw_idx_temp;
@@ -75,11 +76,6 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     std::vector<u8> vis_temp;
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
-
-  struct PushConstantTie : PushConstant {
-    int index;
-    int decal;
-  }m_push_constant_tie;
 
   void PrepareVulkanDraw(TreeVulkan& tree, int index);
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
@@ -100,15 +96,10 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::unique_ptr<UniformVulkanBuffer> m_time_of_day_uniform_buffer;
   std::unordered_map<u32, VulkanTexture> texture_maps[tfrag3::TIE_GEOS];
 
-  std::vector<VkDescriptorSet> m_vertex_shader_descriptor_sets;
-  std::vector<VkDescriptorSet> m_fragment_shader_descriptor_sets;
-
-  std::vector<VkDescriptorSet> m_descriptor_sets;
   std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
 
-  std::unique_ptr<VulkanTexture> m_placeholder_texture;
-  std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
-  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
+  std::vector<VkDescriptorSet> m_vertex_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_fragment_shader_descriptor_sets;
 };
 
 class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkanRenderer {

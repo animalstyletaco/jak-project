@@ -66,34 +66,17 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   };
   std::unique_ptr<GpuEyeTex> m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
 
-  
-  template <bool blend, bool bilinear>
-  void draw_eye_impl(u32* out,
-                     const BaseEyeRenderer::EyeDraw& draw,
-                     VulkanTexture* tex,
-                     int pair,
-                     int lr,
-                     bool flipx);
-
-  template <bool blend>
-  void draw_eye(u32* out,
-                const BaseEyeRenderer::EyeDraw& draw,
-                VulkanTexture* tex,
-                int pair,
-                int lr,
-                bool flipx,
-                bool bilinear);
-
   // xyst per vertex, 4 vertices per square, 3 draws per eye, 11 pairs of eyes, 2 eyes per pair.
   static constexpr int VTX_BUFFER_FLOATS = 4 * 4 * 3 * NUM_EYE_PAIRS * 2;
 
-  std::vector<SingleEyeDrawsVulkan>& get_draws(DmaFollower& dma, BaseSharedRenderState* render_state);
-  void run_gpu(std::vector<SingleEyeDrawsVulkan>& draws, BaseSharedRenderState* render_state);
+  void setup_draws(DmaFollower& dma, BaseSharedRenderState* render_state);
+  void run_gpu(BaseSharedRenderState* render_state);
   void ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
                          EyeVulkanGraphics& image_info,
                          uint32_t firstVertex,
                          uint32_t vertexCount);
 
+  std::unordered_map<uint32_t, SingleEyeDrawsVulkan> m_eye_draw_map;
   std::unique_ptr<VertexBuffer> m_gpu_vertex_buffer;
   std::unique_ptr<SwapChain> m_swap_chain;
 

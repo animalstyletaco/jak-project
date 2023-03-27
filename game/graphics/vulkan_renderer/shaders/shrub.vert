@@ -12,26 +12,19 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float fog_constant;
   float fog_min;
   float fog_max;
-  float height_scale;
 } ubo;
 
 layout(push_constant) uniform PER_OBJECT
 {
   layout(offset = 0)float height_scale;
   layout(offset = 4)float scissor_adjust;
- 	layout(offset = 8)int textureIndex;
 }pc;
 
-const int TIME_OF_DAY_COUNT = 8192;
-layout (set = 0, binding = 1) uniform TimeOfDayUniformData{
-   vec4 texels[TIME_OF_DAY_COUNT];
-}time_of_day_data; // note, sampled in the vertex shader on purpose.
+layout (set = 0, binding = 1) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
 layout (location = 2) out float fogginess;
-
-const float SCISSOR_ADJUST = 512.0/448.0;
 
 void main() {
 
@@ -77,17 +70,18 @@ void main() {
     // hack
     transformed.xyz *= transformed.w;
     // scissoring area adjust
-    transformed.y *= (pc.height_scale * pc.scissor_adjust);
+    transformed.y *= pc.scissor_adjust * pc.height_scale;
     gl_Position = transformed;
 
     // time of day lookup
     // start with the vertex color (only rgb, VIF filled in the 255.)
     fragment_color =  vec4(rgba_base, 1);
     // get the time of day multiplier
-    vec4 tod_color = time_of_day_data.texels[time_of_day_index * 4];
+    vec4 tod_color = texelFetch(tex_T1, time_of_day_index, 0);
     // combine
     fragment_color *= tod_color * 4;
     fragment_color.a *= 2;
 
     tex_coord = tex_coord_in;
+    tex_coord.xy /= 4096;
 }

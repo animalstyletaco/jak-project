@@ -56,7 +56,7 @@ class FramebufferVulkanHelper {
   void setViewportScissor(VkCommandBuffer command, int level = 0) {
     m_framebuffers[level].setViewportScissor(command);
   }
-  VulkanTexture& Texture(int level = 0) { return m_framebuffers[level].color_texture; }
+  VulkanTexture& Texture(int level = 0) { return m_framebuffers[level].mipmap_texture; }
   VulkanSamplerHelper& GetSamplerHelper(int level = 0) {
     return m_framebuffers[level].sampler_helper;
   }

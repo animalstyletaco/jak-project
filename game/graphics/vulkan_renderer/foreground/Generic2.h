@@ -74,7 +74,7 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
   void graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) override;
   void setup_graphics_for_draw_mode(const DrawMode& draw_mode,
                                   u8 fix,
-                                  BaseSharedRenderState* render_state);
+                                  BaseSharedRenderState* render_state, uint32_t bucket);
 
   void setup_graphics_tex(u16 unit,
                           u16 tbp,
@@ -85,7 +85,7 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
                           u32 bucketId);
 
  private:
-  void FinalizeVulkanDraws();
+  void FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIndex);
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
@@ -93,9 +93,10 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
   } m_ogl;
 
   std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
-  std::vector<VkSampler> m_samplers;
+  std::vector<VulkanSamplerHelper> m_samplers;
   std::unique_ptr<GenericCommonVertexUniformBuffer> m_vertex_uniform_buffer;
   std::unique_ptr<GenericCommonFragmentUniformBuffer> m_fragment_uniform_buffer;
 
-  std::vector<VkDescriptorSet> m_descriptor_sets;
+  VkDescriptorSet m_vertex_descriptor_set = VK_NULL_HANDLE;
+  std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
 };

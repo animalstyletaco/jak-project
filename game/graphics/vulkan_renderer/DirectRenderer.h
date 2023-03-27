@@ -49,6 +49,7 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
    * If you don't use the render interface, call this at the very end.
    */
   void flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void set_current_index(u32 imageIndex);
 
  protected:
   void InitializeInputVertexAttribute();
@@ -59,7 +60,9 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   void update_graphics_blend() override;
   void update_graphics_test() override;
   void update_graphics_texture(BaseSharedRenderState* render_state, int unit) override;
-  void render_and_draw_buffers() override;
+  void render_and_draw_buffers(BaseSharedRenderState* render_state,
+                               ScopedProfilerNode& prof) override;
+  void allocate_new_descriptor_set();
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
@@ -75,6 +78,12 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
     int offscreen_mode;
   } m_textured_pipeline_push_constant;
 
+  struct RendererGraphicsHelper {
+    std::unique_ptr<VulkanSamplerHelper> sampler;
+    std::unique_ptr<GraphicsPipelineLayout> graphics_pipeline_layout;
+    std::unique_ptr<GraphicsPipelineLayout> debug_graphics_pipeline_layout;
+  };
+
   std::array<VkVertexInputAttributeDescription, 1> debugRedAttributeDescriptions{};
   std::array<VkVertexInputAttributeDescription, 2> directBasicAttributeDescriptions{};
   std::array<VkVertexInputAttributeDescription, 5> directBasicTexturedAttributeDescriptions{};
@@ -84,11 +93,15 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
 
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info{};
   VkDescriptorImageInfo m_descriptor_image_info{};
-  VkSampler m_sampler = VK_NULL_HANDLE;
-  VkDescriptorSet m_descriptor_set = VK_NULL_HANDLE;
+
+  std::vector<VkDescriptorSet> m_descriptor_sets;
+  std::unordered_map<u32, RendererGraphicsHelper> m_graphics_helper_map;
 
   VkPipelineLayout m_pipeline_layout = VK_NULL_HANDLE;
   VkPipelineLayout m_textured_pipeline_layout = VK_NULL_HANDLE;
   VkPipelineLayout m_debug_red_pipeline_layout = VK_NULL_HANDLE;
+
+  u32 currentImageIndex = 0;
+  u32 totalImageCount = 0;
 };
 

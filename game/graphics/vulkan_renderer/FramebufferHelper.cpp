@@ -211,18 +211,18 @@ void FramebufferVulkan::createFramebuffer() {
   }
 }
 
-void FramebufferVulkanHelper::beginSwapChainRenderPass(VkCommandBuffer commandBuffer, int level) {
-  if (m_framebuffers[level].m_current_msaa != m_device->getMsaaCount()) {
-    m_framebuffers[level].initializeFramebufferAtLevel(level);
+void FramebufferVulkanHelper::beginSwapChainRenderPass(VkCommandBuffer commandBuffer, int index) {
+  if (m_framebuffers[index].m_current_msaa != m_device->getMsaaCount()) {
+    m_framebuffers[index].initializeFramebufferAtLevel(index + 1);
   }
 
   VkRenderPassBeginInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  renderPassInfo.renderPass = m_framebuffers[level].render_pass;
-  renderPassInfo.framebuffer = m_framebuffers[level].frame_buffer;
+  renderPassInfo.renderPass = m_framebuffers[index].render_pass;
+  renderPassInfo.framebuffer = m_framebuffers[index].frame_buffer;
 
   renderPassInfo.renderArea.offset = {0, 0};
-  renderPassInfo.renderArea.extent = m_framebuffers[level].extents;
+  renderPassInfo.renderArea.extent = m_framebuffers[index].extents;
 
   std::array<VkClearValue, 2> clearValues{};
   clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};

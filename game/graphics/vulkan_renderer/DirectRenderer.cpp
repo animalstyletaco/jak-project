@@ -13,7 +13,6 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
                                VulkanInitializationInfo& vulkan_info,
                                int batch_size)
     : BaseDirectRenderer(name, my_id, batch_size), BucketVulkanRenderer(device, vulkan_info) {
-  m_graphics_pipeline_layouts.resize(2, m_device);
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
   m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(BaseDirectRenderer::Vertex);
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, m_ogl.vertex_buffer_bytes, 1, 1);
@@ -33,12 +32,37 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
 
   m_fragment_buffer_descriptor_info = m_direct_basic_fragment_uniform_buffer->descriptorInfo();
   m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
-      .build(m_descriptor_set);
-  m_fragment_descriptor_writer->writeImage(
-      1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+      .writeImage(1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+
+  allocate_new_descriptor_set();
 
   create_pipeline_layout();
   InitializeInputVertexAttribute();
+}
+
+void DirectVulkanRenderer::set_current_index(u32 imageIndex) {
+  while (imageIndex >= totalImageCount) {
+    allocate_new_descriptor_set();
+  }
+
+  currentImageIndex = imageIndex;
+}
+
+void DirectVulkanRenderer::allocate_new_descriptor_set() {
+  auto descriptorSetLayout = m_direct_basic_fragment_descriptor_layout->getDescriptorSetLayout();
+
+  //One helper for renderer and one for debug renderer
+  m_graphics_helper_map.insert(
+      std::pair<u32, RendererGraphicsHelper>(totalImageCount++, RendererGraphicsHelper()));
+  auto& graphics_helper = m_graphics_helper_map[totalImageCount - 1];
+
+  graphics_helper.sampler = std::make_unique<VulkanSamplerHelper>(m_device);
+  graphics_helper.graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
+  graphics_helper.debug_graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
+
+  m_descriptor_sets.emplace_back();
+  m_vulkan_info.descriptor_pool->allocateDescriptor(
+      &descriptorSetLayout, &m_descriptor_sets[totalImageCount - 1]);
 }
 
 void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
@@ -208,9 +232,6 @@ void DirectVulkanRenderer::create_pipeline_layout() {
 }
 
 DirectVulkanRenderer::~DirectVulkanRenderer() {
-  if (m_sampler) {
-    vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
-  }
   if (m_pipeline_layout) {
     vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_pipeline_layout, nullptr);
   }
@@ -220,6 +241,7 @@ DirectVulkanRenderer::~DirectVulkanRenderer() {
   if (m_debug_red_pipeline_layout) {
     vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_debug_red_pipeline_layout, nullptr);
   }
+  m_vulkan_info.descriptor_pool->freeDescriptors(m_descriptor_sets);
 }
 
 void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
@@ -230,106 +252,7 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
       VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  if (m_blend_state_needs_graphics_update) {
-    update_graphics_blend();
-    m_blend_state_needs_graphics_update = false;
-  }
-
-  if (m_prim_graphics_state_needs_graphics_update) {
-    update_graphics_prim(render_state);
-    m_prim_graphics_state_needs_graphics_update = false;
-  }
-
-  if (m_test_state_needs_graphics_update) {
-    update_graphics_test();
-    m_test_state_needs_graphics_update = false;
-  }
-
-  for (int i = 0; i < TEXTURE_STATE_COUNT; i++) {
-    auto& tex_state = m_buffered_tex_state[i];
-    if (tex_state.used) {
-      update_graphics_texture(render_state, i);
-      tex_state.used = false;
-    }
-  }
-  m_next_free_tex_state = 0;
-  m_current_tex_state_idx = -1;
-
-  // NOTE: sometimes we want to update the GL state without actually rendering anything, such as sky
-  // textures, so we only return after we've updated the full state
-  if (m_prim_buffer.vert_count == 0) {
-    return;
-  }
-
-  if (m_debug_state.disable_texture) {
-    // a bit of a hack, this forces the non-textured shader always.
-    SetShaderModule(ShaderId::DIRECT_BASIC);
-    m_blend_state_needs_graphics_update = true;
-    m_prim_graphics_state_needs_graphics_update = true;
-  }
-
-  if (m_debug_state.red) {
-    SetShaderModule(ShaderId::DEBUG_RED);
-    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-    m_prim_graphics_state_needs_graphics_update = true;
-    m_blend_state_needs_graphics_update = true;
-  }
-
-  // hacks
-  if (m_debug_state.always_draw) {
-    m_pipeline_config_info.depthStencilInfo.sType =
-        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
-    m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
-  }
-
-  // render!
-  // update buffers:
-
-  int draw_count = 0;
-
-  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_graphics_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
-  m_graphics_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
-
-  std::vector<VkDescriptorSet> descriptor_sets{m_descriptor_set};
-  m_vulkan_info.swap_chain->drawCommandBuffer(
-      m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
-      m_pipeline_config_info.pipelineLayout, descriptor_sets);
-
-  draw_count++;
-  VkPipelineRasterizationStateCreateInfo& rasterizer = m_pipeline_config_info.rasterizationInfo;
-
-  if (m_debug_state.wireframe) {
-    SetShaderModule(ShaderId::DEBUG_RED);
-    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-    rasterizer.rasterizerDiscardEnable = VK_FALSE;
-
-    m_graphics_pipeline_layouts[1].createGraphicsPipeline(m_pipeline_config_info);
-    m_graphics_pipeline_layouts[1].bind(m_vulkan_info.render_command_buffer);
-
-    m_vulkan_info.swap_chain->drawCommandBuffer(
-        m_vulkan_info.render_command_buffer, m_ogl.vertex_buffer,
-        m_pipeline_config_info.pipelineLayout, descriptor_sets);
-
-    rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
-    rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
-
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-    m_blend_state_needs_graphics_update = true;
-    m_prim_graphics_state_needs_graphics_update = true;
-    draw_count++;
-  }
-
-  int n_tris = draw_count * (m_prim_buffer.vert_count / 3);
-  prof.add_tri(n_tris);
-  prof.add_draw_call(draw_count);
-  m_stats.triangles += n_tris;
-  m_stats.draw_calls += draw_count;
-  m_prim_buffer.vert_count = 0;
+  BaseDirectRenderer::flush_pending(render_state, prof);
 }
 
 void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_state) {
@@ -416,7 +339,9 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
     m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
 
-  VkSamplerCreateInfo samplerInfo{};
+  std::unique_ptr<VulkanSamplerHelper>& sampler = m_graphics_helper_map[currentImageIndex].sampler;
+
+  VkSamplerCreateInfo& samplerInfo = sampler->GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -451,23 +376,15 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
     samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
 
-  if (!m_sampler) {
-    vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
-  }
-
-  if (vkCreateSampler(m_device->getLogicalDevice(), &samplerInfo, nullptr, &m_sampler) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to find supported format!");
-  }
-
-  m_descriptor_image_info = VkDescriptorImageInfo{m_sampler, tex->getImageView(),
+  sampler->CreateSampler();
+  m_descriptor_image_info = VkDescriptorImageInfo{sampler->GetSampler(), tex->getImageView(),
                                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
   write_descriptors_info[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
       1, &m_descriptor_image_info, 1);
 
-  m_fragment_descriptor_writer->overwrite(m_descriptor_set);
+  m_fragment_descriptor_writer->overwrite(m_descriptor_sets[currentImageIndex]);
 }
 
 void DirectVulkanRenderer::update_graphics_blend() {
@@ -634,7 +551,92 @@ void DirectVulkanRenderer::update_graphics_test() {
   }
 }
 
-void DirectVulkanRenderer::render_and_draw_buffers() {
+void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render_state,
+                                                   ScopedProfilerNode& prof) {
+  // NOTE: sometimes we want to update the GL state without actually rendering anything, such as sky
+  // textures, so we only return after we've updated the full state
+  if (m_prim_buffer.vert_count == 0) {
+    return;
+  }
+
+  if (m_debug_state.disable_texture) {
+    // a bit of a hack, this forces the non-textured shader always.
+    SetShaderModule(ShaderId::DIRECT_BASIC);
+    m_blend_state_needs_graphics_update = true;
+    m_prim_graphics_state_needs_graphics_update = true;
+  }
+
+  if (m_debug_state.red) {
+    SetShaderModule(ShaderId::DEBUG_RED);
+    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
+    m_prim_graphics_state_needs_graphics_update = true;
+    m_blend_state_needs_graphics_update = true;
+  }
+
+  // hacks
+  if (m_debug_state.always_draw) {
+    m_pipeline_config_info.depthStencilInfo.sType =
+        VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+    m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+  }
+
+  // render!
+  // update buffers:
+
+  int draw_count = 0;
+
+  m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->createGraphicsPipeline(
+      m_pipeline_config_info);
+  m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->bind(
+      m_vulkan_info.render_command_buffer);
+
+  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = m_ogl.vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_config_info.pipelineLayout, 0, 1,
+                          &m_descriptor_sets[currentImageIndex], 0,
+                          nullptr);
+  vkCmdDraw(m_vulkan_info.render_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
+
+  draw_count++;
+  VkPipelineRasterizationStateCreateInfo& rasterizer = m_pipeline_config_info.rasterizationInfo;
+
+  if (m_debug_state.wireframe) {
+    SetShaderModule(ShaderId::DEBUG_RED);
+    m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+
+    m_graphics_helper_map[currentImageIndex].debug_graphics_pipeline_layout->createGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_helper_map[currentImageIndex].debug_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
+
+    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_pipeline_config_info.pipelineLayout, 0, 1,
+                            &m_descriptor_sets[currentImageIndex], 0,
+                            nullptr);
+    vkCmdDraw(m_vulkan_info.render_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
+
+    rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    m_blend_state_needs_graphics_update = true;
+    m_prim_graphics_state_needs_graphics_update = true;
+    draw_count++;
+  }
+
+  int n_tris = draw_count * (m_prim_buffer.vert_count / 3);
+  prof.add_tri(n_tris);
+  prof.add_draw_call(draw_count);
+  m_stats.triangles += n_tris;
+  m_stats.draw_calls += draw_count;
+  m_prim_buffer.vert_count = 0;
 }
 
 DirectBasicTexturedFragmentUniformBuffer::DirectBasicTexturedFragmentUniformBuffer(

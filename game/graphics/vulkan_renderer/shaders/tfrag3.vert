@@ -20,10 +20,7 @@ layout(push_constant) uniform PER_OBJECT
  	layout(offset = 8)int textureIndex;
 }pc;
 
-const int TIME_OF_DAY_COUNT = 8192;
-layout (set = 0, binding = 1) uniform TimeOfDayBufferData {
-   vec4 texels[TIME_OF_DAY_COUNT];
-}time_of_day_buffer; // note, sampled in the vertex shader on purpose.
+layout (set = 0, binding = 1) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
@@ -77,7 +74,7 @@ void main() {
     gl_Position = transformed;
 
     // time of day lookup
-    fragment_color = time_of_day_buffer.texels[time_of_day_index];
+    fragment_color = texelFetch(tex_T1, time_of_day_index, 0);
 
     // fog hack
     if (fragment_color.r < 0.0075 && fragment_color.g < 0.0075 && fragment_color.b < 0.0075) {

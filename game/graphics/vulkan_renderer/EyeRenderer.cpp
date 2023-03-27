@@ -103,7 +103,7 @@ void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
       u32 tidx = pair_idx * 2 + lr;
       u32 tbp = EYE_BASE_BLOCK + pair_idx * 2 + lr;
       VulkanTextureInput in;
-      //in.texture = &m_gpu_eye_textures[tidx]->fb.Texture(0);
+      //in.texture = &m_gpu_eye_textures[tidx]->fb.Texture();
       in.debug_page_name = "PC-EYES";
       in.debug_name = fmt::format("{}-eye-gpu-{}", lr ? "left" : "right", pair_idx);
       in.id = texture_pool.allocate_pc_port_texture();
@@ -135,16 +135,19 @@ void EyeVulkanRenderer::InitializeInputVertexAttribute() {
   m_pipeline_config_info.attributeDescriptions.push_back(attributeDescriptions[0]);
 }
 
-std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan>& EyeVulkanRenderer::get_draws(DmaFollower& dma,
-                                                                                   BaseSharedRenderState* render_state) {
-  std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan> draws;
+void EyeVulkanRenderer::setup_draws(DmaFollower& dma, BaseSharedRenderState* render_state) {
   // now, loop over eyes. end condition is a 8 qw transfer to restore gs.
-  while (dma.current_tag().qwc != 8) {
-    draws.emplace_back(m_device, m_fragment_descriptor_layout, m_vulkan_info);
-    draws.emplace_back(m_device, m_fragment_descriptor_layout, m_vulkan_info);
+  unsigned index = 0;
+  m_eye_draw_map.clear();
 
-    auto& l_draw = draws[draws.size() - 2];
-    auto& r_draw = draws[draws.size() - 1];
+  while (dma.current_tag().qwc != 8) {
+    m_eye_draw_map.insert(std::pair<uint32_t, SingleEyeDrawsVulkan>(
+        index++, {m_device, m_fragment_descriptor_layout, m_vulkan_info}));
+    m_eye_draw_map.insert(std::pair<uint32_t, SingleEyeDrawsVulkan>(
+        index++, {m_device, m_fragment_descriptor_layout, m_vulkan_info}));
+
+    auto& l_draw = m_eye_draw_map.at(m_eye_draw_map.size() - 2);
+    auto& r_draw = m_eye_draw_map.at(m_eye_draw_map.size() - 1);
 
     l_draw.lr = 0;
     r_draw.lr = 1;
@@ -290,12 +293,10 @@ std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan>& EyeVulkanRenderer::get_dra
       ASSERT(end.vif1() == 0);
     }
   }
-  return draws;
 }
 
-void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVulkan>& draws,
-                          BaseSharedRenderState* render_state) {
-  if (draws.empty()) {
+void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
+  if (m_eye_draw_map.empty()) {
     return;
   }
 
@@ -334,7 +335,7 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
   float* vertex_data = reinterpret_cast<float*>(vertexStagingBuffer.getMappedMemory());
 
   int buffer_idx = 0;
-  for (const auto& draw : draws) {
+  for (const auto& [index, draw] : m_eye_draw_map) {
     if (draw.using_64) {
       buffer_idx =
           add_draw_to_buffer_64(buffer_idx, draw.iris, vertex_data, draw.pair, draw.lr);
@@ -359,15 +360,15 @@ void EyeVulkanRenderer::run_gpu(std::vector<EyeVulkanRenderer::SingleEyeDrawsVul
   vertexStagingBuffer.unmap();
 
   //We store separate frame buffers in vulkan swap chain abstractions
-  auto& frame_buffer_texture_pair = m_gpu_eye_textures[draws.front().tex_slot()]->fb;
+  auto& frame_buffer_texture_pair = m_gpu_eye_textures[m_eye_draw_map.at(0).tex_slot()]->fb;
 
   vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
   frame_buffer_texture_pair.beginSwapChainRenderPass(m_vulkan_info.render_command_buffer);
   m_pipeline_config_info.renderPass = frame_buffer_texture_pair.GetRenderPass();
 
   buffer_idx = 0;
-  for (size_t draw_idx = 0; draw_idx < draws.size(); draw_idx++) {
-    auto& draw = draws[draw_idx];
+  for (size_t draw_idx = 0; draw_idx < m_eye_draw_map.size(); draw_idx++) {
+    auto& draw = m_eye_draw_map.at(draw_idx);
     const auto& out_tex = m_gpu_eye_textures[draw.tex_slot()];
 
     // first, the clear
@@ -480,8 +481,8 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
 }
 
 void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) {
-  auto& draws = get_draws(dma, render_state);
-  run_gpu(draws, render_state);
+  setup_draws(dma, render_state);
+  run_gpu(render_state);
 }
 
 EyeVulkanRenderer::~EyeVulkanRenderer() {

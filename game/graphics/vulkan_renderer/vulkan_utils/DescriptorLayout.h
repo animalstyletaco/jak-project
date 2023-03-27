@@ -63,8 +63,8 @@ class DescriptorPool {
   DescriptorPool(const DescriptorPool&) = delete;
   DescriptorPool& operator=(const DescriptorPool&) = delete;
 
-  bool allocateDescriptor(const VkDescriptorSetLayout descriptorSetLayout,
-                          VkDescriptorSet& descriptor) const;
+  bool allocateDescriptor(const VkDescriptorSetLayout* descriptorSetLayout,
+                          VkDescriptorSet* descriptor, uint32_t descriptorSetCount = 1) const;
 
   void freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const;
   VkDescriptorPool getDescriptorPool() { return m_descriptor_pool; }

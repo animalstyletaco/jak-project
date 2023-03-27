@@ -195,6 +195,8 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
 
     VulkanDraw(draw_idx, 0);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
+                     m_next_front_index - 6, 1, 0, 0, 0);
 
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
@@ -202,6 +204,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
           0.0, 0., 0.5, draw_idx);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       VulkanDraw(draw_idx, 0);
+      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -226,6 +229,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
     VulkanDraw(draw_idx, 1);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_uniform_buffer->SetUniform4f("color_uniform", 0., 0.0, 0., 0.5, draw_idx);
@@ -298,8 +302,11 @@ void ShadowVulkanRenderer::VulkanDraw(uint32_t& pipeline_layout_id, uint32_t ind
                           m_pipeline_config_info.pipelineLayout, 0, 1,
                           &m_descriptor_set, 1, &dynamicDescriptorOffset);
 
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
-                   index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
+  if (indexBufferId == 0) {
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
+  } else {
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
+  }
   pipeline_layout_id++;
 }
 

@@ -129,7 +129,7 @@ void BaseDirectRenderer::flush_pending(BaseSharedRenderState* render_state, Scop
   m_next_free_tex_state = 0;
   m_current_tex_state_idx = -1;
 
-  render_and_draw_buffers();
+  render_and_draw_buffers(render_state, prof);
 }
 
 void BaseDirectRenderer::setup_common_state(BaseSharedRenderState* /*render_state*/) {

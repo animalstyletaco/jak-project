@@ -21,20 +21,16 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   m_time_of_day_color_uniform_buffer =
       std::make_unique<BackgroundCommonFragmentUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
 
-  m_time_of_day_uniform_buffer = std::make_unique<UniformVulkanBuffer>(
-      device, background_common::TIME_OF_DAY_COLOR_COUNT * sizeof(u32),
-      background_common::TIME_OF_DAY_COLOR_COUNT);
-
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, background_common::TIME_OF_DAY_COLOR_COUNT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   create_pipeline_layout();
@@ -54,16 +50,13 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   m_vertex_shader_buffer_descriptor_info =
       VkDescriptorBufferInfo{m_vertex_shader_uniform_buffer->getBuffer(), 0,
                              m_vertex_shader_uniform_buffer->getAlignmentSize()};
-  m_vertex_time_of_day_buffer_descriptor_info =
-      VkDescriptorBufferInfo{m_time_of_day_color_uniform_buffer->getBuffer(), 0,
-                             m_time_of_day_color_uniform_buffer->getAlignmentSize()};
+
   m_fragment_buffer_descriptor_info =
       VkDescriptorBufferInfo{m_time_of_day_color_uniform_buffer->getBuffer(), 0,
                              m_time_of_day_color_uniform_buffer->getAlignmentSize()};
 
   m_descriptor_sets.resize(2);
   m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_shader_buffer_descriptor_info)
-      .writeBuffer(1, &m_vertex_time_of_day_buffer_descriptor_info)
       .build(m_descriptor_sets[0]);
   m_vertex_descriptor_writer->writeImage(
       1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
@@ -76,18 +69,31 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
   m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
 
-  m_placeholder_descriptor_image_info =
-      vulkan_background_common::create_placeholder_descriptor_image_info(
-          m_placeholder_texture, m_placeholder_sampler, VK_IMAGE_TYPE_2D);
-
   m_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   m_time_of_day_samplers.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {device});
 
-  for (uint32_t i = 0; i < background_common::TIME_OF_DAY_COLOR_COUNT; i++) {
-    m_descriptor_image_infos[i] = m_placeholder_descriptor_image_info;
+  auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      background_common::TIME_OF_DAY_COLOR_COUNT, descriptorSetLayout};
+
+  VkDescriptorSetAllocateInfo allocInfo{};
+  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  allocInfo.descriptorPool = m_vulkan_info.descriptor_pool->getDescriptorPool();
+  allocInfo.pSetLayouts = descriptorSetLayouts.data();
+  allocInfo.descriptorSetCount = descriptorSetLayouts.size();
+
+  m_vertex_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
+  m_fragment_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
+
+  if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &allocInfo,
+                               m_vertex_shader_descriptor_sets.data())) {
+    throw std::exception("Failed to allocated descriptor set in Shrub");
+  }
+  if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &allocInfo,
+                               m_fragment_shader_descriptor_sets.data())) {
+    throw std::exception("Failed to allocated descriptor set in Shrub");
   }
 }
-
 
 void Tfrag3Vulkan::InitializeDebugInputVertexAttribute() {
   m_debug_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
@@ -159,6 +165,12 @@ void Tfrag3Vulkan::InitializeInputVertexAttribute() {
 
 Tfrag3Vulkan::~Tfrag3Vulkan() {
   discard_tree_cache();
+  vkFreeDescriptorSets(
+      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
+      m_vertex_shader_descriptor_sets.size(), m_vertex_shader_descriptor_sets.data());
+  vkFreeDescriptorSets(
+      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
+      m_fragment_shader_descriptor_sets.size(), m_fragment_shader_descriptor_sets.data());
 }
 
 BaseTfrag3::TreeCache& Tfrag3Vulkan::get_cached_tree(int bucket_index, int cache_index) {
@@ -486,17 +498,13 @@ void Tfrag3Vulkan::create_pipeline_layout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  std::array<VkPushConstantRange, 2> pushConstantRanges;
-  pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(PushConstant);
-  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  VkPushConstantRange pushConstantRange;
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(PushConstant);
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  pushConstantRanges[1].offset = pushConstantRanges[0].size;
-  pushConstantRanges[1].size = sizeof(int);
-  pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
-  pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
@@ -511,12 +519,15 @@ void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
       m_time_of_day_samplers.at(index).GetSampler(), m_textures->at(index).getImageView(),
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
+  auto& vertex_write_descriptors_sets = m_vertex_descriptor_writer->getWriteDescriptorSets();
+  vertex_write_descriptors_sets[1] = m_vertex_descriptor_writer->writeImageDescriptorSet(
+      1, &m_descriptor_image_infos[index]);
+
   auto& fragment_write_descriptors_sets = m_fragment_descriptor_writer->getWriteDescriptorSets();
-
   fragment_write_descriptors_sets[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
-      1, m_descriptor_image_infos.data(), m_descriptor_image_infos.size());
+      1, &m_descriptor_image_infos[index]);
 
-  //m_vertex_descriptor_writer->overwrite(m_descriptor_sets[0]);
+  m_vertex_descriptor_writer->overwrite(m_descriptor_sets[0]);
   m_fragment_descriptor_writer->overwrite(m_descriptor_sets[1]);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
@@ -528,16 +539,11 @@ void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  m_push_constant.index = index;
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant), (void*)&m_push_constant);
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant), sizeof(index),
-                     (void*)&index);
 
-  std::array<uint32_t, 3> dynamicDescriptorOffsets = {
+  std::array<uint32_t, 2> dynamicDescriptorOffsets = {
       index * m_vertex_shader_uniform_buffer->getAlignmentSize(),
-      index * m_time_of_day_uniform_buffer->getAlignmentSize(),
       index * m_time_of_day_color_uniform_buffer->getAlignmentSize()};
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,

@@ -188,7 +188,7 @@ VkDescriptorBufferInfo VulkanBuffer::descriptorInfo(VkDeviceSize size, VkDeviceS
   return VkDescriptorBufferInfo{
       buffer,
       offset,
-      (size > bufferSize - offset) ? bufferSize - offset : size,
+      (size > alignmentSize - offset) ? alignmentSize - offset : size,
   };
 }
 

@@ -13,16 +13,10 @@ layout (set = 1, binding = 0) uniform UniformBufferObject {
   vec4 fog_color;
 } ubo;
 
-layout (set = 1, binding = 1) uniform sampler2D textures[];
-
-layout(push_constant) uniform PER_OBJECT
-{
-	layout(offset = 12) int imgIdx;
-}pc;
+layout (set = 1, binding = 1) uniform sampler2D texture0;
 
 void main() {
-    //vec4 T0 = texture(textures[pc.imgIdx], tex_coord);
-    vec4 T0 = texture(textures[pc.imgIdx], tex_coord.xy);
+    vec4 T0 = texture(texture0, tex_coord.xy);
     color = fragment_color * T0;
 
     if (color.a < ubo.alpha_min || color.a > ubo.alpha_max) {

@@ -97,7 +97,7 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
   //May be overkill for descriptor pool
   std::vector<VkDescriptorPoolSize> poolSizes = {
     {VK_DESCRIPTOR_TYPE_SAMPLER, 100},
-    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100000},
+    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 300000},
     {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 100},
     {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 100},
     {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 10000},

@@ -40,6 +40,11 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   struct Tree {
     std::unique_ptr<VulkanTexture> time_of_day_texture;
     std::vector<MultiDrawVulkanBuffer> multidraw_buffers;
+
+    std::unique_ptr<VertexBuffer> vertex_buffer;
+    std::unique_ptr<IndexBuffer> index_buffer;
+    std::unique_ptr<IndexBuffer> single_draw_index_buffer;
+
     u32 vert_count;
     const std::vector<tfrag3::ShrubDraw>* draws = nullptr;
     const std::vector<tfrag3::TieWindInstance>* instance_info = nullptr;
@@ -74,32 +79,18 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
 
-  struct PushConstantShrub : PushConstant {
-    int textureIndex = 0;
-  }m_push_constant_shrub;
-
   VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
-  VkDescriptorBufferInfo m_time_of_day_buffer_descriptor_info;
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
 
-  VkBufferView m_time_of_day_vertex_buffer_view = VK_NULL_HANDLE;
-  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
-
-  std::unique_ptr<VertexBuffer> m_vertex_buffer;
-  std::unique_ptr<IndexBuffer>  m_index_buffer;
-  std::unique_ptr<IndexBuffer>  m_single_draw_index_buffer;
+  std::vector<VkDescriptorImageInfo> m_time_of_day_descriptor_image_infos;
+  std::vector<VkDescriptorImageInfo> m_shrub_descriptor_image_infos;
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_buffer;
 
-  // Ideally wanted this to be a texel buffer but dynamic buffer is not supported in Vulkan yet
-  std::unique_ptr<UniformVulkanBuffer> m_time_of_day_uniform_buffer; 
+  std::vector<VkDescriptorSet> m_time_of_day_descriptor_sets;
+  std::vector<VkDescriptorSet> m_shrub_descriptor_sets;
 
-  std::vector<VkDescriptorSet> m_descriptor_sets;
   std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
-
-  std::unique_ptr<VulkanTexture> m_placeholder_texture;
-  std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
-  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 };
 

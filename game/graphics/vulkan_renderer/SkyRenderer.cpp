@@ -94,6 +94,8 @@ SkyVulkanRenderer::SkyVulkanRenderer(
     : BaseSkyRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info), m_direct_renderer("sky-direct", my_id, device, vulkan_info, 100) {}
 
 void SkyVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_direct_renderer_call_count = 0;
+  m_direct_renderer.set_current_index(m_direct_renderer_call_count);
   BaseSkyRenderer::render(dma, render_state, prof);
 }
 
@@ -107,6 +109,7 @@ void SkyVulkanRenderer::direct_renderer_draw_debug_window() {
 
 void SkyVulkanRenderer::direct_renderer_flush_pending(BaseSharedRenderState* render_state,
                                                       ScopedProfilerNode& prof) {
+  m_direct_renderer.set_current_index(m_direct_renderer_call_count++);
   m_direct_renderer.flush_pending(render_state, prof);
 }
 
@@ -114,6 +117,7 @@ void SkyVulkanRenderer::direct_renderer_render_gif(const u8* data,
                                                    u32 size,
                                                    BaseSharedRenderState* render_state,
                                                    ScopedProfilerNode& prof) {
+  m_direct_renderer.set_current_index(m_direct_renderer_call_count++);
   m_direct_renderer.render_gif(data, size, render_state, prof);
 }
 
@@ -123,6 +127,7 @@ void SkyVulkanRenderer::direct_renderer_render_vif(u32 vif0,
                                                    u32 size,
                                                    BaseSharedRenderState* render_state,
                                                    ScopedProfilerNode& prof) {
+  m_direct_renderer.set_current_index(m_direct_renderer_call_count++);
   m_direct_renderer.render_vif(vif0, vif1, data, size, render_state, prof);
 }
 

@@ -69,7 +69,8 @@ class BaseDirectRenderer : public BaseBucketRenderer {
   void set_mipmap(bool en) { m_debug_state.disable_mipmap = !en; }
 
  protected:
-  virtual void render_and_draw_buffers() = 0;
+  virtual void render_and_draw_buffers(BaseSharedRenderState* render_state,
+                                       ScopedProfilerNode& prof) = 0;
 
   void handle_ad(const u8* data, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void handle_zbuf1(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);

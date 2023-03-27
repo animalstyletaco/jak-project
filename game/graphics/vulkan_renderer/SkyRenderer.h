@@ -81,6 +81,7 @@ class SkyVulkanRenderer : public BaseSkyRenderer, public BucketVulkanRenderer {
 
  private:
   DirectVulkanRenderer m_direct_renderer;
+  uint32_t m_direct_renderer_call_count = 0;
 
   struct FrameStats {
     int gif_packets = 0;

@@ -120,3 +120,20 @@ class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkan
   Tie3Vulkan* m_parent;
   tfrag3::TieCategory m_category;
 };
+
+/*!
+ * Jak 1 - specific renderer that does TIE and TIE envmap in one.
+ */
+class Tie3VulkanWithEnvmapJak1 : public Tie3Vulkan {
+ public:
+  Tie3VulkanWithEnvmapJak1(const std::string& name,
+                           int my_id,
+                           std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           VulkanInitializationInfo& vulkan_info,
+                           int level_id);
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void draw_debug_window() override;
+
+ private:
+  bool m_enable_envmap = true;
+};

@@ -101,7 +101,7 @@ void SkyBlendVulkanGPU::init_textures(VulkanTexturePool& tex_pool) {
     VulkanTextureInput in;
     in.texture = m_textures[i].get();
     in.debug_name = fmt::format("PC-SKY-GPU-{}", i);
-    in.id = tex_pool.allocate_pc_port_texture();
+    in.id = tex_pool.allocate_pc_port_texture(m_vulkan_info.m_version);
     u32 tbp = SKY_TEXTURE_VRAM_ADDRS[i];
     m_tex_info[i] = {tex_pool.give_texture_and_load_to_vram(in, tbp), tbp};
   }

@@ -217,12 +217,21 @@ bool Tie3Vulkan::try_loading_level(const std::string& level, BaseSharedRenderSta
   // make sure we have the level data.
   Timer tfrag3_setup_timer;
   auto lev_data = m_vulkan_info.loader->get_tfrag3_level(level);
-  if (!lev_data || (m_has_level && lev_data->load_id != m_load_id)) {
+  if (!lev_data) {
+    // not loaded
     m_has_level = false;
     m_textures = nullptr;
     m_level_name = "";
     discard_tree_cache();
     return false;
+  }
+
+  if (m_has_level && lev_data->load_id != m_load_id) {
+    m_has_level = false;
+    m_textures = nullptr;
+    m_level_name = "";
+    discard_tree_cache();
+    return try_loading_level(level, render_state);
   }
   m_textures = &lev_data->textures_map;
   m_load_id = lev_data->load_id;
@@ -372,7 +381,7 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
     return;
   }
   bool use_envmap = tfrag3::is_envmap_first_draw_category(category);
-  if(use_envmap){
+  if (use_envmap && m_draw_envmap_second_draw) {
     vulkan_background_common::first_tfrag_draw_setup(settings, render_state, m_etie_vertex_shader_uniform_buffer.get());
     // if we use envmap, use the envmap-style math for the base draw to avoid rounding issue.
     init_etie_cam_uniforms(render_state);
@@ -763,4 +772,24 @@ void Tie3VulkanAnotherCategory::render(DmaFollower& dma,
     ASSERT(false);
   }
   m_parent->render_from_another(render_state, prof, m_category);
+}
+
+Tie3VulkanWithEnvmapJak1::Tie3VulkanWithEnvmapJak1(const std::string& name,
+                       int my_id,
+                       std::unique_ptr<GraphicsDeviceVulkan>& device,
+                       VulkanInitializationInfo& vulkan_info,
+                       int level_id) : Tie3Vulkan(name, my_id, device, vulkan_info, level_id, tfrag3::TieCategory::NORMAL) {
+}
+void Tie3VulkanWithEnvmapJak1::render(DmaFollower& dma,
+                                      SharedVulkanRenderState* render_state,
+                                      ScopedProfilerNode& prof) {
+  BaseTie3::render(dma, render_state, prof);
+  if (m_enable_envmap) {
+    render_from_another(render_state, prof, tfrag3::TieCategory::NORMAL_ENVMAP);
+  }
+}
+
+void Tie3VulkanWithEnvmapJak1::draw_debug_window() {
+  ImGui::Checkbox("envmap", &m_enable_envmap);
+  BaseTie3::draw_debug_window();
 }

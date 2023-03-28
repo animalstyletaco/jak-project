@@ -61,7 +61,7 @@ void OceanVulkanTexture::init_textures(VulkanTexturePool& pool) {
   //in.texture = m_result_texture.texture();
   in.debug_page_name = "PC-OCEAN";
   in.debug_name = fmt::format("pc-ocean-mip-{}", m_generate_mipmaps);
-  in.id = pool.allocate_pc_port_texture();
+  in.id = pool.allocate_pc_port_texture(m_vulkan_info.m_version);
   m_tex0_gpu = pool.give_texture_and_load_to_vram(in, ocean_common::OCEAN_TEX_TBP_JAK1);
 }
 

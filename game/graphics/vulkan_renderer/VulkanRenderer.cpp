@@ -169,7 +169,8 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   // 7 : TFRAG_NEAR_LEVEL0
   // 8 : TIE_NEAR_LEVEL0
   // 9 : TIE_LEVEL0
-  init_bucket_renderer<Tie3Vulkan>("l0-tfrag-tie", BucketCategory::TIE, BucketId::TIE_LEVEL0, m_device, m_vulkan_info, 0);
+  init_bucket_renderer<Tie3VulkanWithEnvmapJak1>("l0-tfrag-tie", BucketCategory::TIE,
+                                           BucketId::TIE_LEVEL0, m_device, m_vulkan_info, 0);
   // 10 : MERC_TFRAG_TEX_LEVEL0
   init_bucket_renderer<MercVulkan2>("l0-tfrag-merc", BucketCategory::MERC,
                               BucketId::MERC_TFRAG_TEX_LEVEL0, m_device, m_vulkan_info);
@@ -189,7 +190,8 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   // 14 : TFRAG_NEAR_LEVEL1
   // 15 : TIE_NEAR_LEVEL1
   // 16 : TIE_LEVEL1
-  init_bucket_renderer<Tie3Vulkan>("l1-tfrag-tie", BucketCategory::TIE, BucketId::TIE_LEVEL1, m_device, m_vulkan_info, 1);
+  init_bucket_renderer<Tie3VulkanWithEnvmapJak1>("l1-tfrag-tie", BucketCategory::TIE,
+                                           BucketId::TIE_LEVEL1, m_device, m_vulkan_info, 1);
   // 17 : MERC_TFRAG_TEX_LEVEL1
   init_bucket_renderer<MercVulkan2>("l1-tfrag-merc", BucketCategory::MERC,
                               BucketId::MERC_TFRAG_TEX_LEVEL1, m_device, m_vulkan_info);
@@ -330,15 +332,8 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
                                              BucketId::PRE_SPRITE_TEX, m_device, m_vulkan_info);  // 65
 
   // the first renderer added will be the default for sprite.
-  auto sprite_3d = std::make_shared<SpriteVulkan3>("sprite-3", (int)BucketId::SPRITE, m_device, m_vulkan_info);
-  auto sprite_renderer = std::make_shared<SpriteVulkanRenderer>("sprite-renderer", (int)BucketId::SPRITE, m_device, m_vulkan_info);
-
-  std::vector<std::shared_ptr<BaseBucketRenderer>> base_sprite_renderers{sprite_3d, sprite_renderer};
-  std::vector<std::shared_ptr<BucketVulkanRenderer>> graphics_sprite_renderers{sprite_3d, sprite_renderer};
-
-  init_bucket_renderer<RenderVulkanMux>("sprite", BucketCategory::SPRITE, BucketId::SPRITE,
-                                        m_device, m_vulkan_info, graphics_sprite_renderers,
-                                        base_sprite_renderers);  // 66
+  init_bucket_renderer<SpriteVulkan3>("sprite-3", BucketCategory::SPRITE, BucketId::SPRITE, m_device,
+                                      m_vulkan_info);
 
   init_bucket_renderer<DirectVulkanRenderer>("debug", BucketCategory::OTHER, BucketId::DEBUG, m_device, m_vulkan_info, 0x20000);
   init_bucket_renderer<DirectVulkanRenderer>("debug-no-zbuf", BucketCategory::OTHER,
@@ -583,7 +578,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<DirectVulkanRenderer>("screen-filter", BucketCategory::OTHER,
                                              BucketId::SCREEN_FILTER, m_device, m_vulkan_info,
                                              256);
-  init_bucket_renderer<DirectVulkanRenderer>("bucket-322", BucketCategory::OTHER, BucketId::BUCKET_322, m_device, m_vulkan_info,
+  init_bucket_renderer<DirectVulkanRenderer>("bucket-322", BucketCategory::OTHER, BucketId::SUBTITLE, m_device, m_vulkan_info,
                                        0x8000);
   init_bucket_renderer<DirectVulkanRenderer>("debug2", BucketCategory::OTHER, BucketId::DEBUG2,
                                              m_device, m_vulkan_info, 0x8000);

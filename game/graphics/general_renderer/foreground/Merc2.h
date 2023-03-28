@@ -160,4 +160,19 @@ class BaseMerc2 : public BaseBucketRenderer {
   u32 m_next_free_bone_vector = 0;
   size_t m_graphics_buffer_alignment = 0;
 
+  struct PcMercFlags {
+    u64 enable_mask;
+    u64 ignore_alpha_mask;
+    u8 effect_count;
+    u8 bitflags;
+  };
+
+  struct ModSettings {
+    uint32_t first_bone;
+    uint32_t lights;
+    bool uses_water;
+    bool model_disables_fog;
+    bool ignore_alpha;
+    bool model_uses_mod;
+  };
 };

@@ -133,7 +133,7 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
                                   bool ignore_alpha,
                                   LevelDrawBucketVulkan* lev_bucket,
                                   u32 first_bone,
-                                  u32 lights, bool use_jak1_water);
+                                  u32 lights, bool use_jak1_water, bool disable_fog);
     VulkanDraw* try_alloc_envmap_draw(const tfrag3::MercDraw& mdraw,
                                       const DrawMode& envmap_mode,
                                       u32 envmap_texture,
@@ -148,20 +148,12 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
                                 VkDeviceSize minOffsetAlignment = 1);
   };
 
-  struct ModSettings {
-    int num_effects = 0;                 // sanity check
-    int current_ignore_alpha_bits = 0;   // shader settings
-    int current_effect_enable_bits = 0;  // mask for game to disable an effect
-    bool model_uses_mod = false;         // if we should update vertices from game.
-  };
-
-void MercVulkan2::do_mod_draws(const tfrag3::MercEffect& effect,
-                               ModSettings mod_settings,
-                               LevelDrawBucketVulkan* lev_bucket,
-                               u8* fade_buffer,
-                               uint32_t index,
-                               uint32_t first_bone,
-                               uint32_t lights, bool uses_water,
+void MercVulkan2::do_mod_draws(
+      const tfrag3::MercEffect& effect,
+      LevelDrawBucketVulkan* lev_bucket,
+      u8* fade_buffer,
+      uint32_t index,
+      ModSettings& settings,
       std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>>& mod_graphics_buffers);
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;

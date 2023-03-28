@@ -202,12 +202,17 @@ bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
     auto proto_mask_data = dma.read_and_advance();
     m_common_data.proto_vis_data = proto_mask_data.data;
     m_common_data.proto_vis_data_size = proto_mask_data.size_bytes;
-    // jak 2 envmap color
-    auto envmap_color = dma.read_and_advance();
-    ASSERT(envmap_color.size_bytes == 16);
-    memcpy(m_common_data.envmap_color.data(), envmap_color.data, 16);
-    m_common_data.envmap_color /= 128.f;
   }
+  // envmap color
+  auto envmap_color = dma.read_and_advance();
+  ASSERT(envmap_color.size_bytes == 16);
+  memcpy(m_common_data.envmap_color.data(), envmap_color.data, 16);
+  m_common_data.envmap_color /= 128.f;
+  if (render_state->version == GameVersion::Jak1) {
+    m_common_data.envmap_color *= 2;
+  }
+  m_common_data.envmap_color *= m_envmap_strength;
+
   m_common_data.frame_idx = render_state->frame_idx;
 
   while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -263,15 +268,13 @@ void BaseTie3::draw_matching_draws_for_all_trees(int geom,
                                                  ScopedProfilerNode& prof,
                                                  tfrag3::TieCategory category) {
   for (u32 i = 0; i < get_tree_count(geom); i++) {
-    if (tfrag3::is_envmap_first_draw_category(category)) {
-      draw_matching_draws_for_tree(i, geom, settings, render_state, prof, category);
-    } else {
-      draw_matching_draws_for_tree(i, geom, settings, render_state, prof, category);
-    }
+    draw_matching_draws_for_tree(i, geom, settings, render_state, prof, category);
   }
 }
 
 void BaseTie3::draw_debug_window() {
+  ImGui::Checkbox("envmap 2nd draw", &m_draw_envmap_second_draw);
+  ImGui::SliderFloat("envmap str", &m_envmap_strength, 0, 2);
   ImGui::Checkbox("Fast ToD", &m_use_fast_time_of_day);
   ImGui::SameLine();
   ImGui::Checkbox("All Visible", &m_debug_all_visible);

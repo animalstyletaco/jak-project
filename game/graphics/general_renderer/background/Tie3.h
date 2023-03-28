@@ -80,9 +80,11 @@ class BaseTie3 : public BaseBucketRenderer {
     TfragRenderSettings settings;
     const u8* proto_vis_data = nullptr;
     u32 proto_vis_data_size = 0;
-    math::Vector4f envmap_color;
+    math::Vector4f envmap_color = math::Vector4f{2.f, 2.f, 2.f, 2.f};
     u64 frame_idx = -1;
   } m_common_data;
+
+  float m_envmap_strength = 1.f;
 
   struct Tree {
     std::array<u32, tfrag3::kNumTieCategories + 1> category_draw_indices;
@@ -133,6 +135,7 @@ class BaseTie3 : public BaseBucketRenderer {
   bool m_hide_wind = false;
   Filtered<float> m_all_tree_time;
 
+  bool m_draw_envmap_second_draw = true;
   TfragPcPortData m_pc_port_data;
 
   std::vector<float> m_wind_vectors;  // note: I suspect these are shared with shrub.
@@ -153,4 +156,3 @@ class BaseTie3 : public BaseBucketRenderer {
                     float stiffness,
                     std::array<math::Vector4f, 4>& mat);
 };
-

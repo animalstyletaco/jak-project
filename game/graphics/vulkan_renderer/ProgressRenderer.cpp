@@ -22,7 +22,7 @@ void ProgressVulkanRenderer::init_textures(TexturePool& texture_pool, GameVersio
   in.texture = &m_minimap_fb.Texture(0);
   in.debug_page_name = "PC-MAP";
   in.debug_name = "map";
-  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture();
+  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture(m_vulkan_info.m_version);
   //m_minimap_gpu_tex = m_vulkan_info.texture_pool->give_texture_and_load_to_vram(in, kMinimapVramAddr);
 }
 

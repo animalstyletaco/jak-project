@@ -123,7 +123,7 @@ class VulkanTexturePool {
   }
 
   std::mutex& mutex() { return m_mutex; }
-  PcTextureId allocate_pc_port_texture();
+  PcTextureId allocate_pc_port_texture(GameVersion version);
 
   std::string get_debug_texture_name(PcTextureId id);
 

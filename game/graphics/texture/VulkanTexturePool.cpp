@@ -390,9 +390,16 @@ void VulkanTexturePool::draw_debug_for_tex(const std::string& name, VulkanGpuTex
   ImGui::PopStyleColor();
 }
 
-PcTextureId VulkanTexturePool::allocate_pc_port_texture() {
+PcTextureId VulkanTexturePool::allocate_pc_port_texture(GameVersion version) {
   ASSERT(m_next_pc_texture_to_allocate < EXTRA_PC_PORT_TEXTURE_COUNT);
-  return PcTextureId(get_jak1_tpage_dir().size() - 1, m_next_pc_texture_to_allocate++);
+  switch (version) {
+    case GameVersion::Jak1:
+      return PcTextureId(get_jak1_tpage_dir().size() - 1, m_next_pc_texture_to_allocate++);
+    case GameVersion::Jak2:
+      return PcTextureId(get_jak2_tpage_dir().size() - 1, m_next_pc_texture_to_allocate++);
+    default:
+      ASSERT_NOT_REACHED();
+  }
 }
 
 std::string VulkanTexturePool::get_debug_texture_name(PcTextureId id) {

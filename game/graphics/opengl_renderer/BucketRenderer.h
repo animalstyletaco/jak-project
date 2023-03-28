@@ -27,6 +27,7 @@ struct SharedRenderState : BaseSharedRenderState {
   std::shared_ptr<Loader> loader;
 
   void reset() override;
+
   EyeRenderer* eye_renderer = nullptr;
 
   GLuint render_fb = -1;

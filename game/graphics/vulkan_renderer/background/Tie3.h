@@ -54,20 +54,21 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   struct TreeVulkan : Tree {
     std::vector<background_common::DrawSettings> draw_idx_temp;
     std::vector<background_common::DrawSettings> multidraw_idx_temp;
-    VertexBuffer* vertex_buffer = nullptr;
-    IndexBuffer* index_buffer = nullptr;
-    IndexBuffer* single_draw_index_buffer = nullptr;
-    VulkanTexture* time_of_day_texture = nullptr;
+    std::unique_ptr<VertexBuffer> vertex_buffer;
+    std::unique_ptr<IndexBuffer> index_buffer;
+    std::unique_ptr<IndexBuffer> single_draw_index_buffer;
+    std::unique_ptr<VulkanTexture> time_of_day_texture;
 
-    IndexBuffer* wind_vertex_index_buffer;
+    std::unique_ptr<VertexBuffer> wind_vertex_buffer;
+    std::unique_ptr<IndexBuffer> wind_index_buffer;
   };
 
-  void envmap_second_pass_draw(const TreeVulkan& tree,
+  void envmap_second_pass_draw(TreeVulkan& tree,
                                const TfragRenderSettings& settings,
                                BaseSharedRenderState* render_state,
                                ScopedProfilerNode& prof,
                                tfrag3::TieCategory category,
-                               std::vector<VkDescriptorSet>& descriptor_set);
+                               int index);
 
   struct Cache {
     std::vector<background_common::DrawSettings> draw_idx_temp;

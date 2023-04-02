@@ -17,6 +17,8 @@ void OceanVulkanMidAndFar::draw_debug_window() {
 }
 
 void OceanVulkanMidAndFar::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_direct_renderer_call_count = 0;
+  m_direct.set_current_index(m_direct_renderer_call_count);
   BaseOceanMidAndFar::render(dma, render_state, prof);
 }
 
@@ -33,11 +35,13 @@ void OceanVulkanMidAndFar::direct_renderer_render_gif(const u8* data,
                                                       u32 size,
                                                       BaseSharedRenderState* render_state,
                                                       ScopedProfilerNode& prof) {
+  m_direct.set_current_index(m_direct_renderer_call_count++);
   m_direct.render_gif(data, size, render_state, prof);
 }
 
 void OceanVulkanMidAndFar::direct_renderer_flush_pending(BaseSharedRenderState* render_state,
                                                          ScopedProfilerNode& prof) {
+  m_direct.set_current_index(m_direct_renderer_call_count++);
   m_direct.flush_pending(render_state, prof);
 }
 void OceanVulkanMidAndFar::direct_renderer_set_mipmap(bool isMipmapEnabled) {

@@ -138,10 +138,6 @@ void GenericVulkan2::init_shaders(VulkanShaderLibrary& shaders) {
 }
 
 void GenericVulkan2::graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) {
-  m_fragment_uniform_buffer->SetUniform4f(
-              "fog_color", render_state->fog_color[0] / 255.f,
-              render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
-              render_state->fog_intensity / 255);
   m_vertex_uniform_buffer->SetUniform4f("scale", m_drawing_config.proj_scale[0],
                                         m_drawing_config.proj_scale[1],
               m_drawing_config.proj_scale[2], 0);
@@ -154,6 +150,10 @@ void GenericVulkan2::graphics_bind_and_setup_proj(BaseSharedRenderState* render_
   m_vertex_uniform_buffer->SetUniform4f(
               "hvdf_offset", m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
               m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]);
+
+  m_vertex_uniform_buffer->map();
+  m_vertex_uniform_buffer->flush();
+  m_vertex_uniform_buffer->unmap();
 }
 
 void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,

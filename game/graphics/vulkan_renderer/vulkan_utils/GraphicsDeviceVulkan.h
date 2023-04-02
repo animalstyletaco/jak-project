@@ -62,6 +62,7 @@ class GraphicsDeviceVulkan {
   VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
                                VkImageTiling tiling,
                                VkFormatFeatureFlags features);
+  uint32_t getNonCoherentAtomSizeMultiple(uint32_t originalOffset);
   uint32_t getMinimumBufferOffsetAlignment(uint32_t originalOffset);
   VkSampleCountFlagBits GetMaxUsableSampleCount();
 
@@ -115,6 +116,7 @@ class GraphicsDeviceVulkan {
   void hasGflwRequiredInstanceExtensions();
   bool checkDeviceExtensionSupport(VkPhysicalDevice device);
   SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+  uint32_t getMinimumMemoryNeedFor(uint32_t memorySize, uint32_t deviceAttributeMemorySize);
 
   VkSampleCountFlagBits m_msaa_samples = VK_SAMPLE_COUNT_1_BIT;
 

@@ -46,4 +46,6 @@ class OceanVulkanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRende
   DirectVulkanRenderer m_direct;
   OceanVulkanTexture m_texture_renderer;
   OceanMidVulkan m_mid_renderer;
+
+  u64 m_direct_renderer_call_count = 0;
 };

@@ -721,12 +721,23 @@ VkSampleCountFlagBits GraphicsDeviceVulkan::GetMaxUsableSampleCount() {
 }
 
 uint32_t GraphicsDeviceVulkan::getMinimumBufferOffsetAlignment(uint32_t originalOffset) {
-  if (originalOffset % m_physical_device_properties.limits.minUniformBufferOffsetAlignment == 0) {
-    return originalOffset;
+  return getMinimumMemoryNeedFor(originalOffset,
+                                 m_physical_device_properties.limits.minUniformBufferOffsetAlignment);
+}
+
+uint32_t GraphicsDeviceVulkan::getNonCoherentAtomSizeMultiple(uint32_t originalOffset) {
+  return getMinimumMemoryNeedFor(
+      originalOffset, m_physical_device_properties.limits.nonCoherentAtomSize);
+}
+
+uint32_t GraphicsDeviceVulkan::getMinimumMemoryNeedFor(uint32_t memorySize,
+                                                       uint32_t deviceAttributeMemorySize) {
+  if (memorySize % deviceAttributeMemorySize == 0) {
+    return memorySize;
   }
 
-  uint32_t wrap_around_count = (originalOffset / m_physical_device_properties.limits.minUniformBufferOffsetAlignment) + 1;
-  return wrap_around_count * m_physical_device_properties.limits.minUniformBufferOffsetAlignment;
+  uint32_t wrap_around_count = (memorySize / deviceAttributeMemorySize) + 1;
+  return wrap_around_count * deviceAttributeMemorySize;
 }
 
 VkFormatProperties GraphicsDeviceVulkan::getPhysicalDeviceFormatProperties(VkFormat format) {

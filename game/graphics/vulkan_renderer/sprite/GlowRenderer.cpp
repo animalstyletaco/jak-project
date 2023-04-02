@@ -389,20 +389,33 @@ void GlowVulkanRenderer::blit_depth(BaseSharedRenderState* render_state) {
     //                      m_ogl.probe_fbo_h);
   }
 
-  //glBindFramebuffer(GL_READ_FRAMEBUFFER, render_state->render_fb);
-  //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_ogl.probe_fbo);
-  //
-  //glBlitFramebuffer(render_state->render_fb_x,                              // srcX0
-  //                  render_state->render_fb_y,                              // srcY0
-  //                  render_state->render_fb_x + render_state->render_fb_w,  // srcX1
-  //                  render_state->render_fb_y + render_state->render_fb_h,  // srcY1
-  //                  0,                                                      // dstX0
-  //                  0,                                                      // dstY0
-  //                  m_ogl.probe_fbo_w,                                      // dstX1
-  //                  m_ogl.probe_fbo_h,                                      // dstY1
-  //                  GL_DEPTH_BUFFER_BIT,                                    // mask
-  //                  GL_NEAREST                                              // filter
-  //);
+  std::array<VkImageBlit, 1> imageBlits{};
+  imageBlits[0].srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageBlits[0].srcSubresource.mipLevel = 0;
+  imageBlits[0].srcSubresource.baseArrayLayer = 1;
+  imageBlits[0].srcSubresource.layerCount = 1;
+
+  imageBlits[0].srcOffsets[0].x = render_state->render_fb_x;
+  imageBlits[0].srcOffsets[0].y = render_state->render_fb_y;
+  imageBlits[0].srcOffsets[0].z = 0;
+  imageBlits[0].srcOffsets[1].x = render_state->render_fb_x + render_state->render_fb_w;
+  imageBlits[0].srcOffsets[1].y = render_state->render_fb_y + render_state->render_fb_h;
+  imageBlits[0].srcOffsets[1].z = 0;
+
+  imageBlits[0].srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageBlits[0].dstSubresource.mipLevel = 0;
+  imageBlits[0].dstSubresource.baseArrayLayer = 1;
+  imageBlits[0].dstSubresource.layerCount = 1;
+
+  imageBlits[0].dstOffsets[0].x = 0;
+  imageBlits[0].dstOffsets[0].y = 0;
+  imageBlits[0].dstOffsets[0].z = 0;
+  imageBlits[0].dstOffsets[1].x = m_ogl.probe_fbo_w;
+  imageBlits[0].dstOffsets[1].y = m_ogl.probe_fbo_h;
+  imageBlits[0].dstOffsets[1].z = 0;
+
+  vkCmdBlitImage(m_vulkan_info.render_command_buffer, render_fb->color_texture.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+                 m_ogl.probe_fbo->color_texture.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, imageBlits.size(), imageBlits.data(), VK_FILTER_NEAREST);
 }
 
 /*!
@@ -435,6 +448,7 @@ void GlowVulkanRenderer::downsample_chain(BaseSharedRenderState* render_state,
     // the grid fill order is the same as the downsample order, so we don't need to do all cells
     // if we aren't using all sprites.
     //glDrawElements(GL_TRIANGLE_STRIP, num_sprites * 5, GL_UNSIGNED_INT, nullptr);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, num_sprites * 5, 1, 0, 0, 0);
   }
 }
 
@@ -442,13 +456,21 @@ void GlowVulkanRenderer::downsample_chain(BaseSharedRenderState* render_state,
  * Draw probes (including the clear) to the probe fbo. Also copies vertex/index buffer.
  */
 void GlowVulkanRenderer::draw_probes(BaseSharedRenderState* render_state,
-                               ScopedProfilerNode& prof,
-                               u32 idx_start,
-                               u32 idx_end) {
-  //glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.probe_fbo);
+                                     ScopedProfilerNode& prof,
+                                     u32 idx_start,
+                                     u32 idx_end) {
+  // glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.probe_fbo);
+
+  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  m_ogl.probe_fbo->beginRenderPass(m_vulkan_info.render_command_buffer);
 
   m_ogl.vertex_buffer->writeToGpuBuffer(m_vertex_buffer.data(), m_next_vertex * sizeof(Vertex));
   m_ogl.index_buffer->writeToGpuBuffer(m_index_buffer.data(), m_next_index * sizeof(u32));
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffers[] = {m_ogl.vertex_buffer->getBuffer()};
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_ogl.index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
   // do probes
   SwitchToShader(ShaderId::GLOW_PROBE);
@@ -460,8 +482,16 @@ void GlowVulkanRenderer::draw_probes(BaseSharedRenderState* render_state,
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
+  m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+
   //glDrawElements(GL_TRIANGLE_STRIP, idx_end - idx_start, GL_UNSIGNED_INT,
   //               (void*)(idx_start * sizeof(u32)));
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, idx_end - idx_start, 1, idx_start, 0, 0);
+  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+                                                     m_vulkan_info.currentFrame);
 }
 
 /*!
@@ -478,6 +508,7 @@ void GlowVulkanRenderer::debug_draw_probes(BaseSharedRenderState* render_state,
   //glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
   //glDrawElements(GL_TRIANGLE_STRIP, idx_end - idx_start, GL_UNSIGNED_INT,
   //               (void*)(idx_start * sizeof(u32)));
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, idx_end - idx_start, 1, idx_start, 0, 0);
 }
 
 /*!
@@ -503,6 +534,7 @@ void GlowVulkanRenderer::draw_probe_copies(BaseSharedRenderState* render_state,
   prof.add_tri(m_next_sprite * 2);
   //glDrawElements(GL_TRIANGLE_STRIP, idx_end - idx_start, GL_UNSIGNED_INT,
   //               (void*)(idx_start * sizeof(u32)));
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, idx_end - idx_start, 1, idx_start, 0, 0);
 }
 
 /*!
@@ -518,6 +550,7 @@ void GlowVulkanRenderer::debug_draw_probe_copies(BaseSharedRenderState* render_s
   //glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
   //glDrawElements(GL_TRIANGLE_STRIP, idx_end - idx_start, GL_UNSIGNED_INT,
   //               (void*)(idx_start * sizeof(u32)));
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, idx_end - idx_start, 1, idx_start, 0, 0);
 }
 
 /*!
@@ -554,9 +587,9 @@ void GlowVulkanRenderer::draw_sprites(BaseSharedRenderState* render_state, Scope
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 
-  //vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-  //                 VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float),
-  //                 (void*)&m_debug.glow_boost);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                   VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(float),
+                   (void*)&m_debug.glow_boost);
 
   for (u32 i = 0; i < m_next_sprite; i++) {
     const auto& record = m_sprite_records[i];
@@ -591,5 +624,6 @@ void GlowVulkanRenderer::draw_sprites(BaseSharedRenderState* render_state, Scope
     prof.add_draw_call();
     prof.add_tri(2);
     //glDrawElements(GL_TRIANGLE_STRIP, 5, GL_UNSIGNED_INT, (void*)(record.idx * sizeof(u32)));
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 5, 1, record.idx, 0, 0);
   }
 }

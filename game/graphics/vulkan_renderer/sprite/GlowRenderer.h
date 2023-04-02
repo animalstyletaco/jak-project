@@ -13,6 +13,7 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
  public:
   GlowVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
 
+  FramebufferVulkan* render_fb = NULL;
  private:
   void blit_depth(BaseSharedRenderState* render_state);
 

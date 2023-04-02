@@ -27,7 +27,6 @@ struct SharedVulkanRenderState : public BaseSharedRenderState {
   explicit SharedVulkanRenderState(GameVersion version,
                                    std::unique_ptr<GraphicsDeviceVulkan>& device)
       : BaseSharedRenderState(version) {}
-  VkFramebuffer render_fb = VK_NULL_HANDLE;
   EyeVulkanRenderer* eye_renderer = nullptr;
 };
 

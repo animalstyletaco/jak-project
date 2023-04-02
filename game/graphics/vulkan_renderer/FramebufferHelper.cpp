@@ -41,6 +41,24 @@ void FramebufferVulkan::setViewportScissor(VkCommandBuffer commandBuffer) {
   vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
+void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer) {
+  VkRenderPassBeginInfo renderPassInfo{};
+  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  renderPassInfo.renderPass = render_pass;
+  renderPassInfo.framebuffer = frame_buffer;
+
+  renderPassInfo.renderArea.offset = {0, 0};
+  renderPassInfo.renderArea.extent = extents;
+
+  std::array<VkClearValue, 2> clearValues{};
+  clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
+  clearValues[1].depthStencil = {1.0f, 0};
+  renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+  renderPassInfo.pClearValues = clearValues.data();
+
+  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
 FramebufferVulkan::~FramebufferVulkan() {
   if (frame_buffer) {
     vkDestroyFramebuffer(m_device->getLogicalDevice(), frame_buffer, nullptr);
@@ -211,26 +229,12 @@ void FramebufferVulkan::createFramebuffer() {
   }
 }
 
-void FramebufferVulkanHelper::beginSwapChainRenderPass(VkCommandBuffer commandBuffer, int index) {
+void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, int index) {
   if (m_framebuffers[index].m_current_msaa != m_device->getMsaaCount()) {
     m_framebuffers[index].initializeFramebufferAtLevel(index + 1);
   }
 
-  VkRenderPassBeginInfo renderPassInfo{};
-  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  renderPassInfo.renderPass = m_framebuffers[index].render_pass;
-  renderPassInfo.framebuffer = m_framebuffers[index].frame_buffer;
-
-  renderPassInfo.renderArea.offset = {0, 0};
-  renderPassInfo.renderArea.extent = m_framebuffers[index].extents;
-
-  std::array<VkClearValue, 2> clearValues{};
-  clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
-  clearValues[1].depthStencil = {1.0f, 0};
-  renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-  renderPassInfo.pClearValues = clearValues.data();
-
-  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+  m_framebuffers[index].beginRenderPass(commandBuffer);
 }
 
 VkFormat FramebufferVulkan::GetSupportedDepthFormat() {

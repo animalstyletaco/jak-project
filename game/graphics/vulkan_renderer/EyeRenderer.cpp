@@ -363,7 +363,7 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
   auto& frame_buffer_texture_pair = m_gpu_eye_textures[m_eye_draw_map.at(0).tex_slot()]->fb;
 
   vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
-  frame_buffer_texture_pair.beginSwapChainRenderPass(m_vulkan_info.render_command_buffer);
+  frame_buffer_texture_pair.beginRenderPass(m_vulkan_info.render_command_buffer);
   m_pipeline_config_info.renderPass = frame_buffer_texture_pair.GetRenderPass();
 
   buffer_idx = 0;

@@ -3,13 +3,16 @@
 layout (location = 0) in vec3 xyz;
 layout (location = 1) in vec2 st;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject{ vec4 u_color; } ubo;
+layout(push_constant) uniform PushConstant
+{
+	uvec4 u_color;
+}pc;
 
 layout (location = 0) out flat vec4 fragment_color;
 layout (location = 1) out vec2 tex_coord;
 
 void main() {
-    fragment_color = ubo.u_color;
+    fragment_color = pc.u_color;
     tex_coord = st;
     vec4 transformed = vec4(xyz, 1.0);
 

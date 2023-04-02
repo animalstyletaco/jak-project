@@ -5,14 +5,17 @@ layout (location = 1) in vec2 st;                   // tex coord from sine table
 layout (location = 2) in vec4 instance_xyz_s;       // sprite position + texture S-coord
 layout (location = 3) in vec4 instance_scale_t;     // sprite scale + texture T-coord
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {vec4 u_color;} ubo;
+layout(push_constant) uniform PushConstant
+{
+	uvec4 u_color;
+}pc;
 
 layout (location = 0) out flat vec4 fragment_color;
 layout (location = 1) out vec2 tex_coord;
 
 void main() {
     // Pass on fragment color
-    fragment_color = ubo.u_color;
+    fragment_color = pc.u_color;
 
     // Adjust position and texture coordinates the same way as in the VU program
     //

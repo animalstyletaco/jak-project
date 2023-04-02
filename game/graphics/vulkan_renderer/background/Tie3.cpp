@@ -146,7 +146,6 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
   size_t time_of_day_count = 0;
   size_t max_inds = 0;
   for (u32 l_geo = 0; l_geo < tfrag3::TIE_GEOS; l_geo++) {
-    texture_maps[l_geo].clear();
     for (u32 l_tree = 0; l_tree < lev_data->tie_trees[l_geo].size(); l_tree++) {
       size_t wind_idx_buffer_len = 0;
       size_t num_grps = 0;
@@ -167,24 +166,34 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
       u32 verts = tree.packed_vertices.color_indices.size();
       auto& lod_tree = m_trees.at(l_geo);
 
-      lod_tree[l_tree].vertex_buffer = loader_data->tie_data[l_geo][l_tree].vertex_buffer.get();
+      // openGL vertex buffer from loader
+      lod_tree[l_tree].vertex_buffer =
+          std::make_unique<VertexBuffer>(m_device, sizeof(tree.packed_vertices.color_indices[0]), verts);
+      // draw array from FR3 data
       lod_tree[l_tree].draws = &tree.static_draws;
+      // base TOD colors from FR3
       lod_tree[l_tree].colors = &tree.colors;
+      // visibility BVH from FR3
       lod_tree[l_tree].vis = &tree.bvh;
+      // indices from FR3 (needed on CPU for culling)
       lod_tree[l_tree].index_data = tree.unpacked.indices.data();
+      // wind metadata
       lod_tree[l_tree].instance_info = &tree.wind_instance_info;
       lod_tree[l_tree].wind_draws = &tree.instanced_wind_draws;
-      vis_temp_len = std::max(vis_temp_len, tree.bvh.vis_nodes.size());
+      // preprocess colors for faster interpolation (TODO: move to loader)
       lod_tree[l_tree].tod_cache = background_common::swizzle_time_of_day(tree.colors);
-
-      // todo: move to loader, this will probably be quite slow.
-      //CreateVertexBuffer(tree.unpacked.indices);
+      // OpenGL index buffer (fixed index buffer for multidraw system)
+      lod_tree[l_tree].index_buffer = std::make_unique<IndexBuffer>(m_device, sizeof(tree.unpacked.indices[0]),
+                                                                    tree.unpacked.indices.size());
+      lod_tree[l_tree].category_draw_indices = tree.category_draw_indices;
 
       if (wind_idx_buffer_len > 0) {
         lod_tree[l_tree].wind_matrix_cache.resize(tree.wind_instance_info.size());
         lod_tree[l_tree].has_wind = true;
-        lod_tree[l_tree].wind_vertex_index_buffer =
-            loader_data->tie_data[l_geo][l_tree].wind_indices.get();
+        lod_tree[l_tree].wind_vertex_buffer =
+            std::make_unique<VertexBuffer>(m_device, sizeof(u32), wind_idx_buffer_len); //TODO: Check to see if this is correct
+        lod_tree[l_tree].wind_index_buffer =
+            std::make_unique<IndexBuffer>(m_device, sizeof(u32), wind_idx_buffer_len);
         u32 off = 0;
         for (auto& draw : tree.instanced_wind_draws) {
           lod_tree[l_tree].wind_vertex_index_offsets.push_back(off);
@@ -192,12 +201,10 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
         }
       }
 
-      texture_maps[l_geo].insert(std::pair<u32, VulkanTexture>(l_tree, VulkanTexture{m_device}));
-      VkDeviceSize size = 0;
-      //CreateIndexBuffer(tree.unpacked.indices);
+      lod_tree[l_tree].time_of_day_texture = std::make_unique<VulkanTexture>(m_device);
       VkExtent3D extents{background_common::TIME_OF_DAY_COLOR_COUNT, 1, 1};
-      texture_maps[l_geo].at(l_tree).createImage(
-          extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_A8B8G8R8_SINT_PACK32,
+      lod_tree[l_tree].time_of_day_texture->createImage(
+          extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UINT,
           VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
     }
   }
@@ -316,6 +323,11 @@ void Tie3Vulkan::render_tree_wind(int idx,
 
   int last_texture = -1;
 
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffers[] = {tree.wind_vertex_buffer->getBuffer()};
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.wind_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
   for (size_t draw_idx = 0; draw_idx < tree.wind_draws->size(); draw_idx++) {
     const auto& draw = tree.wind_draws->at(draw_idx);
 
@@ -343,8 +355,13 @@ void Tie3Vulkan::render_tree_wind(int idx,
       tree.perf.draws++;
       tree.perf.wind_draws++;
 
+      m_graphics_pipeline_layouts[draw.tree_tex_id].createGraphicsPipeline(m_pipeline_config_info);
+      m_graphics_pipeline_layouts[draw.tree_tex_id].bind(m_vulkan_info.render_command_buffer);
+
       //glDrawElements(GL_TRIANGLE_STRIP, grp.num, GL_UNSIGNED_INT,
       //               (void*)((off + tree.wind_vertex_index_offsets.at(draw_idx)) * sizeof(u32)));
+      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, grp.num, 1,
+                       tree.wind_vertex_index_offsets.at(draw_idx), 0, 0);
       off += grp.num;
 
       switch (double_draw.kind) {
@@ -359,6 +376,9 @@ void Tie3Vulkan::render_tree_wind(int idx,
           m_time_of_day_color_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
           //glDepthMask(GL_FALSE);
           //glDrawElements(GL_TRIANGLE_STRIP, draw.vertex_index_stream.size(), GL_UNSIGNED_INT, (void*)0);
+          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
+                           draw.vertex_index_stream.size() * sizeof(u32), 1,
+                           0, 0, 0);
           break;
         default:
           ASSERT(false);
@@ -390,13 +410,19 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
                                                      m_vertex_shader_uniform_buffer.get());
   }
 
-  IndexBuffer* index_buffer = (render_state->no_multidraw) ? tree.single_draw_index_buffer : tree.index_buffer;
+  if (render_state->no_multidraw) {
+    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+                         tree.single_draw_index_buffer->getBuffer(), 0,
+                         VK_INDEX_TYPE_UINT32);
+  } else {
+    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+                         tree.index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+  }
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
-  std::vector<VkDescriptorSet> descriptor_sets{m_vertex_shader_descriptor_sets[idx],
-                                               m_fragment_shader_descriptor_sets[idx]};
+  PrepareVulkanDraw(tree, idx);
 
   int last_texture = -1;
   for (size_t draw_idx = tree.category_draw_indices[(int)category];
@@ -432,9 +458,8 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
     prof.add_draw_call();
 
     if (render_state->no_multidraw) {
-      m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
-          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-          m_pipeline_config_info.pipelineLayout, descriptor_sets);
+      vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+                           tree.single_draw_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
     } else {
       vkCmdDrawMultiIndexedEXT(
           m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
@@ -449,14 +474,9 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
         m_time_of_day_color_uniform_buffer->SetUniform1f("alpha_min", -10.f);
         m_time_of_day_color_uniform_buffer->SetUniform1f("alpha_max", double_draw.aref_second);
         if (render_state->no_multidraw) {
-          m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
-              m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-              m_pipeline_config_info.pipelineLayout, descriptor_sets);
+          vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+                               tree.single_draw_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
         } else {
-          m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
-              m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-              m_pipeline_config_info.pipelineLayout, descriptor_sets);
-
           vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer,
                                    multidraw_indices.number_of_draws,
                                    m_cache.multi_draw_indexed_infos.data(), 1, 0,
@@ -475,7 +495,7 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
 
   if (use_envmap) {
     envmap_second_pass_draw(tree, settings, render_state, prof,
-                            tfrag3::get_second_draw_category(category), descriptor_sets);
+                            tfrag3::get_second_draw_category(category), idx);
   }
 }
 
@@ -560,14 +580,21 @@ void Tie3Vulkan::setup_tree(int idx,
   prof.add_tri(num_tris);
 }
 
-void Tie3Vulkan::envmap_second_pass_draw(const TreeVulkan& tree,
+void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
                                          const TfragRenderSettings& settings,
                                          BaseSharedRenderState* render_state,
                                          ScopedProfilerNode& prof,
-                                         tfrag3::TieCategory category, std::vector<VkDescriptorSet>& descriptor_sets) {
+                                         tfrag3::TieCategory category, int index) {
   vulkan_background_common::first_tfrag_draw_setup(settings, render_state, m_etie_vertex_shader_uniform_buffer.get());
-  IndexBuffer* index_buffer = (render_state->no_multidraw) ? tree.single_draw_index_buffer : tree.index_buffer;
+  if (render_state->no_multidraw) {
+    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+                         tree.single_draw_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+  } else {
+    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
+                         VK_INDEX_TYPE_UINT32);
+  }
 
+  PrepareVulkanDraw(tree, index);
   init_etie_cam_uniforms(render_state);
   m_etie_vertex_shader_uniform_buffer->SetUniformMathVector4f("envmap_tod_tint", m_common_data.envmap_color);
 
@@ -598,14 +625,9 @@ void Tie3Vulkan::envmap_second_pass_draw(const TreeVulkan& tree,
     prof.add_draw_call();
 
     if (render_state->no_multidraw) {
-      m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
-          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-          m_pipeline_config_info.pipelineLayout, descriptor_sets);
+      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
+                       singledraw_indices.draw_index, 0, 0);
     } else {
-      m_vulkan_info.swap_chain->setupForDrawIndexedCommand(
-          m_vulkan_info.render_command_buffer, tree.vertex_buffer, tree.index_buffer,
-          m_pipeline_config_info.pipelineLayout, descriptor_sets);
-
       vkCmdDrawMultiIndexedEXT(
           m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
           m_cache.multi_draw_indexed_infos.data(), 1, 0, sizeof(VkMultiDrawIndexedInfoEXT), NULL);

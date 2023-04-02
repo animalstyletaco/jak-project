@@ -11,7 +11,6 @@
 #include "game/graphics/vulkan_renderer/ShadowRenderer.h"
 #include "game/graphics/vulkan_renderer/SkyRenderer.h"
 #include "game/graphics/vulkan_renderer/sprite/Sprite3.h"
-#include "game/graphics/vulkan_renderer/sprite/SpriteRenderer.h"
 #include "game/graphics/vulkan_renderer/background/Shrub.h"
 #include "game/graphics/vulkan_renderer/background/TFragment.h"
 #include "game/graphics/vulkan_renderer/background/Tie3.h"

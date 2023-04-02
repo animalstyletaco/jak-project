@@ -148,13 +148,17 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
                                 VkDeviceSize minOffsetAlignment = 1);
   };
 
-void MercVulkan2::do_mod_draws(
+  void MercVulkan2::do_mod_draws(
       const tfrag3::MercEffect& effect,
       LevelDrawBucketVulkan* lev_bucket,
       u8* fade_buffer,
       uint32_t index,
       ModSettings& settings,
       std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>>& mod_graphics_buffers);
+
+  void FinalizeVulkanDraw(uint32_t drawIndex,
+                          LevelDrawBucketVulkan& lev_bucket,
+                          VulkanTexture* texture);
 
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
 

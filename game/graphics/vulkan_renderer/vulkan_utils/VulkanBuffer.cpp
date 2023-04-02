@@ -317,7 +317,15 @@ void UniformVulkanBuffer::SetDataInVkDeviceMemory(uint32_t memory_offset,
                                                   uint32_t flags) {
   map(value_size, memory_offset);
   writeToCpuBuffer(value, value_size, memory_offset);
-  //TODO: Add flush function here
+
+  //uint32_t nonCoherentAtomSize = m_device->getPhysicalDeviceProperties().limits.nonCoherentAtomSize;
+  //uint32_t wrapAroundCount = memory_offset / nonCoherentAtomSize;
+  //uint32_t flushMemoryOffset = wrapAroundCount * nonCoherentAtomSize;
+
+  //uint32_t memory_size = (m_device->getNonCoherentAtomSizeMultiple(value_size) > bufferSize)
+  //                           ? VK_WHOLE_SIZE
+  //                           : m_device->getNonCoherentAtomSizeMultiple(value_size);
+  //flush(memory_size, flushMemoryOffset);
   unmap();
 }
 

@@ -55,7 +55,6 @@ MercVulkan2::MercVulkan2(const std::string& name,
   // annoyingly, glBindBufferRange can have alignment restrictions that vary per platform.
   // the GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT gives us the minimum alignment for views into the bone
   // buffer. The bone buffer stores things per-16-byte "quadword".
-  // TODO: Figure what the vulkan equivalent of OpenGL's check buffer offset alignment is
   uint32_t minimum_uniform_buffer_alignment_size = m_device->getMinimumBufferOffsetAlignment();
   if (minimum_uniform_buffer_alignment_size <= 16) {
     // somehow doubt this can happen, but just in case
@@ -204,10 +203,22 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.height_scale),
                      (void*)&m_push_constant.height_scale);
 
+  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+
   m_stats.num_draw_flush++;
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
     auto& lev_bucket = m_level_draw_buckets[li];
+
+    VkDeviceSize offsets[] = {0};
+    VkBuffer vertex_buffer_vulkan = lev_bucket.level->merc_vertices->getBuffer();
+    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan,
+                           offsets);
+
+    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+                         lev_bucket.level->merc_indices->getBuffer(), 0,
+                         VK_INDEX_TYPE_UINT32);
+
     draw_merc2(lev_bucket, prof);
     if (lev_bucket.next_free_envmap_draw) {
       draw_emercs(lev_bucket, prof);
@@ -237,8 +248,6 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
         //textureInfo = &render_state->eye_renderer->lookup_eye_texture(draw.texture & 0xff);
       }
 
-      uint32_t dynamic_descriptors_offset = di * sizeof(MercLightControlVertexUniformBuffer);
-
       if ((int)draw.light_idx != last_light) {
         m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
             "light_direction0", m_lights_buffer[draw.light_idx].direction0, di);
@@ -256,36 +265,12 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
             "light_ambient", m_lights_buffer[draw.light_idx].ambient, di);
         last_light = draw.light_idx;
       }
-      vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, sampler, m_pipeline_config_info, true);
-
-      m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
 
       prof.add_draw_call();
       prof.add_tri(draw.num_triangles);
 
-      m_bone_vertex_uniform_buffer->map();
-      m_bone_vertex_uniform_buffer->writeToCpuBuffer(m_shader_bone_vector_buffer,
-                                                     sizeof(math::Vector4f) * draw.index_count,
-                                                     sizeof(math::Vector4f) * draw.first_bone);
-      m_bone_vertex_uniform_buffer->unmap();
-
-      lev_bucket.pipeline_layouts[di].createGraphicsPipeline(m_pipeline_config_info);
-      lev_bucket.pipeline_layouts[di].bind(m_vulkan_info.render_command_buffer);
-
-      lev_bucket.descriptor_image_infos[di] = {
-          sampler.GetSampler(),
-          textureInfo->getImageView(),
-          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-      };
-
-      m_fragment_descriptor_writer->writeImage(1, &lev_bucket.descriptor_image_infos[di]);
-
-      m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
-          m_vulkan_info.render_command_buffer, lev_bucket.level->merc_vertices.get(),
-          lev_bucket.level->merc_indices.get(), m_pipeline_config_info.pipelineLayout,
-          m_descriptor_sets, 1, &dynamic_descriptors_offset);
+      FinalizeVulkanDraw(di, lev_bucket, textureInfo);
     }
-    //TODO: Flush mapped memory here
 }
 
 void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNode& prof) {
@@ -301,34 +286,43 @@ void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerN
    
      VulkanTexture& textureInfo = lev->textures_map.at(draw.texture);
 
-     vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, sampler,
-                                                           m_pipeline_config_info, true);
-   
-     m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
-   
-     uint32_t dynamic_descriptors_offset = di * sizeof(EmercUniformBufferVertexData);
      prof.add_draw_call();
      prof.add_tri(draw.num_triangles);
    
-     m_bone_vertex_uniform_buffer->map();
-     m_bone_vertex_uniform_buffer->writeToCpuBuffer(m_shader_bone_vector_buffer,
-                                                    sizeof(math::Vector4f) * draw.index_count,
-                                                    sizeof(math::Vector4f) * draw.first_bone);
-     m_bone_vertex_uniform_buffer->unmap();
-   
-     lev_bucket.pipeline_layouts[di].createGraphicsPipeline(m_pipeline_config_info);
-     lev_bucket.pipeline_layouts[di].bind(m_vulkan_info.render_command_buffer);
-   
-     lev_bucket.descriptor_image_infos[di] = {sampler.GetSampler(), textureInfo.getImageView(),
-                                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-   
-     m_fragment_descriptor_writer->writeImage(1, &lev_bucket.descriptor_image_infos[di]);
-   
-     m_vulkan_info.swap_chain->drawIndexedCommandBuffer(
-         m_vulkan_info.render_command_buffer, lev_bucket.level->merc_vertices.get(),
-         lev_bucket.level->merc_indices.get(), m_pipeline_config_info.pipelineLayout,
-         m_descriptor_sets, 1, &dynamic_descriptors_offset);
+     FinalizeVulkanDraw(di, lev_bucket, &textureInfo);
    }
+}
+
+void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex, LevelDrawBucketVulkan& lev_bucket, VulkanTexture* texture) {
+  auto& draw = lev_bucket.draws[drawIndex];
+  auto& sampler = lev_bucket.samplers[drawIndex];
+
+  vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, sampler, m_pipeline_config_info,
+                                                  true);
+
+  m_fragment_uniform_buffer->SetUniform1i("decal_enable", draw.mode.get_decal());
+
+  uint32_t dynamic_descriptors_offset = drawIndex * sizeof(MercLightControlVertexUniformBuffer);
+
+  m_bone_vertex_uniform_buffer->map();
+  m_bone_vertex_uniform_buffer->writeToCpuBuffer(m_shader_bone_vector_buffer,
+                                                 sizeof(math::Vector4f) * draw.index_count,
+                                                 sizeof(math::Vector4f) * draw.first_bone);
+  m_bone_vertex_uniform_buffer->unmap();
+
+  lev_bucket.pipeline_layouts[drawIndex].createGraphicsPipeline(m_pipeline_config_info);
+  lev_bucket.pipeline_layouts[drawIndex].bind(m_vulkan_info.render_command_buffer);
+
+  lev_bucket.descriptor_image_infos[drawIndex] = {sampler.GetSampler(), texture->getImageView(),
+                                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+  m_fragment_descriptor_writer->writeImage(1, &lev_bucket.descriptor_image_infos[drawIndex]);
+
+  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
+                          m_descriptor_sets.data(), 1, &dynamic_descriptors_offset);
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, draw.index_count, 1, draw.first_index, 0,
+                   0);
 }
 
 void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {

@@ -8,10 +8,11 @@ layout (location = 2) in flat uvec2 tex_info;
 
 layout (set = 1, binding = 0) uniform sampler2D tex_T0;
 
-layout (set = 1, binding = 1) uniform UniformBufferObject {
-   float alpha_min;
-   float alpha_max;
-} ubo;
+layout(push_constant) uniform PER_OBJECT
+{
+  layout(offset = 8) float alpha_min;
+  layout(offset = 12) float alpha_max;
+}pc;
 
 void main() {
     vec4 T0 = texture(tex_T0, tex_coord.xy);
@@ -20,7 +21,7 @@ void main() {
     }
     color = fragment_color * T0;
 
-    if (color.a < ubo.alpha_min || color.a > ubo.alpha_max) {
+    if (color.a < pc.alpha_min || color.a > pc.alpha_max) {
         discard;
     }
 }

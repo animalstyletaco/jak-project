@@ -7,19 +7,6 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DepthCue.h"
 
-struct DepthCueVertexUniformData {
-  math::Vector4f u_color;
-  float u_depth;
-};
-
-class DepthCueVertexUniformBuffer : public UniformVulkanBuffer {
- public:
-  DepthCueVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                              VkDeviceSize instanceSize,
-                              uint32_t instanceCount,
-                              VkDeviceSize minOffsetAlignment);
-};
-
 class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
  public:
   DepthCueVulkan(const std::string& name,
@@ -57,10 +44,21 @@ class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
     float last_res_scale = 1.0f;
   } m_ogl;
 
+  struct PushConstant {
+    math::Vector4f u_color;
+    float u_depth = 0;
+  } m_depth_cue_push_constant;
+
   void graphics_setup() override;
   void setup(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
-  std::unique_ptr<DepthCueVertexUniformBuffer> m_depth_cue_vertex_uniform_buffer;
-  std::unique_ptr<UniformVulkanBuffer> m_depth_cue_fragment_uniform_buffer;
+  void InitializeInputAttributes();
+  void create_pipeline_layout() override;
+
+  std::unique_ptr<VulkanSamplerHelper> m_sampler;
+
+  std::vector<VkDescriptorSet> m_descriptor_sets;
+
+  FramebufferVulkan* render_fb = NULL;
 };

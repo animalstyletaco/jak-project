@@ -36,6 +36,7 @@ class FramebufferVulkan {
   void createRenderPass();
   void createFramebuffer();
   void initializeFramebufferAtLevel(int level = 0);
+  void beginRenderPass(VkCommandBuffer commandBuffer);
 
   VkSampleCountFlags m_current_msaa = VK_SAMPLE_COUNT_1_BIT;
   uint32_t GetMipmapLevel(int level);
@@ -65,7 +66,7 @@ class FramebufferVulkanHelper {
   FramebufferVulkanHelper(const FramebufferVulkanHelper&) = delete;
   FramebufferVulkanHelper& operator=(const FramebufferVulkanHelper&) = delete;
 
-  void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, int level = 0);
+  void beginRenderPass(VkCommandBuffer commandBuffer, int level = 0);
 
  private:
   VkExtent2D extents = {640, 480};

@@ -164,7 +164,6 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/sprite/Sprite3.cpp
         graphics/general_renderer/sprite/Sprite3_Distort.cpp
         graphics/general_renderer/sprite/Sprite3_Glow.cpp
-        graphics/general_renderer/sprite/SpriteRenderer.cpp
         graphics/general_renderer/DepthCue.cpp
         graphics/general_renderer/TextureUploadHandler.cpp
         graphics/general_renderer/VisDataHandler.cpp
@@ -239,7 +238,6 @@ if(WIN32)
         graphics/vulkan_renderer/sprite/GlowRenderer.cpp
         graphics/vulkan_renderer/sprite/Sprite3.cpp
         graphics/vulkan_renderer/sprite/Sprite3_Distort.cpp
-        graphics/vulkan_renderer/sprite/SpriteRenderer.cpp
         graphics/vulkan_renderer/DepthCue.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
         graphics/texture/VulkanTexturePool.cpp

@@ -14,16 +14,10 @@
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 #include "game/graphics/vulkan_renderer/sprite/GlowRenderer.h"
 
-class SpriteDistortInstancedVertexUniformBuffer : public UniformVulkanBuffer {
+class Sprite3dVertexUniformBuffer : public UniformVulkanBuffer {
  public:
-  SpriteDistortInstancedVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                            VkDeviceSize minOffsetAlignment);
-};
-
-class SpriteDistortInstancedFragmentUniformBuffer : public UniformVulkanBuffer {
- public:
-  SpriteDistortInstancedFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                              VkDeviceSize minOffsetAlignment);
+  Sprite3dVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                              VkDeviceSize minOffsetAlignment);
 };
 
 class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
@@ -32,6 +26,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
           int my_id,
           std::unique_ptr<GraphicsDeviceVulkan>& device,
           VulkanInitializationInfo& vulkan_info);
+  ~SpriteVulkan3();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void SetupShader(ShaderId shaderId) override;
 
@@ -43,6 +38,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void graphics_setup() override;
   void graphics_setup_normal() override;
   void graphics_setup_distort() override;
+  void create_pipeline_layout() override;
 
   void glow_renderer_cancel_sprite() override;
   SpriteGlowOutput* glow_renderer_alloc_sprite() override;
@@ -108,17 +104,42 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
     std::unique_ptr<IndexBuffer> index_buffer;
   } m_ogl;
 
+  struct FragmentPushConstant {
+    float alpha_min;
+    float alpha_max;
+  }m_sprite_fragment_push_constant;
+
+  math::Vector4f m_sprite_distort_push_constant;
+
   GraphicsPipelineLayout m_distorted_pipeline_layout;
   GraphicsPipelineLayout m_distorted_instance_pipeline_layout;
 
   std::unique_ptr<Sprite3dVertexUniformBuffer> m_sprite_3d_vertex_uniform_buffer;
-  std::unique_ptr<Sprite3dFragmentUniformBuffer> m_sprite_3d_fragment_uniform_buffer;
 
-  VulkanSamplerHelper m_sampler_helper;
+  std::unique_ptr<DescriptorLayout> m_sprite_distort_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorLayout> m_sprite_distort_fragment_descriptor_layout;
+
+  std::unique_ptr<DescriptorWriter> m_sprite_distort_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_sprite_distort_fragment_descriptor_writer;
+
+  std::vector<VulkanSamplerHelper> m_sampler_helpers;
   VulkanSamplerHelper m_distort_sampler_helper;
 
-  std::unique_ptr<SpriteDistortInstancedVertexUniformBuffer>
-      m_sprite_3d_instanced_vertex_uniform_buffer;
-  std::unique_ptr<SpriteDistortInstancedFragmentUniformBuffer>
-      m_sprite_3d_instanced_fragment_uniform_buffer;
+  VkPipelineLayout m_pipeline_layout = VK_NULL_HANDLE;
+  VkPipelineLayout m_sprite_distort_pipeline_layout = VK_NULL_HANDLE;
+
+  std::vector<VkVertexInputBindingDescription> m_sprite_input_binding_descriptions;
+  std::vector<VkVertexInputBindingDescription> m_sprite_distort_input_binding_descriptions;
+
+  std::vector<VkVertexInputAttributeDescription> m_sprite_attribute_descriptions;
+  std::vector<VkVertexInputAttributeDescription> m_sprite_distort_attribute_descriptions;
+
+  FramebufferVulkan* render_fb = NULL;
+
+  VkDescriptorSet m_vertex_descriptor_set = VK_NULL_HANDLE;
+  std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
+  VkDescriptorSet m_sprite_distort_fragment_descriptor_set = VK_NULL_HANDLE;
+
+  VkDescriptorImageInfo m_sprite_distort_descriptor_image_info;
+  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
 };

@@ -10,7 +10,7 @@
 // Bucket Renderer
 /////////////////////////
 // note: eye texture increased to 128x128 (originally 32x32) here.
-EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device) : fb(128, 128, VK_FORMAT_A8B8G8R8_SRGB_PACK32, device) {
+EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device) : fb(128, 128, VK_FORMAT_R8G8B8A8_UNORM, device) {
   VkSamplerCreateInfo& samplerInfo =
       fb.GetSamplerHelper().GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -477,7 +477,7 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
                           m_pipeline_config_info.pipelineLayout, 0, 1, &eye.descriptor_set, 0,
                           nullptr);
 
-  vkCmdDraw(commandBuffer, vertexCount, 0, firstVertex, 0);
+  vkCmdDraw(commandBuffer, vertexCount, 1, firstVertex, 0);
 }
 
 void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) {

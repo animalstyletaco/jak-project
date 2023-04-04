@@ -4,12 +4,14 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 struct GenericCommonVertexUniformShaderData {
-  float mat_32;
   math::Vector3f fog_constants;
-  math::Vector4f scale;
-  float mat_23;
-  float mat_33;
+  float pad0;
   math::Vector4f hvdf_offset;
+  float mat_23;
+  float mat_32;
+  float mat_33;
+  float pad1;
+  math::Vector4f scale;
 };
 
 class GenericCommonVertexUniformBuffer : public UniformVulkanBuffer {
@@ -22,6 +24,7 @@ class GenericCommonVertexUniformBuffer : public UniformVulkanBuffer {
 struct GenericCommonFragmentUniformShaderData {
   float alpha_reject;
   float color_mult;
+  float pad0[2];
   math::Vector4f fog_color;
 };
 

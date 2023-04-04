@@ -73,7 +73,7 @@ void GraphicsPipelineLayout::bind(VkCommandBuffer commandBuffer) {
 
 void GraphicsPipelineLayout::defaultPipelineConfigInfo(PipelineConfigInfo& configInfo) {
   configInfo.inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-  configInfo.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  configInfo.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   configInfo.inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
 
   configInfo.viewportInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -140,8 +140,5 @@ void GraphicsPipelineLayout::defaultPipelineConfigInfo(PipelineConfigInfo& confi
   configInfo.dynamicStateInfo.dynamicStateCount =
       static_cast<uint32_t>(configInfo.dynamicStateEnables.size());
   configInfo.dynamicStateInfo.flags = 0;
-
-  //configInfo.bindingDescriptions = LveModel::Vertex::getBindingDescriptions();
-  //configInfo.attributeDescriptions = LveModel::Vertex::getAttributeDescriptions();
 }
 

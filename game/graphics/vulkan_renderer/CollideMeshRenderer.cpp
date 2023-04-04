@@ -114,6 +114,8 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
   m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
+  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+
   for (LevelDataVulkan* level : levels) {
     m_collision_mesh_vertex_uniform_buffer.SetUniform1f("wireframe", 0);
     m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
@@ -133,19 +135,35 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
     m_collision_mesh_vertex_uniform_buffer.SetUniform1f("mode",
                                                         Gfx::g_global_settings.collision_mode);
 
+    m_collision_mesh_vertex_uniform_buffer.map();
+    m_collision_mesh_vertex_uniform_buffer.flush();
+    m_collision_mesh_vertex_uniform_buffer.unmap();
+
     m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
     m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
-    m_vulkan_info.swap_chain->drawCommandBuffer(
-        m_vulkan_info.render_command_buffer, level->collide_vertices,
-        m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+    VkDeviceSize offsets[] = {0};
+    VkBuffer vertex_buffer_vulkan = level->collide_vertices->getBuffer();
+    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan,
+                           offsets);
+
+    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
+                            m_descriptor_sets.data(), 0, nullptr);
+
+    vkCmdDraw(m_vulkan_info.render_command_buffer, level->collide_vertices->getBufferSize(), 0, 0,
+              0);
 
     if (Gfx::g_global_settings.collision_wireframe) {
       m_collision_mesh_vertex_uniform_buffer.SetUniform1i("wireframe", 1);
-      VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+      m_collision_mesh_vertex_uniform_buffer.map();
+      m_collision_mesh_vertex_uniform_buffer.flush();
+      m_collision_mesh_vertex_uniform_buffer.unmap();
+
+      VkPipelineColorBlendAttachmentState& colorBlendAttachment = m_pipeline_config_info.colorBlendAttachment;
       m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
-          VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+          VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+          VK_COLOR_COMPONENT_A_BIT;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       //imageView.aspectView &= ~VK_IMAGE_ASPECT_DEPTH_BIT;
 
@@ -157,16 +175,11 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
       m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //TODO: Verify that this is correct
       m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-      m_vulkan_info.swap_chain->drawCommandBuffer(
-          m_vulkan_info.render_command_buffer, level->collide_vertices,
-          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
-
       m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
       m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
-      m_vulkan_info.swap_chain->drawCommandBuffer(
-          m_vulkan_info.render_command_buffer, level->collide_vertices,
-          m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+      vkCmdDraw(m_vulkan_info.render_command_buffer, level->collide_vertices->getBufferSize(), 0, 0,
+                0);
 
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       colorBlendAttachment.blendEnable = VK_TRUE;

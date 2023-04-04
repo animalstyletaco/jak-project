@@ -6,12 +6,12 @@ layout (location = 2) in vec2 tex_coord_in;
 layout (location = 3) in uvec4 byte_info;
 
 layout (set = 0, binding = 0) uniform UniformBufferObject {
-   float mat_32;
    vec3 fog_constants;
-   vec4 scale;
-   float mat_23;
-   float mat_33;
    vec4 hvdf_offset;
+   float mat_23;
+   float mat_32;
+   float mat_33;
+   vec4 scale;
 } ubo;
 
 layout (location = 0) out vec2 tex_coord;

@@ -21,26 +21,7 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
         device, sizeof(u32), MAX_INDICES, 1);
   }
 
-  m_uniform_buffer = std::make_unique<ShadowRendererUniformBuffer>(
-      device, 5);
-
-  m_fragment_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .build();
-
   create_pipeline_layout();
-  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
-                                                                    m_vulkan_info.descriptor_pool);
-
-  m_fragment_buffer_descriptor_info = VkDescriptorBufferInfo{
-      m_uniform_buffer->getBuffer(),
-      0,
-      sizeof(math::Vector4f),
-  };
-
-  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
-      .build(m_descriptor_set);
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
   // xyz
@@ -70,21 +51,20 @@ void ShadowVulkanRenderer::init_shaders(VulkanShaderLibrary& shaders) {
 }
 
 void ShadowVulkanRenderer::create_pipeline_layout() {
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
-      m_fragment_descriptor_layout->getDescriptorSetLayout()};
-
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VkPushConstantRange pushConstantRange = {};
-  pushConstantRange.offset = 0;
-  pushConstantRange.size = sizeof(m_push_constant.scissor_adjust);
-  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  std::array<VkPushConstantRange, 2> pushConstantRanges;
+  pushConstantRanges[0].offset = 0;
+  pushConstantRanges[0].size = sizeof(m_push_constant.scissor_adjust);
+  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
+  pushConstantRanges[1].offset = sizeof(m_color_uniform); //Offset need to be a multiple of the push constant size
+  pushConstantRanges[1].size = sizeof(m_color_uniform);
+  pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
+  pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
@@ -181,8 +161,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   // but we increment stencil on depth fail.
 
   {
-    m_uniform_buffer->SetUniform4f("color_uniform",
-                0., 0.4, 0., 0.5, draw_idx);
+    m_color_uniform = math::Vector4f{0.0, 0.4, 0.0, 0.5};
     m_ogl.index_buffers[0]->writeToGpuBuffer(m_back_indices, m_next_front_index * sizeof(u32), 0);
 
     m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
@@ -200,8 +179,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-      m_uniform_buffer->SetUniform4f("color_uniform", 0.,
-          0.0, 0., 0.5, draw_idx);
+      m_color_uniform = math::Vector4f{0.0, 0.0, 0.0, 0.5};
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       VulkanDraw(draw_idx, 0);
       vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
@@ -213,8 +191,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   }
 
   {
-    m_uniform_buffer->SetUniform4f("color_uniform",
-                0.4, 0.0, 0., 0.5, draw_idx);
+    m_color_uniform = math::Vector4f{0.4, 0.0, 0.0, 0.5};
 
     m_ogl.index_buffers[1]->writeToGpuBuffer(m_back_indices, m_next_back_index * sizeof(u32), 0);
 
@@ -232,7 +209,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-      m_uniform_buffer->SetUniform4f("color_uniform", 0., 0.0, 0., 0.5, draw_idx);
+      m_color_uniform = math::Vector4f{0.0, 0.0, 0.0, 0.5};
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       VulkanDraw(draw_idx, 1);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
@@ -244,7 +221,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   }
 
   // finally, draw shadow.
-  m_uniform_buffer->SetUniform4f("color_uniform", 0.13, 0.13, 0.13, 0.5, draw_idx);
+  m_color_uniform = math::Vector4f{0.13, 0.13, 0.13, 0.5};
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
@@ -281,8 +258,11 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 }
 
 void ShadowVulkanRenderer::VulkanDraw(uint32_t& pipeline_layout_id, uint32_t indexBufferId) {
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_color_uniform), sizeof(m_color_uniform),
+                     (void*)&m_color_uniform);
+
   auto& index_buffer = m_ogl.index_buffers[indexBufferId % 2];
-  m_fragment_buffer_descriptor_info = m_uniform_buffer->descriptorInfo();
 
   m_graphics_pipeline_layouts[pipeline_layout_id].createGraphicsPipeline(m_pipeline_config_info);
   m_graphics_pipeline_layouts[pipeline_layout_id].bind(m_vulkan_info.render_command_buffer);
@@ -297,24 +277,10 @@ void ShadowVulkanRenderer::VulkanDraw(uint32_t& pipeline_layout_id, uint32_t ind
                        index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  uint32_t dynamicDescriptorOffset = pipeline_layout_id * sizeof(math::Vector4f);
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          m_pipeline_config_info.pipelineLayout, 0, 1,
-                          &m_descriptor_set, 1, &dynamicDescriptorOffset);
-
   if (indexBufferId == 0) {
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
   } else {
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
   }
   pipeline_layout_id++;
-}
-
-ShadowRendererUniformBuffer::ShadowRendererUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                                         uint32_t instanceCount,
-                                                         VkDeviceSize minOffsetAlignment) :
-  UniformVulkanBuffer(device, sizeof(math::Vector4f), instanceCount, minOffsetAlignment){
-  section_name_to_memory_offset_map = {
-      {"color_uniform", 0}
-  };
 }

@@ -1,4 +1,5 @@
 #include "Generic2.h"
+#include "game/graphics/gfx.h"
 
 GenericVulkan2::GenericVulkan2(const std::string& name,
                                int my_id,
@@ -370,7 +371,7 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
     m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
 
-  VkSamplerCreateInfo samplerInfo{};
+  VkSamplerCreateInfo& samplerInfo = m_samplers[bucketId].GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -411,7 +412,7 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
 }
 
 void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
-  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 
   for (u32 i = 0; i < m_next_free_bucket; i++) {
     auto& bucket = m_buckets[i];
@@ -430,6 +431,11 @@ void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedPro
 }
 
 void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  if(m_next_free_vert == 0 && m_next_free_idx == 0) {
+    //Nothing to do
+    return;
+  }
+
   if (m_next_free_vert > 0) {
     m_ogl.vertex_buffer->writeToGpuBuffer(m_verts.data(), m_next_free_vert * sizeof(Vertex), 0);
   }
@@ -437,6 +443,13 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
   if (m_next_free_idx > 0) {
     m_ogl.index_buffer->writeToGpuBuffer(m_indices.data(), m_next_free_idx * sizeof(u32), 0);
   }
+
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
+                     (void*)&m_push_constant);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(Gfx::g_global_settings.hack_no_tex),
+                     (void*)&Gfx::g_global_settings.hack_no_tex);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
@@ -447,8 +460,7 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_ogl.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  // glEnable(GL_PRIMITIVE_RESTART);
-  // glPrimitiveRestartIndex(UINT32_MAX);
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = true;
 
   graphics_bind_and_setup_proj(render_state);
   constexpr DrawMode::AlphaBlend alpha_order[ALPHA_MODE_COUNT] = {
@@ -480,7 +492,7 @@ void GenericVulkan2::do_draws_for_alpha(BaseSharedRenderState* render_state,
                                         ScopedProfilerNode& prof,
                                         DrawMode::AlphaBlend alpha,
                                         bool hud) {
-  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
 
   for (u32 i = 0; i < m_next_free_bucket; i++) {
     auto& bucket = m_buckets[i];
@@ -510,10 +522,6 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
   
   m_graphics_pipeline_layouts[bucket].createGraphicsPipeline(m_pipeline_config_info);
   m_graphics_pipeline_layouts[bucket].bind(m_vulkan_info.render_command_buffer);
-
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                 VK_SHADER_STAGE_VERTEX_BIT, 0,
-                 sizeof(m_push_constant), (void*)&m_push_constant);
 
   std::vector<VkDescriptorSet> descriptor_sets = {m_vertex_descriptor_set,
                                                   m_fragment_descriptor_sets[bucket]};
@@ -556,7 +564,7 @@ void GenericVulkan2::InitializeInputAttributes() {
 
   attributeDescriptions[3].binding = 0;
   attributeDescriptions[3].location = 3;
-  attributeDescriptions[3].format = VK_FORMAT_R8_UINT;
+  attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
   attributeDescriptions[3].offset = offsetof(Vertex, tex_unit);
   m_pipeline_config_info.attributeDescriptions.insert(
     m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(), attributeDescriptions.end());
@@ -571,12 +579,12 @@ GenericCommonVertexUniformBuffer::GenericCommonVertexUniformBuffer(
                           instanceCount,
                           minOffsetAlignment) {
   section_name_to_memory_offset_map = {
-      {"mat_32", offsetof(GenericCommonVertexUniformShaderData, mat_32)},
       {"fog_constants", offsetof(GenericCommonVertexUniformShaderData, fog_constants)},
-      {"scale", offsetof(GenericCommonVertexUniformShaderData, scale)},
+      {"hvdf_offset", offsetof(GenericCommonVertexUniformShaderData, hvdf_offset)},
       {"mat_23", offsetof(GenericCommonVertexUniformShaderData, mat_23)},
+      {"mat_32", offsetof(GenericCommonVertexUniformShaderData, mat_32)},
       {"mat_33", offsetof(GenericCommonVertexUniformShaderData, mat_33)},
-      {"hvdf_offset", offsetof(GenericCommonVertexUniformShaderData, hvdf_offset)}};
+      {"scale", offsetof(GenericCommonVertexUniformShaderData, scale)}};
 }
 
 GenericCommonFragmentUniformBuffer::GenericCommonFragmentUniformBuffer(

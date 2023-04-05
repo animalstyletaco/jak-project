@@ -85,4 +85,6 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
 
   bool isFrameStarted = false;
   uint32_t eye_renderer_frame_count = 0;
+
+  float m_gpu_vertex_buffer_data[1920];
 };

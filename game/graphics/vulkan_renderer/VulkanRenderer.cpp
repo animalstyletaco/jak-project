@@ -902,6 +902,8 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
   // TODO ending data.
   m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
   endFrame();
+
+  vkDeviceWaitIdle(m_device->getLogicalDevice());
 }
 
 void VulkanRenderer::dispatch_buckets_jak2(DmaFollower dma,

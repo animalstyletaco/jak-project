@@ -10,6 +10,8 @@ FullScreenDrawVulkan::FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>
   initialize_input_binding_descriptions();
   init_shaders();
 
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
   m_fragment_uniform_buffer =
       std::make_unique<UniformVulkanBuffer>(m_device, sizeof(math::Vector4f), 1, 1);
 

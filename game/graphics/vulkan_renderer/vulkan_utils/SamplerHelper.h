@@ -7,6 +7,9 @@ public:
   VulkanSamplerHelper(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
     m_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     m_create_info.maxAnisotropy = m_device->getMaxSamplerAnisotropy();
+    m_create_info.minLod = -1000;
+    m_create_info.maxLod = 1000;
+    m_create_info.compareOp = VK_COMPARE_OP_NEVER; 
   };
   VkSamplerCreateInfo& GetSamplerCreateInfo() { return m_create_info; }
   VkSampler GetSampler() { return m_sampler; };

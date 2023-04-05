@@ -11,22 +11,14 @@
 /////////////////////////
 // note: eye texture increased to 128x128 (originally 32x32) here.
 EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device) : fb(128, 128, VK_FORMAT_R8G8B8A8_UNORM, device) {
-  VkSamplerCreateInfo& samplerInfo =
-      fb.GetSamplerHelper().GetSamplerCreateInfo();
-  samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+  VkSamplerCreateInfo& samplerInfo = fb.GetSamplerHelper().GetSamplerCreateInfo();
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.anisotropyEnable = VK_TRUE;
-  samplerInfo.maxAnisotropy = device->getPhysicalDeviceFeatures().samplerAnisotropy;
-  samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
   samplerInfo.unnormalizedCoordinates = VK_FALSE;
   samplerInfo.compareEnable = VK_FALSE;
-  samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  samplerInfo.minLod = 0.0f;
-  // samplerInfo.maxLod = static_cast<float>(mipLevels);
-  samplerInfo.mipLodBias = 0.0f;
+  samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -324,40 +316,28 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-
-  // the first thing we'll do is prepare the vertices
-  StagingBuffer vertexStagingBuffer(m_device, sizeof(float) * VTX_BUFFER_FLOATS, 1,
-      VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  m_device->copyBuffer(m_gpu_vertex_buffer->getBuffer(), vertexStagingBuffer.getBuffer(),
-                       sizeof(float) * VTX_BUFFER_FLOATS);
-
-  vertexStagingBuffer.map();
-  float* vertex_data = reinterpret_cast<float*>(vertexStagingBuffer.getMappedMemory());
-
   int buffer_idx = 0;
   for (const auto& [index, draw] : m_eye_draw_map) {
     if (draw.using_64) {
+      buffer_idx = add_draw_to_buffer_64(buffer_idx, draw.iris, m_gpu_vertex_buffer_data, draw.pair,
+                                         draw.lr);
+      buffer_idx = add_draw_to_buffer_64(buffer_idx, draw.pupil, m_gpu_vertex_buffer_data,
+                                         draw.pair, draw.lr);
       buffer_idx =
-          add_draw_to_buffer_64(buffer_idx, draw.iris, vertex_data, draw.pair, draw.lr);
-      buffer_idx =
-          add_draw_to_buffer_64(buffer_idx, draw.pupil, vertex_data, draw.pair, draw.lr);
-      buffer_idx =
-          add_draw_to_buffer_64(buffer_idx, draw.lid, vertex_data, draw.pair, draw.lr);
+          add_draw_to_buffer_64(buffer_idx, draw.lid, m_gpu_vertex_buffer_data, draw.pair, draw.lr);
     } else {
+      buffer_idx = add_draw_to_buffer_32(buffer_idx, draw.iris, m_gpu_vertex_buffer_data, draw.pair,
+                                         draw.lr);
+      buffer_idx = add_draw_to_buffer_32(buffer_idx, draw.pupil, m_gpu_vertex_buffer_data,
+                                         draw.pair, draw.lr);
       buffer_idx =
-          add_draw_to_buffer_32(buffer_idx, draw.iris, vertex_data, draw.pair, draw.lr);
-      buffer_idx =
-          add_draw_to_buffer_32(buffer_idx, draw.pupil, vertex_data, draw.pair, draw.lr);
-      buffer_idx =
-          add_draw_to_buffer_32(buffer_idx, draw.lid, vertex_data, draw.pair, draw.lr);
+          add_draw_to_buffer_32(buffer_idx, draw.lid, m_gpu_vertex_buffer_data, draw.pair, draw.lr);
     }
   }
   ASSERT(buffer_idx <= VTX_BUFFER_FLOATS);
   int check = buffer_idx;
 
-  m_device->copyBuffer(vertexStagingBuffer.getBuffer(), m_gpu_vertex_buffer->getBuffer(),
-                     sizeof(float) * VTX_BUFFER_FLOATS);
-  vertexStagingBuffer.unmap();
+  m_gpu_vertex_buffer->writeToGpuBuffer(m_gpu_vertex_buffer_data);
 
   //We store separate frame buffers in vulkan swap chain abstractions
   auto& frame_buffer_texture_pair = m_gpu_eye_textures[m_eye_draw_map.at(0).tex_slot()]->fb;

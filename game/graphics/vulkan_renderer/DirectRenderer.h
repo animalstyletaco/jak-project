@@ -17,6 +17,7 @@ struct DirectBasicTexturedFragmentUniformShaderData {
   float alpha_sub;
   math::Vector4f fog_color;
   float ta0;
+  float pad0[3];
 };
 
 class DirectBasicTexturedFragmentUniformBuffer : public UniformVulkanBuffer {

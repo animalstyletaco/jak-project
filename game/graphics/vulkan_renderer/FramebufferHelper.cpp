@@ -41,7 +41,8 @@ void FramebufferVulkan::setViewportScissor(VkCommandBuffer commandBuffer) {
   vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
-void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer) {
+void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer,
+                                        std::vector<VkClearValue> clearValues) {
   VkRenderPassBeginInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   renderPassInfo.renderPass = render_pass;
@@ -50,13 +51,20 @@ void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer) {
   renderPassInfo.renderArea.offset = {0, 0};
   renderPassInfo.renderArea.extent = extents;
 
-  std::array<VkClearValue, 2> clearValues{};
-  clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
-  clearValues[1].depthStencil = {1.0f, 0};
   renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
   renderPassInfo.pClearValues = clearValues.data();
 
   vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer) {
+  std::vector<VkClearValue> clearValues;
+  clearValues.resize(2);
+
+  clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
+  clearValues[1].depthStencil = {1.0f, 0};
+
+  beginRenderPass(commandBuffer, clearValues);
 }
 
 FramebufferVulkan::~FramebufferVulkan() {
@@ -236,6 +244,15 @@ void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, int
 
   m_framebuffers[index].beginRenderPass(commandBuffer);
 }
+
+void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, std::vector<VkClearValue>& clearValues, int index) {
+  if (m_framebuffers[index].m_current_msaa != m_device->getMsaaCount()) {
+    m_framebuffers[index].initializeFramebufferAtLevel(index + 1);
+  }
+
+  m_framebuffers[index].beginRenderPass(commandBuffer, clearValues);
+}
+
 
 VkFormat FramebufferVulkan::GetSupportedDepthFormat() {
   return m_device->findSupportedFormat(

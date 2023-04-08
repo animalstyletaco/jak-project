@@ -63,12 +63,12 @@ class SwapChain {
                                 uint32_t dynamicDescriptorCount = 0,
                                 uint32_t* dynamicDescriptorOffsets = nullptr);
 
-    void multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                VertexBuffer* vertex_buffer,
-                                IndexBuffer* index_buffer,
-                                VkPipelineLayout& pipeline_layout,
-                                std::vector<VkDescriptorSet>& descriptors,
-                                MultiDrawVulkanBuffer* multiDrawBuffer);
+  void multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
+                              VertexBuffer* vertex_buffer,
+                              IndexBuffer* index_buffer,
+                              VkPipelineLayout& pipeline_layout,
+                              std::vector<VkDescriptorSet>& descriptors,
+                              MultiDrawVulkanBuffer* multiDrawBuffer);
 
   void setViewportScissor(VkCommandBuffer commandBuffer);
   void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);
@@ -88,6 +88,12 @@ class SwapChain {
   }
 
   VkSampleCountFlagBits get_render_pass_sample_count() { return m_render_pass_sample; }
+  VulkanTexture& GetColorAttachmentImagesAtIndex(uint32_t index) {
+    return colorImages.at(index);
+  }
+  VulkanTexture& GetDepthAttachmentImagesAtIndex(uint32_t index) {
+    return depthImages.at(index);
+  }
 
  private:
   void createSwapChain(bool vsyncEnabled);

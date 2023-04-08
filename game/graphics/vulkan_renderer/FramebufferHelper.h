@@ -37,6 +37,8 @@ class FramebufferVulkan {
   void createFramebuffer();
   void initializeFramebufferAtLevel(int level = 0);
   void beginRenderPass(VkCommandBuffer commandBuffer);
+  void beginRenderPass(VkCommandBuffer commandBuffer,
+                       std::vector<VkClearValue> clearValues);
 
   VkSampleCountFlags m_current_msaa = VK_SAMPLE_COUNT_1_BIT;
   uint32_t GetMipmapLevel(int level);
@@ -58,6 +60,10 @@ class FramebufferVulkanHelper {
     m_framebuffers[level].setViewportScissor(command);
   }
   VulkanTexture& Texture(int level = 0) { return m_framebuffers[level].mipmap_texture; }
+  VulkanTexture& ColorAttachmentTexture(int level = 0) { return m_framebuffers[level].color_texture; }
+  VulkanTexture& DepthAttachmentTexture(int level = 0) {
+    return m_framebuffers[level].depth_texture;
+  }
   VulkanSamplerHelper& GetSamplerHelper(int level = 0) {
     return m_framebuffers[level].sampler_helper;
   }
@@ -67,6 +73,7 @@ class FramebufferVulkanHelper {
   FramebufferVulkanHelper& operator=(const FramebufferVulkanHelper&) = delete;
 
   void beginRenderPass(VkCommandBuffer commandBuffer, int level = 0);
+  void beginRenderPass(VkCommandBuffer commandBuffer, std::vector<VkClearValue>&, int level = 0);
 
  private:
   VkExtent2D extents = {640, 480};

@@ -16,11 +16,27 @@ class SkyBlendVulkanGPU : BaseSkyBlendGPU {
                               ScopedProfilerNode& prof);
 
  private:
+  void create_pipeline_layout();
+
+  struct PushConstant {
+    float height_scale;
+    float scissor_adjust;
+  };
+
+  PushConstant m_push_constant;
+
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
-  std::unique_ptr<VulkanTexture> m_textures[2];
-  std::unique_ptr<FramebufferVulkan> m_framebuffers[2];
+  std::unique_ptr<VulkanSamplerHelper> m_sampler_helpers[2];
+  std::unique_ptr<FramebufferVulkanHelper> m_framebuffers[2];
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  GraphicsPipelineLayout m_pipeline_layout;
+  std::unique_ptr<GraphicsPipelineLayout> m_graphics_pipeline_layouts[2];
+
+  VkDescriptorImageInfo m_descriptor_image_infos[2];
+  VkDescriptorSet m_fragment_descriptor_sets[2];
+
   VulkanInitializationInfo& m_vulkan_info;
   PipelineConfigInfo m_pipeline_config_info;
 
@@ -36,6 +52,4 @@ class SkyBlendVulkanGPU : BaseSkyBlendGPU {
     VulkanGpuTextureMap* tex;
     u32 tbp;
   } m_tex_info[2];
-
-  VkSampler m_sampler = VK_NULL_HANDLE;
 };

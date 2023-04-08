@@ -134,8 +134,6 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   std::vector<VkVertexInputAttributeDescription> m_sprite_attribute_descriptions;
   std::vector<VkVertexInputAttributeDescription> m_sprite_distort_attribute_descriptions;
 
-  FramebufferVulkan* render_fb = NULL;
-
   VkDescriptorSet m_vertex_descriptor_set = VK_NULL_HANDLE;
   std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
   VkDescriptorSet m_sprite_distort_fragment_descriptor_set = VK_NULL_HANDLE;

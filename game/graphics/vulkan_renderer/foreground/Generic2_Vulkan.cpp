@@ -427,7 +427,7 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
                      (void*)&m_push_constant);
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(Gfx::g_global_settings.hack_no_tex),
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant), sizeof(uint32_t),
                      (void*)&Gfx::g_global_settings.hack_no_tex);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);

@@ -19,7 +19,7 @@ void ProgressVulkanRenderer::post_render() {
 
 void ProgressVulkanRenderer::init_textures(TexturePool& texture_pool, GameVersion) {
   VulkanTextureInput in;
-  in.texture = &m_minimap_fb.Texture(0);
+  in.texture = &m_minimap_fb.ColorAttachmentTexture(0);
   in.debug_page_name = "PC-MAP";
   in.debug_name = "map";
   in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture(m_vulkan_info.m_version);

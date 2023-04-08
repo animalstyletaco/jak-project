@@ -59,7 +59,6 @@ void DepthCueVulkan::graphics_setup() {
   samplerInfo.compareEnable = VK_FALSE;
   samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-  samplerInfo.minLod = 0.0f;
   // samplerInfo.maxLod = static_cast<float>(mipLevels);
   samplerInfo.mipLodBias = 0.0f;
   samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -433,7 +432,10 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
   imageBlits[0].dstOffsets[1].y = m_ogl.fbo_width;
   imageBlits[0].dstOffsets[1].z = 0;
 
-  vkCmdBlitImage(m_vulkan_info.render_command_buffer, render_fb->color_texture.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+  VulkanTexture& color_framebuffer =
+      m_vulkan_info.swap_chain->GetColorAttachmentImagesAtIndex(m_vulkan_info.currentFrame);
+  vkCmdBlitImage(m_vulkan_info.render_command_buffer, color_framebuffer.getImage(),
+                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
                  m_ogl.framebuffer_sample_fbo->color_texture.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, imageBlits.size(), imageBlits.data(), VK_FILTER_NEAREST);
 
   // Next, we need to draw from the framebuffer sample texture to the depth-cue-base-page
@@ -511,10 +513,6 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
       // Scale debug depth expontentially to make the slider easier to use
       m_depth_cue_push_constant.u_depth = pow(m_debug.depth, 8);
     }
-
-    //glBindFramebuffer(GL_FRAMEBUFFER, render_state->render_fb);
-
-    //glBindTexture(GL_TEXTURE_2D, m_ogl.fbo_texture);
 
     m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
     m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional

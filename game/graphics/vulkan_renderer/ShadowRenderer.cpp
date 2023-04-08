@@ -119,8 +119,8 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
   m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
   m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
-  m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+  m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+  m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
@@ -132,11 +132,10 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  m_pipeline_config_info.colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
   m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   if (m_debug_draw_volume) {
@@ -166,7 +165,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   {
     m_color_uniform = math::Vector4f{0.0, 0.4, 0.0, 0.5};
-    m_ogl.index_buffers[0]->writeToGpuBuffer(m_back_indices, m_next_front_index * sizeof(u32), 0);
+    m_ogl.index_buffers[0]->writeToGpuBuffer(m_front_indices, m_next_front_index * sizeof(u32), 0);
 
     m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
     m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
@@ -177,13 +176,15 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
 
-    VulkanDraw(draw_idx, 0);
+    PrepareVulkanDraw(draw_idx, 0);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
 
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_color_uniform = math::Vector4f{0.0, 0.0, 0.0, 0.5};
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-      VulkanDraw(draw_idx, 0);
+      PrepareVulkanDraw(draw_idx, 0);
+      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -206,12 +207,15 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
     m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-    VulkanDraw(draw_idx, 1);
+    PrepareVulkanDraw(draw_idx, 1);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
+
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_color_uniform = math::Vector4f{0.0, 0.0, 0.0, 0.5};
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
-      VulkanDraw(draw_idx, 1);
+      PrepareVulkanDraw(draw_idx, 1);
+      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -221,6 +225,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   }
 
   // finally, draw shadow.
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
   m_color_uniform = math::Vector4f{0.13, 0.13, 0.13, 0.5};
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -245,7 +250,9 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-  VulkanDraw(draw_idx, 0);
+  PrepareVulkanDraw(draw_idx, 0);
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 6, 1,
+                   m_next_front_index - 6, 0, 0);
 
   prof.add_draw_call();
   prof.add_tri(2);
@@ -257,7 +264,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 }
 
-void ShadowVulkanRenderer::VulkanDraw(uint32_t& pipeline_layout_id, uint32_t indexBufferId) {
+void ShadowVulkanRenderer::PrepareVulkanDraw(uint32_t& pipeline_layout_id, uint32_t indexBufferId) {
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_color_uniform), sizeof(m_color_uniform),
                      (void*)&m_color_uniform);
@@ -273,10 +280,5 @@ void ShadowVulkanRenderer::VulkanDraw(uint32_t& pipeline_layout_id, uint32_t ind
                        index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  if (indexBufferId == 0) {
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
-  } else {
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
-  }
   pipeline_layout_id++;
 }

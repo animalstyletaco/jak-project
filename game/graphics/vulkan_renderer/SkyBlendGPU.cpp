@@ -5,9 +5,24 @@
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
 SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
-  m_device(device), m_pipeline_layout(device), m_vulkan_info(vulkan_info) {
-  // generate textures for sky blending
+  m_device(device), m_vulkan_info(vulkan_info) {
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
+  m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
+  m_push_constant.scissor_adjust =
+      (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512.0 / 448.0) : (-512.0 / 416.0);
+
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
+                                                                    m_vulkan_info.descriptor_pool);
+
+  create_pipeline_layout();
+
+  // generate textures for sky blending
   auto& shader = m_vulkan_info.shaders[ShaderId::SKY_BLEND];
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -25,24 +40,12 @@ SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& devi
 
   // setup the framebuffers
   for (int i = 0; i < 2; i++) {
-    m_textures[i] = std::make_unique<VulkanTexture>(m_device);
-    m_framebuffers[i] = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
-    m_framebuffers[i]->extents = {m_sizes[i], m_sizes[i]};
+    m_graphics_pipeline_layouts[i] = std::make_unique<GraphicsPipelineLayout>(m_device);
+    m_sampler_helpers[i] = std::make_unique<VulkanSamplerHelper>(m_device);
+    m_framebuffers[i] = std::make_unique<FramebufferVulkanHelper>(
+        m_sizes[i], m_sizes[i], VK_FORMAT_R8G8B8A8_UNORM, m_device);
 
-    VkExtent3D extents{m_sizes[i], m_sizes[i], 1};
-    m_textures[i]->createImage(
-        extents, 1, VK_IMAGE_TYPE_2D,
-        device->getMsaaCount(), VK_FORMAT_A8B8G8R8_SRGB_PACK32, VK_IMAGE_TILING_OPTIMAL,
-                               VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-
-    m_textures[i]->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_A8B8G8R8_SRGB_PACK32,
-                                   VK_IMAGE_ASPECT_COLOR_BIT, 1);
-
-    //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[i], 0);
-    //GLenum draw_buffers[1] = {GL_COLOR_ATTACHMENT0};
-    //glDrawBuffers(1, draw_buffers);
-
-    VkSamplerCreateInfo samplerInfo{};
+    VkSamplerCreateInfo& samplerInfo = m_sampler_helpers[i]->GetSamplerCreateInfo();
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -54,7 +57,6 @@ SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& devi
     samplerInfo.compareEnable = VK_FALSE;
     samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    samplerInfo.minLod = 0.0f;
     // samplerInfo.maxLod = static_cast<float>(mipLevels);
     samplerInfo.mipLodBias = 0.0f;
 
@@ -65,10 +67,7 @@ SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& devi
     samplerInfo.magFilter = VK_FILTER_NEAREST;
     samplerInfo.minFilter = VK_FILTER_NEAREST;
 
-    if (vkCreateSampler(m_device->getLogicalDevice(), &samplerInfo, nullptr, &m_sampler) !=
-        VK_SUCCESS) {
-      lg::error("Failed to create sampler for OCEAN-TEXTURE {}\n");
-    }
+    m_sampler_helpers[i]->CreateSampler();
   }
 
   VkDeviceSize m_vertex_device_size = sizeof(Vertex) * 6;
@@ -92,14 +91,36 @@ SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& devi
   m_vertex_buffer->writeToGpuBuffer(m_vertex_data, sizeof(m_vertex_data), 0);
 }
 
+void SkyBlendVulkanGPU::create_pipeline_layout() {
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_fragment_descriptor_layout->getDescriptorSetLayout()};
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange pushConstantVertexRange{};
+  pushConstantVertexRange.offset = 0;
+  pushConstantVertexRange.size = sizeof(m_push_constant);
+  pushConstantVertexRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantVertexRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
+}
+
 SkyBlendVulkanGPU::~SkyBlendVulkanGPU() {
-  vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
 }
 
 void SkyBlendVulkanGPU::init_textures(VulkanTexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
     VulkanTextureInput in;
-    in.texture = m_textures[i].get();
+    in.texture = &m_framebuffers[i]->ColorAttachmentTexture();
     in.debug_name = fmt::format("PC-SKY-GPU-{}", i);
     in.id = tex_pool.allocate_pc_port_texture(m_vulkan_info.m_version);
     u32 tbp = SKY_TEXTURE_VRAM_ADDRS[i];
@@ -111,9 +132,6 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
                                          BaseSharedRenderState* render_state,
                                          ScopedProfilerNode& prof) {
   SkyBlendStats stats;
-
-  //GLint old_viewport[4];
-  //glGetIntegerv(GL_VIEWPORT, old_viewport);
 
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                                                VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -133,6 +151,8 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
 
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+  m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
 
   while (dma.current_tag().qwc == 6) {
     // assuming that the vif and gif-tag is correct
@@ -174,18 +194,16 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
     auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(adgif.tex0().tbp0())->get_selected_texture();
     ASSERT(tex);
 
-
-
-    // setup for rendering!
-    //glViewport(0, 0, m_sizes[buffer_idx], m_sizes[buffer_idx]);
-    //glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_textures[buffer_idx], 0);
-
     // if the first is set, it disables alpha. we can just clear here, so it's easier to find
     // in renderdoc.
     if (is_first_draw) {
       float clear[4] = {0, 0, 0, 0};
       //glClearBufferfv(GL_COLOR, 0, clear);
     }
+
+    // TODO: Are there different clear values for other draw calls
+    m_framebuffers[buffer_idx]->beginRenderPass(m_vulkan_info.render_command_buffer); 
+    m_framebuffers[buffer_idx]->setViewportScissor(m_vulkan_info.render_command_buffer);
 
     // intensities should be 0-128 (maybe higher is okay, but I don't see how this could be
     // generated with the GOAL code.)
@@ -197,12 +215,32 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
       vert.intensity = intensity_float;
     }
 
-    //glDisable(GL_DEPTH_TEST);
-
+    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
     m_vertex_buffer->writeToGpuBuffer(m_vertex_data);
 
+    VkDeviceSize offsets[] = {0};
+    VkBuffer vertex_buffers = m_vertex_buffer->getBuffer();
+    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffers, offsets);
+
+    m_descriptor_image_infos[buffer_idx] =
+        VkDescriptorImageInfo{m_sampler_helpers[buffer_idx]->GetSampler(), tex->getImageView(),
+                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+    auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
+    write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
+        1, &m_descriptor_image_infos[buffer_idx]);
+
+    m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[buffer_idx]);
+
+    m_graphics_pipeline_layouts[buffer_idx]->createGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layouts[buffer_idx]->bind(m_vulkan_info.render_command_buffer);
+
+    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_pipeline_config_info.pipelineLayout, 0, 1,
+                            &m_fragment_descriptor_sets[buffer_idx], 0, NULL);
+
     // Draw a sqaure
-    //glDrawArrays(GL_TRIANGLES, 0, 6);
+    vkCmdDraw(m_vulkan_info.render_command_buffer, 6, 1, 0, 0);
 
     // 1 draw, 2 triangles
     prof.add_draw_call(1);
@@ -224,7 +262,11 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
         stats.cloud_blends++;
       }
     }
+
+    vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
   }
+
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, m_vulkan_info.currentFrame);
 
   return stats;
 }

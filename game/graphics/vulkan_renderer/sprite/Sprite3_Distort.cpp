@@ -284,7 +284,8 @@ void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state,
   imageBlits[0].dstOffsets[1].y = m_distort_ogl.fbo_width;
   imageBlits[0].dstOffsets[1].z = 0;
 
-  vkCmdBlitImage(m_vulkan_info.render_command_buffer, render_fb->color_texture.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+  VulkanTexture& color_framebuffer = m_vulkan_info.swap_chain->GetColorAttachmentImagesAtIndex(m_vulkan_info.currentFrame);
+  vkCmdBlitImage(m_vulkan_info.render_command_buffer, color_framebuffer.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
                  m_distort_ogl.fbo->color_texture.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, imageBlits.size(), imageBlits.data(), VK_FILTER_NEAREST);
 
   // Set up OpenGL state

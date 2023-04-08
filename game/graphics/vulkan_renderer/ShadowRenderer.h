@@ -18,7 +18,7 @@ class ShadowVulkanRenderer : public BaseShadowRenderer, public BucketVulkanRende
   void InitializeInputVertexAttribute();
   void draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void create_pipeline_layout() override;
-  void VulkanDraw(uint32_t& pipelineLayoutId, uint32_t indexBufferId);
+  void PrepareVulkanDraw(uint32_t& pipelineLayoutId, uint32_t indexBufferId);
 
   struct {
     // index is front, back

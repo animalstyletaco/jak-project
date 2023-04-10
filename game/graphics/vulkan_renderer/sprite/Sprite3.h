@@ -8,7 +8,6 @@
 
 #include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/general_renderer/sprite/Sprite3.h"
-#include "game/graphics/vulkan_renderer/sprite/SpriteCommon.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
@@ -34,7 +33,6 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void setup_graphics_for_2d_group_0_render() override;
 
  private:
-  void InitializeInputVertexAttribute();
   void graphics_setup() override;
   void graphics_setup_normal() override;
   void graphics_setup_distort() override;
@@ -63,7 +61,6 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
         index_buffer;  // contains all instance specific data for each sprite per frame
 
     std::unique_ptr<FramebufferVulkan> fbo;
-    std::unique_ptr<VulkanTexture> fbo_texture;
   };
   VulkanDistortOgl m_distort_ogl;
 
@@ -95,6 +92,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
                                               u32 flags = 0) override;
 
   void EnableSprite3GraphicsBlending() override;
+  void createDistortFramebuffer();
 
   DirectVulkanRenderer m_direct;
   GlowVulkanRenderer m_glow_renderer;
@@ -130,9 +128,11 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
 
   std::vector<VkVertexInputBindingDescription> m_sprite_input_binding_descriptions;
   std::vector<VkVertexInputBindingDescription> m_sprite_distort_input_binding_descriptions;
+  std::vector<VkVertexInputBindingDescription> m_sprite_distort_instanced_input_binding_descriptions;
 
   std::vector<VkVertexInputAttributeDescription> m_sprite_attribute_descriptions;
   std::vector<VkVertexInputAttributeDescription> m_sprite_distort_attribute_descriptions;
+  std::vector<VkVertexInputAttributeDescription> m_sprite_distort_instanced_attribute_descriptions;
 
   VkDescriptorSet m_vertex_descriptor_set = VK_NULL_HANDLE;
   std::vector<VkDescriptorSet> m_fragment_descriptor_sets;

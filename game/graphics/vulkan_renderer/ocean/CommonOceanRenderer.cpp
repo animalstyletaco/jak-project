@@ -5,7 +5,7 @@ CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDev
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
 
   m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
-  m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
+  m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512 / 448.0) : (-512 / 416.0);
 
   InitializeVertexInputAttributes();
   InitializeShaders();
@@ -108,6 +108,7 @@ void CommonOceanVulkanRenderer::InitializeVertexInputAttributes() {
 
 void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
   VkPipelineInputAssemblyStateCreateInfo& inputAssembly = m_pipeline_config_info.inputAssemblyInfo;
   inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -224,14 +225,9 @@ void CommonOceanVulkanRenderer::flush_mid(
     BaseSharedRenderState* render_state,
     ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
-  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
-
-  //CreateVertexBuffer(m_vertices);
-
-  //glDepthMask(GL_TRUE);
-  //TODO: Add depth mask attribute to Texture VkImage
 
   // note:
   // there are some places where the game draws the same section of ocean twice, in this order:
@@ -253,6 +249,7 @@ void CommonOceanVulkanRenderer::flush_mid(
   reverse_indices(m_indices[1].data(), m_next_free_index[1]);
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
@@ -306,8 +303,6 @@ void CommonOceanVulkanRenderer::flush_mid(
           tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
 
-        //glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        //glBlendEquation(GL_FUNC_ADD);
         m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_TRUE;
 
         m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional

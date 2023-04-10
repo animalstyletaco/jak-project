@@ -112,6 +112,7 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
                                 SharedVulkanRenderState* render_state,
                                 ScopedProfilerNode& prof) {
   m_fragment_uniform_buffer->SetUniform4f("fragment_color", color[0], color[1], color[2], color[3]);
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   
   prof.add_tri(2);
   prof.add_draw_call();

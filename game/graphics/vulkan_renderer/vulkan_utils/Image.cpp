@@ -36,6 +36,24 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
 
 
 void VulkanTexture::AllocateVulkanImageMemory() {
+  VkImageFormatProperties image_format_properties;
+  VkResult results = vkGetPhysicalDeviceImageFormatProperties(
+      m_device->getPhysicalDevice(), m_image_create_info.format, m_image_create_info.imageType,
+      m_image_create_info.tiling, m_image_create_info.usage, m_image_create_info.flags,
+      &image_format_properties);
+
+  if (results != VK_SUCCESS) {
+    throw std::runtime_error("failed to create image! Error code: " + std::to_string(results));
+  }
+
+  if (m_image_create_info.extent.width > image_format_properties.maxExtent.width) {
+    m_image_create_info.extent.width = image_format_properties.maxExtent.width;
+  }
+
+  if (m_image_create_info.extent.height > image_format_properties.maxExtent.height) {
+    m_image_create_info.extent.height = image_format_properties.maxExtent.height;
+  }
+
   if (vkCreateImage(m_device->getLogicalDevice(), &m_image_create_info, nullptr, &m_image) !=
       VK_SUCCESS) {
     throw std::runtime_error("failed to create image!");

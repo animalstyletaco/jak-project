@@ -407,36 +407,35 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
 
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-  std::array<VkImageBlit, 1> imageBlits{};
-  imageBlits[0].srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  imageBlits[0].srcSubresource.mipLevel = 0;
-  imageBlits[0].srcSubresource.baseArrayLayer = 1;
-  imageBlits[0].srcSubresource.layerCount = 1;
+  std::array<VkImageResolve, 1> imageResolves{};
+  imageResolves[0].srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageResolves[0].srcSubresource.mipLevel = 0;
+  imageResolves[0].srcSubresource.baseArrayLayer = 0;
+  imageResolves[0].srcSubresource.layerCount = 1;
 
-  imageBlits[0].srcOffsets[0].x = render_state->render_fb_x;
-  imageBlits[0].srcOffsets[0].y = render_state->render_fb_y;
-  imageBlits[0].srcOffsets[0].z = 0;
-  imageBlits[0].srcOffsets[1].x = render_state->render_fb_x + render_state->render_fb_w;
-  imageBlits[0].srcOffsets[1].y = render_state->render_fb_y + render_state->render_fb_h;
-  imageBlits[0].srcOffsets[1].z = 0;
+  imageResolves[0].srcOffset.x = render_state->draw_offset_x;
+  imageResolves[0].srcOffset.y = render_state->draw_offset_y;
+  imageResolves[0].srcOffset.z = 0;
 
-  imageBlits[0].srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  imageBlits[0].dstSubresource.mipLevel = 0;
-  imageBlits[0].dstSubresource.baseArrayLayer = 1;
-  imageBlits[0].dstSubresource.layerCount = 1;
+  imageResolves[0].dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageResolves[0].dstSubresource.mipLevel = 0;
+  imageResolves[0].dstSubresource.baseArrayLayer = 0;
+  imageResolves[0].dstSubresource.layerCount = 1;
 
-  imageBlits[0].dstOffsets[0].x = 0;
-  imageBlits[0].dstOffsets[0].y = 0;
-  imageBlits[0].dstOffsets[0].z = 0;
-  imageBlits[0].dstOffsets[1].x = m_ogl.fbo_width;
-  imageBlits[0].dstOffsets[1].y = m_ogl.fbo_width;
-  imageBlits[0].dstOffsets[1].z = 0;
+  imageResolves[0].dstOffset.x = 0;
+  imageResolves[0].dstOffset.y = 0;
+  imageResolves[0].dstOffset.z = 0;
 
-  VulkanTexture& color_framebuffer =
-      m_vulkan_info.swap_chain->GetColorAttachmentImagesAtIndex(m_vulkan_info.currentFrame);
-  vkCmdBlitImage(m_vulkan_info.render_command_buffer, color_framebuffer.getImage(),
-                 VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-                 m_ogl.framebuffer_sample_fbo->color_texture.getImage(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, imageBlits.size(), imageBlits.data(), VK_FILTER_NEAREST);
+  imageResolves[0].extent.width = m_ogl.framebuffer_sample_width;
+  imageResolves[0].extent.height = m_ogl.framebuffer_sample_height;
+  imageResolves[0].extent.depth = 1;
+
+  VulkanTexture& color_texture =
+      m_vulkan_info.swap_chain->GetColorAttachmentImageAtIndex(m_vulkan_info.currentFrame);
+  vkCmdResolveImage(
+      m_vulkan_info.render_command_buffer, color_texture.getImage(),
+      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_ogl.fbo->color_texture.getImage(),
+      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageResolves.size(), imageResolves.data());
 
   // Next, we need to draw from the framebuffer sample texture to the depth-cue-base-page
   // framebuffer
@@ -449,10 +448,6 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
 
     m_depth_cue_push_constant.u_color = colorf;
     m_depth_cue_push_constant.u_depth = 1.0f;
-
-    //glBindFramebuffer(GL_FRAMEBUFFER, m_ogl.fbo);
-
-    //glBindTexture(GL_TEXTURE_2D, m_ogl.framebuffer_sample_tex);
 
     m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
     m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional

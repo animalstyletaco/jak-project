@@ -205,7 +205,7 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
       VkExtent3D extents{background_common::TIME_OF_DAY_COLOR_COUNT, 1, 1};
       lod_tree[l_tree].time_of_day_texture->createImage(
           extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UINT,
-          VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+          VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
     }
   }
 
@@ -805,6 +805,7 @@ Tie3VulkanWithEnvmapJak1::Tie3VulkanWithEnvmapJak1(const std::string& name,
 void Tie3VulkanWithEnvmapJak1::render(DmaFollower& dma,
                                       SharedVulkanRenderState* render_state,
                                       ScopedProfilerNode& prof) {
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseTie3::render(dma, render_state, prof);
   if (m_enable_envmap) {
     render_from_another(render_state, prof, tfrag3::TieCategory::NORMAL_ENVMAP);

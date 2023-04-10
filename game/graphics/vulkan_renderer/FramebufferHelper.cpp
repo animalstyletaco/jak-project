@@ -107,24 +107,24 @@ uint32_t FramebufferVulkan::GetMipmapLevel(int level) {
 }
 
 void FramebufferVulkan::initializeFramebufferAtLevel(int mipmapLevel) {
-  VkExtent3D textureExtents{extents.height, extents.width, 1};
-  mipmap_texture.createImage(
-      textureExtents, mipmapLevel, VK_IMAGE_TYPE_2D, m_format, VK_IMAGE_TILING_OPTIMAL,
+  VkExtent3D textureExtents{extents.width, extents.height, 1};
+  mipmap_texture.createImage(textureExtents, mipmapLevel, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+                             m_format, VK_IMAGE_TILING_OPTIMAL,
       VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
   mipmap_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, m_format,
                                  VK_IMAGE_ASPECT_COLOR_BIT, mipmapLevel);
 
-  color_texture.createImage(
-      textureExtents, 1, VK_IMAGE_TYPE_2D, m_format, VK_IMAGE_TILING_OPTIMAL,
+  color_texture.createImage(textureExtents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT, m_format,
+                            VK_IMAGE_TILING_OPTIMAL,
       VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
           VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
   color_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, m_format,
                                 VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-  depth_texture.createImage(
-      textureExtents, 1, VK_IMAGE_TYPE_2D, GetSupportedDepthFormat(), VK_IMAGE_TILING_OPTIMAL,
+  depth_texture.createImage(textureExtents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+                            GetSupportedDepthFormat(), VK_IMAGE_TILING_OPTIMAL,
       VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
           VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
   depth_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, GetSupportedDepthFormat(),
@@ -147,7 +147,7 @@ void FramebufferVulkan::createRenderPass() {
 
   VkAttachmentDescription colorAttachment = {};
   colorAttachment.format = m_format;
-  colorAttachment.samples = m_device->getMsaaCount();
+  colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
   colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -157,7 +157,7 @@ void FramebufferVulkan::createRenderPass() {
 
   VkAttachmentDescription depthAttachment{};
   depthAttachment.format = GetSupportedDepthFormat();
-  depthAttachment.samples = m_device->getMsaaCount();
+  depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
   depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -238,18 +238,10 @@ void FramebufferVulkan::createFramebuffer() {
 }
 
 void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, int index) {
-  if (m_framebuffers[index].m_current_msaa != m_device->getMsaaCount()) {
-    m_framebuffers[index].initializeFramebufferAtLevel(index + 1);
-  }
-
   m_framebuffers[index].beginRenderPass(commandBuffer);
 }
 
 void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, std::vector<VkClearValue>& clearValues, int index) {
-  if (m_framebuffers[index].m_current_msaa != m_device->getMsaaCount()) {
-    m_framebuffers[index].initializeFramebufferAtLevel(index + 1);
-  }
-
   m_framebuffers[index].beginRenderPass(commandBuffer, clearValues);
 }
 

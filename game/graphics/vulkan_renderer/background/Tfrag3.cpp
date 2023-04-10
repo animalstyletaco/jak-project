@@ -384,6 +384,9 @@ void Tfrag3Vulkan::render_matching_trees(int geom,
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_debug_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
 
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  m_debug_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
     auto& tree = m_cached_trees[geom][i];

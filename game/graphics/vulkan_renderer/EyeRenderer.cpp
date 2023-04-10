@@ -24,6 +24,9 @@ EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& d
   samplerInfo.minFilter = VK_FILTER_LINEAR;
 
   fb.GetSamplerHelper().GetSampler();
+  auto& color_texture = fb.ColorAttachmentTexture();
+
+  color_texture.transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 }
 
 EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
@@ -336,13 +339,6 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
 
   m_gpu_vertex_buffer->writeToGpuBuffer(m_gpu_vertex_buffer_data);
 
-  VkImageSubresourceRange subresourceRange{};
-  subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  subresourceRange.baseMipLevel = 0;
-  subresourceRange.levelCount = 1;
-  subresourceRange.baseArrayLayer = 0;
-  subresourceRange.layerCount = 1;
-
   vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
 
   buffer_idx = 0;
@@ -351,8 +347,6 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
     const auto& out_tex = m_gpu_eye_textures[draw.tex_slot()];
     auto& frame_buffer_texture_pair = out_tex->fb;
     auto& color_texture = frame_buffer_texture_pair.ColorAttachmentTexture();
-
-    color_texture.transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     // first, the clear
     std::vector<VkClearValue> clearValues;

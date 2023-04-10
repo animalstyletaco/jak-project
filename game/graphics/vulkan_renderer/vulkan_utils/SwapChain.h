@@ -88,12 +88,13 @@ class SwapChain {
   }
 
   VkSampleCountFlagBits get_render_pass_sample_count() { return m_render_pass_sample; }
-  VulkanTexture& GetColorAttachmentImagesAtIndex(uint32_t index) {
+  VulkanTexture& GetColorAttachmentImageAtIndex(uint32_t index) {
     return colorImages.at(index);
   }
-  VulkanTexture& GetDepthAttachmentImagesAtIndex(uint32_t index) {
+  VulkanTexture& GetDepthAttachmentImageAtIndex(uint32_t index) {
     return depthImages.at(index);
   }
+  VkImage GetSwapChainImageAtIndex(uint32_t index) { return swapChainImages.at(index); }
 
  private:
   void createSwapChain(bool vsyncEnabled);

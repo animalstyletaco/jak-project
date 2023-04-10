@@ -13,6 +13,8 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
                                VulkanInitializationInfo& vulkan_info,
                                int batch_size)
     : BaseDirectRenderer(name, my_id, batch_size), BucketVulkanRenderer(device, vulkan_info) {
+  m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
   m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(BaseDirectRenderer::Vertex);
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, m_ogl.vertex_buffer_bytes, 1, 1);
@@ -251,6 +253,7 @@ void DirectVulkanRenderer::flush_pending(BaseSharedRenderState* render_state,
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
       VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
   BaseDirectRenderer::flush_pending(render_state, prof);
 }
@@ -518,7 +521,7 @@ void DirectVulkanRenderer::update_graphics_test() {
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 
   if (state.zte) {
-    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+    //m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
     switch (state.ztst) {
       case GsTest::ZTest::NEVER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
@@ -583,6 +586,8 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
 
   // render!
   // update buffers:
+  m_ogl.vertex_buffer->writeToGpuBuffer(
+      m_prim_buffer.vertices.data(), sizeof(Vertex) * m_prim_buffer.vert_count);
 
   int draw_count = 0;
 

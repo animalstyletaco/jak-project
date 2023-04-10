@@ -20,7 +20,7 @@ SpriteVulkan3::SpriteVulkan3(const std::string& name,
   m_sprite_3d_vertex_uniform_buffer = std::make_unique<Sprite3dVertexUniformBuffer>(
       m_device, 1);
 
-  m_graphics_pipeline_layouts.resize(3, m_device);
+  m_graphics_pipeline_layouts.resize(10, m_device);
   m_sampler_helpers.resize(10, m_device);
 
   m_descriptor_image_infos.resize(
@@ -62,7 +62,7 @@ void SpriteVulkan3::create_pipeline_layout() {
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+                             &m_pipeline_layout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
   }
 
@@ -74,16 +74,17 @@ void SpriteVulkan3::create_pipeline_layout() {
   spriteDistortPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(spriteDistortDescriptorSetLayouts.size());
   spriteDistortPipelineLayoutInfo.pSetLayouts = spriteDistortDescriptorSetLayouts.data();
 
-  VkPushConstantRange spriteDistortPushConstantRange;
+  VkPushConstantRange spriteDistortPushConstantRange{};
   spriteDistortPushConstantRange.offset = 0;
-  spriteDistortPushConstantRange.size = sizeof(m_push_constant);
+  spriteDistortPushConstantRange.size = sizeof(m_sprite_distort_push_constant);
   spriteDistortPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   spriteDistortPipelineLayoutInfo.pPushConstantRanges = &spriteDistortPushConstantRange;
   spriteDistortPipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_layout) != VK_SUCCESS) {
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &spriteDistortPipelineLayoutInfo,
+                             nullptr,
+                             &m_sprite_distort_pipeline_layout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
   }
 }
@@ -153,7 +154,6 @@ void SpriteVulkan3::graphics_setup_normal() {
   m_current_mode = m_default_mode;
 
   m_distort_ogl.fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
-  m_distort_ogl.fbo_texture = std::make_unique<VulkanTexture>(m_device);
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -265,6 +265,7 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
   // Enable prim restart, we need this to break up the triangle strips
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
   // upload vertex buffer
   m_ogl.vertex_buffer->writeToGpuBuffer(m_vertices_3d.data());

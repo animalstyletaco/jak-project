@@ -27,6 +27,7 @@ void GenericVulkan2::render(DmaFollower& dma,
                             SharedVulkanRenderState* render_state,
                             ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseGeneric2::render(dma, render_state, prof);
 }
 
@@ -298,7 +299,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
 
   // setup ztest
   if (draw_mode.get_zt_enable()) {
-    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+    //m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
     switch (draw_mode.get_depth_test()) {
       case GsTest::ZTest::NEVER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
@@ -320,7 +321,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
     ASSERT(false);
   }
 
-  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = draw_mode.get_depth_write_enable() ? VK_TRUE : VK_FALSE;
+  //m_pipeline_config_info.depthStencilInfo.depthWriteEnable = draw_mode.get_depth_write_enable() ? VK_TRUE : VK_FALSE;
 
   m_fragment_uniform_buffer->SetUniform1f("alpha_reject", alpha_reject, bucket);
   m_fragment_uniform_buffer->SetUniform1f("color_mult", color_mult, bucket);

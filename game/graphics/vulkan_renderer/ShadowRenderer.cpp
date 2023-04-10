@@ -27,6 +27,7 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
 }
 
 void ShadowVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseShadowRenderer::render(dma, render_state, prof);
 }
 
@@ -123,7 +124,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
   m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+  //m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;

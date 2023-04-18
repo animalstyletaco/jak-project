@@ -252,4 +252,70 @@ VkFormat FramebufferVulkan::GetSupportedDepthFormat() {
       VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
+FramebufferVulkanCopier::FramebufferVulkanCopier(std::unique_ptr<GraphicsDeviceVulkan>& device, std::unique_ptr<SwapChain>& swapChain)
+    : m_device(device), m_framebuffer_image(device), m_sampler_helper(device), m_swap_chain(swapChain) {
+  createFramebufferImage();
+
+  VkSamplerCreateInfo& samplerCreateInfo = m_sampler_helper.GetSamplerCreateInfo();
+  samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
+  samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
+  samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  m_sampler_helper.CreateSampler();
+}
+
+void FramebufferVulkanCopier::createFramebufferImage() {
+  VkExtent3D extents{m_fbo_width, m_fbo_height, 1};
+  m_framebuffer_image.createImage(extents, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
+                                  VK_IMAGE_TILING_OPTIMAL,
+                                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+  m_framebuffer_image.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
+                                      VK_IMAGE_ASPECT_COLOR_BIT, 1);
+}
+
+FramebufferVulkanCopier::~FramebufferVulkanCopier() {
+}
+
+void FramebufferVulkanCopier::copy_now(int render_fb_w,
+                                 int render_fb_h,
+                                 int render_fb_x,
+                                 int render_fb_y, uint32_t swapChainImageIndex) {
+  if (m_fbo_width != render_fb_w || m_fbo_height != render_fb_h) {
+    m_fbo_width = render_fb_w;
+    m_fbo_height = render_fb_h;
+
+    createFramebufferImage();
+  }
+  VkCommandBuffer commandBuffer = m_device->beginSingleTimeCommands();
+
+  VkImage srcImage = m_swap_chain->GetSwapChainImageAtIndex(swapChainImageIndex);
+  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+  VkImageBlit imageBlit{};
+  imageBlit.srcOffsets[0] = {render_fb_x, render_fb_y, 1};
+  imageBlit.srcOffsets[1] = {render_fb_x + render_fb_w, render_fb_y + render_fb_h, 1};
+
+  imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageBlit.srcSubresource.mipLevel = 0;
+  imageBlit.srcSubresource.baseArrayLayer = 0;
+  imageBlit.srcSubresource.layerCount = 1;
+
+  imageBlit.dstOffsets[0] = {0, 0, 1};
+  imageBlit.dstOffsets[1] = {m_fbo_width, m_fbo_height, 1};
+
+  imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageBlit.dstSubresource.mipLevel = 0;
+  imageBlit.dstSubresource.baseArrayLayer = 0;
+  imageBlit.dstSubresource.layerCount = 1;
+
+  vkCmdBlitImage(commandBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                 m_framebuffer_image.getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit,
+                 VK_FILTER_NEAREST); 
+
+  m_device->endSingleTimeCommands(commandBuffer);
+
+  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+}
 

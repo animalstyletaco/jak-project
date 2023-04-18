@@ -88,4 +88,24 @@ class FramebufferVulkanHelper {
   VkFormat m_format;
 };
 
+class FramebufferVulkanCopier {
+ public:
+  FramebufferVulkanCopier(std::unique_ptr<GraphicsDeviceVulkan>& device, std::unique_ptr<SwapChain>& swapChain);
+  ~FramebufferVulkanCopier();
+  void copy_now(int render_fb_w,
+                int render_fb_h,
+                int render_fb_x,
+                int render_fb_y,
+                uint32_t swapChainImageIndex);
+  VulkanTexture* Texture() { return &m_framebuffer_image; }
+  VulkanSamplerHelper& Sampler() { return m_sampler_helper; }
 
+  private:
+  void createFramebufferImage();
+
+  int m_fbo_width = 640, m_fbo_height = 480;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  VulkanTexture m_framebuffer_image;
+  VulkanSamplerHelper m_sampler_helper;
+  std::unique_ptr<SwapChain>& m_swap_chain;
+};

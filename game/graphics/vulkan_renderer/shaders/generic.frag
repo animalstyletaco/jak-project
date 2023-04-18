@@ -16,7 +16,7 @@ layout (set = 1, binding = 1) uniform sampler2D texture0;
 
 layout(push_constant) uniform PushConstant
 {
-	layout(offset = 8) int gfx_hack_no_tex;
+	layout(offset = 12) int gfx_hack_no_tex;
 }pc;
 
 layout (location = 0) out vec4 color;

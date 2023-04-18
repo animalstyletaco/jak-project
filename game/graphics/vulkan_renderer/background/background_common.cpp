@@ -29,7 +29,7 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
         pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
+        pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
         pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER;

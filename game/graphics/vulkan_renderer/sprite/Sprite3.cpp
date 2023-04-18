@@ -301,7 +301,7 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
     VulkanTexture* tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(tbp);
 
     if (!tex) {
-      fmt::print("Failed to find texture at {}, using random\n", tbp);
+      lg::warn("Failed to find texture at {}, using random (sprite)", tbp);
       tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
     }
     ASSERT(tex);

@@ -595,7 +595,7 @@ void GlowVulkanRenderer::draw_sprites(BaseSharedRenderState* render_state, Scope
     const auto& record = m_sprite_records[i];
     auto tex = m_vulkan_info.texture_pool->lookup_vulkan_texture(record.tbp);
     if (!tex) {
-      fmt::print("Failed to find texture at {}, using random", record.tbp);
+      lg::warn("Failed to find texture at {}, using random (glow)", record.tbp);
       tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
     }
 

@@ -294,36 +294,33 @@ void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state,
   // The distort effect needs to read the current framebuffer, so copy what's been rendered so far
   // to a texture that we can then pass to the shader
 
-  std::array<VkImageResolve, 1> imageResolves{};
-  imageResolves[0].srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  imageResolves[0].srcSubresource.mipLevel = 0;
-  imageResolves[0].srcSubresource.baseArrayLayer = 0;
-  imageResolves[0].srcSubresource.layerCount = 1;
-  
-  imageResolves[0].srcOffset.x = render_state->render_fb_x;
-  imageResolves[0].srcOffset.y = render_state->render_fb_y;
-  imageResolves[0].srcOffset.z = 0;
-  
-  imageResolves[0].dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  imageResolves[0].dstSubresource.mipLevel = 0;
-  imageResolves[0].dstSubresource.baseArrayLayer = 0;
-  imageResolves[0].dstSubresource.layerCount = 1;
-  
-  imageResolves[0].dstOffset.x = 0;
-  imageResolves[0].dstOffset.y = 0;
-  imageResolves[0].dstOffset.z = 0;
+  VkImageBlit imageBlit{};
+  imageBlit.srcOffsets[0] = {render_state->render_fb_x, render_state->render_fb_y, 0};
+  imageBlit.srcOffsets[1] = {render_state->render_fb_x + render_state->render_fb_w,
+                             render_state->render_fb_y + render_state->render_fb_h, 1};
 
-  imageResolves[0].extent.width = m_distort_ogl.fbo_width;
-  imageResolves[0].extent.height = m_distort_ogl.fbo_height;
-  imageResolves[0].extent.depth = 1;
+  imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageBlit.srcSubresource.mipLevel = 0;
+  imageBlit.srcSubresource.baseArrayLayer = 0;
+  imageBlit.srcSubresource.layerCount = 1;
 
-  VulkanTexture& color_texture = m_vulkan_info.swap_chain->GetColorAttachmentImageAtIndex(m_vulkan_info.currentFrame);
-  color_texture.transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  vkCmdResolveImage(m_vulkan_info.render_command_buffer, color_texture.getImage(),
+  imageBlit.dstOffsets[0] = {0, 0, 0};
+  imageBlit.dstOffsets[1] = {m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, 1};
+
+  imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageBlit.dstSubresource.mipLevel = 0;
+  imageBlit.dstSubresource.baseArrayLayer = 0;
+  imageBlit.dstSubresource.layerCount = 1;
+
+  VkImage srcImage = m_vulkan_info.swap_chain->GetSwapChainImageAtIndex(m_vulkan_info.currentFrame);
+  m_device->transitionImageLayout(
+      srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  vkCmdBlitImage(m_vulkan_info.render_command_buffer, srcImage,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
                  m_distort_ogl.fbo->color_texture.getImage(),
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageResolves.size(), imageResolves.data());
-  color_texture.transitionImageLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_NEAREST);
+  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
   // Set up OpenGL state
   m_current_mode.set_depth_write_enable(!m_sprite_distorter_setup.zbuf.zmsk());  // zbuf

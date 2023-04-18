@@ -640,7 +640,21 @@ void Gfx::update_global_profiler() {
   if (debug_gui.dump_events) {
     prof().set_enable(false);
     debug_gui.dump_events = false;
-    prof().dump_to_json((file_util::get_jak_project_dir() / "prof.json").string());
+
+    auto dir_path = file_util::get_jak_project_dir() / "profile_data";
+    fs::create_directories(dir_path);
+
+    if (fs::exists(dir_path / "prof.json")) {
+      int file_index = 1;
+      auto file_path = dir_path / fmt::format("prof{}.json", file_index);
+      while (!fs::exists(file_path)) {
+        file_path = dir_path / fmt::format("prof{}.json", ++file_index);
+      }
+      prof().dump_to_json(file_path.string());
+    } else {
+      prof().dump_to_json((dir_path / "prof.json").string());
+    }
   }
   prof().set_enable(debug_gui.record_events);
 }
+

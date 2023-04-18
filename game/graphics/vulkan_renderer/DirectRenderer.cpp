@@ -318,15 +318,9 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
   }
 
   if (!tex) {
-    // TODO Add back
-    if (state.texture_base_ptr >= 8160 && state.texture_base_ptr <= 8600) {
-      fmt::print("Failed to find texture at {}, using random (eye zone)\n", state.texture_base_ptr);
-
-      tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
-    } else {
-      fmt::print("Failed to find texture at {}, using random\n", state.texture_base_ptr);
-      tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
-    }
+    lg::warn("Failed to find texture at {}, using random (direct: {})", state.texture_base_ptr,
+             name_and_id());
+    tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
   }
   ASSERT(tex);
 
@@ -530,7 +524,7 @@ void DirectVulkanRenderer::update_graphics_test() {
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER;

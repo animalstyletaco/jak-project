@@ -96,7 +96,7 @@ void GenericVulkan2::create_pipeline_layout() {
 
   VkPushConstantRange pushConstantVertexRange = {};
   pushConstantVertexRange.offset = 0;
-  pushConstantVertexRange.size = sizeof(m_push_constant);
+  pushConstantVertexRange.size = sizeof(m_push_constant) + sizeof(m_warp_sample_mode);
   pushConstantVertexRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   VkPushConstantRange pushConstantFragmentRange = {};
@@ -385,6 +385,11 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
     samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
 
+  m_warp_sample_mode =
+      (render_state->version == GameVersion::Jak2 && tbp_to_lookup == 1216) ? 1 : 0;
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, sizeof(m_push_constant), sizeof(uint32_t), (void*) &m_warp_sample_mode);
+
   m_samplers[bucketId].CreateSampler();
 
   m_descriptor_image_infos[bucketId] = VkDescriptorImageInfo{
@@ -428,7 +433,7 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
                      (void*)&m_push_constant);
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant), sizeof(uint32_t),
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant) + sizeof(m_warp_sample_mode), sizeof(uint32_t),
                      (void*)&Gfx::g_global_settings.hack_no_tex);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);

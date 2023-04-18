@@ -206,6 +206,12 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
       lod_tree[l_tree].time_of_day_texture->createImage(
           extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UINT,
           VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+
+      lod_tree[l_tree].vis_temp.resize(tree.bvh.vis_nodes.size());
+
+      lod_tree[l_tree].draw_idx_temp.resize(tree.static_draws.size());
+      lod_tree[l_tree].index_temp.resize(tree.unpacked.indices.size());
+      lod_tree[l_tree].multidraw_idx_temp.resize(tree.static_draws.size());
     }
   }
 
@@ -213,6 +219,7 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
   m_wind_vectors.resize(4 * max_wind_idx + 4);  // 4x u32's per wind.
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
+  m_cache.multi_draw_indexed_infos.resize(max_draws);
   ASSERT(time_of_day_count <= background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 

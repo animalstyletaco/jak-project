@@ -91,6 +91,8 @@ set(RUNTIME_SOURCE
         mips2c/jak2_functions/debug.cpp
         mips2c/jak2_functions/font.cpp
         mips2c/jak2_functions/foreground.cpp
+        mips2c/jak2_functions/generic_merc.cpp
+        mips2c/jak2_functions/generic_effect.cpp
         mips2c/jak2_functions/joint.cpp
         mips2c/jak2_functions/lights.cpp
         mips2c/jak2_functions/nav_control.cpp
@@ -100,6 +102,7 @@ set(RUNTIME_SOURCE
         mips2c/jak2_functions/sparticle_launcher.cpp
         mips2c/jak2_functions/spatial_hash.cpp
         mips2c/jak2_functions/texture.cpp
+        mips2c/jak2_functions/vortex.cpp
         mips2c/jak2_functions/ocean.cpp
         mips2c/jak2_functions/ocean_vu0.cpp
         mips2c/jak2_functions/merc_blend_shape.cpp
@@ -167,6 +170,7 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/DepthCue.cpp
         graphics/general_renderer/TextureUploadHandler.cpp
         graphics/general_renderer/VisDataHandler.cpp
+        graphics/general_renderer/Warp.cpp
 
         system/vm/dmac.cpp
         system/vm/vm.cpp
@@ -240,6 +244,7 @@ if(WIN32)
         graphics/vulkan_renderer/sprite/Sprite3_Distort.cpp
         graphics/vulkan_renderer/DepthCue.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
+        graphics/vulkan_renderer/Warp.cpp
         graphics/texture/VulkanTexturePool.cpp
         ../third-party/glad/src/vulkan.c)
 endif()
@@ -270,6 +275,7 @@ endif()
         graphics/opengl_renderer/loader/LoaderStages.cpp
         graphics/opengl_renderer/BucketRenderer.cpp
         graphics/opengl_renderer/CollideMeshRenderer.cpp
+        graphics/opengl_renderer/DepthCue.cpp
         graphics/opengl_renderer/DirectRenderer.cpp
         graphics/opengl_renderer/DirectRenderer2.cpp
         graphics/opengl_renderer/EyeRenderer.cpp
@@ -285,7 +291,7 @@ endif()
         graphics/opengl_renderer/SkyRenderer.cpp
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/VisDataHandler.cpp
-        graphics/opengl_renderer/DepthCue.cpp
+        graphics/opengl_renderer/Warp.cpp
         graphics/pipelines/opengl.cpp
         graphics/texture/TexturePool.cpp
         ../third-party/glad/src/glad.c)

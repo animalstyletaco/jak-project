@@ -102,4 +102,6 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
 
   VkDescriptorSet m_vertex_descriptor_set = VK_NULL_HANDLE;
   std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
+
+  uint32_t m_warp_sample_mode = 0;
 };

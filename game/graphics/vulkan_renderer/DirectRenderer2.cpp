@@ -339,7 +339,7 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER;
@@ -386,15 +386,9 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
   }
 
   if (!tex) {
-    // TODO Add back
-    if (tbp_to_lookup >= 8160 && tbp_to_lookup <= 8600) {
-      fmt::print("Failed to find texture at {}, using random (eye zone)\n", tbp_to_lookup);
-
-      tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
-    } else {
-      fmt::print("Failed to find texture at {}, using random\n", tbp_to_lookup);
-      tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
-    }
+    lg::warn("Failed to find texture at {}, using random (direct2: {})", tbp_to_lookup,
+             m_name);
+    tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
   }
 
   m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;

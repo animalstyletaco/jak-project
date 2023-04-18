@@ -43,7 +43,8 @@ class BaseGeneric2 : public BaseBucketRenderer {
   void draws_to_buckets();
   void reset_buffers();
   void process_matrices();
-  void process_dma(DmaFollower& dma, u32 next_bucket);
+  void process_dma_jak1(DmaFollower& dma, u32 next_bucket);
+  void process_dma_jak2(DmaFollower& dma, u32 next_bucket);
   void process_dma_lightning(DmaFollower& dma, u32 next_bucket);
   void setup_draws(bool enable_at);
   virtual void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;

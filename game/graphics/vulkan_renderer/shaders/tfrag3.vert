@@ -1,5 +1,4 @@
 #version 430 core
-#extension GL_EXT_nonuniform_qualifier : enable
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
@@ -11,14 +10,13 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float fog_constant;
   float fog_min;
   float fog_max;
-  int decal;
 } ubo;
 
 layout(push_constant) uniform PER_OBJECT
 {
   layout(offset = 0)float height_scale;
   layout(offset = 4)float scissor_adjust;
- 	layout(offset = 8)int textureIndex;
+  layout(offset = 8)int decal;
 }pc;
 
 layout (set = 0, binding = 1) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
@@ -77,7 +75,7 @@ void main() {
     // time of day lookup
     fragment_color = texelFetch(tex_T1, time_of_day_index, 0);
 
-     if (ubo.decal == 1) {
+     if (pc.decal == 1) {
         fragment_color = vec4(1.0, 1.0, 1.0, 1.0);
     } else {
         // time of day lookup

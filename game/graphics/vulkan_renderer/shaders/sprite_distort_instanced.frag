@@ -2,7 +2,7 @@
 
 layout (location = 0) out vec4 out_color;
 
-layout (set = 1, binding = 0) uniform sampler2D framebuffer_tex;
+layout (set = 0, binding = 0) uniform sampler2D framebuffer_tex;
 
 layout (location = 0) in flat vec4 fragment_color;
 layout (location = 1) in vec2 tex_coord;

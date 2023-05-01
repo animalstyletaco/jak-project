@@ -20,11 +20,9 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
   void reset_state();
   void render_gif_data(const u8* data,
                        SharedVulkanRenderState* render_state,
-                       ScopedProfilerNode& prof,
-                       UniformVulkanBuffer& uniform_buffer);
+                       ScopedProfilerNode& prof);
   void flush_pending(SharedVulkanRenderState* render_state,
-                     ScopedProfilerNode& prof,
-                     UniformVulkanBuffer& uniform_buffer);
+                     ScopedProfilerNode& prof);
   ~DirectVulkanRenderer2();
 
  private:
@@ -34,21 +32,18 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
   void reset_buffers();
 
   void draw_call_loop_simple(SharedVulkanRenderState* render_state,
-                             ScopedProfilerNode& prof,
-                             UniformVulkanBuffer& uniform_buffer);
+                             ScopedProfilerNode& prof);
   void draw_call_loop_grouped(SharedVulkanRenderState* render_state,
-                              ScopedProfilerNode& prof,
-                              UniformVulkanBuffer& uniform_buffer);
+                              ScopedProfilerNode& prof);
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
-    GLuint alpha_reject, color_mult, fog_color;
   } m_ogl;
 
+  void CreatePipelineLayout();
   void setup_vulkan_for_draw_mode(const Draw& draw,
-                                  SharedVulkanRenderState* render_state,
-                                  UniformBuffer& uniform_buffer);
+                                  SharedVulkanRenderState* render_state);
   void setup_vulkan_tex(u16 unit,
                         u16 tbp,
                         bool filter,
@@ -58,16 +53,27 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
 
   void handle_xyzf2_packed(const u8* data,
                            SharedVulkanRenderState* render_state,
-                           ScopedProfilerNode& prof,
-                           UniformVulkanBuffer& uniform_buffer);
+                           ScopedProfilerNode& prof);
 
   bool m_use_ftoi_mod = false;
   void handle_xyzf2_mod_packed(const u8* data,
                                SharedVulkanRenderState* render_state,
-                               ScopedProfilerNode& prof,
-                               UniformVulkanBuffer& uniform_buffer);
+                               ScopedProfilerNode& prof);
 
-  GraphicsPipelineLayout m_pipeline_layout;
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
   PipelineConfigInfo m_pipeline_config_info;
   VulkanInitializationInfo& m_vulkan_info;
+  VulkanSamplerHelper m_sampler_helper;
+
+  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+
+  std::unique_ptr<VkDescriptorImageInfo> m_descriptor_image_info;
+
+  struct PushConstant {
+    math::Vector4f fog_colors;
+    float alpha_reject;
+    float color_mult;
+  } m_push_constant; 
 };

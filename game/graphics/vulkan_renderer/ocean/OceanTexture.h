@@ -7,21 +7,6 @@
 #include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/vulkan_renderer/ocean/CommonOceanRenderer.h"
 
-class OceanMipMapVertexUniformBuffer : public UniformVulkanBuffer {
- public:
-  OceanMipMapVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                 uint32_t instanceCount,
-                                 VkDeviceSize minOffsetAlignment = 1);
-};
-
-class OceanMipMapFragmentUniformBuffer : public UniformVulkanBuffer {
- public:
-  OceanMipMapFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                   uint32_t instanceCount,
-                                   VkDeviceSize minOffsetAlignment = 1);
-};
-
-
 class OceanVulkanTexture : public BaseOceanTexture {
  public:
   OceanVulkanTexture(bool generate_mipmaps,
@@ -40,6 +25,7 @@ class OceanVulkanTexture : public BaseOceanTexture {
   void InitializeVertexBuffer();
   void SetupShader(ShaderId);
   void InitializeMipmapVertexInputAttributes();
+  void CreatePipelineLayout();
 
   void move_existing_to_vram(u32 slot_addr) override;
   void setup_framebuffer_context(int) override;
@@ -61,16 +47,31 @@ class OceanVulkanTexture : public BaseOceanTexture {
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unique_ptr<CommonOceanFragmentUniformBuffer> m_common_uniform_fragment_buffer;
 
-  std::unique_ptr<OceanMipMapVertexUniformBuffer> m_ocean_mipmap_uniform_vertex_buffer;
-  std::unique_ptr<OceanMipMapFragmentUniformBuffer> m_ocean_mipmap_uniform_fragment_buffer;
+  VkDescriptorImageInfo m_descriptor_image_info;
 
-  std::unique_ptr<GraphicsPipelineLayout> m_pipeline_layout;
+  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+
+  std::unique_ptr<GraphicsPipelineLayout> m_ocean_texture_graphics_pipeline_layout;
+  std::unique_ptr<GraphicsPipelineLayout> m_ocean_texture_mipmap_graphics_pipeline_layout;
+
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   PipelineConfigInfo m_pipeline_info;
   VulkanInitializationInfo& m_vulkan_info;
   FramebufferVulkanHelper m_result_texture;
   FramebufferVulkanHelper m_temp_texture;
 
-  VkSamplerCreateInfo m_sampler_create_info{};
-  VkSampler m_sampler = VK_NULL_HANDLE;
+  VkPipelineLayout m_ocean_texture_pipeline_layout;
+  VkPipelineLayout m_ocean_texture_mipmap_pipeline_layout;
+
+  std::vector<VkVertexInputAttributeDescription>
+      m_ocean_texture_mipmap_input_attribute_descriptions;
+  std::vector<VkVertexInputAttributeDescription> m_ocean_texture_input_attribute_descriptions;
+
+  std::vector<VkVertexInputBindingDescription>
+      m_ocean_texture_input_binding_attribute_descriptions;
+  VkVertexInputBindingDescription m_ocean_texture_mipmap_input_binding_attribute_description;
+
+  VkDescriptorSet m_ocean_texture_descriptor_set;
+  VulkanSamplerHelper m_sampler_helper{m_device};
 };

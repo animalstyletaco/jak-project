@@ -14,12 +14,14 @@ DirectVulkanRenderer2::DirectVulkanRenderer2(std::unique_ptr<GraphicsDeviceVulka
                                  const std::string& name,
                                  bool use_ftoi_mod)
     : BaseDirectRenderer2(max_verts, max_inds, max_draws, name, use_ftoi_mod),
-      m_pipeline_layout(device),
-      m_vulkan_info(vulkan_info) {
+      m_device(device),
+      m_vulkan_info(vulkan_info), m_sampler_helper(device) {
   // allocate buffers
   m_vertices.vertices.resize(max_verts);
   m_vertices.indices.resize(max_inds);
   m_draw_buffer.resize(max_draws);
+
+  m_pipeline_layouts.resize(10, m_device);
 
   m_ogl.index_buffer = std::make_unique<IndexBuffer>(
       device, sizeof(u32), max_inds, 1);
@@ -27,7 +29,43 @@ DirectVulkanRenderer2::DirectVulkanRenderer2(std::unique_ptr<GraphicsDeviceVulka
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
     device, sizeof(Vertex), max_verts, 1);
 
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
+
+  CreatePipelineLayout();
+
+  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
+                                                                    m_vulkan_info.descriptor_pool);
   InitializeShaderModule();
+}
+
+void DirectVulkanRenderer2::CreatePipelineLayout() {
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_fragment_descriptor_layout->getDescriptorSetLayout()};
+
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  std::array<VkPushConstantRange, 2> pushConstantRanges;
+  pushConstantRanges[0].offset = 0;
+  pushConstantRanges[0].size = sizeof(float);
+  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  pushConstantRanges[1].offset = pushConstantRanges[0].size;
+  pushConstantRanges[1].size = sizeof(m_push_constant);
+  pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
+  pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
 }
 
 void DirectVulkanRenderer2::InitializeInputVertexAttribute() {
@@ -104,7 +142,7 @@ void DirectVulkanRenderer2::reset_state() {
   reset_buffers();
 }
 
-void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof, UniformVulkanBuffer& uniform_buffer) {
+void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
   // skip, if we're empty.
   if (m_next_free_draw == 0) {
     reset_buffers();
@@ -117,6 +155,12 @@ void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
   m_ogl.vertex_buffer->writeToGpuBuffer(m_vertices.vertices.data());
   m_ogl.index_buffer->writeToGpuBuffer(m_vertices.indices.data());
 
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffers[] = {m_ogl.index_buffer->getBuffer()};
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets); 
+
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_ogl.index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
   m_stats.upload_wait += upload_timer.getSeconds();
   m_stats.num_uploads++;
   m_stats.upload_bytes +=
@@ -124,28 +168,28 @@ void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
 
   // draw call loop
   // draw_call_loop_simple(render_state, prof);
-  draw_call_loop_grouped(render_state, prof, uniform_buffer);
+  draw_call_loop_grouped(render_state, prof);
 
   reset_buffers();
 }
 
 void DirectVulkanRenderer2::draw_call_loop_simple(SharedVulkanRenderState* render_state,
-                                            ScopedProfilerNode& prof,
-                                            UniformVulkanBuffer& uniform_buffer) {
+                                            ScopedProfilerNode& prof) {
   fmt::print("------------------------\n");
   for (u32 draw_idx = 0; draw_idx < m_next_free_draw; draw_idx++) {
     const auto& draw = m_draw_buffer[draw_idx];
     fmt::print("{}", draw.to_single_line_string());
-    setup_vulkan_for_draw_mode(draw, render_state, uniform_buffer);
+    setup_vulkan_for_draw_mode(draw, render_state);
     setup_vulkan_tex(0, draw.tbp, draw.mode.get_filt_enable(), draw.mode.get_clamp_s_enable(),
                      draw.mode.get_clamp_t_enable(), render_state);
-    void* offset = (void*)(draw.start_index * sizeof(u32));
+
     int end_idx;
     if (draw_idx == m_next_free_draw - 1) {
       end_idx = m_vertices.next_index;
     } else {
       end_idx = m_draw_buffer[draw_idx + 1].start_index;
     }
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1, draw.start_index, 0, 0);
     //glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) - 2);
@@ -153,14 +197,13 @@ void DirectVulkanRenderer2::draw_call_loop_simple(SharedVulkanRenderState* rende
 }
 
 void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* render_state,
-                                             ScopedProfilerNode& prof,
-                                             UniformVulkanBuffer& uniform_buffer) {
+                                             ScopedProfilerNode& prof) {
 
   u32 draw_idx = 0;
   while (draw_idx < m_next_free_draw) {
     const auto& draw = m_draw_buffer[draw_idx];
     u32 end_of_draw_group = draw_idx;  // this is inclusive
-    setup_vulkan_for_draw_mode(draw, render_state, uniform_buffer);
+    setup_vulkan_for_draw_mode(draw, render_state);
     setup_vulkan_tex(draw.tex_unit, draw.tbp, draw.mode.get_filt_enable(),
                      draw.mode.get_clamp_s_enable(), draw.mode.get_clamp_t_enable(), render_state);
 
@@ -189,11 +232,12 @@ void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* rend
     } else {
       end_idx = m_draw_buffer[end_of_draw_group + 1].start_index;
     }
-    void* offset = (void*)(draw.start_index * sizeof(u32));
+
     // fmt::print("drawing {:4d} with abe {} tex {} {}", end_idx - draw.start_index,
     // (int)draw.mode.get_ab_enable(), end_of_draw_group - draw_idx, draw.to_single_line_string() );
     // fmt::print("{}\n", draw.mode.to_string());
     //glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1, draw.start_index, 0, 0);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) / 3);
     draw_idx = end_of_draw_group + 1;
@@ -201,16 +245,20 @@ void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* rend
 }
 
 void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
-                                                 SharedVulkanRenderState* render_state,
-                                                 UniformBuffer& uniform_buffer) {
+                                                 SharedVulkanRenderState* render_state) {
+  m_push_constant.fog_colors[0] = render_state->fog_color[0] / 255.f;
+  m_push_constant.fog_colors[1] = render_state->fog_color[1] / 255.f;
+  m_push_constant.fog_colors[2] = render_state->fog_color[2] / 255.f;
+  m_push_constant.fog_colors[3] = render_state->fog_intensity / 255.f;
+
   // compute alpha_reject:
-  float alpha_reject = 0.f;
+  m_push_constant.alpha_reject = 0.f;
   if (draw.mode.get_at_enable()) {
     switch (draw.mode.get_alpha_test()) {
       case DrawMode::AlphaTest::ALWAYS:
         break;
       case DrawMode::AlphaTest::GEQUAL:
-        alpha_reject = draw.mode.get_aref() / 128.f;
+        m_push_constant.alpha_reject = draw.mode.get_aref() / 128.f;
         break;
       case DrawMode::AlphaTest::NEVER:
         break;
@@ -232,7 +280,7 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
   m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
 
   // setup blending and color mult
-  float color_mult = 1.f;
+  m_push_constant.color_mult = 1.f;
   if (draw.mode.get_ab_enable()) {
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
@@ -319,7 +367,7 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
       
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-      color_mult = 0.5;
+      m_push_constant.color_mult = 0.5;
     } else {
       ASSERT(false);
     }
@@ -349,23 +397,15 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
     }
   }
 
-  if (draw.mode.get_depth_write_enable()) {
-    glDepthMask(GL_TRUE);
-  } else {
-    glDepthMask(GL_FALSE);
-  }
+  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = (draw.mode.get_depth_write_enable()) ? VK_TRUE : VK_FALSE;
 
   if (draw.tbp == UINT16_MAX) {
     // not using a texture
     ASSERT(false);
-  } else {
+  } 
     // yes using a texture
-    uniform_buffer.SetUniform1f("alpha_reject", alpha_reject);
-    uniform_buffer.SetUniform1f("color_mult", color_mult);
-    uniform_buffer.SetUniform4f("fog_color", render_state->fog_color[0] / 255.f,
-                render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
-                render_state->fog_intensity / 255);
-  }
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 
+                     sizeof(float), sizeof(m_push_constant), (void*) &m_push_constant);
 }
 
 void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
@@ -403,7 +443,7 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
     m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_FALSE;
   }
 
-  VkSamplerCreateInfo samplerInfo{};
+  VkSamplerCreateInfo& samplerInfo = m_sampler_helper.GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
   samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
   samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -437,5 +477,6 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
     samplerInfo.minFilter = VK_FILTER_NEAREST;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
+  m_sampler_helper.CreateSampler();
 }
 

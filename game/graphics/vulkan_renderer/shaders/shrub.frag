@@ -1,5 +1,4 @@
 #version 430 core
-#extension GL_EXT_nonuniform_qualifier : enable
 
 layout (location = 0) out vec4 color;
 
@@ -18,10 +17,10 @@ layout (set = 1, binding = 0) uniform UniformBufferObject {
   vec4 fog_color;
 } ubo;
 
-layout (set = 1, binding = 1) uniform sampler2D textures[];
+layout (set = 1, binding = 1) uniform sampler2D shrub_texture;
 
 void main() {
-    vec4 T0 = texture(textures[nonuniformEXT(pc.textureIndex)], tex_coord.xy / 4096.f);
+    vec4 T0 = texture(shrub_texture, tex_coord.xy / 4096.f);
     color = fragment_color * T0;
 
     if (color.a < ubo.alpha_min || color.a > ubo.alpha_max) {

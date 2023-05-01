@@ -110,10 +110,10 @@ void SpriteVulkan3::SetupShader(ShaderId shaderId) {
     m_pipeline_config_info.pipelineLayout = m_pipeline_layout;
     m_pipeline_config_info.attributeDescriptions = m_sprite_attribute_descriptions;
     m_pipeline_config_info.bindingDescriptions = m_sprite_input_binding_descriptions;
-  } else {
+  } else if(shaderId == ShaderId::SPRITE_DISTORT_INSTANCED) {
     m_pipeline_config_info.pipelineLayout = m_sprite_distort_pipeline_layout;
-    m_pipeline_config_info.attributeDescriptions = m_sprite_distort_attribute_descriptions;
-    m_pipeline_config_info.bindingDescriptions = m_sprite_distort_input_binding_descriptions;
+    m_pipeline_config_info.attributeDescriptions = m_sprite_distort_instanced_attribute_descriptions;
+    m_pipeline_config_info.bindingDescriptions = m_sprite_distort_instanced_input_binding_descriptions;
   }
 }
 

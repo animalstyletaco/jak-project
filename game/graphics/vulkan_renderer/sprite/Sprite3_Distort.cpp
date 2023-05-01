@@ -82,30 +82,33 @@ void SpriteVulkan3::graphics_setup_distort() {
   distortAttributeDescriptions[1].location = 1;
   distortAttributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
   distortAttributeDescriptions[1].offset = offsetof(SpriteDistortVertex, st);
-
-  std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
-  attributeDescriptions[0].binding = 0;
-  attributeDescriptions[0].location = 0;
-  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-  attributeDescriptions[0].offset = offsetof(SpriteDistortVertex, xyz);
-
-  attributeDescriptions[1].binding = 0;
-  attributeDescriptions[1].location = 1;
-  attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-  attributeDescriptions[1].offset = offsetof(SpriteDistortVertex, st);
-
-  attributeDescriptions[2].binding = 1;
-  attributeDescriptions[2].location = 0;
-  attributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-  attributeDescriptions[2].offset = offsetof(SpriteDistortInstanceData, x_y_z_s);
-
-  attributeDescriptions[3].binding = 1;
-  attributeDescriptions[3].location = 1;
-  attributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-  attributeDescriptions[3].offset = offsetof(SpriteDistortInstanceData, sx_sy_sz_t);
   m_sprite_distort_attribute_descriptions.insert(m_sprite_distort_attribute_descriptions.end(),
-                                                 attributeDescriptions.begin(),
-                                                 attributeDescriptions.end());
+                                                 distortAttributeDescriptions.begin(),
+                                                 distortAttributeDescriptions.end());
+
+  std::array<VkVertexInputAttributeDescription, 4> distortInstancedAttributeDescriptions{};
+  distortInstancedAttributeDescriptions[0].binding = 0;
+  distortInstancedAttributeDescriptions[0].location = 0;
+  distortInstancedAttributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  distortInstancedAttributeDescriptions[0].offset = offsetof(SpriteDistortVertex, xyz);
+
+  distortInstancedAttributeDescriptions[1].binding = 0;
+  distortInstancedAttributeDescriptions[1].location = 1;
+  distortInstancedAttributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  distortInstancedAttributeDescriptions[1].offset = offsetof(SpriteDistortVertex, st);
+
+  distortInstancedAttributeDescriptions[2].binding = 1;
+  distortInstancedAttributeDescriptions[2].location = 2;
+  distortInstancedAttributeDescriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  distortInstancedAttributeDescriptions[2].offset = offsetof(SpriteDistortInstanceData, x_y_z_s);
+
+  distortInstancedAttributeDescriptions[3].binding = 1;
+  distortInstancedAttributeDescriptions[3].location = 3;
+  distortInstancedAttributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  distortInstancedAttributeDescriptions[3].offset = offsetof(SpriteDistortInstanceData, sx_sy_sz_t);
+  m_sprite_distort_instanced_attribute_descriptions.insert(m_sprite_distort_instanced_attribute_descriptions.end(),
+                                                 distortInstancedAttributeDescriptions.begin(),
+                                                 distortInstancedAttributeDescriptions.end());
 
   VkDeviceSize instanced_vertex_device_size =
       distort_max_sprite_slices * 5 * sizeof(SpriteDistortVertex);
@@ -143,6 +146,8 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   // Do common distort drawing logic
   distort_draw_common(render_state, prof);
   m_distort_ogl.fbo->beginRenderPass(m_vulkan_info.render_command_buffer);
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  m_pipeline_config_info.renderPass = m_distort_ogl.fbo->render_pass;
 
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT);
@@ -182,7 +187,7 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
-  VkDeviceSize offsets[] = {0, 0};
+  VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffers[] = {m_distort_ogl.vertex_buffer->getBuffer()};
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
 
@@ -206,6 +211,8 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_sprite_distorter_indices.size(), 1, 0, 0, 0);
 
   // Done
+  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, m_vulkan_info.currentFrame);
 }
 
@@ -227,6 +234,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   distort_draw_common(render_state, prof);
   m_distort_ogl.fbo->beginRenderPass(m_vulkan_info.render_command_buffer);
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+  m_pipeline_config_info.renderPass = m_distort_ogl.fbo->render_pass;
 
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT_INSTANCED);
@@ -285,6 +293,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
     vert_offset += num_verts;
   }
   vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
                                                      m_vulkan_info.currentFrame);
 }

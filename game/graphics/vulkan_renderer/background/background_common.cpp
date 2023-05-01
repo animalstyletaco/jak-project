@@ -235,6 +235,10 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
   for (uint32_t instanceIdx = 0; instanceIdx < uniform_buffer->getInstanceCount(); instanceIdx++) {
     uniform_buffer->SetUniform1f("alpha_min", draw_settings.aref_first, instanceIdx);
     uniform_buffer->SetUniform1f("alpha_max", 10.f, instanceIdx);
+
+    uniform_buffer->map();
+    uniform_buffer->flush();
+    uniform_buffer->unmap();
   }
   return draw_settings;
 }
@@ -257,6 +261,7 @@ void vulkan_background_common::first_tfrag_draw_setup(
     uniform_vertex_shader_buffer->SetUniform4f(
         "fog_color", render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
         render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255, instanceIdx);
+    //TODO: Flush uniform buffer
   }
 }
 

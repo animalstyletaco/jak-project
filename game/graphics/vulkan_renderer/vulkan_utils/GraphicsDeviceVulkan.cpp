@@ -556,13 +556,14 @@ bool GraphicsDeviceVulkan::checkDeviceExtensionSupport(VkPhysicalDevice device) 
   uint32_t extensionCount;
   vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
 
-  std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+  std::vector<VkExtensionProperties> gpuAvailableExtensions(extensionCount);
+
   vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount,
-                                       availableExtensions.data());
+                                       gpuAvailableExtensions.data());
 
   std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
 
-  for (const auto& extension : availableExtensions) {
+  for (const auto& extension : gpuAvailableExtensions) {
     requiredExtensions.erase(extension.extensionName);
   }
 

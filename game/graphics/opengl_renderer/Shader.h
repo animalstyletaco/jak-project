@@ -3,7 +3,8 @@
 #include <string>
 
 #include "common/common_types.h"
-#include "common/versions.h"
+
+#include "common/versions/versions.h"
 #include "game/graphics/general_renderer/ShaderCommon.h"
 
 class Shader {

@@ -78,6 +78,12 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
 
+  struct TiePushConstant {
+    float height_scale;
+    float scissor_adjust;
+    int decal_mode = 0;
+  } m_tie_push_constant;
+
   void PrepareVulkanDraw(TreeVulkan& tree, int index);
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
   void init_etie_cam_uniforms(const BaseSharedRenderState* render_state);
@@ -87,6 +93,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
 
   VkDescriptorBufferInfo m_time_of_day_descriptor_info;
+  std::vector<GraphicsPipelineLayout> m_graphics_wind_pipeline_layouts;
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_uniform_buffer;

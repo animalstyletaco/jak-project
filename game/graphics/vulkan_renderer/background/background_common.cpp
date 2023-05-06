@@ -129,12 +129,6 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
   pipeline_config_info.colorBlendInfo.attachmentCount = 1;
   pipeline_config_info.colorBlendInfo.pAttachments = &pipeline_config_info.colorBlendAttachment;
 
-  pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-  pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-  pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
-  pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-  pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
   if (mode.get_clamp_s_enable() || mode.get_clamp_t_enable()) {
     pipeline_config_info.rasterizationInfo.depthClampEnable = VK_TRUE;
   } else {
@@ -564,7 +558,7 @@ VkDescriptorImageInfo vulkan_background_common::create_placeholder_descriptor_im
 
   texture->createImage(
       {TIME_OF_DAY_COLOR_COUNT, 1, 1}, 1, image_type, VK_FORMAT_R8G8B8A8_UNORM,
-      VK_IMAGE_TILING_LINEAR,
+      VK_IMAGE_TILING_OPTIMAL,
       VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
 
   VkImageViewType image_view_type = (image_type == VK_IMAGE_TYPE_1D) ? VK_IMAGE_VIEW_TYPE_1D : VK_IMAGE_VIEW_TYPE_2D;

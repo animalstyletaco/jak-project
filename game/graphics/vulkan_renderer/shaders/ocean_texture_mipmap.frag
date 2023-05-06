@@ -8,7 +8,7 @@ layout(push_constant) uniform PushConstant
 	layout(offset = 4) float alpha_intensity;
 }pc;
 
-layout (set = 0, binding = 1) uniform sampler2D tex_T0;
+layout (set = 0, binding = 0) uniform sampler2D tex_T0;
 
 void main() {
     vec4 tex = texture(tex_T0, tex_coord);

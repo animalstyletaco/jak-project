@@ -72,6 +72,9 @@ class OceanVulkanTexture : public BaseOceanTexture {
       m_ocean_texture_input_binding_attribute_descriptions;
   VkVertexInputBindingDescription m_ocean_texture_mipmap_input_binding_attribute_description;
 
+  std::vector<GraphicsPipelineLayout> m_mipmap_graphics_layouts;
+
   VkDescriptorSet m_ocean_texture_descriptor_set;
+  VkDescriptorSet m_ocean_mipmap_texture_descriptor_set;
   VulkanSamplerHelper m_sampler_helper{m_device};
 };

@@ -299,7 +299,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
 
   // setup ztest
   if (draw_mode.get_zt_enable()) {
-    //m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
     switch (draw_mode.get_depth_test()) {
       case GsTest::ZTest::NEVER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_NEVER;
@@ -308,7 +308,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; //VK_COMPARE_OP_GREATER_OR_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER;
@@ -321,7 +321,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
     ASSERT(false);
   }
 
-  //m_pipeline_config_info.depthStencilInfo.depthWriteEnable = draw_mode.get_depth_write_enable() ? VK_TRUE : VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = draw_mode.get_depth_write_enable() ? VK_TRUE : VK_FALSE;
 
   m_fragment_uniform_buffer->SetUniform1f("alpha_reject", alpha_reject, bucket);
   m_fragment_uniform_buffer->SetUniform1f("color_mult", color_mult, bucket);
@@ -349,15 +349,8 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
   }
 
   if (!texture) {
-    // TODO Add back
-    if (tbp_to_lookup >= 8160 && tbp_to_lookup <= 8600) {
-      fmt::print("Failed to find texture at {}, using random (eye zone)\n", tbp_to_lookup);
-
-      texture = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
-    } else {
-      fmt::print("Failed to find texture at {}, using random\n", tbp_to_lookup);
-      texture = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
-    }
+    lg::warn("Failed to find texture at {}, using random\n", tbp_to_lookup);
+    texture = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
   }
 
   if (clamp_s || clamp_t) {
@@ -387,6 +380,12 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
 
   m_warp_sample_mode =
       (render_state->version == GameVersion::Jak2 && tbp_to_lookup == 1216) ? 1 : 0;
+  if (m_warp_sample_mode) {
+    // warp shader uses region clamp, which isn't supported by DrawMode.
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+  }
+
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, sizeof(m_push_constant), sizeof(uint32_t), (void*) &m_warp_sample_mode);
 

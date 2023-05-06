@@ -39,7 +39,6 @@ class VulkanTexture {
   void transitionImageLayout(VkImageLayout imageLayout);
 
   void destroyTexture();
-  void createTextureSampler();
   VkFormat findDepthFormat();
   VkImage getImage() const { return m_image; };
   VkDeviceSize getMemorySize() const { return m_device_size; };
@@ -49,6 +48,10 @@ class VulkanTexture {
   uint32_t getDepth() const { return m_image_create_info.extent.depth; };
   bool isInitialized() { return m_initialized; };
   VkSampleCountFlagBits getMsaaCount() const { return m_device->getMsaaCount(); }
+  void generateMipmaps(VkFormat imageFormat, unsigned mipLevels) {
+    m_device->GenerateMipmaps(m_image, imageFormat, m_image_create_info.extent.width,
+                              m_image_create_info.extent.height, mipLevels);
+  }
 
   unsigned long GetTextureId() { return m_image_id; }
 

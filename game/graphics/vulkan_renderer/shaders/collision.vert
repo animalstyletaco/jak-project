@@ -9,36 +9,44 @@ const int PAT_MOD_COUNT = 3;
 const int PAT_EVT_COUNT = 7;
 const int PAT_MAT_COUNT = 23;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
-  vec4 hvdf_offset;
-  mat4 camera;
-  vec4 camera_position;
-  float fog_constant;
-  float fog_min;
-  float fog_max;
-  int wireframe;
-  int mode;
-  uint collision_mode_mask[(PAT_MOD_COUNT + 31) / 32];
-  uint collision_event_mask[(PAT_EVT_COUNT + 31) / 32];
-  uint collision_material_mask[(PAT_MAT_COUNT + 31) / 32];
-  uint collision_skip_mask;
-} ubo;
-
-layout (location = 0) out vec4 fragment_color;
-
-layout(push_constant) uniform PER_OBJECT
-{
-	layout(offset = 0) float scissor_adjust;
-}pc;
-
 const int MODE_NONE = 0;
 const int MODE_MODE = 1;
 const int MODE_EVENT = 2;
 const int MODE_MATERIAL = 3;
 
-uint pat_get_mode(uint p) { return (p >> 3) & 0x7; }
-uint pat_get_material(uint p) { return (p >> 6) & 0x3f; }
-uint pat_get_event(uint p) { return (p >> 14) & 0x3f; }
+layout (push_constant) uniform PushConstant {
+   float scissor_adjust;
+
+   int wireframe;
+   int mode;
+   int version;
+
+   uint collision_mode_mask[(PAT_MOD_COUNT + 31) / 32];
+   uint collision_event_mask[(PAT_EVT_COUNT + 31) / 32];
+   uint collision_material_mask[(PAT_MAT_COUNT + 31) / 32];
+   uint collision_skip_mask;
+}pc;
+
+layout (set = 0, binding = 0) uniform UniformBufferObject {
+   vec4 hvdf_offset;
+   mat4 camera;
+   vec4 camera_position;
+   float fog_constant;
+   float fog_min;
+   float fog_max;
+} ubo;
+
+layout(std140, binding = 1) uniform PatColors {
+    vec4 pat_mode_colors[0x8];
+    vec4 pat_material_colors[0x40];
+    vec4 pat_event_colors[0x40];
+} pat_colors;
+
+layout (location = 0) out vec4 fragment_color;
+
+uint pat_get_mode(uint p) { return pc.version == 2 ? (p >> 7) & 0x7 : (p >> 3) & 0x7; }
+uint pat_get_material(uint p) { return pc.version == 2 ? (p >> 10) & 0x3f : (p >> 6) & 0x3f; }
+uint pat_get_event(uint p) { return pc.version == 2 ? (p >> 18) & 0x3f : (p >> 14) & 0x3f; }
 
 bool logtest(uint a, uint b) { return (a & b) != 0; }
 bool logtesta(uint a, uint b) { return (a & b) == b; }
@@ -78,7 +86,7 @@ void main() {
     gl_Position.y *= pc.scissor_adjust;
 
     // wireframe check
-    if (ubo.wireframe == 0) {
+    if (pc.wireframe == 0) {
         // lighting check
         vec3 to_cam = ubo.camera_position.xyz - position_in;
         float dist_from_cam = length(to_cam);
@@ -86,66 +94,30 @@ void main() {
         float cam_dot = abs(dot(to_cam_n, normal_in));
 
         // base colors
-        fragment_color = vec4(0.5, 0.6, 0.6, 1);
-        fragment_color.xyz *= (pow(cam_dot, 3) + 0.3);
+        fragment_color = vec4(0.5, 0.5, 0.5, 1);
+        fragment_color.xyz *= (pow(cam_dot, 2) * 0.5 + 0.5);
         
         // pat checks
         uint pMode = pat_get_mode(pat);
         uint pMat = pat_get_material(pat);
         uint pEvent = pat_get_event(pat);
-        if (logtest(ubo.collision_mode_mask[pMode/32], 1 << (pMode & 0x1f)) &&
-            logtest(ubo.collision_material_mask[pMat/32], 1 << (pMat & 0x1f)) &&
-            logtest(ubo.collision_event_mask[pEvent/32], 1 << (pEvent & 0x1f)) &&
-            logtesta(ubo.collision_skip_mask, pat)) {
+        if (logtest(pc.collision_mode_mask[pMode/32], 1 << (pMode & 0x1f)) &&
+            logtest(pc.collision_material_mask[pMat/32], 1 << (pMat & 0x1f)) &&
+            logtest(pc.collision_event_mask[pEvent/32], 1 << (pEvent & 0x1f)) &&
+            logtesta(pc.collision_skip_mask, pat)) {
           // fancy colors
-          if (ubo.mode == MODE_MODE) {
-            switch ( pMode ) {
-              case 0: fragment_color.rgb *= vec3(1.25, 0.1, 0.1); break; // ground
-              case 1: fragment_color.rgb *= vec3(0.1, 0.1, 1.0); break; // wall
-              case 2: fragment_color.rgb *= vec3(1.0, 0.1, 1.0); break; // obstacle
-              default: fragment_color.rgb = vec3(1, 0, 1); break;
-            }
-          } else if (ubo.mode == MODE_EVENT) {
-            switch ( pEvent ) {
-              case 0: fragment_color.rgb *= vec3(1.0); break; // none
-              case 1: fragment_color.rgb *= vec3(0.2, 1.0, 1.0); break; // deadly
-              case 2: fragment_color.rgb *= vec3(0.1, 1.0, 0.1); break; // endlessfall
-              case 3: fragment_color.rgb *= vec3(1.0, 1.0, 0.1); break; // burn
-              case 4: fragment_color.rgb *= vec3(0.1, 0.1, 1.0); break; // deadlyup
-              case 5: fragment_color.rgb *= vec3(1.0, 0.1, 0.5); break; // burnup
-              case 6: fragment_color.rgb *= vec3(1.0, 0.1, 0.1); break; // melt
-              default: fragment_color.rgb = vec3(1, 0, 1); break;
-            }
-          } else if (ubo.mode == MODE_MATERIAL) {
-            switch ( pMat ) {
-              case  0: fragment_color.rgb *= vec3(1.0, 0.7, 1.0); break; // stone
-              case  1: fragment_color.rgb *= vec3(0.1, 2.0, 2.0); break; // ice
-              case  2: fragment_color.rgb *= vec3(0.75, 0.25, 0.1); break; // quicksand
-              case  3: fragment_color.rgb *= vec3(0.1, 0.25, 0.75); break; // waterbottom
-              case  4: fragment_color.rgb *= vec3(0.5, 0.15, 0.1); break; // tar
-              case  5: fragment_color.rgb *= vec3(2.0, 1.5, 0.5); break; // sand
-              case  6: fragment_color.rgb *= vec3(1.5, 0.75, 0.1); break; // wood
-              case  7: fragment_color.rgb *= vec3(0.1, 1.35, 0.1); break; // grass
-              case  8: fragment_color.rgb *= vec3(1.7, 1.3, 0.1); break; // pcmetal
-              case  9: fragment_color.rgb *= vec3(1.8); break; // snow
-              case 10: fragment_color.rgb *= vec3(1.5, 0.2, 1.0); break; // deepsnow
-              case 11: fragment_color.rgb *= vec3(1.2, 0.5, 0.3); break; // hotcoals
-              case 12: fragment_color.rgb *= vec3(1.4, 0.1, 0.1); break; // lava
-              case 13: fragment_color.rgb *= vec3(0.8, 0.3, 0.1); break; // crwood
-              case 14: fragment_color.rgb *= vec3(1.0, 0.4, 1.0); break; // gravel
-              case 15: fragment_color.rgb *= vec3(1.5, 0.5, 0.15); break; // dirt
-              case 16: fragment_color.rgb *= vec3(0.7, 0.7, 1.0); break; // metal
-              case 17: fragment_color.rgb *= vec3(0.1, 0.1, 1.2); break; // straw
-              case 18: fragment_color.rgb *= vec3(0.75, 1.75, 0.75); break; // tube
-              case 19: fragment_color.rgb *= vec3(0.4, 0.1, 0.8); break; // swamp
-              case 20: fragment_color.rgb *= vec3(0.1, 0.4, 0.8); break; // stopproj
-              case 21: fragment_color.rgb *= vec3(1.9, 0.1, 1.9); break; // rotate
-              case 22: fragment_color.rgb *= vec3(1.0); break; // neutral
-              default: fragment_color.rgb = vec3(1, 0, 1); break;
-            }
+          if (pc.mode == MODE_MODE) {
+            fragment_color.rgb *= pat_colors.pat_mode_colors[pMode].rgb;
+          } else if (pc.mode == MODE_EVENT) {
+            fragment_color.rgb *= pat_colors.pat_event_colors[pEvent].rgb;
+          } else if (pc.mode == MODE_MATERIAL) {
+            fragment_color.rgb *= pat_colors.pat_material_colors[pMat].rgb;
           } else {
             fragment_color = vec4((normal_in + 1)*.5, 1);
-            fragment_color.xyz *= (pow(cam_dot, 3) + 0.3);
+            fragment_color.rgb *= (pow(cam_dot, 2) * 0.5 + 0.5);
+          }
+          if (fragment_color.r < 0 || fragment_color.g < 0 || fragment_color.b < 0) {
+            fragment_color.rgb = vec3(1, 0, 1);
           }
         } else {
           // filtered out. goodbye!

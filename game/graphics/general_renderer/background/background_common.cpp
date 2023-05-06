@@ -160,15 +160,15 @@ void background_common::interp_time_of_day_fast(const math::Vector<s32, 4> itime
       color7 = _mm_mullo_epi16(color7, weights7);
 
       // add. This order minimizes dependencies.
-      color0 = _mm_add_epi16(color0, color1);
-      color2 = _mm_add_epi16(color2, color3);
-      color4 = _mm_add_epi16(color4, color5);
-      color6 = _mm_add_epi16(color6, color7);
+      color0 = _mm_adds_epi16(color0, color1);
+      color2 = _mm_adds_epi16(color2, color3);
+      color4 = _mm_adds_epi16(color4, color5);
+      color6 = _mm_adds_epi16(color6, color7);
 
-      color0 = _mm_add_epi16(color0, color2);
-      color4 = _mm_add_epi16(color4, color6);
+      color0 = _mm_adds_epi16(color0, color2);
+      color4 = _mm_adds_epi16(color4, color6);
 
-      color0 = _mm_add_epi16(color0, color4);
+      color0 = _mm_adds_epi16(color0, color4);
 
       // divide, because we multiplied our weights by 2^7.
       color0 = _mm_srli_epi16(color0, 6);
@@ -215,15 +215,15 @@ void background_common::interp_time_of_day_fast(const math::Vector<s32, 4> itime
       color7 = _mm_mullo_epi16(color7, weights7);
 
       // add. This order minimizes dependencies.
-      color0 = _mm_add_epi16(color0, color1);
-      color2 = _mm_add_epi16(color2, color3);
-      color4 = _mm_add_epi16(color4, color5);
-      color6 = _mm_add_epi16(color6, color7);
+      color0 = _mm_adds_epi16(color0, color1);
+      color2 = _mm_adds_epi16(color2, color3);
+      color4 = _mm_adds_epi16(color4, color5);
+      color6 = _mm_adds_epi16(color6, color7);
 
-      color0 = _mm_add_epi16(color0, color2);
-      color4 = _mm_add_epi16(color4, color6);
+      color0 = _mm_adds_epi16(color0, color2);
+      color4 = _mm_adds_epi16(color4, color6);
 
-      color0 = _mm_add_epi16(color0, color4);
+      color0 = _mm_adds_epi16(color0, color4);
 
       // divide, because we multiplied our weights by 2^7.
       color0 = _mm_srli_epi16(color0, 6);

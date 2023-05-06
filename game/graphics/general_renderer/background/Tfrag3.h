@@ -81,6 +81,9 @@ class BaseTfrag3 {
     bool allowed = true;
     bool forced = false;
     bool cull_debug = false;
+
+    bool freeze_itimes = false;
+    math::Vector<s32, 4> itimes_debug[4];
   };
 
   virtual TreeCache& get_cached_tree(int bucket_index, int cache_index) = 0;

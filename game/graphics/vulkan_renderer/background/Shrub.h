@@ -64,6 +64,12 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
     } perf;
   };
 
+  struct ShrubPushConstant {
+    float height_scale;
+    float scissor_adjust;
+    int decal_mode = 0;
+  } m_shrub_push_constant;
+
   std::vector<Tree> m_trees;
   std::string m_level_name;
   std::unordered_map<u32, VulkanTexture>* m_textures;

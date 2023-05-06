@@ -114,6 +114,12 @@ void SpriteVulkan3::SetupShader(ShaderId shaderId) {
     m_pipeline_config_info.pipelineLayout = m_sprite_distort_pipeline_layout;
     m_pipeline_config_info.attributeDescriptions = m_sprite_distort_instanced_attribute_descriptions;
     m_pipeline_config_info.bindingDescriptions = m_sprite_distort_instanced_input_binding_descriptions;
+  } else {
+    m_pipeline_config_info.pipelineLayout = m_sprite_distort_pipeline_layout;
+    m_pipeline_config_info.attributeDescriptions =
+        m_sprite_distort_attribute_descriptions;
+    m_pipeline_config_info.bindingDescriptions =
+        m_sprite_distort_input_binding_descriptions;
   }
 }
 
@@ -407,10 +413,10 @@ void SpriteVulkan3::EnableSprite3GraphicsBlending() {
       VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
-  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
+  m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
   m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
   m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional

@@ -73,16 +73,15 @@ void main() {
     gl_Position = transformed;
 
     // time of day lookup
-    fragment_color = texelFetch(tex_T1, time_of_day_index, 0);
+    int index = time_of_day_index >> 16; //Vulkan won't allow uint16_t as data type without extensions enabled. Only 16 MSB has valid data
+    fragment_color = texelFetch(tex_T1, index, 0);
+    // color adjustment
+    fragment_color *= 2;
+    fragment_color.a *= 2;
 
-     if (pc.decal == 1) {
-        fragment_color = vec4(1.0, 1.0, 1.0, 1.0);
-    } else {
-        // time of day lookup
-        fragment_color = texelFetch(tex_T1, time_of_day_index, 0);
-        // color adjustment
-        fragment_color *= 2;
-        fragment_color.a *= 2;
+    if (pc.decal == 1) {
+        // tfrag/tie always use TCC=RGB, so even with decal, alpha comes from fragment.
+        fragment_color.xyz = vec3(1.0, 1.0, 1.0);
     }
 
     // fog hack

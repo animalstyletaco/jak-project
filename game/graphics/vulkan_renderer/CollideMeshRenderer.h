@@ -10,19 +10,24 @@ struct CollisionMeshVertexUniformShaderData {
   float fog_constant;
   float fog_min;
   float fog_max;
-  s32 wireframe;
-  s32 mode;
+};
 
-  u32 collision_mode_mask[(collision::PAT_MOD_COUNT + 31) / 32];
-  u32 collision_event_mask[(collision::PAT_EVT_COUNT + 31) / 32];
-  u32 collision_material_mask[(collision::PAT_MAT_COUNT + 31) / 32];
-  u32 collision_skip_mask;
+struct PatColors {
+  math::Vector4f pat_mode_colors[0x8];
+  math::Vector4f pat_material_colors[0x40];
+  math::Vector4f pat_event_colors[0x40];
 };
 
 class CollisionMeshVertexUniformBuffer : public UniformVulkanBuffer {
  public:
   CollisionMeshVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                   VkDeviceSize instanceSize,
+                                   uint32_t instanceCount,
+                                   VkDeviceSize minOffsetAlignment = 1);
+};
+
+class CollisionMeshVertexPatternUniformBuffer : public UniformVulkanBuffer {
+ public:
+  CollisionMeshVertexPatternUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                    uint32_t instanceCount,
                                    VkDeviceSize minOffsetAlignment = 1);
 };
@@ -34,12 +39,27 @@ class CollideMeshVulkanRenderer {
   ~CollideMeshVulkanRenderer();
 
  private:
+  void init_pat_colors(GameVersion version);
   void InitializeInputVertexAttribute();
   void init_shaders();
   void create_pipeline_layout();
 
+  struct PushConstant {
+    float scissor_adjust;
+
+    s32 wireframe;
+    s32 mode;
+
+    u32 collision_mode_mask[(collision::PAT_MOD_COUNT + 31) / 32];
+    u32 collision_event_mask[(collision::PAT_EVT_COUNT + 31) / 32];
+    u32 collision_material_mask[(collision::PAT_MAT_COUNT + 31) / 32];
+    u32 collision_skip_mask;
+  } m_push_constant;
+
+  PatColors m_colors;
+
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  UniformVulkanBuffer m_collision_mesh_vertex_uniform_buffer;
+  CollisionMeshVertexUniformBuffer m_collision_mesh_vertex_uniform_buffer;
 
   GraphicsPipelineLayout m_pipeline_layout;
   PipelineConfigInfo m_pipeline_config_info;

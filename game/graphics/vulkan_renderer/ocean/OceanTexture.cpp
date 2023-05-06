@@ -12,10 +12,10 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
       m_vulkan_info(vulkan_info),
       m_result_texture(TEX0_SIZE,
                        TEX0_SIZE,
-                       VK_FORMAT_A8B8G8R8_SRGB_PACK32,
+                       VK_FORMAT_R8G8B8A8_UNORM,
                        device,
                        m_generate_mipmaps ? NUM_MIPS : 1),
-      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_A8B8G8R8_SRGB_PACK32, device) {
+      m_temp_texture(TEX0_SIZE, TEX0_SIZE, VK_FORMAT_R8G8B8A8_UNORM, device) {
   m_dbuf_x = m_dbuf_a;
   m_dbuf_y = m_dbuf_b;
 
@@ -27,6 +27,8 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
 
   init_pc();
   SetupShader(ShaderId::OCEAN_TEXTURE);
+
+  m_mipmap_graphics_layouts.resize(NUM_MIPS, {m_device});
 
   m_common_uniform_fragment_buffer =
       std::make_unique<CommonOceanFragmentUniformBuffer>(m_device, 1, 1);
@@ -53,6 +55,8 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
       m_fragment_descriptor_layout->getDescriptorSetLayout();
   m_vulkan_info.descriptor_pool->allocateDescriptor(&descriptorSetLayout,
                                                     &m_ocean_texture_descriptor_set);
+  m_vulkan_info.descriptor_pool->allocateDescriptor(&descriptorSetLayout,
+                                                    &m_ocean_mipmap_texture_descriptor_set);
 
   m_fragment_descriptor_writer->writeImage(
       0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info()); 
@@ -76,7 +80,7 @@ OceanVulkanTexture::~OceanVulkanTexture() {
 
 void OceanVulkanTexture::init_textures(VulkanTexturePool& pool) {
   VulkanTextureInput in;
-  in.texture = &m_result_texture.Texture();
+  //in.texture = &m_result_texture.Texture();
   in.debug_page_name = "PC-OCEAN";
   in.debug_name = fmt::format("pc-ocean-mip-{}", m_generate_mipmaps);
   in.id = pool.allocate_pc_port_texture(m_vulkan_info.m_version);
@@ -102,17 +106,36 @@ void OceanVulkanTexture::handle_ocean_texture(DmaFollower& dma,
  */
 void OceanVulkanTexture::make_texture_with_mipmaps(BaseSharedRenderState* render_state,
                                              ScopedProfilerNode& prof) {
+  return;
+
   SetupShader(ShaderId::OCEAN_TEXTURE_MIPMAP);
   VkSampleCountFlagBits original_sample = m_pipeline_info.multisampleInfo.rasterizationSamples;
   m_pipeline_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+  m_descriptor_image_info =
+      VkDescriptorImageInfo{m_sampler_helper.GetSampler(), m_temp_texture.Texture().getImageView(),
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
+  write_descriptors_info[0] =
+      m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_info);
+
+  m_fragment_descriptor_writer->overwrite(m_ocean_mipmap_texture_descriptor_set);
+
+  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_info.pipelineLayout, 0, 1, &m_ocean_mipmap_texture_descriptor_set, 0,
+                          NULL);
+
   vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
   for (int i = 0; i < NUM_MIPS; i++) {
     //FramebufferVulkanTexturePair ctxt(m_result_texture, i);
+    m_pipeline_info.renderPass = m_result_texture.GetRenderPass(i);
     m_result_texture.beginRenderPass(m_vulkan_info.render_command_buffer, i);
     float alpha_intensity = std::max(0.f, 1.f - 0.51f * i);
     float scale = 1.f / (1 << i);
 
+    m_mipmap_graphics_layouts[i].createGraphicsPipeline(m_pipeline_info);
+    m_mipmap_graphics_layouts[i].bind(m_vulkan_info.render_command_buffer);
+  
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(scale),
                        (void*)&scale);
@@ -127,21 +150,24 @@ void OceanVulkanTexture::make_texture_with_mipmaps(BaseSharedRenderState* render
     prof.add_tri(2);
   }
   m_pipeline_info.multisampleInfo.rasterizationSamples = original_sample;
+  m_pipeline_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
                                                      m_vulkan_info.currentFrame);
 }
 
 void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   ASSERT(m_pc.vtx_idx == 2112);
+  return;
 
   m_pipeline_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
   m_vulkan_pc.dynamic_vertex_buffer->writeToGpuBuffer(m_pc.vertex_dynamic.data());
-  m_vulkan_pc.graphics_index_buffer->writeToGpuBuffer(m_pc.index_buffer.data());
+  m_vulkan_pc.graphics_index_buffer->writeToGpuBuffer(m_pc.index_buffer.data(), m_pc.index_buffer.size());
 
   VkDeviceSize offsets[] = {0, 0};
-  std::array<VkBuffer, 2> vertex_buffers = {m_vulkan_pc.static_vertex_buffer->getBuffer(), m_vulkan_pc.dynamic_vertex_buffer->getBuffer()};
+  std::array<VkBuffer, 2> vertex_buffers = {m_vulkan_pc.dynamic_vertex_buffer->getBuffer(),
+                                            m_vulkan_pc.static_vertex_buffer->getBuffer()};
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, vertex_buffers.size(), vertex_buffers.data(), offsets);
 
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
@@ -191,29 +217,29 @@ void OceanVulkanTexture::InitializeMipmapVertexInputAttributes() {
   //Ocean Texture
   m_ocean_texture_input_binding_attribute_descriptions.resize(2);
   m_ocean_texture_input_binding_attribute_descriptions[0].binding = 0;
-  m_ocean_texture_input_binding_attribute_descriptions[0].stride = sizeof(math::Vector2f);
+  m_ocean_texture_input_binding_attribute_descriptions[0].stride = sizeof(BaseOceanTexture::Vertex);
   m_ocean_texture_input_binding_attribute_descriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
   m_ocean_texture_input_binding_attribute_descriptions[1].binding = 1;
-  m_ocean_texture_input_binding_attribute_descriptions[1].stride = sizeof(BaseOceanTexture::Vertex);
+  m_ocean_texture_input_binding_attribute_descriptions[1].stride = sizeof(math::Vector2f);
   m_ocean_texture_input_binding_attribute_descriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
   m_ocean_texture_input_attribute_descriptions.resize(3);
   m_ocean_texture_input_attribute_descriptions[0].binding = 0;
   m_ocean_texture_input_attribute_descriptions[0].location = 0;
   m_ocean_texture_input_attribute_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-  m_ocean_texture_input_attribute_descriptions[0].offset = 0;
+  m_ocean_texture_input_attribute_descriptions[0].offset = offsetof(BaseOceanTexture::Vertex, s);
 
-  m_ocean_texture_input_attribute_descriptions[1].binding = 1;
+  m_ocean_texture_input_attribute_descriptions[1].binding = 0;
   m_ocean_texture_input_attribute_descriptions[1].location = 1;
-  m_ocean_texture_input_attribute_descriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  m_ocean_texture_input_attribute_descriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
   m_ocean_texture_input_attribute_descriptions[1].offset = offsetof(BaseOceanTexture::Vertex, rgba);
 
   m_ocean_texture_input_attribute_descriptions[2].binding = 1;
   m_ocean_texture_input_attribute_descriptions[2].location = 2;
-  m_ocean_texture_input_attribute_descriptions[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-  m_ocean_texture_input_attribute_descriptions[2].offset =
-      offsetof(BaseOceanTexture::Vertex, s);
+  m_ocean_texture_input_attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+  m_ocean_texture_input_attribute_descriptions[2].offset = 0;
+
 
   //Mipmap
   m_ocean_texture_mipmap_input_binding_attribute_description.binding = 0;
@@ -249,6 +275,9 @@ void OceanVulkanTexture::CreatePipelineLayout() {
 
   VkPipelineLayoutCreateInfo oceanTextureMipmapPipelineLayoutInfo{};
   oceanTextureMipmapPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  oceanTextureMipmapPipelineLayoutInfo.setLayoutCount =
+      static_cast<uint32_t>(descriptorSetLayouts.size());
+  oceanTextureMipmapPipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
   VkPushConstantRange pushConstantVertexRange = {};
   pushConstantVertexRange.offset = 0;

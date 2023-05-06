@@ -1,48 +1,7 @@
 #include "CollideMeshRenderer.h"
 
+#include "game/graphics/general_renderer/collision_common.h"
 #include "game/graphics/opengl_renderer/background/background_common.h"
-
-float material_colors_jak1[23 * 3] = {
-    1.0f,  0.7f,  1.0f,   // 0, stone
-    0.1f,  2.0f,  2.0f,   // 1, ice
-    0.75f, 0.25f, 0.1f,   // 2, quicksand
-    0.1f,  0.25f, 0.75f,  // 3, waterbottom
-    0.5f,  0.15f, 0.1f,   // 4, tar
-    2.0f,  1.5f,  0.5f,   // 5, sand
-    1.5f,  0.75f, 0.1f,   // 6, wood
-    0.1f,  1.35f, 0.1f,   // 7, grass
-    1.7f,  1.3f,  0.1f,   // 8, pcmetal
-    1.8f,  1.8f,  1.8f,   // 9, snow
-    1.5f,  0.2f,  1.0f,   // 10, deepsnow
-    1.2f,  0.5f,  0.3f,   // 11, hotcoals
-    1.4f,  0.1f,  0.1f,   // 12, lava
-    0.8f,  0.3f,  0.1f,   // 13, crwood
-    1.0f,  0.4f,  1.0f,   // 14, gravel
-    1.5f,  0.5f,  0.15f,  // 15, dirt
-    0.7f,  0.7f,  1.0f,   // 16, metal
-    0.1f,  0.1f,  1.2f,   // 17, straw
-    0.75f, 1.75f, 0.75f,  // 18, tube
-    0.4f,  0.1f,  0.8f,   // 19, swamp
-    0.1f,  0.4f,  0.8f,   // 20, stopproj
-    1.9f,  0.1f,  1.9f,   // 21, rotate
-    1.0f,  1.0f,  1.0f,   // 22, neutral
-};
-
-float event_colors_jak1[7 * 3] = {
-    1.0f, 1.0f, 1.0f,  // 0, none
-    0.2f, 1.0f, 1.0f,  // 1, deadly
-    0.1f, 1.0f, 0.1f,  // 2, endlessfall
-    1.0f, 1.0f, 0.1f,  // 3, burn
-    0.1f, 0.1f, 1.0f,  // 4, deadlyup
-    1.0f, 0.1f, 0.5f,  // 5, burnup
-    1.0f, 0.1f, 0.1f,  // 6, melt
-};
-
-float mode_colors_jak1[3 * 3] = {
-    1.25f, 0.1f, 0.1f,  // 0, ground
-    0.1f,  0.1f, 1.0f,  // 1, wall
-    1.0f,  0.1f, 1.0f,  // 2, obstacle
-};
 
 CollideMeshRenderer::CollideMeshRenderer(GameVersion version) {
   glGenVertexArrays(1, &m_vao);
@@ -80,13 +39,13 @@ void CollideMeshRenderer::init_pat_colors(GameVersion version) {
   switch (version) {
     case GameVersion::Jak1:
       for (int i = 0; i < 23 * 3; ++i) {
-        m_colors.pat_material_colors[i / 3].data()[i % 3] = material_colors_jak1[i];
+        m_colors.pat_material_colors[i / 3].data()[i % 3] = collision::material_colors_jak1[i];
       }
       for (int i = 0; i < 7 * 3; ++i) {
-        m_colors.pat_event_colors[i / 3].data()[i % 3] = event_colors_jak1[i];
+        m_colors.pat_event_colors[i / 3].data()[i % 3] = collision::event_colors_jak1[i];
       }
       for (int i = 0; i < 3 * 3; ++i) {
-        m_colors.pat_mode_colors[i / 3].data()[i % 3] = mode_colors_jak1[i];
+        m_colors.pat_mode_colors[i / 3].data()[i % 3] = collision::mode_colors_jak1[i];
       }
       break;
     case GameVersion::Jak2:
@@ -115,20 +74,8 @@ void CollideMeshRenderer::render(SharedRenderState* render_state, ScopedProfiler
     settings.planes[i] = render_state->camera_planes[i];
   }
   auto shader = render_state->shaders[ShaderId::COLLISION].id();
-  // Get a free binding point
-  GLuint bind_loc = 0;
-  GLint bind_max;
-  glGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &bind_max);
-  for (int i = 0; i < bind_max; i++) {
-    GLint params;
-    glGetIntegeri_v(GL_UNIFORM_BUFFER_BINDING, i, &params);
-    if (params == 0) {
-      bind_loc = i;
-      break;
-    }
-  }
-  glUniformBlockBinding(shader, glGetUniformBlockIndex(shader, "PatColors"), bind_loc);
-  glBindBufferBase(GL_UNIFORM_BUFFER, bind_loc, m_ubo);
+  glUniformBlockBinding(shader, glGetUniformBlockIndex(shader, "PatColors"), 0);
+  glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_ubo);
   glUniformMatrix4fv(glGetUniformLocation(shader, "camera"), 1, GL_FALSE,
                      settings.math_camera.data());
   glUniform4f(glGetUniformLocation(shader, "hvdf_offset"), settings.hvdf_offset[0],

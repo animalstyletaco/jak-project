@@ -63,6 +63,7 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   struct PushConstant {
     float height_scale;
     float scissor_adjust;
+    int decal_mode = 0;
   };
 
   PushConstant m_push_constant;

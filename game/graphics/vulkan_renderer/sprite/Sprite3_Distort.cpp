@@ -128,12 +128,17 @@ void SpriteVulkan3::graphics_setup_distort() {
 
     m_sprite_distorter_instances_by_res[i] = vec;
   }
+
+  auto descriptorSetLayout = m_sprite_distort_fragment_descriptor_layout->getDescriptorSetLayout();
+  m_vulkan_info.descriptor_pool->allocateDescriptor(&descriptorSetLayout,
+                                                    &m_sprite_distort_fragment_descriptor_set);
 }
 
 /*!
  * Draws each distort sprite.
  */
 void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  return;
   // First, make sure the distort framebuffer is the correct size
   distort_setup_framebuffer_dims(render_state);
 
@@ -195,13 +200,17 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
                        m_distort_ogl.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-  write_descriptors_info[0] =
-      m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_sprite_distort_descriptor_image_info);
+  m_sprite_distort_descriptor_image_info = VkDescriptorImageInfo{
+    m_distort_sampler_helper.GetSampler(), m_distort_ogl.fbo->color_texture.getImageView(),
+    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-  m_fragment_descriptor_writer->overwrite(m_sprite_distort_fragment_descriptor_set);
-  std::vector<VkDescriptorSet> descriptorSets{m_vertex_descriptor_set,
-                                              m_sprite_distort_fragment_descriptor_set};
+  auto& write_descriptors_info =
+      m_sprite_distort_fragment_descriptor_writer->getWriteDescriptorSets();
+  write_descriptors_info[0] = m_sprite_distort_fragment_descriptor_writer->writeImageDescriptorSet(
+      0, &m_sprite_distort_descriptor_image_info);
+
+  m_sprite_distort_fragment_descriptor_writer->overwrite(m_sprite_distort_fragment_descriptor_set);
+  std::vector<VkDescriptorSet> descriptorSets{m_sprite_distort_fragment_descriptor_set};
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptorSets.size(),
@@ -221,6 +230,7 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
  */
 void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
                                            ScopedProfilerNode& prof) {
+  return;
   // First, make sure the distort framebuffer is the correct size
   distort_setup_framebuffer_dims(render_state);
 
@@ -253,6 +263,23 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
+  //TODO: update descriptor set here
+  m_sprite_distort_descriptor_image_info = VkDescriptorImageInfo{
+      m_distort_sampler_helper.GetSampler(),
+      m_distort_ogl.fbo->color_texture.getImageView(),
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+
+  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
+  write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
+      0, &m_sprite_distort_descriptor_image_info);
+
+  m_fragment_descriptor_writer->overwrite(m_sprite_distort_fragment_descriptor_set);
+  std::vector<VkDescriptorSet> descriptorSets{m_sprite_distort_fragment_descriptor_set};
+
+  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_config_info.pipelineLayout, 0, descriptorSets.size(),
+                          descriptorSets.data(), 0, NULL);
+
   // Upload vertex data (if it changed)
   if (m_distort_instanced_ogl.vertex_data_changed) {
     m_distort_instanced_ogl.vertex_data_changed = false;
@@ -263,7 +290,6 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   }
 
   // Draw each resolution group
-  // glBindBuffer(GL_ARRAY_BUFFER, m_distort_instanced_ogl.instance_buffer);
   prof.add_tri(m_distort_stats.total_tris);
 
   int vert_offset = 0;

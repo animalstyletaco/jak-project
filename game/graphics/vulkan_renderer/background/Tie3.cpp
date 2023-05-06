@@ -9,6 +9,9 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
                        int level_id,
                        tfrag3::TieCategory category)
     : BaseTie3(name, my_id, level_id, category), BucketVulkanRenderer(device, vulkan_info) {
+  m_tie_push_constant.height_scale = m_push_constant.height_scale;
+  m_tie_push_constant.scissor_adjust = m_push_constant.scissor_adjust;
+
   m_vertex_shader_uniform_buffer = std::make_unique<BackgroundCommonVertexUniformBuffer>(
       device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
   m_time_of_day_color_uniform_buffer = std::make_unique<BackgroundCommonFragmentUniformBuffer>(
@@ -33,6 +36,9 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
 
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   create_pipeline_layout();
+
+  m_graphics_pipeline_layouts.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {m_device});
+  m_graphics_wind_pipeline_layouts.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {m_device});
 
   m_vertex_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, vulkan_info.descriptor_pool);
@@ -115,7 +121,7 @@ void Tie3Vulkan::create_pipeline_layout() {
 
   VkPushConstantRange pushConstantRange;
   pushConstantRange.offset = 0;
-  pushConstantRange.size = sizeof(m_push_constant);
+  pushConstantRange.size = sizeof(m_tie_push_constant);
   pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
@@ -359,8 +365,8 @@ void Tie3Vulkan::render_tree_wind(int idx,
       tree.perf.draws++;
       tree.perf.wind_draws++;
 
-      m_graphics_pipeline_layouts[draw.tree_tex_id].createGraphicsPipeline(m_pipeline_config_info);
-      m_graphics_pipeline_layouts[draw.tree_tex_id].bind(m_vulkan_info.render_command_buffer);
+      m_graphics_wind_pipeline_layouts[draw.tree_tex_id].createGraphicsPipeline(m_pipeline_config_info);
+      m_graphics_wind_pipeline_layouts[draw.tree_tex_id].bind(m_vulkan_info.render_command_buffer);
 
       vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, grp.num, 1,
                        tree.wind_vertex_index_offsets.at(draw_idx), 0, 0);
@@ -429,10 +435,6 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
   VkBuffer vertex_buffer_vulkan = tree.vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
-                     (void*)&m_push_constant);
-
   int last_texture = -1;
   for (size_t draw_idx = tree.category_draw_indices[(int)category];
        draw_idx < tree.category_draw_indices[(int)category + 1]; draw_idx++) {
@@ -457,10 +459,10 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
         render_state, draw.mode, time_of_day_sampler, m_pipeline_config_info,
         m_etie_time_of_day_color_uniform_buffer);
 
-    uint32_t decal_mode = draw.mode.get_decal();
+    m_tie_push_constant.decal_mode = (draw.mode.get_decal()) ? 1 : 0;
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                       VK_SHADER_STAGE_VERTEX_BIT, sizeof(m_push_constant),
-                       sizeof(unsigned), (void*) &decal_mode);
+                       VK_SHADER_STAGE_VERTEX_BIT, sizeof(m_tie_push_constant), sizeof(unsigned),
+                       (void*)&m_tie_push_constant);
 
     m_graphics_pipeline_layouts[idx].createGraphicsPipeline(m_pipeline_config_info);
     m_graphics_pipeline_layouts[idx].bind(m_vulkan_info.render_command_buffer);
@@ -752,7 +754,7 @@ void Tie3Vulkan::InitializeInputAttributes() {
 
   attributeDescriptions[2].binding = 0;
   attributeDescriptions[2].location = 2;
-  attributeDescriptions[2].format = VK_FORMAT_R16_UINT;
+  attributeDescriptions[2].format = VK_FORMAT_R32_UINT;
   attributeDescriptions[2].offset = offsetof(tfrag3::PreloadedVertex, color_index);
   m_pipeline_config_info.attributeDescriptions.insert(
       m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
@@ -848,6 +850,7 @@ Tie3VulkanWithEnvmapJak1::Tie3VulkanWithEnvmapJak1(const std::string& name,
 void Tie3VulkanWithEnvmapJak1::render(DmaFollower& dma,
                                       SharedVulkanRenderState* render_state,
                                       ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseTie3::render(dma, render_state, prof);
   if (m_enable_envmap) {

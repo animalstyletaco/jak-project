@@ -284,15 +284,25 @@ void Tfrag3Vulkan::render_tree(int geom,
     return;
   }
   auto& tree = m_cached_trees.at(geom).at(settings.tree_idx);
+
+  const auto* itimes = settings.itimes;
+  if (tree.freeze_itimes) {
+    itimes = tree.itimes_debug;
+  } else {
+    for (int i = 0; i < 4; i++) {
+      tree.itimes_debug[i] = settings.itimes[i];
+    }
+  }
+
   ASSERT(tree.kind != tfrag3::TFragmentTreeKind::INVALID);
 
   if (m_color_result.size() < tree.colors->size()) {
     m_color_result.resize(tree.colors->size());
   }
   if (m_use_fast_time_of_day) {
-    background_common::interp_time_of_day_fast(settings.itimes, tree.tod_cache, m_color_result.data());
+    background_common::interp_time_of_day_fast(itimes, tree.tod_cache, m_color_result.data());
   } else {
-    background_common::interp_time_of_day_slow(settings.itimes, *tree.colors, m_color_result.data());
+    background_common::interp_time_of_day_slow(itimes, *tree.colors, m_color_result.data());
   }
 
   background_common::cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
@@ -338,6 +348,12 @@ void Tfrag3Vulkan::render_tree(int geom,
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
         render_state, draw.mode, m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
         m_time_of_day_color_uniform_buffer);
+    m_push_constant.decal_mode = (draw.mode.get_decal()) ? 1 : 0;
+
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
+                       (void*)&m_push_constant);
+
     tree.tris_this_frame += draw.num_triangles;
     tree.draws_this_frame++;
 
@@ -550,9 +566,6 @@ void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
 
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
-
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant), (void*)&m_push_constant);
 
   std::array<uint32_t, 2> dynamicDescriptorOffsets = {
       index * m_vertex_shader_uniform_buffer->getAlignmentSize(),

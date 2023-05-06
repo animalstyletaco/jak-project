@@ -262,6 +262,7 @@ void VulkanBuffer::writeToGpuBuffer(void* data, VkDeviceSize size, VkDeviceSize 
     stagingBuffer.writeToCpuBuffer(data, bufferSize, 0);
     m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, bufferSize);
   }
+  stagingBuffer.unmap();
 }
 
 StagingBuffer::StagingBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,

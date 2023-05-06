@@ -5,9 +5,12 @@
 
 CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
       m_device(device),
-      m_collision_mesh_vertex_uniform_buffer(device, sizeof(CollisionMeshVertexUniformShaderData), 1, 1),
+      m_collision_mesh_vertex_uniform_buffer(device, 1, 1),
       m_pipeline_layout{device},
       m_vulkan_info{vulkan_info} {
+
+  m_push_constant.scissor_adjust =
+      (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512.f / 448.f) : (-512.f / 416.f);
 
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -18,6 +21,7 @@ CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::unique_ptr<GraphicsDev
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   create_pipeline_layout();
@@ -30,9 +34,41 @@ CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::unique_ptr<GraphicsDev
       .build(m_descriptor_sets[0]);
 }
 
-void CollideMeshVulkanRenderer::create_pipeline_layout() {
-  // If push constants are needed put them here
+void CollideMeshVulkanRenderer::init_pat_colors(GameVersion version) {
+  for (int i = 0; i < 0x8; ++i) {
+    m_colors.pat_mode_colors[i].x() = -1.f;
+    m_colors.pat_mode_colors[i].y() = -1.f;
+    m_colors.pat_mode_colors[i].z() = -1.f;
+  }
+  for (int i = 0; i < 0x40; ++i) {
+    m_colors.pat_material_colors[i].x() = -1.f;
+    m_colors.pat_material_colors[i].y() = -1.f;
+    m_colors.pat_material_colors[i].z() = -1.f;
+  }
+  for (int i = 0; i < 0x40; ++i) {
+    m_colors.pat_event_colors[i].x() = -1.f;
+    m_colors.pat_event_colors[i].y() = -1.f;
+    m_colors.pat_event_colors[i].z() = -1.f;
+  }
 
+  switch (version) {
+    case GameVersion::Jak1:
+      for (int i = 0; i < 23 * 3; ++i) {
+        m_colors.pat_material_colors[i / 3].data()[i % 3] = collision::material_colors_jak1[i];
+      }
+      for (int i = 0; i < 7 * 3; ++i) {
+        m_colors.pat_event_colors[i / 3].data()[i % 3] = collision::event_colors_jak1[i];
+      }
+      for (int i = 0; i < 3 * 3; ++i) {
+        m_colors.pat_mode_colors[i / 3].data()[i % 3] = collision::mode_colors_jak1[i];
+      }
+      break;
+    case GameVersion::Jak2:
+      break;
+  }
+}
+
+void CollideMeshVulkanRenderer::create_pipeline_layout() {
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
       m_vertex_descriptor_layout->getDescriptorSetLayout()};
 
@@ -40,6 +76,14 @@ void CollideMeshVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange pushConstantVertexRange{};
+  pushConstantVertexRange.offset = 0;
+  pushConstantVertexRange.size = sizeof(m_push_constant);
+  pushConstantVertexRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantVertexRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
@@ -100,8 +144,6 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
   m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_min", settings.fog.y());
   m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_max", settings.fog.z());
 
-  //glDepthMask(GL_TRUE);
-
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 
@@ -117,27 +159,21 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
   for (LevelDataVulkan* level : levels) {
-    m_collision_mesh_vertex_uniform_buffer.SetUniform1f("wireframe", 0);
-    m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
-        "collision_mode_mask",
-                Gfx::g_global_settings.collision_mode_mask.size(),
-                Gfx::g_global_settings.collision_mode_mask.data());
-    m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
-        "collision_event_mask",
-                Gfx::g_global_settings.collision_event_mask.size(),
-                Gfx::g_global_settings.collision_event_mask.data());
-    m_collision_mesh_vertex_uniform_buffer.SetUniformVectorUnsigned(
-        "collision_material_mask",
-                Gfx::g_global_settings.collision_material_mask.size(),
-                Gfx::g_global_settings.collision_material_mask.data());
-    m_collision_mesh_vertex_uniform_buffer.SetUniform1i("collision_skip_mask",
-               Gfx::g_global_settings.collision_skip_mask);
-    m_collision_mesh_vertex_uniform_buffer.SetUniform1f("mode",
-                                                        Gfx::g_global_settings.collision_mode);
+    m_push_constant.wireframe = 0;
+    ::memcpy(m_push_constant.collision_mode_mask, Gfx::g_global_settings.collision_mode_mask.data(),
+             Gfx::g_global_settings.collision_mode_mask.size());
+    ::memcpy(m_push_constant.collision_event_mask,
+             Gfx::g_global_settings.collision_event_mask.data(),
+             Gfx::g_global_settings.collision_event_mask.size());
+    ::memcpy(m_push_constant.collision_material_mask,
+             Gfx::g_global_settings.collision_material_mask.data(),
+             Gfx::g_global_settings.collision_material_mask.size());
+    m_push_constant.collision_skip_mask = Gfx::g_global_settings.collision_skip_mask;
+    m_push_constant.mode = Gfx::g_global_settings.collision_mode;
 
-    m_collision_mesh_vertex_uniform_buffer.map();
-    m_collision_mesh_vertex_uniform_buffer.flush();
-    m_collision_mesh_vertex_uniform_buffer.unmap();
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
+                       &m_push_constant);
 
     m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
     m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
@@ -155,10 +191,10 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
               0);
 
     if (Gfx::g_global_settings.collision_wireframe) {
-      m_collision_mesh_vertex_uniform_buffer.SetUniform1i("wireframe", 1);
-      m_collision_mesh_vertex_uniform_buffer.map();
-      m_collision_mesh_vertex_uniform_buffer.flush();
-      m_collision_mesh_vertex_uniform_buffer.unmap();
+      m_push_constant.wireframe = 1;
+      vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
+                         &m_push_constant);
 
       VkPipelineColorBlendAttachmentState& colorBlendAttachment = m_pipeline_config_info.colorBlendAttachment;
       m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
@@ -225,10 +261,12 @@ void CollideMeshVulkanRenderer::InitializeInputVertexAttribute() {
 
 CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
-    VkDeviceSize instanceSize,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device, instanceSize, instanceCount, minOffsetAlignment) {
+    : UniformVulkanBuffer(device,
+                          sizeof(CollisionMeshVertexUniformShaderData),
+                          instanceCount,
+                          minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"hvdf_offset", offsetof(CollisionMeshVertexUniformShaderData, hvdf_offset)},
       {"camera", offsetof(CollisionMeshVertexUniformShaderData, camera)},
@@ -236,13 +274,19 @@ CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(
       {"fog_constant", offsetof(CollisionMeshVertexUniformShaderData, fog_constant)},
       {"fog_min", offsetof(CollisionMeshVertexUniformShaderData, fog_min)},
       {"fog_max", offsetof(CollisionMeshVertexUniformShaderData, fog_max)},
-      {"wireframe", offsetof(CollisionMeshVertexUniformShaderData, wireframe)},
-      {"mode", offsetof(CollisionMeshVertexUniformShaderData, mode)},
-      {"collision_mode_mask", offsetof(CollisionMeshVertexUniformShaderData, collision_mode_mask)},
-      {"collision_event_mask",
-       offsetof(CollisionMeshVertexUniformShaderData, collision_event_mask)},
-      {"collision_material_mask",
-       offsetof(CollisionMeshVertexUniformShaderData, collision_material_mask)},
-      {"collision_skip_mask", offsetof(CollisionMeshVertexUniformShaderData, collision_skip_mask)}
+  };
+}
+
+CollisionMeshVertexPatternUniformBuffer::CollisionMeshVertexPatternUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    uint32_t instanceCount,
+    VkDeviceSize minOffsetAlignment)
+    : UniformVulkanBuffer(device, sizeof(PatColors),
+                          instanceCount,
+                          minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"pat_mode_colors", offsetof(PatColors, pat_mode_colors)},
+      {"pat_material_colors", offsetof(PatColors, pat_material_colors)},
+      {"pat_event_colors", offsetof(PatColors, pat_event_colors)},
   };
 }

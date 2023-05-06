@@ -5,6 +5,9 @@ ShrubVulkan::ShrubVulkan(const std::string& name,
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info)
     : BaseShrub(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
+  m_shrub_push_constant.height_scale = m_push_constant.height_scale;
+  m_shrub_push_constant.scissor_adjust = m_push_constant.scissor_adjust;
+
   m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 
   m_time_of_day_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
@@ -66,6 +69,8 @@ ShrubVulkan::ShrubVulkan(const std::string& name,
   allocInfo.pSetLayouts = descriptorSetLayouts.data();
   allocInfo.descriptorSetCount = descriptorSetLayouts.size();
 
+  m_graphics_pipeline_layouts.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {m_device});
+
   m_shrub_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   m_time_of_day_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 
@@ -105,7 +110,7 @@ void ShrubVulkan::create_pipeline_layout() {
 
   VkPushConstantRange pushConstantRange;
   pushConstantRange.offset = 0;
-  pushConstantRange.size = sizeof(m_push_constant);
+  pushConstantRange.size = sizeof(m_shrub_push_constant);
   pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
@@ -422,8 +427,8 @@ void ShrubVulkan::PrepareVulkanDraw(int index) {
                        VK_INDEX_TYPE_UINT32);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
-                     (void*)&m_push_constant);
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_shrub_push_constant),
+                     (void*)&m_shrub_push_constant);
 
   std::vector<VkDescriptorSet> descriptor_sets{m_time_of_day_descriptor_sets[index],
                                                m_shrub_descriptor_sets[index]};

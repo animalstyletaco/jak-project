@@ -244,7 +244,7 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
   VkExtent3D extents{m_ogl.framebuffer_sample_width, m_ogl.framebuffer_sample_height, 1};
   m_ogl.framebuffer_sample_tex->createImage(
       extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), VK_FORMAT_R8G8B8_UINT,
-      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
   m_ogl.framebuffer_sample_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_UINT,
                                                 VK_IMAGE_ASPECT_COLOR_BIT, 1);
@@ -272,7 +272,7 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
   VkExtent3D depth_extents{m_ogl.fbo_width, m_ogl.fbo_height, 1};
   m_ogl.framebuffer_sample_tex->createImage(
       depth_extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), VK_FORMAT_R8G8B8_USCALED,
-      VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
   m_ogl.framebuffer_sample_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_USCALED,
                                                 VK_IMAGE_ASPECT_DEPTH_BIT, 1);

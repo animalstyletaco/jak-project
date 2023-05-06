@@ -324,12 +324,6 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
   }
   ASSERT(tex);
 
-  m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-  m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-  m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
-  m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-  m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
-  m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
   if (state.m_clamp_state.clamp_s || state.m_clamp_state.clamp_t) {
     m_pipeline_config_info.rasterizationInfo.depthClampEnable = VK_TRUE;
   } else {
@@ -515,7 +509,7 @@ void DirectVulkanRenderer::update_graphics_test() {
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 
   if (state.zte) {
-    //m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
+    m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
     switch (state.ztst) {
       case GsTest::ZTest::NEVER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_NEVER;

@@ -18,6 +18,7 @@ layout(push_constant) uniform PER_OBJECT
 {
   layout(offset = 0)float height_scale;
   layout(offset = 4)float scissor_adjust;
+  layout(offset = 8)int decal;
 }pc;
 
 layout (set = 0, binding = 1) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
@@ -81,6 +82,10 @@ void main() {
     // combine
     fragment_color *= tod_color * 4;
     fragment_color.a *= 2;
+
+    if (pc.decal == 1) {
+        fragment_color.xyz = vec3(1.0, 1.0, 1.0);
+    }
 
     tex_coord = tex_coord_in;
     tex_coord.xy /= 4096;

@@ -3,6 +3,7 @@
 #include "game/common/vu.h"
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DirectRenderer.h"
+#include "game/graphics/texture/TexturePoolDataTypes.h"
 
 class BaseOceanTexture {
  public:
@@ -28,7 +29,7 @@ class BaseOceanTexture {
   void run_L2_PC_jak2();
   void run_L3_PC_jak2();
 
-  virtual void set_gpu_texture(TextureInput&) = 0;
+  virtual void set_gpu_texture(BaseTextureInput&) = 0;
   void setup_renderer();
   virtual void flush(BaseSharedRenderState* render_state,
                      ScopedProfilerNode& prof) = 0;

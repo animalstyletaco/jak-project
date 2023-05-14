@@ -19,13 +19,12 @@ class ProgressVulkanRenderer : public DirectVulkanRenderer {
                          std::unique_ptr<GraphicsDeviceVulkan>& device,
                          VulkanInitializationInfo& vulkan_info,
                          int batch_size);
-  void init_textures(TexturePool& texture_pool, GameVersion);
   void handle_frame(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void pre_render() override;
   void post_render() override;
 
  private:
-  GpuTexture* m_minimap_gpu_tex = nullptr;
+  //GpuTexture* m_minimap_gpu_tex = nullptr;
   FramebufferVulkanHelper m_minimap_fb;
   //std::optional<FramebufferTexturePairContext> m_fb_ctxt;
   u32 m_current_fbp = kScreenFbp;

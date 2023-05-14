@@ -16,6 +16,7 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 
 
 class EyeVulkanRenderer;
@@ -28,6 +29,8 @@ struct SharedVulkanRenderState : public BaseSharedRenderState {
                                    std::unique_ptr<GraphicsDeviceVulkan>& device)
       : BaseSharedRenderState(version) {}
   EyeVulkanRenderer* eye_renderer = nullptr;
+  std::unique_ptr<FramebufferVulkan> back_fbo;
+  bool isFramebufferValid = false;
 };
 
 struct VulkanInitializationInfo {
@@ -80,7 +83,6 @@ class BucketVulkanRenderer {
   PipelineConfigInfo m_pipeline_config_info;
 
   VkDescriptorBufferInfo m_vertex_buffer_descriptor_info;
-  VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;

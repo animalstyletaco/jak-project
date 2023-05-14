@@ -164,7 +164,7 @@ class BaseSprite3 : public BaseBucketRenderer {
   std::vector<SpriteDistortVertex> m_sprite_distorter_vertices_instanced;
   std::map<int, std::vector<SpriteDistortInstanceData>> m_sprite_distorter_instances_by_res;
 
-  u8 m_sprite_direct_setup[3 * 16];
+  u64 m_sprite_direct_setup[3 * 16 / 8];
   SpriteFrameData m_frame_data;  // qwa: 980
   Sprite3DMatrixData m_3d_matrix_data;
   SpriteHudMatrixData m_hud_matrix_data;
@@ -218,5 +218,7 @@ class BaseSprite3 : public BaseBucketRenderer {
   std::vector<u32> m_index_buffer_data;
   static constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
   static constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
-      256 * 10;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
+      256 * 12;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
+
+  int expect_zbp, expect_th;
 };

@@ -33,17 +33,10 @@ class BackgroundCommonEtieVertexUniformBuffer : public BackgroundCommonVertexUni
                                           VkDeviceSize minOffsetAlignment);
 };
 
-struct BackgroundCommonFragmentUniformShaderData {
+struct BackgroundCommonFragmentPushConstantShaderData {
+  math::Vector4f fog_color;
   float alpha_min;
   float alpha_max;
-  math::Vector4f fog_color;
-};
-
-class BackgroundCommonFragmentUniformBuffer : public UniformVulkanBuffer {
- public:
-  BackgroundCommonFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                        uint32_t instanceCount,
-                                        VkDeviceSize minOffsetAlignment);
 };
 
 namespace vulkan_background_common {
@@ -95,7 +88,7 @@ DoubleDraw setup_tfrag_shader(
     DrawMode mode,
     VulkanSamplerHelper& sampler,
     PipelineConfigInfo& pipeline_info,
-    std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer);
+    BackgroundCommonFragmentPushConstantShaderData& uniform_buffer);
 DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
                                        VulkanSamplerHelper& sampler,
                                        PipelineConfigInfo& pipeline_config,

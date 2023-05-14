@@ -9,7 +9,7 @@
 #include "game/graphics/general_renderer/Profiler.h"
 #include "game/graphics/general_renderer/buckets.h"
 #include "game/graphics/general_renderer/loader/Loader.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/texture/TexturePoolDataTypes.h"
 
 struct LevelVis {
   bool valid = false;
@@ -98,11 +98,16 @@ class BaseBucketRenderer {
   virtual bool empty() const { return false; }
   virtual void draw_debug_window() = 0;
   virtual void SetupShader(ShaderId){};
+  float GetHeightScaleByGameVersion(GameVersion version) { return height_scales.at(version); }
 
  protected:
   std::string m_name;
   int m_my_id;
   bool m_enabled = true;
+
+  private:
+  const std::unordered_map<GameVersion, float> height_scales = {{
+      GameVersion::Jak1, 448}, {GameVersion::Jak2, 416}};
 };
 
 class BaseRenderMux : public BaseBucketRenderer {

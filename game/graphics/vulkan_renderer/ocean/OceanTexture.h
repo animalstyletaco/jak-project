@@ -17,7 +17,7 @@ class OceanVulkanTexture : public BaseOceanTexture {
       BaseSharedRenderState* render_state,
       ScopedProfilerNode& prof);
   void init_textures(VulkanTexturePool& pool);
-  void set_gpu_texture(TextureInput&) override;
+  void set_gpu_texture(BaseTextureInput&) override;
   void draw_debug_window();
   ~OceanVulkanTexture();
 

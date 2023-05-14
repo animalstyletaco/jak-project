@@ -12,6 +12,8 @@
 #include "game/graphics/opengl_renderer/loader/Loader.h"
 #include "game/graphics/texture/TexturePool.h"
 
+struct Fbo;
+
 class EyeRenderer;
 /*!
  * The main renderer will contain a single SharedRenderState that's passed to all bucket renderers.
@@ -31,6 +33,9 @@ struct SharedRenderState : BaseSharedRenderState {
   EyeRenderer* eye_renderer = nullptr;
 
   GLuint render_fb = -1;
+
+  // the FBO for blit buffer
+  const Fbo* back_fbo = nullptr;
 };
 
 /*!

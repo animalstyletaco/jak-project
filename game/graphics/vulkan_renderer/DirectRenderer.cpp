@@ -128,7 +128,7 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
   m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
-  std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
+  std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};
   // TODO: This value needs to be normalized
   attributeDescriptions[0].binding = 0;
   attributeDescriptions[0].location = 0;
@@ -155,6 +155,11 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[4].format = VK_FORMAT_R8_UINT;
   attributeDescriptions[4].offset = offsetof(BaseDirectRenderer::Vertex, use_uv);
 
+  attributeDescriptions[5].binding = 0;
+  attributeDescriptions[5].location = 5;
+  attributeDescriptions[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+  attributeDescriptions[5].offset = offsetof(BaseDirectRenderer::Vertex, scissor);
+
   debugRedAttributeDescriptions[0] = attributeDescriptions[0];
   directBasicAttributeDescriptions[0] = attributeDescriptions[0];
   directBasicTexturedAttributeDescriptions[0] = attributeDescriptions[0];
@@ -165,6 +170,7 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   directBasicTexturedAttributeDescriptions[2] = attributeDescriptions[2];
   directBasicTexturedAttributeDescriptions[3] = attributeDescriptions[3];
   directBasicTexturedAttributeDescriptions[4] = attributeDescriptions[4];
+  directBasicTexturedAttributeDescriptions[5] = attributeDescriptions[5];
 }
 
 void DirectVulkanRenderer::render(DmaFollower& dma,
@@ -286,6 +292,13 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
                 render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
                 render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
     m_direct_basic_fragment_uniform_buffer->SetUniform1f("offscreen_mode", state.ta0 / 255.f);
+    m_direct_basic_fragment_uniform_buffer->SetUniform1ui("scissor_enable",
+                                                          m_scissor_enable && !m_offscreen_mode);
+    auto swapchain_extents = m_vulkan_info.swap_chain->getSwapChainExtent();
+
+    m_direct_basic_fragment_uniform_buffer->SetUniform4f(
+        "game_sizes", 512.0f, GetHeightScaleByGameVersion(m_vulkan_info.m_version),
+        swapchain_extents.width, swapchain_extents.height);
 
   } else {
     SetShaderModule(ShaderId::DIRECT_BASIC);
@@ -632,6 +645,47 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
   m_prim_buffer.vert_count = 0;
 }
 
+void DirectVulkanRenderer::handle_trxdir(u64 dir,
+                                       BaseSharedRenderState* render_state,
+                                       ScopedProfilerNode& prof) {
+  ASSERT(m_blit_buf_state.expect == 3);
+  m_blit_buf_state.expect++;
+
+  auto get_tex_func = [&](const std::string& name, u16 tbp) {
+    auto result = m_vulkan_info.texture_pool->lookup_vulkan_texture(tbp);
+    if (!result) {
+      fmt::print("{} tbp {} not found\n", name, tbp);
+    } else {
+      fmt::print("{} tbp {} found\n", name, tbp);
+    }
+    return result;
+  };
+  fmt::print("GS TEXTURE COPY --\n");
+  fmt::print("src w/psm: {}/{} dst w/psm: {}/{}\n", m_blit_buf_state.sbw, m_blit_buf_state.spsm,
+             m_blit_buf_state.dbw, m_blit_buf_state.dpsm);
+  switch (dir) {
+    case 0: {  // host->local
+      fmt::print("-- FROM EE\n");
+      auto dst_tex = get_tex_func("dst", m_blit_buf_state.dbp);
+      // ASSERT_MSG(false, "nyi trxdir host->local");
+    } break;
+    case 1: {  // local->host
+      fmt::print("-- FROM GS\n");
+      auto src_tex = get_tex_func("src", m_blit_buf_state.sbp);
+      // ASSERT_MSG(false, "nyi trxdir local->host");
+    } break;
+    case 2: {  // local->local
+      fmt::print("-- GS <-> GS\n");
+      auto src_tex = get_tex_func("src", m_blit_buf_state.sbp);
+      auto dst_tex = get_tex_func("dst", m_blit_buf_state.dbp);
+    } break;
+    case 3:  // disable
+      fmt::print("-- HUH???\n");
+      ASSERT_MSG(false, "nyi trxdir disable");
+      break;
+  }
+}
+
 DirectBasicTexturedFragmentUniformBuffer::DirectBasicTexturedFragmentUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
     uint32_t instanceCount,
@@ -646,6 +700,8 @@ DirectBasicTexturedFragmentUniformBuffer::DirectBasicTexturedFragmentUniformBuff
       {"alpha_mult", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_mult)},
       {"alpha_sub", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_sub)},
       {"fog_color", offsetof(DirectBasicTexturedFragmentUniformShaderData, fog_color)},
-      {"ta0", offsetof(DirectBasicTexturedFragmentUniformShaderData, ta0)}
+      {"game_sizes", offsetof(DirectBasicTexturedFragmentUniformShaderData, game_sizes)},
+      {"ta0", offsetof(DirectBasicTexturedFragmentUniformShaderData, ta0)},
+      {"scissor_enable", offsetof(DirectBasicTexturedFragmentUniformShaderData, ta0)},
   };
 }

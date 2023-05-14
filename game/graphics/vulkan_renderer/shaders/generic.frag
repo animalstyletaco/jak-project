@@ -6,17 +6,13 @@ layout (location = 1) in vec4 fragment_color;
 layout (location = 2) in float fog;
 layout (location = 3) in flat uvec2 tex_info;
 
-layout (set = 1, binding = 0) uniform UniformBufferObject {
-  float alpha_reject;
-  float color_mult;
-  vec4 fog_color;
-} ubo;
+layout (set = 1, binding = 0) uniform sampler2D texture0;
 
-layout (set = 1, binding = 1) uniform sampler2D texture0;
-
-layout(push_constant) uniform PushConstant
-{
-	layout(offset = 12) int gfx_hack_no_tex;
+layout(push_constant) uniform PushConstant {
+  layout(offset = 16) vec4 fog_color;
+  layout(offset = 32) float alpha_reject;
+  layout(offset = 36) float color_mult;
+	layout(offset = 40) int gfx_hack_no_tex;
 }pc;
 
 layout (location = 0) out vec4 color;
@@ -71,12 +67,12 @@ void main() {
           }
       }
     }
-    color.rgb *= ubo.color_mult;
+    color.rgb *= pc.color_mult;
 
-    if (color.a < ubo.alpha_reject) {
+    if (color.a < pc.alpha_reject) {
         discard;
     }
     if ((tex_info.y & 4u) != 0) {
-        color.xyz = mix(color.xyz, ubo.fog_color.rgb, clamp(ubo.fog_color.a * fog, 0, 1));
+        color.xyz = mix(color.xyz, pc.fog_color.rgb, clamp(pc.fog_color.a * fog, 0, 1));
     }
 }

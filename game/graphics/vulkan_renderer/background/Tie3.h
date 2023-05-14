@@ -61,6 +61,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
     std::unique_ptr<VertexBuffer> wind_vertex_buffer;
     std::unique_ptr<IndexBuffer> wind_index_buffer;
+    std::unique_ptr<GraphicsPipelineLayout> graphics_pipeline_layout;
   };
 
   void envmap_second_pass_draw(TreeVulkan& tree,
@@ -68,7 +69,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
                                BaseSharedRenderState* render_state,
                                ScopedProfilerNode& prof,
                                tfrag3::TieCategory category,
-                               int index);
+                               int index, int geom);
 
   struct Cache {
     std::vector<background_common::DrawSettings> draw_idx_temp;
@@ -82,24 +83,21 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     float height_scale;
     float scissor_adjust;
     int decal_mode = 0;
-  } m_tie_push_constant;
+  } m_tie_vertex_push_constant;
 
-  void PrepareVulkanDraw(TreeVulkan& tree, int index);
+  void PrepareVulkanDraw(TreeVulkan& tree, VkSampler, int index);
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
   void init_etie_cam_uniforms(const BaseSharedRenderState* render_state);
 
   std::array<std::vector<TreeVulkan>, 4> m_trees;  // includes 4 lods!
   std::unordered_map<u32, VulkanTexture>* m_textures;
-  std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
-
-  VkDescriptorBufferInfo m_time_of_day_descriptor_info;
-  std::vector<GraphicsPipelineLayout> m_graphics_wind_pipeline_layouts;
+  std::array<std::vector<VulkanSamplerHelper>, 4> m_tree_time_of_day_samplers;
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
-  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_uniform_buffer;
+  BackgroundCommonFragmentPushConstantShaderData m_time_of_day_color_push_constant;
 
   std::unique_ptr<BackgroundCommonEtieVertexUniformBuffer> m_etie_vertex_shader_uniform_buffer;
-  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_etie_time_of_day_color_uniform_buffer;
+  BackgroundCommonFragmentPushConstantShaderData m_etie_time_of_day_color_push_constant;
 
   std::unique_ptr<UniformVulkanBuffer> m_time_of_day_uniform_buffer;
   std::unordered_map<u32, VulkanTexture> texture_maps[tfrag3::TIE_GEOS];

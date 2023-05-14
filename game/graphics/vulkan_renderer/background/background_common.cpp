@@ -224,16 +224,11 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
 DoubleDraw vulkan_background_common::setup_tfrag_shader(
   BaseSharedRenderState* render_state, DrawMode mode, 
     VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_info,
-    std::unique_ptr<BackgroundCommonFragmentUniformBuffer>& uniform_buffer) {
+    BackgroundCommonFragmentPushConstantShaderData& fragment_push_constant) {
   auto draw_settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, sampler, pipeline_info, true);
-  for (uint32_t instanceIdx = 0; instanceIdx < uniform_buffer->getInstanceCount(); instanceIdx++) {
-    uniform_buffer->SetUniform1f("alpha_min", draw_settings.aref_first, instanceIdx);
-    uniform_buffer->SetUniform1f("alpha_max", 10.f, instanceIdx);
+  fragment_push_constant.alpha_min = draw_settings.aref_first;
+  fragment_push_constant.alpha_max = 10.f;
 
-    uniform_buffer->map();
-    uniform_buffer->flush();
-    uniform_buffer->unmap();
-  }
   return draw_settings;
 }
 
@@ -598,18 +593,4 @@ BackgroundCommonEtieVertexUniformBuffer::BackgroundCommonEtieVertexUniformBuffer
                                           sizeof(BackgroundCommonEtieVertexUniformShaderData)) {
   section_name_to_memory_offset_map.insert(std::pair<std::string, uint32_t>(
       "envmap_tod_tint", offsetof(BackgroundCommonEtieVertexUniformShaderData, envmap_tod_tint)));
-}
-
-BackgroundCommonFragmentUniformBuffer::BackgroundCommonFragmentUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
-    uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device,
-                    sizeof(BackgroundCommonFragmentUniformShaderData),
-                    instanceCount,
-                    minOffsetAlignment) {
-  section_name_to_memory_offset_map = {
-      {"alpha_min", offsetof(BackgroundCommonFragmentUniformShaderData, alpha_min)},
-      {"alpha_max", offsetof(BackgroundCommonFragmentUniformShaderData, alpha_max)},
-      {"fog_color", offsetof(BackgroundCommonFragmentUniformShaderData, fog_color)}};
 }

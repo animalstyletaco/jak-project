@@ -5,7 +5,8 @@ layout (location = 1) in vec2 st;
 
 layout(push_constant) uniform PushConstant
 {
-	uvec4 u_color;
+	layout(offset = 0) uvec4 u_color;
+  layout(offset = 16) float height_scale;
 }pc;
 
 layout (location = 0) out flat vec4 fragment_color;
@@ -24,6 +25,7 @@ void main() {
     // correct xy scale
     transformed.x /= (256);
     transformed.y /= -(128);
+    transformed.y *= pc.height_scale;
 
     gl_Position = transformed;
 }

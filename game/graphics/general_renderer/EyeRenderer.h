@@ -71,13 +71,6 @@ class BaseEyeRenderer : public BaseBucketRenderer {
 
   bool m_use_gpu = true;
 
-  struct CpuEyeTex {
-    u64 gl_tex;
-    GpuTexture* gpu_tex;
-    u32 tbp;
-  };
-  CpuEyeTex m_cpu_eye_textures[NUM_EYE_PAIRS * 2];
-
   // xyst per vertex, 4 vertices per square, 3 draws per eye, 11 pairs of eyes, 2 eyes per pair.
   static constexpr int VTX_BUFFER_FLOATS = 4 * 4 * 3 * NUM_EYE_PAIRS * 2;
   float m_gpu_vertex_buffer[VTX_BUFFER_FLOATS];

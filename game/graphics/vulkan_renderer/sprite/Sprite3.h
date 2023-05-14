@@ -107,7 +107,20 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
     float alpha_max;
   }m_sprite_fragment_push_constant;
 
-  math::Vector4f m_sprite_distort_push_constant;
+  struct DistortPushConstant {
+    math::Vector4f colors;
+    float height_scale;
+  } m_sprite_distort_push_constant;
+
+  struct Sprite3GraphicsSettings {
+    Sprite3GraphicsSettings(std::unique_ptr<GraphicsDeviceVulkan>& device){
+      sampler_helpers.resize(10, device);
+      pipeline_layouts.resize(10, device);
+    }
+
+    std::vector<VulkanSamplerHelper> sampler_helpers;
+    std::vector<GraphicsPipelineLayout> pipeline_layouts;
+  };
 
   GraphicsPipelineLayout m_distorted_pipeline_layout;
   GraphicsPipelineLayout m_distorted_instance_pipeline_layout;
@@ -120,7 +133,9 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   std::unique_ptr<DescriptorWriter> m_sprite_distort_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_sprite_distort_fragment_descriptor_writer;
 
-  std::vector<VulkanSamplerHelper> m_sampler_helpers;
+  std::unordered_map<uint32_t, Sprite3GraphicsSettings> m_sprite_graphics_settings_map;
+  uint32_t m_flush_sprite_call_count = 0;
+
   VulkanSamplerHelper m_distort_sampler_helper;
 
   VkPipelineLayout m_pipeline_layout = VK_NULL_HANDLE;
@@ -135,9 +150,13 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   std::vector<VkVertexInputAttributeDescription> m_sprite_distort_instanced_attribute_descriptions;
 
   VkDescriptorSet m_vertex_descriptor_set = VK_NULL_HANDLE;
-  std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
   VkDescriptorSet m_sprite_distort_fragment_descriptor_set = VK_NULL_HANDLE;
 
   VkDescriptorImageInfo m_sprite_distort_descriptor_image_info;
+  std::vector<std::array<VkDescriptorSet, 10>> m_fragment_descriptor_set_map;
   std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
+
+  void AllocateNewDescriptorMapElement();
+
+  uint32_t m_direct_renderer_call_count = 0;
 };

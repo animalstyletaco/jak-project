@@ -12,6 +12,7 @@
 #include "common/util/SmallVector.h"
 #include "common/versions/versions.h"
 
+#include "game/graphics/pipelines/pipeline_common.h"
 #include "game/graphics/texture/TextureConverter.h"
 #include "game/graphics/texture/TexturePoolDataTypes.h"
 
@@ -19,7 +20,7 @@
  * The lowest level reference to texture data.
  */
 struct TextureData {
-  u64 gl = -1;               // the OpenGL texture ID
+  GLuint gl = -1;            // the OpenGL texture ID
   const u8* data = nullptr;  // pointer to texture data (owned by the loader)
 };
 
@@ -27,7 +28,7 @@ struct TextureData {
  * A texture provided by the loader.
  */
 struct TextureInput : BaseTextureInput {
-  u64 gpu_texture = -1;
+  GLuint gpu_texture = -1;
 
   const u8* src_data;
   u16 w, h;
@@ -85,7 +86,7 @@ struct GpuTexture {
  * source will be non-null and the gpu_texture will be a placeholder that is safe to use.
  */
 struct TextureVRAMReference {
-  u64 gpu_texture = -1;  // the OpenGL texture to use when rendering.
+  GLuint gpu_texture = -1;  // the OpenGL texture to use when rendering.
   GpuTexture* source = nullptr;
 };
 

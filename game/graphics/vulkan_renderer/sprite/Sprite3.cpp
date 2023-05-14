@@ -20,9 +20,6 @@ SpriteVulkan3::SpriteVulkan3(const std::string& name,
   m_sprite_3d_vertex_uniform_buffer = std::make_unique<Sprite3dVertexUniformBuffer>(
       m_device, 1);
 
-  m_graphics_pipeline_layouts.resize(10, m_device);
-  m_sampler_helpers.resize(10, m_device);
-
   m_descriptor_image_infos.resize(
       10, *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
   graphics_setup();
@@ -126,6 +123,9 @@ void SpriteVulkan3::SetupShader(ShaderId shaderId) {
  void SpriteVulkan3::render(DmaFollower& dma,
                      SharedVulkanRenderState* render_state,
                      ScopedProfilerNode& prof) {
+  m_direct_renderer_call_count = 0;
+  m_flush_sprite_call_count = 0;
+  m_direct.set_current_index(m_direct_renderer_call_count++);
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   BaseSprite3::render(dma, render_state, prof);
  }
@@ -171,7 +171,6 @@ void SpriteVulkan3::graphics_setup_normal() {
           .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
-  m_fragment_descriptor_sets.resize(10);
   m_vertex_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(
@@ -184,11 +183,11 @@ void SpriteVulkan3::graphics_setup_normal() {
   m_fragment_descriptor_writer->writeImage(
       0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info()); 
 
-  auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{10, descriptorSetLayout};
-  m_vulkan_info.descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(),
-                                                    m_fragment_descriptor_sets.data(),
-                                                    m_fragment_descriptor_sets.size());
+  const unsigned initial_size = 5;  // arbituary
+  for (uint32_t i = 0; i < initial_size; i++) {
+    m_sprite_graphics_settings_map.insert({i, {m_device}});
+    AllocateNewDescriptorMapElement();
+  }
 
   std::array<VkVertexInputBindingDescription, 1> bindingDescriptions{};
   bindingDescriptions[0].binding = 0;
@@ -230,6 +229,17 @@ void SpriteVulkan3::graphics_setup_normal() {
                                          attributeDescriptions.end());
 }
 
+void SpriteVulkan3::AllocateNewDescriptorMapElement(){
+  m_fragment_descriptor_set_map.emplace_back();
+  auto& fragment_descriptor_sets = m_fragment_descriptor_set_map.back();
+
+  auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{10, descriptorSetLayout};
+  m_vulkan_info.descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(),
+                                                    fragment_descriptor_sets.data(),
+                                                    fragment_descriptor_sets.size());
+}
+
 void SpriteVulkan3::setup_graphics_for_2d_group_0_render() {
   // opengl sprite frame setup
   // auto shid = render_state->shaders[ShaderId::SPRITE3].id();
@@ -268,6 +278,11 @@ void SpriteVulkan3::setup_graphics_for_2d_group_0_render() {
 void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
                             ScopedProfilerNode& prof,
                             bool double_draw) {
+  while (m_flush_sprite_call_count >= m_sprite_graphics_settings_map.size()) {
+    m_sprite_graphics_settings_map.insert({m_sprite_graphics_settings_map.size(), {m_device}});
+    AllocateNewDescriptorMapElement();
+  }
+
   // Enable prim restart, we need this to break up the triangle strips
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
@@ -312,7 +327,11 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
     }
     ASSERT(tex);
 
-    auto settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, m_sampler_helpers[index], m_pipeline_config_info, false);
+    auto& sprite_graphics_settings = m_sprite_graphics_settings_map.at(m_flush_sprite_call_count);
+    VulkanSamplerHelper& sampler_helper = sprite_graphics_settings.sampler_helpers[index];
+    GraphicsPipelineLayout& graphics_layout = sprite_graphics_settings.pipeline_layouts[index];
+
+    auto settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, sampler_helper, m_pipeline_config_info, false);
 
     m_sprite_fragment_push_constant.alpha_min = (double_draw) ? settings.aref_first : 0.016;
     m_sprite_fragment_push_constant.alpha_max = 10.f;
@@ -324,26 +343,26 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
     prof.add_draw_call();
     prof.add_tri(2 * (bucket->ids.size() / 5));
 
-    m_graphics_pipeline_layouts[index].createGraphicsPipeline(m_pipeline_config_info);
-    m_graphics_pipeline_layouts[index].bind(m_vulkan_info.render_command_buffer);
+    graphics_layout.createGraphicsPipeline(m_pipeline_config_info);
+    graphics_layout.bind(m_vulkan_info.render_command_buffer);
 
     m_descriptor_image_infos[index] =
-        VkDescriptorImageInfo{m_sampler_helpers[index].GetSampler(), tex->getImageView(),
+        VkDescriptorImageInfo{sampler_helper.GetSampler(), tex->getImageView(),
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-
+    
     auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
     write_descriptors_info[0] =
         m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_infos[index]);
 
-    m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[index]);
-    std::vector<VkDescriptorSet> descriptorSets{m_vertex_descriptor_set, m_fragment_descriptor_sets[index]};
+    m_fragment_descriptor_writer->overwrite(
+        m_fragment_descriptor_set_map[m_flush_sprite_call_count][index]);
+    std::vector<VkDescriptorSet> descriptorSets{
+        m_vertex_descriptor_set, m_fragment_descriptor_set_map[m_flush_sprite_call_count][index]};
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, descriptorSets.size(),
                             descriptorSets.data(), 0, NULL);
 
-    //glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
-    //               (void*)(bucket->offset_in_idx_buffer * sizeof(u32)));
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, bucket->ids.size(), 1,
                      bucket->offset_in_idx_buffer, 0, 0);
 
@@ -356,6 +375,11 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
           prof.add_tri(2 * (bucket->ids.size() / 5));
           m_sprite_fragment_push_constant.alpha_min = -10.f;
           m_sprite_fragment_push_constant.alpha_max = settings.aref_second;
+          
+          vkCmdPushConstants(m_vulkan_info.render_command_buffer,
+                                   m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT,
+                                   sizeof(m_push_constant), sizeof(m_sprite_fragment_push_constant),
+                                   &m_sprite_fragment_push_constant);
 
           //glDepthMask(GL_FALSE);
           //glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
@@ -375,6 +399,7 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
   m_last_bucket_key = UINT64_MAX;
   m_last_bucket = nullptr;
   m_sprite_idx = 0;
+  m_flush_sprite_call_count++;
 }
 
 void SpriteVulkan3::direct_renderer_reset_state() {
@@ -387,10 +412,12 @@ void SpriteVulkan3::direct_renderer_render_vif(u32 vif0,
                                          u32 size,
                                          BaseSharedRenderState* render_state,
                                          ScopedProfilerNode& prof) {
+  m_direct.set_current_index(m_direct_renderer_call_count++);
   m_direct.render_vif(vif0, vif1, data, size, render_state, prof);
 }
 void SpriteVulkan3::direct_renderer_flush_pending(BaseSharedRenderState* render_state,
                                             ScopedProfilerNode& prof) {
+  m_direct.set_current_index(m_direct_renderer_call_count++);
   m_direct.flush_pending(render_state, prof);
 }
 void SpriteVulkan3::SetSprite3UniformVertexFourFloatVector(const char* name,
@@ -435,8 +462,14 @@ SpriteVulkan3::~SpriteVulkan3() {
   std::vector<VkDescriptorSet> m_sprite_distort_fragment_descriptor_sets{
       m_sprite_distort_fragment_descriptor_set};
 
+  std::vector<VkDescriptorSet> fragment_descriptors;
+  for (auto& fragment_descriptor_set : m_fragment_descriptor_set_map) {
+    fragment_descriptors.insert(fragment_descriptors.end(), fragment_descriptor_set.begin(),
+                                fragment_descriptor_set.end());
+  }
+
+  m_vulkan_info.descriptor_pool->freeDescriptors(fragment_descriptors);
   m_vulkan_info.descriptor_pool->freeDescriptors(vertex_descriptor_sets);
-  m_vulkan_info.descriptor_pool->freeDescriptors(m_fragment_descriptor_sets);
   m_vulkan_info.descriptor_pool->freeDescriptors(m_sprite_distort_fragment_descriptor_sets);
 }
 

@@ -267,6 +267,7 @@ if(WIN32)
         graphics/vulkan_renderer/DepthCue.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
         graphics/vulkan_renderer/Warp.cpp
+        graphics/vulkan_renderer/BlitDisplays.cpp
         graphics/texture/VulkanTexturePool.cpp
         ../third-party/glad/src/vulkan.c)
 endif()
@@ -314,6 +315,7 @@ endif()
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/VisDataHandler.cpp
         graphics/opengl_renderer/Warp.cpp
+        graphics/opengl_renderer/BlitDisplays.cpp
         graphics/pipelines/opengl.cpp
         graphics/texture/TexturePool.cpp
         ../third-party/glad/src/glad.c)

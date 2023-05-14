@@ -17,9 +17,4 @@ class BaseSkyBlendGPU {
   };
 
   Vertex m_vertex_data[6];
-
-  struct TexInfo {
-    GpuTexture* tex;
-    u32 tbp;
-  } m_tex_info[2];
 };

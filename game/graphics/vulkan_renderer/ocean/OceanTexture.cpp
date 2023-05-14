@@ -374,7 +374,7 @@ void OceanVulkanTexture::InitializeVertexBuffer() {
   m_sampler_helper.CreateSampler();
 }
 
-void OceanVulkanTexture::set_gpu_texture(TextureInput&) {
+void OceanVulkanTexture::set_gpu_texture(BaseTextureInput&) {
 }
 
 void OceanVulkanTexture::move_existing_to_vram(u32 slot_addr) {

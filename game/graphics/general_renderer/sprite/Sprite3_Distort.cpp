@@ -80,14 +80,14 @@ void BaseSprite3::distort_dma(DmaFollower& dma, ScopedProfilerNode& /*prof*/) {
   ASSERT(gif_tag.reg(0) == GifTag::RegisterDescriptor::AD);
 
   auto zbuf1 = m_sprite_distorter_setup.zbuf;
-  ASSERT(zbuf1.zbp() == 0x1c0);
+  ASSERT(zbuf1.zbp() == expect_zbp);
   ASSERT(zbuf1.zmsk() == true);
   ASSERT(zbuf1.psm() == TextureFormat::PSMZ24);
 
   auto tex0 = m_sprite_distorter_setup.tex0;
   ASSERT(tex0.tbw() == 8);
   ASSERT(tex0.tw() == 9);
-  ASSERT(tex0.th() == 8);
+  ASSERT(tex0.th() == expect_th);
 
   auto tex1 = m_sprite_distorter_setup.tex1;
   ASSERT(tex1.mmag() == true);

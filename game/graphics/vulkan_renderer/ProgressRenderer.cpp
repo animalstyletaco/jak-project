@@ -6,7 +6,15 @@ ProgressVulkanRenderer::ProgressVulkanRenderer(const std::string& name,
                                                VulkanInitializationInfo& vulkan_info,
                                                int batch_size)
     : DirectVulkanRenderer(name, my_id, device, vulkan_info, batch_size),
-      m_minimap_fb(kMinimapWidth, kMinimapHeight, VK_FORMAT_A8B8G8R8_UINT_PACK32, device) {}
+      m_minimap_fb(kMinimapWidth, kMinimapHeight, VK_FORMAT_A8B8G8R8_UINT_PACK32, device) {
+  VulkanTextureInput in;
+  in.texture = &m_minimap_fb.ColorAttachmentTexture(0);
+  in.debug_page_name = "PC-MAP";
+  in.debug_name = "map";
+  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture(m_vulkan_info.m_version);
+  // m_minimap_gpu_tex = m_vulkan_info.texture_pool->give_texture_and_load_to_vram(in,
+  // kMinimapVramAddr);
+}
 
 void ProgressVulkanRenderer::pre_render() {
   m_current_fbp = kScreenFbp;
@@ -15,15 +23,6 @@ void ProgressVulkanRenderer::pre_render() {
 void ProgressVulkanRenderer::post_render() {
   //m_fb_ctxt.reset();
   m_offscreen_mode = false;
-}
-
-void ProgressVulkanRenderer::init_textures(TexturePool& texture_pool, GameVersion) {
-  VulkanTextureInput in;
-  in.texture = &m_minimap_fb.ColorAttachmentTexture(0);
-  in.debug_page_name = "PC-MAP";
-  in.debug_name = "map";
-  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture(m_vulkan_info.m_version);
-  //m_minimap_gpu_tex = m_vulkan_info.texture_pool->give_texture_and_load_to_vram(in, kMinimapVramAddr);
 }
 
 void ProgressVulkanRenderer::handle_frame(u64 val,

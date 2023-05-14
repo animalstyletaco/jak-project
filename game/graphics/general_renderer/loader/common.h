@@ -4,8 +4,6 @@
 #include "common/custom_data/Tfrag3Data.h"
 #include "common/util/Timer.h"
 
-#include "game/graphics/texture/TexturePool.h"
-
 struct BaseLevelData {
   std::unique_ptr<tfrag3::Level> level;
   u64 load_id = UINT64_MAX;

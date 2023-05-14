@@ -44,17 +44,16 @@ void GenericVulkan2::graphics_setup() {
 
   m_vertex_uniform_buffer = std::make_unique<GenericCommonVertexUniformBuffer>(
     m_device, 1, 1);
-  m_fragment_uniform_buffer = std::make_unique<GenericCommonFragmentUniformBuffer>(
-      m_device, m_buckets.size(), 1);
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
-  m_fragment_descriptor_layout = DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT).build();
+  m_fragment_descriptor_layout =
+      DescriptorLayout::Builder(m_device)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .build();
 
   create_pipeline_layout();
   m_vertex_descriptor_writer =
@@ -67,8 +66,6 @@ void GenericVulkan2::graphics_setup() {
   m_vertex_buffer_descriptor_info = m_vertex_uniform_buffer->descriptorInfo();
   m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_buffer_descriptor_info)
       .build(m_vertex_descriptor_set);
-  m_fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
-  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info);
 
   auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
   m_fragment_descriptor_sets.resize(m_buckets.size());
@@ -78,7 +75,7 @@ void GenericVulkan2::graphics_setup() {
       descriptorSetLayouts.data(), m_fragment_descriptor_sets.data(), m_fragment_descriptor_sets.size());
 
   m_fragment_descriptor_writer->writeImage(
-      1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());  // Using placeholder for initializating
+      0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());  // Using placeholder for initializating
                                                          // descriptor writer info for now
   InitializeInputAttributes();
 }
@@ -100,8 +97,8 @@ void GenericVulkan2::create_pipeline_layout() {
   pushConstantVertexRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   VkPushConstantRange pushConstantFragmentRange = {};
-  pushConstantFragmentRange.offset = pushConstantVertexRange.size;
-  pushConstantFragmentRange.size = sizeof(int);
+  pushConstantFragmentRange.offset = sizeof(math::Vector4f);
+  pushConstantFragmentRange.size = sizeof(m_fragment_push_constant);
   pushConstantFragmentRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
   std::array<VkPushConstantRange, 2> pushConstantRanges = {pushConstantVertexRange,
@@ -159,8 +156,9 @@ void GenericVulkan2::graphics_bind_and_setup_proj(BaseSharedRenderState* render_
 }
 
 void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
-                                          u8 fix,
-                                          BaseSharedRenderState* render_state, uint32_t bucket) {
+                                                  u8 fix,
+                                                  BaseSharedRenderState* render_state,
+                                                  uint32_t bucket) {
   // compute alpha_reject:
   float alpha_reject = 0.f;
   if (draw_mode.get_at_enable()) {
@@ -178,8 +176,8 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
   }
 
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
-      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
   m_pipeline_config_info.colorBlendInfo.logicOpEnable = VK_FALSE;
@@ -191,7 +189,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
   // setup blending and color mult
   float color_mult = 1.f;
   if (draw_mode.get_ab_enable()) {
-    //glBlendColor(1, 1, 1, 1);
+    // glBlendColor(1, 1, 1, 1);
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
     m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 1.0f;
@@ -206,7 +204,8 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
 
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -250,11 +249,15 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
-      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor =
+          VK_BLEND_FACTOR_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
 
-      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor =
+          VK_BLEND_FACTOR_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
     } else if (draw_mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_SRC_SRC_SRC) {
       // this is very weird...
       // Cs
@@ -269,7 +272,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
 
     } else if (draw_mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_DST_DST) {
       // (Cs - 0) * Ad + Cd
-      //glBlendFunc(GL_DST_ALPHA, GL_ONE);
+      // glBlendFunc(GL_DST_ALPHA, GL_ONE);
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
       color_mult = 1.0f;
@@ -308,7 +311,8 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
         break;
       case GsTest::ZTest::GEQUAL:
-        m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; //VK_COMPARE_OP_GREATER_OR_EQUAL;
+        m_pipeline_config_info.depthStencilInfo.depthCompareOp =
+            VK_COMPARE_OP_LESS_OR_EQUAL;  // VK_COMPARE_OP_GREATER_OR_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER;
@@ -321,14 +325,14 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
     ASSERT(false);
   }
 
-  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = draw_mode.get_depth_write_enable() ? VK_TRUE : VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthWriteEnable =
+      draw_mode.get_depth_write_enable() ? VK_TRUE : VK_FALSE;
 
-  m_fragment_uniform_buffer->SetUniform1f("alpha_reject", alpha_reject, bucket);
-  m_fragment_uniform_buffer->SetUniform1f("color_mult", color_mult, bucket);
-  m_fragment_uniform_buffer->SetUniform4f(
-              "fog_color", render_state->fog_color[0] / 255.f,
-              render_state->fog_color[1] / 255.f, render_state->fog_color[2] / 255.f,
-              render_state->fog_intensity / 255, bucket);
+  m_fragment_push_constant.alpha_reject = alpha_reject;
+  m_fragment_push_constant.color_mult = color_mult;
+  m_fragment_push_constant.fog_color =
+      math::Vector4f{render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
+                     render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255};
 }
 
 void GenericVulkan2::setup_graphics_tex(u16 unit,
@@ -428,12 +432,13 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
     m_ogl.index_buffer->writeToGpuBuffer(m_indices.data(), m_next_free_idx * sizeof(u32), 0);
   }
 
+  m_fragment_push_constant.hack_no_tex = Gfx::g_global_settings.hack_no_tex;
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
                      (void*)&m_push_constant);
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant) + sizeof(m_warp_sample_mode), sizeof(uint32_t),
-                     (void*)&Gfx::g_global_settings.hack_no_tex);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(math::Vector4f),
+                     sizeof(m_fragment_push_constant), (void*)&m_fragment_push_constant);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
@@ -500,7 +505,7 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
   }
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-  write_descriptors_info[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(1, &m_descriptor_image_infos[bucket]);
+  write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_infos[bucket]);
 
   m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[bucket]);
   
@@ -510,13 +515,9 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
   std::vector<VkDescriptorSet> descriptor_sets = {m_vertex_descriptor_set,
                                                   m_fragment_descriptor_sets[bucket]};
 
-  std::array<uint32_t, 1> dynamic_descriptor_offsets = {
-      bucket * m_fragment_uniform_buffer->getAlignmentSize()};
-
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
-                          descriptor_sets.data(), dynamic_descriptor_offsets.size(),
-                          dynamic_descriptor_offsets.data());
+                          descriptor_sets.data(), 0, NULL);
 
   vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
                    indexCount, 1, firstIndex, 0, 0);
@@ -569,19 +570,5 @@ GenericCommonVertexUniformBuffer::GenericCommonVertexUniformBuffer(
       {"mat_32", offsetof(GenericCommonVertexUniformShaderData, mat_32)},
       {"mat_33", offsetof(GenericCommonVertexUniformShaderData, mat_33)},
       {"scale", offsetof(GenericCommonVertexUniformShaderData, scale)}};
-}
-
-GenericCommonFragmentUniformBuffer::GenericCommonFragmentUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
-    uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device,
-                    sizeof(GenericCommonFragmentUniformShaderData),
-                    instanceCount,
-                    minOffsetAlignment) {
-  section_name_to_memory_offset_map = {
-      {"alpha_reject", offsetof(GenericCommonFragmentUniformShaderData, alpha_reject)},
-      {"color_mult", offsetof(GenericCommonFragmentUniformShaderData, color_mult)},
-      {"fog_color", offsetof(GenericCommonFragmentUniformShaderData, fog_color)}};
 }
 

@@ -7,6 +7,8 @@
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
+BaseDirectRenderer::ScissorState BaseDirectRenderer::m_scissor;
+
 BaseDirectRenderer::BaseDirectRenderer(const std::string& name, int my_id, int batch_size)
     : BaseBucketRenderer(name, my_id), m_prim_buffer(batch_size) {
 }
@@ -215,6 +217,12 @@ void BaseDirectRenderer::render_gif(const u8* data,
     ASSERT(size >= 16);
   }
 
+  if (m_blit_buf_state.expect == 5) {
+    ASSERT(m_blit_buf_state.qwc * 16 == size);
+    m_blit_buf_state.expect = 0;
+    return;
+  }
+
   bool eop = false;
 
   u32 offset = 0;
@@ -224,6 +232,7 @@ void BaseDirectRenderer::render_gif(const u8* data,
     }
     GifTag tag(data + offset);
     offset += 16;
+    eop = tag.eop();
 
     // unpack registers.
     // faster to do it once outside of the nloop loop.
@@ -296,11 +305,17 @@ void BaseDirectRenderer::render_gif(const u8* data,
           offset += 8;  // PACKED = quadwords
         }
       }
-    } else {
+    } else if (format == GifTag::Format::IMAGE) {
+    ASSERT(m_blit_buf_state.expect == 4);
+    m_blit_buf_state.expect++;
+
+    // dont support non-eop image transfers yet
+    ASSERT(eop);
+    // in IMAGE mode this is the amount of 2x64-bit (1 qword) we will transfer
+    m_blit_buf_state.qwc = tag.nloop();
+  } else {
       ASSERT(false);  // format not packed or reglist.
     }
-
-    eop = tag.eop();
   }
 
   if (size != UINT32_MAX) {
@@ -367,23 +382,40 @@ void BaseDirectRenderer::handle_ad(const u8* data,
     case GsRegisterAddress::TEXFLUSH:
       break;
     case GsRegisterAddress::FRAME_1:
+      handle_frame(value, render_state, prof);
       break;
-    case GsRegisterAddress::RGBAQ:
-      // shadow scissor does this?
-      {
-        m_prim_building.rgba_reg[0] = data[0];
-        m_prim_building.rgba_reg[1] = data[1];
-        m_prim_building.rgba_reg[2] = data[2];
-        m_prim_building.rgba_reg[3] = data[3];
-        memcpy(&m_prim_building.Q, data + 4, 4);
-      }
-      break;
+    case GsRegisterAddress::RGBAQ: {  // shadow scissor does this?
+      m_prim_building.rgba_reg[0] = data[0];
+      m_prim_building.rgba_reg[1] = data[1];
+      m_prim_building.rgba_reg[2] = data[2];
+      m_prim_building.rgba_reg[3] = data[3];
+      memcpy(&m_prim_building.Q, data + 4, 4);
+    } break;
     case GsRegisterAddress::SCISSOR_1:
-      // fmt::print("ignoring scissor\n");
+      handle_scissor(value);
       break;
     case GsRegisterAddress::XYOFFSET_1:
       ASSERT(render_state->version == GameVersion::Jak2);  // hardcoded jak 2 scissor vals in handle
       handle_xyoffset(value);
+      break;
+    case GsRegisterAddress::COLCLAMP:
+      ASSERT(value == 1);
+      break;
+    case GsRegisterAddress::BITBLTBUF:
+      ASSERT(false);
+      handle_bitbltbuf(value);
+      break;
+    case GsRegisterAddress::TRXPOS:
+      ASSERT(false);
+      handle_trxpos(value);
+      break;
+    case GsRegisterAddress::TRXREG:
+      ASSERT(false);
+      handle_trxreg(value);
+      break;
+    case GsRegisterAddress::TRXDIR:
+      ASSERT(false);
+      handle_trxdir(value & 0x3, render_state, prof);
       break;
     default:
       ASSERT_MSG(false, fmt::format("Address {} is not supported", register_address_name(addr)));
@@ -392,12 +424,51 @@ void BaseDirectRenderer::handle_ad(const u8* data,
 
 void BaseDirectRenderer::handle_frame(u64, BaseSharedRenderState*, ScopedProfilerNode&) {}
 
+void BaseDirectRenderer::handle_scissor(u64 val) {
+  m_scissor.scax0 = (val >> 0) & 0x7ff;
+  m_scissor.scax1 = (val >> 16) & 0x7ff;
+  m_scissor.scay0 = (val >> 32) & 0x7ff;
+  m_scissor.scay1 = (val >> 48) & 0x7ff;
+  m_scissor_enable = true;
+}
+
 void BaseDirectRenderer::handle_xyoffset(u64 val) {
   GsXYOffset xyo(val);
   // :ofx #x7000 :ofy #x7300
   float scale = -65536;
   m_prim_buffer.x_off = scale * ((s32)xyo.ofx() - 0x7000) / float(UINT32_MAX);
   m_prim_buffer.y_off = scale * ((s32)xyo.ofy() - 0x7300) / float(UINT32_MAX);
+}
+
+void BaseDirectRenderer::handle_bitbltbuf(u64 val) {
+  ASSERT(m_blit_buf_state.expect == 0);
+  m_blit_buf_state.expect++;
+
+  m_blit_buf_state.sbp = (val >> 0) & 0x3fff;
+  m_blit_buf_state.sbw = (val >> 16) & 0x3f;
+  m_blit_buf_state.spsm = (val >> 24) & 0x3f;
+  m_blit_buf_state.dbp = (val >> 32) & 0x3fff;
+  m_blit_buf_state.dbw = (val >> 48) & 0x3f;
+  m_blit_buf_state.dpsm = (val >> 56) & 0x3f;
+}
+
+void BaseDirectRenderer::handle_trxpos(u64 val) {
+  ASSERT(m_blit_buf_state.expect == 1);
+  m_blit_buf_state.expect++;
+
+  m_blit_buf_state.ssax = (val >> 0) & 0x7ff;
+  m_blit_buf_state.ssay = (val >> 16) & 0x7ff;
+  m_blit_buf_state.dsax = (val >> 32) & 0x7ff;
+  m_blit_buf_state.dsay = (val >> 48) & 0x7ff;
+  m_blit_buf_state.pixel_dir = (val >> 59) & 0x3;
+}
+
+void BaseDirectRenderer::handle_trxreg(u64 val) {
+  ASSERT(m_blit_buf_state.expect == 2);
+  m_blit_buf_state.expect++;
+
+  m_blit_buf_state.width = (val >> 0) & 0xfff;
+  m_blit_buf_state.height = (val >> 32) & 0xfff;
 }
 
 void BaseDirectRenderer::handle_tex1_1(u64 val) {
@@ -692,6 +763,10 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
   bool fge = m_prim_graphics_state.fogging_enable;
   bool use_uv = m_prim_graphics_state.use_uv;
 
+  math::Vector<float, 4> scissor(m_scissor.scax0, m_scissor.scax1, m_scissor.scay0,
+                               m_scissor.scay1);
+
+
   switch (m_prim_building.kind) {
     case GsPrim::Kind::SPRITE: {
       if (m_prim_building.building_idx == 2) {
@@ -716,12 +791,12 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         auto& corner3_rgba = corner2_rgba;
         auto& corner4_rgba = corner2_rgba;
 
-        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner3_rgba, corner3_vert, corner3_stq, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner4_rgba, corner4_vert, corner4_stq, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, 0, tcc, decal, fge, use_uv);
+        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, scissor, 0, tcc, decal, fge, use_uv);
+        m_prim_buffer.push(corner3_rgba, corner3_vert, corner3_stq, scissor, 0, tcc, decal, fge, use_uv);
+        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, scissor, 0, tcc, decal, fge, use_uv);
+        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, scissor, 0, tcc, decal, fge, use_uv);
+        m_prim_buffer.push(corner4_rgba, corner4_vert, corner4_stq, scissor, 0, tcc, decal, fge, use_uv);
+        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, scissor, 0, tcc, decal, fge, use_uv);
         m_prim_building.building_idx = 0;
       }
     } break;
@@ -737,7 +812,7 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         if (advance) {
           for (int i = 0; i < 3; i++) {
             m_prim_buffer.push(m_prim_building.building_rgba[i], m_prim_building.building_vert[i],
-                               m_prim_building.building_stq[i], tex_unit, tcc, decal, fge, use_uv);
+                               m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge, use_uv);
           }
         }
       }
@@ -749,7 +824,7 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         m_prim_building.building_idx = 0;
         for (int i = 0; i < 3; i++) {
           m_prim_buffer.push(m_prim_building.building_rgba[i], m_prim_building.building_vert[i],
-                             m_prim_building.building_stq[i], tex_unit, tcc, decal, fge, use_uv);
+                             m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge, use_uv);
         }
       }
       break;
@@ -765,7 +840,7 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         }
         for (int i = 0; i < 3; i++) {
           m_prim_buffer.push(m_prim_building.building_rgba[i], m_prim_building.building_vert[i],
-                             m_prim_building.building_stq[i], tex_unit, tcc, decal, fge, use_uv);
+                             m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge, use_uv);
         }
       }
     } break;
@@ -790,13 +865,13 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         math::Vector<u32, 4> di{d.x(), d.y(), d.z(), 0};
 
         // ACB:
-        m_prim_buffer.push(m_prim_building.building_rgba[0], ai, {}, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, 0, false, false, false, false);
-        // b c d                                                                         
-        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[1], di, {}, 0, false, false, false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[0], ai, {}, scissor, 0, false, false, false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, scissor, 0, false, false, false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, scissor, 0, false, false, false, false);
+        // b c d                                                                        
+        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, scissor, 0, false, false, false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, scissor, 0, false, false, false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[1], di, {}, scissor, 0, false, false, false, false);
         //
 
         m_prim_building.building_idx = 0;
@@ -864,7 +939,8 @@ BaseDirectRenderer::PrimitiveBuffer::PrimitiveBuffer(int max_triangles) {
 
 void BaseDirectRenderer::PrimitiveBuffer::push(const math::Vector<u8, 4>& rgba,
                                            const math::Vector<u32, 4>& vert,
-                                           const math::Vector<float, 3>& st,
+                                           const math::Vector3f& stq,
+                                           const math::Vector4f& scissor,
                                            int unit,
                                            bool tcc,
                                            bool decal,
@@ -882,11 +958,12 @@ void BaseDirectRenderer::PrimitiveBuffer::push(const math::Vector<u8, 4>& rgba,
   v.xyzf[1] += y_off;
   v.xyzf[2] = (float)vert[2] / (float)UINT32_MAX;
   v.xyzf[3] = (float)vert[3];
-  v.stq = st;
+  v.stq = stq;
   v.tex_unit = unit;
   v.tcc = tcc;
   v.decal = decal;
   v.fog_enable = fog_enable;
   v.use_uv = use_uv;
+  v.scissor = scissor;
   vert_count++;
 }

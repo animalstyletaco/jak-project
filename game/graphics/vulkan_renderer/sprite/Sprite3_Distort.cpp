@@ -2,6 +2,23 @@
 #include "game/graphics/general_renderer/dma_helpers.h"
 
 void SpriteVulkan3::graphics_setup_distort() {
+  m_sprite_distort_push_constant.height_scale = m_push_constant.height_scale;
+
+  // set the expected values per game version first
+  switch (m_vulkan_info.m_version) {
+    case GameVersion::Jak1:
+      expect_zbp = 0x1c0;
+      expect_th = 8;
+      break;
+    case GameVersion::Jak2:
+      expect_zbp = 0x130;
+      expect_th = 9;
+      break;
+    default:
+      ASSERT(false);
+      return;
+  }
+
   m_sprite_distort_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -157,7 +174,7 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT);
 
-  m_sprite_distort_push_constant = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
+  m_sprite_distort_push_constant.colors = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
                              m_sprite_distorter_sine_tables.color.y() / 255.0f,
                              m_sprite_distorter_sine_tables.color.z() / 255.0f,
                              m_sprite_distorter_sine_tables.color.w() / 255.0f);
@@ -165,6 +182,10 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_sprite_distort_push_constant),
                      &m_sprite_distort_push_constant);
+
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant), sizeof(float),
+                     &m_sprite_distort_push_constant.height_scale);
 
   // Enable prim restart, we need this to break up the triangle strips
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
@@ -249,7 +270,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT_INSTANCED);
 
-  m_sprite_distort_push_constant = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
+  m_sprite_distort_push_constant.colors = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
                              m_sprite_distorter_sine_tables.color.y() / 255.0f,
                              m_sprite_distorter_sine_tables.color.z() / 255.0f,
                              m_sprite_distorter_sine_tables.color.w() / 255.0f);
@@ -257,6 +278,10 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                    VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_sprite_distort_push_constant),
                    &m_sprite_distort_push_constant);
+
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                   VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant),
+                   sizeof(float), &m_sprite_distort_push_constant.height_scale);
 
   m_distorted_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
   m_distorted_pipeline_layout.bind(m_vulkan_info.render_command_buffer);

@@ -86,13 +86,12 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   } m_cache;
 
   VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
-  VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
 
   std::vector<VkDescriptorImageInfo> m_time_of_day_descriptor_image_infos;
   std::vector<VkDescriptorImageInfo> m_shrub_descriptor_image_infos;
 
   std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
-  std::unique_ptr<BackgroundCommonFragmentUniformBuffer> m_time_of_day_color_buffer;
+  BackgroundCommonFragmentPushConstantShaderData m_time_of_day_push_constant;
 
   std::vector<VkDescriptorSet> m_time_of_day_descriptor_sets;
   std::vector<VkDescriptorSet> m_shrub_descriptor_sets;

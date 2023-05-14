@@ -9,7 +9,6 @@
 #include "common/util/Timer.h"
 
 #include "game/graphics/general_renderer/loader/common.h"
-#include "game/graphics/texture/TexturePool.h"
 
 class BaseLoader {
  public:

@@ -7,6 +7,7 @@ layout (location = 1) in vec3 tex_coord;
 layout (location = 2) in float fog;
 layout (location = 3) in flat uvec4 tex_info;
 layout (location = 4) in flat uint use_uv;
+layout (location = 5) in flat vec4 gs_scissor;
 
 layout (set = 0, binding = 0) uniform UniformBufferObject {
   float alpha_reject;
@@ -14,7 +15,9 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float alpha_mult;
   float alpha_sub;
   vec4 fog_color;
+  vec4 game_sizes;
   float ta0;
+  int scissor_enable;
 } ubo;
 
 //TODO: See if we can set this up into some sort of array
@@ -32,6 +35,19 @@ vec4 sample_tex_px(vec2 coordf, uint unit) {
 }
 
 void main() {
+    if (ubo.scissor_enable == 1) {
+        float x = gl_FragCoord.x;
+        float y = gl_FragCoord.y;
+        float w = (ubo.game_sizes.z / ubo.game_sizes.x);
+        float h = (ubo.game_sizes.w / ubo.game_sizes.y);
+        float scax0 = gs_scissor.x * w + 0.5;
+        float scax1 = gs_scissor.y * w + 0.5;
+        float scay0 = (ubo.game_sizes.y - gs_scissor.w) * h + 0.5;
+        float scay1 = (ubo.game_sizes.y - gs_scissor.z) * h + 0.5;
+        if (x < scax0 || x > scax1) discard;
+        if (y < scay0 || y > scay1) discard;
+    }
+
     vec4 T0;
     if (use_uv == 1) {
         T0 = sample_tex_px(tex_coord.xy, tex_info.x);

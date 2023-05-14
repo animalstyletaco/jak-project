@@ -16,8 +16,10 @@ struct DirectBasicTexturedFragmentUniformShaderData {
   float alpha_mult;
   float alpha_sub;
   math::Vector4f fog_color;
+  math::Vector4f game_sizes;
   float ta0;
-  float pad0[3];
+  int scissor_enable;
+  float pad0[2];
 };
 
 class DirectBasicTexturedFragmentUniformBuffer : public UniformVulkanBuffer {
@@ -63,6 +65,9 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   void update_graphics_texture(BaseSharedRenderState* render_state, int unit) override;
   void render_and_draw_buffers(BaseSharedRenderState* render_state,
                                ScopedProfilerNode& prof) override;
+  void handle_trxdir(u64 dir,
+                     BaseSharedRenderState* render_state,
+                     ScopedProfilerNode& prof) override;
   void allocate_new_descriptor_set();
 
   struct {
@@ -87,7 +92,7 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
 
   std::array<VkVertexInputAttributeDescription, 1> debugRedAttributeDescriptions{};
   std::array<VkVertexInputAttributeDescription, 2> directBasicAttributeDescriptions{};
-  std::array<VkVertexInputAttributeDescription, 5> directBasicTexturedAttributeDescriptions{};
+  std::array<VkVertexInputAttributeDescription, 6> directBasicTexturedAttributeDescriptions{};
 
   std::unique_ptr<DirectBasicTexturedFragmentUniformBuffer> m_direct_basic_fragment_uniform_buffer;
   std::unique_ptr<DescriptorLayout> m_direct_basic_fragment_descriptor_layout;

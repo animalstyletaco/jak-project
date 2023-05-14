@@ -97,6 +97,7 @@ VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& 
   at(ShaderId::GLOW_DRAW).initialize_shader(m_device->getLogicalDevice(), "glow_draw");
   at(ShaderId::ETIE_BASE).initialize_shader(m_device->getLogicalDevice(), "etie_base");
   at(ShaderId::ETIE).initialize_shader(m_device->getLogicalDevice(), "etie");
+  at(ShaderId::SHADOW2).initialize_shader(m_device->getLogicalDevice(), "shadow2");
 
   for (auto& shader : m_shaders) {
     ASSERT_MSG(shader.okay(), "Shader compiled");

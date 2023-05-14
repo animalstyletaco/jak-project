@@ -80,6 +80,8 @@ struct BaseSharedRenderState {
   GameVersion version;
   u64 frame_idx = 0;
 
+  bool stencil_dirty = false;
+
   virtual ~BaseSharedRenderState() = default;
 };
 

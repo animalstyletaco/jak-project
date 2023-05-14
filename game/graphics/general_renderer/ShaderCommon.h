@@ -34,5 +34,6 @@ enum class ShaderId {
   GLOW_DRAW = 29,
   ETIE_BASE = 30,
   ETIE = 31,
+  SHADOW2 = 32,
   MAX_SHADERS
 };

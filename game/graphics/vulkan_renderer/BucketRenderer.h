@@ -83,6 +83,7 @@ class BucketVulkanRenderer {
   PipelineConfigInfo m_pipeline_config_info;
 
   VkDescriptorBufferInfo m_vertex_buffer_descriptor_info;
+  VkDescriptorBufferInfo m_etie_vertex_buffer_descriptor_info;
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;

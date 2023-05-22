@@ -8,10 +8,9 @@ layout (location = 2) in float fogginess;
 
 layout(push_constant) uniform PER_OBJECT
 {
-  layout(offset = 16) vec4 fog_color;
-  layout(offset = 32) float alpha_min;
-  layout(offset = 36) float alpha_max;
-	layout(offset = 40) int textureIndex;
+  layout(offset = 104) float alpha_min;
+  layout(offset = 108) float alpha_max;
+  layout(offset = 112) vec4 fog_color;
 }pc;
 
 layout (set = 1, binding = 0) uniform sampler2D shrub_texture;

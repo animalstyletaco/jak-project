@@ -79,11 +79,11 @@ GlowVulkanRenderer::GlowVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& de
 
     m_ogl.downsample_fbos[i].texture = std::make_unique<VulkanTexture>(m_device);
     m_ogl.downsample_fbos[i].texture->createImage(extents, 1, VK_IMAGE_TYPE_2D,
-                                                  VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_TILING_LINEAR,
+                                                  VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_LINEAR,
                                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
     m_ogl.downsample_fbos[i].texture->createImageView(VK_IMAGE_VIEW_TYPE_2D,
-                                                      VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+                                                      VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, 1);
     
     ds_size /= 2;
   }
@@ -378,10 +378,11 @@ void GlowVulkanRenderer::blit_depth(BaseSharedRenderState* render_state) {
     m_ogl.probe_fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
 
     m_ogl.probe_fbo_rgba_tex->createImage(
-        {m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, 1}, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UINT,
+        {m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, 1}, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
         VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-    m_ogl.probe_fbo_rgba_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    m_ogl.probe_fbo_rgba_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+                                              VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
     //TODO: Is populating the depth image necessary?
     //glBindRenderbuffer(GL_RENDERBUFFER, m_ogl.probe_fbo_zbuf_rb);

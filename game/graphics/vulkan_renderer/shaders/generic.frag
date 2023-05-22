@@ -6,13 +6,13 @@ layout (location = 1) in vec4 fragment_color;
 layout (location = 2) in float fog;
 layout (location = 3) in flat uvec2 tex_info;
 
-layout (set = 1, binding = 0) uniform sampler2D texture0;
+layout (set = 0, binding = 0) uniform sampler2D texture0;
 
 layout(push_constant) uniform PushConstant {
-  layout(offset = 16) vec4 fog_color;
-  layout(offset = 32) float alpha_reject;
-  layout(offset = 36) float color_mult;
-	layout(offset = 40) int gfx_hack_no_tex;
+  layout(offset = 68) float alpha_reject;
+  layout(offset = 72) float color_mult;
+  layout(offset = 76) int gfx_hack_no_tex;
+  layout(offset = 80) vec4 fog_color;
 }pc;
 
 layout (location = 0) out vec4 color;

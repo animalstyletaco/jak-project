@@ -5,14 +5,17 @@ layout (location = 1) in vec4 rgba_in;
 layout (location = 2) in vec2 tex_coord_in;
 layout (location = 3) in uvec4 byte_info;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
-   vec3 fog_constants;
-   vec4 hvdf_offset;
-   float mat_23;
-   float mat_32;
-   float mat_33;
-   vec4 scale;
-} ubo;
+layout(push_constant) uniform PushConstant {
+   layout(offset = 0) vec4 scale;
+   layout(offset = 16) vec4 hvdf_offset;
+   layout(offset = 32) vec3 fog_constants;
+   layout(offset = 44) float mat_23;
+   layout(offset = 48) float mat_32;
+   layout(offset = 52) float mat_33;
+   layout(offset = 56) float height_scale;
+   layout(offset = 60) float scissor_adjust;
+   layout(offset = 64) uint warp_sample_mode;
+} pc;
 
 layout (location = 0) out vec2 tex_coord;
 
@@ -20,13 +23,6 @@ layout (location = 1) out vec4 fragment_color;
 layout (location = 2) out float fog;
  
 layout (location = 3) out flat uvec2 tex_info;
-
-layout(push_constant) uniform PushConstant
-{
-	layout(offset = 0) float height_scale;
-  layout(offset = 4) float scissor_adjust;
-  layout(offset = 8) uint warp_sample_mode;
-}pc;
 
 const float warp_off = 1.f - (416.f/512.f);
 const float warp_mult = 512.f/416.f;
@@ -47,18 +43,18 @@ void main() {
 
     // maddax.xyzw ACC, vf08, vf16  matrix multiply X
     // vu.acc.madda(Mask::xyzw, gen.mat0, gen.vtx_load0.x());
-    transformed.xyz = position_in * ubo.scale.xyz;
-    transformed.z += ubo.mat_32;
-    transformed.w = ubo.mat_23 * position_in.z + ubo.mat_33;
+    transformed.xyz = position_in * pc.scale.xyz;
+    transformed.z += pc.mat_32;
+    transformed.w = pc.mat_23 * position_in.z + pc.mat_33;
 
     transformed *= -1; // todo?
 
 
     // div Q, vf01.x, vf12.w        perspective divide
     // vu.Q = gen.fog.x() / gen.vtx_p0.w();
-    float Q = ubo.fog_constants.x / transformed.w;
+    float Q = pc.fog_constants.x / transformed.w;
 
-    fog = 255 - clamp(-transformed.w + ubo.hvdf_offset.w, ubo.fog_constants.y, ubo.fog_constants.z);
+    fog = 255 - clamp(-transformed.w + pc.hvdf_offset.w, pc.fog_constants.y, pc.fog_constants.z);
 
     // itof12.xyz vf18, vf22        texture int to float
     // vu.vf18.itof12(Mask::xyz, vu.vf22);
@@ -77,7 +73,7 @@ void main() {
 
     // add.xyzw vf12, vf12, vf04    apply hvdf
     // gen.vtx_p0.add(Mask::xyzw, gen.vtx_p0, gen.hvdf_off);
-    transformed.xyz += ubo.hvdf_offset.xyz;
+    transformed.xyz += pc.hvdf_offset.xyz;
 
     // correct xy offset
     transformed.xy -= (2048.);

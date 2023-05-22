@@ -12,9 +12,6 @@ FullScreenDrawVulkan::FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-  m_fragment_uniform_buffer =
-      std::make_unique<UniformVulkanBuffer>(m_device, sizeof(math::Vector4f), 1, 1);
-
   std::array<Vertex, 4> vertices = {
       Vertex{-1, -1},
       Vertex{-1, 1},
@@ -26,19 +23,6 @@ FullScreenDrawVulkan::FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>
   m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, device_size, 1, 1);
   m_vertex_buffer->writeToGpuBuffer(vertices.data(), device_size, 0);
 
-  m_fragment_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1)
-          .build();
-
-  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
-                                                                    m_vulkan_info.descriptor_pool);
-
-  m_descriptor_sets.resize(1);
-  m_fragment_descriptor_writer->build(m_descriptor_sets[0]);
-
-  m_fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
-  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info, 1);
   create_pipeline_layout();
 }
 
@@ -92,15 +76,16 @@ void FullScreenDrawVulkan::init_shaders() {
 }
 
 void FullScreenDrawVulkan::create_pipeline_layout() {
-  // If push constants are needed put them here
-
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
-      m_fragment_descriptor_layout->getDescriptorSetLayout()};
-
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+
+  VkPushConstantRange pushConstantRange{};
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(math::Vector4f);
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
@@ -111,19 +96,10 @@ void FullScreenDrawVulkan::create_pipeline_layout() {
 void FullScreenDrawVulkan::draw(const math::Vector4f& color,
                                 SharedVulkanRenderState* render_state,
                                 ScopedProfilerNode& prof) {
-  m_fragment_uniform_buffer->SetUniform4f("fragment_color", color[0], color[1], color[2], color[3]);
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   
   prof.add_tri(2);
   prof.add_draw_call();
-
-  m_fragment_buffer_descriptor_info = m_fragment_uniform_buffer->descriptorInfo();
-
-  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-  write_descriptors_info[0] = m_fragment_descriptor_writer->writeBufferDescriptorSet(
-      0, &m_fragment_buffer_descriptor_info, 1);
-
-  m_fragment_descriptor_writer->overwrite(m_descriptor_sets[0]);
 
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
@@ -143,9 +119,11 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(commandBuffer, currentImageIndex);
   m_pipeline_layout.bind(commandBuffer);
 
+  vkCmdPushConstants(commandBuffer, m_pipeline_config_info.pipelineLayout,
+                   VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), &color);
+
   m_vulkan_info.swap_chain->drawCommandBuffer(
       commandBuffer, m_vertex_buffer, m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
-  // glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
   m_vulkan_info.swap_chain->endSwapChainRenderPass(commandBuffer);
   if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {

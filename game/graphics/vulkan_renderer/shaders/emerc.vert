@@ -13,18 +13,14 @@ layout (location = 0) out vec3 vtx_color;
 layout (location = 1) out vec2 vtx_st;
 layout (location = 2) out float fog;
 
-// camera control
-layout(set = 0, binding = 0) uniform EmercUniformBufferObject {
-   vec4 hvdf_offset;
-   vec4 fog_constants;
-   vec4 fade;
-   mat4 perspective_matrix;
-}emerc_ubo;
-
 layout(push_constant) uniform PushConstant
 {
-	float height_scale;
-  float scissor_adjust;
+  layout(offset = 0) mat4 perspective_matrix;
+  layout(offset = 64) vec4 hvdf_offset;
+  layout(offset = 80) vec4 fog_constants;
+  layout(offset = 96) vec4 fade;
+	layout(offset = 112) float height_scale;
+  layout(offset = 116) float scissor_adjust;
 }pc;
 
 struct MercMatrixData {
@@ -33,7 +29,7 @@ struct MercMatrixData {
     vec4 pad;
 };
 
-layout (std140, set=0, binding = 1) uniform ub_bones {
+layout (std140, set=0, binding = 0) uniform ub_bones {
     MercMatrixData bones[128];
 };
 
@@ -54,12 +50,12 @@ void main() {
         rotated_nrm += bones[mats[2]].R * normal_in * weights_in[2];
     }
 
-    vec4 transformed = emerc_ubo.perspective_matrix * vtx_pos;
+    vec4 transformed = pc.perspective_matrix * vtx_pos;
 
     rotated_nrm = normalize(rotated_nrm);
 
-    float Q = emerc_ubo.fog_constants.x / transformed[3];
-    fog = 255 - clamp(-transformed.w + emerc_ubo.hvdf_offset.w, emerc_ubo.fog_constants.y, emerc_ubo.fog_constants.z);
+    float Q = pc.fog_constants.x / transformed[3];
+    fog = 255 - clamp(-transformed.w + pc.hvdf_offset.w, pc.fog_constants.y, pc.fog_constants.z);
 
     // emerc
     vec2 st_mod = st_in;
@@ -69,12 +65,12 @@ void main() {
       vec4 vf08 = transformed;
       // vf23 = unperspect
       // unperspect (1/P(0, 0), 1/P(1, 1), 0.5, 1/P(2, 3))
-      vec4 vf23 = vec4(1. / emerc_ubo.perspective_matrix[0][0],
-                       1. / emerc_ubo.perspective_matrix[1][1],
+      vec4 vf23 = vec4(1. / pc.perspective_matrix[0][0],
+                       1. / pc.perspective_matrix[1][1],
                        0.5,
-                       1. / emerc_ubo.perspective_matrix[2][3]);
+                       1. / pc.perspective_matrix[2][3]);
       // vf14 = rgba-fade
-      vec4 vf14 = emerc_ubo.fade;
+      vec4 vf14 = pc.fade;
       // vf24 = normal st
       // mul.xyzw vf09, vf08, vf23 ;; do unperspect
       vec4 vf09 = vf08 * vf23;
@@ -116,7 +112,7 @@ void main() {
     }
 
     transformed.xyz *= Q;
-    transformed.xyz += emerc_ubo.hvdf_offset.xyz;
+    transformed.xyz += pc.hvdf_offset.xyz;
     transformed.xy -= (2048.);
     transformed.z /= (8388608);
     transformed.z -= 1;
@@ -127,6 +123,6 @@ void main() {
     gl_Position = transformed;
 
 
-    vtx_color = emerc_ubo.fade.xyz;
+    vtx_color = pc.fade.xyz;
     vtx_st = st_mod;
 }

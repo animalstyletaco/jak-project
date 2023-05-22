@@ -15,7 +15,7 @@ class ShadowVulkan2 : public BucketVulkanRenderer, public BaseShadow2 {
               ScopedProfilerNode& prof) override;
 
  private:
-  void init_shaders();
+  void init_shaders(VulkanShaderLibrary&) override;
   void create_pipeline_layout() override;
   void InitializeInputAttributes();
 
@@ -41,5 +41,5 @@ class ShadowVulkan2 : public BucketVulkanRenderer, public BaseShadow2 {
                                              bool green_enabled,
                                              bool blue_enabled,
                                              bool alpha_enabled);
-  void ShadowVulkan2::PrepareVulkanDraw(std::unique_ptr<GraphicsPipelineLayout>&);
+  void PrepareVulkanDraw(std::unique_ptr<GraphicsPipelineLayout>&);
 };

@@ -2,8 +2,10 @@
 
 layout (location = 0) out vec4 color;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject { vec4 fragment_color; }ubo;
+layout(push_constant) uniform PER_OBJECT{
+   layout(offset = 0) vec4 fragment_color;
+}pc;
 
 void main() {
-  color = ubo.fragment_color;
+  color = pc.fragment_color;
 }

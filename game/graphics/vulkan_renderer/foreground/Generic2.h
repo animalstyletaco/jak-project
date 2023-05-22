@@ -4,28 +4,19 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 struct GenericCommonVertexUniformShaderData {
-  math::Vector3f fog_constants;
-  float pad0;
+  math::Vector4f scale;
   math::Vector4f hvdf_offset;
+  math::Vector3f fog_constants;
   float mat_23;
   float mat_32;
   float mat_33;
-  float pad1;
-  math::Vector4f scale;
-};
-
-class GenericCommonVertexUniformBuffer : public UniformVulkanBuffer {
- public:
-  GenericCommonVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                   uint32_t instanceCount,
-                                   VkDeviceSize minOffsetAlignment);
 };
 
 struct GenericCommonFragmentPushConstantData {
-  math::Vector4f fog_color;
   float alpha_reject;
   float color_mult;
-  int hack_no_tex;
+  int hack_no_tex = 0;
+  math::Vector4f fog_color;
 };
 
 class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
@@ -86,13 +77,17 @@ class GenericVulkan2 : public BucketVulkanRenderer, public BaseGeneric2 {
     std::unique_ptr<IndexBuffer> index_buffer;
   } m_ogl;
 
+  struct alignas(float) VertexPushConstant : GenericCommonVertexUniformShaderData {
+    float height_scale;
+    float scissor_adjust;
+    uint32_t warp_sample_mode;
+  }m_vertex_push_constant;
+
   std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
   std::vector<VulkanSamplerHelper> m_samplers;
-  std::unique_ptr<GenericCommonVertexUniformBuffer> m_vertex_uniform_buffer;
 
   VkDescriptorSet m_vertex_descriptor_set = VK_NULL_HANDLE;
   std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
 
   GenericCommonFragmentPushConstantData m_fragment_push_constant;
-  uint32_t m_warp_sample_mode = 0;
 };

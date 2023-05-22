@@ -11,9 +11,9 @@ layout (location = 2) out float fog;
 
 layout(push_constant) uniform PER_OBJECT
 {
-  float height_scale;
-  float scissor_adjust;
-  int   bucket;
+  layout(offset = 0) float height_scale;
+  layout(offset = 4) float scissor_adjust;
+  layout(offset = 8) int   bucket;
 }pc;
 
 void main() {

@@ -39,16 +39,12 @@ class FullScreenDrawVulkan {
   std::vector<VkCommandBuffer> commandBuffers;
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
-  std::unique_ptr<UniformVulkanBuffer> m_fragment_uniform_buffer;
 
   VulkanInitializationInfo& m_vulkan_info;
   GraphicsPipelineLayout m_pipeline_layout;
   PipelineConfigInfo m_pipeline_config_info;
 
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
-
-  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
-  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
 
   std::vector<VkDescriptorSet> m_descriptor_sets;
 };

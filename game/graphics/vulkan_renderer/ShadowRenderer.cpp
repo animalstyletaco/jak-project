@@ -127,7 +127,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_TRUE;
-  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+  m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
 
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -168,14 +168,15 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_color_uniform = math::Vector4f{0.0, 0.4, 0.0, 0.5};
     m_ogl.index_buffers[0]->writeToGpuBuffer(m_front_indices, m_next_front_index * sizeof(u32), 0);
 
-    m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
     m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
+    m_pipeline_config_info.depthStencilInfo.front.reference = 0;
+    m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
 
-    m_pipeline_config_info.depthStencilInfo.back.compareMask = 0;
-    m_pipeline_config_info.depthStencilInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
-
+    m_pipeline_config_info.depthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
+    m_pipeline_config_info.depthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
-    m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+
+    m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
     PrepareVulkanDraw(draw_idx, 0);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
@@ -199,15 +200,16 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_ogl.index_buffers[1]->writeToGpuBuffer(m_back_indices, m_next_back_index * sizeof(u32), 0);
 
     // Second pass.
-
-    m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
     m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
+    m_pipeline_config_info.depthStencilInfo.front.reference = 0;
+    m_pipeline_config_info.depthStencilInfo.front.compareMask = 0;
 
-    m_pipeline_config_info.depthStencilInfo.back.compareMask = 0;
-    m_pipeline_config_info.depthStencilInfo.back.compareOp = VK_COMPARE_OP_ALWAYS;
-
+    m_pipeline_config_info.depthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
+    m_pipeline_config_info.depthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
-    m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+
+    m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
+
     PrepareVulkanDraw(draw_idx, 1);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
 
@@ -231,14 +233,15 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
-  m_pipeline_config_info.depthStencilInfo.front.compareMask = 0xFF;
   m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_NOT_EQUAL;
+  m_pipeline_config_info.depthStencilInfo.front.reference = 0;
+  m_pipeline_config_info.depthStencilInfo.front.compareMask = 0xFF;
 
-  m_pipeline_config_info.depthStencilInfo.back.compareMask = 0xFF;
-  m_pipeline_config_info.depthStencilInfo.back.compareOp = VK_COMPARE_OP_NOT_EQUAL;
-
+  m_pipeline_config_info.depthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
+  m_pipeline_config_info.depthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
   m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_KEEP;
-  m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_KEEP;
+
+  m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
@@ -260,8 +263,8 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
   m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-  //glDepthMask(GL_TRUE);
 
+  m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 }
 

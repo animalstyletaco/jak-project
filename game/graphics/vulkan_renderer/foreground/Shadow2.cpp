@@ -20,13 +20,14 @@ ShadowVulkan2::ShadowVulkan2(const std::string& name,
   m_ogl.darken_graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
 
   InitializeInputAttributes();
+  init_shaders(m_vulkan_info.shaders);
 }
 
 ShadowVulkan2::~ShadowVulkan2() {
 }
 
-void ShadowVulkan2::init_shaders() {
-  auto& shader = m_vulkan_info.shaders[ShaderId::SHADOW2];
+void ShadowVulkan2::init_shaders(VulkanShaderLibrary& library) {
+  auto& shader = library[ShaderId::SHADOW2];
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -88,7 +89,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
   m_ogl.vertex_push_constant.hvdf_offset = constants.constants.hvdfoff;
   m_ogl.vertex_push_constant.fog = constants.constants.fog[0];
   for (int i = 0; i < 4; i++) {
-    m_ogl.vertex_push_constant.perspectives[i], constants.camera.v[i];
+    m_ogl.vertex_push_constant.perspectives[i] = constants.camera.v[i];
   }
   m_ogl.vertex_push_constant.clear_mode = 0;
 
@@ -97,8 +98,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
   m_pipeline_config_info.depthStencilInfo.front.failOp = VK_STENCIL_OP_KEEP;
   m_pipeline_config_info.depthStencilInfo.front.writeMask = 0xFF;
 
-  m_pipeline_config_info.depthStencilInfo.back.failOp = VK_STENCIL_OP_KEEP;
-  m_pipeline_config_info.depthStencilInfo.back.writeMask = 0xFF;
+  m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
   u32 clear_vertices = m_vertex_buffer_used;
   m_vertex_buffer[m_vertex_buffer_used++] = ShadowVertex{math::Vector3f(0.3, 0.3, 0), 0};
@@ -150,10 +150,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
     m_pipeline_config_info.depthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_INCREMENT_AND_WRAP;
 
-    m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
-    m_pipeline_config_info.depthStencilInfo.back.failOp = VK_STENCIL_OP_KEEP;
-    m_pipeline_config_info.depthStencilInfo.back.depthFailOp = VK_STENCIL_OP_KEEP;
-    m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_INCREMENT_AND_WRAP;
+    m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
     PrepareVulkanDraw(m_ogl.front_graphics_pipeline_layout);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_front_index_buffer_used - 6, 1, 0, 0,
@@ -190,11 +187,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
     m_pipeline_config_info.depthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
     m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
 
-    m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_ALWAYS;
-
-    m_pipeline_config_info.depthStencilInfo.back.failOp = VK_STENCIL_OP_KEEP;
-    m_pipeline_config_info.depthStencilInfo.back.depthFailOp = VK_STENCIL_OP_KEEP;
-    m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+    m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
     PrepareVulkanDraw(m_ogl.back_graphics_pipeline_layout);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_back_index_buffer_used, 1, 0, 0, 0);
@@ -227,9 +220,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
   m_pipeline_config_info.depthStencilInfo.front.depthFailOp = VK_STENCIL_OP_KEEP;
   m_pipeline_config_info.depthStencilInfo.front.passOp = VK_STENCIL_OP_KEEP;
 
-  m_pipeline_config_info.depthStencilInfo.back.failOp = VK_STENCIL_OP_KEEP;
-  m_pipeline_config_info.depthStencilInfo.back.depthFailOp = VK_STENCIL_OP_KEEP;
-  m_pipeline_config_info.depthStencilInfo.back.passOp = VK_STENCIL_OP_KEEP;
+  m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
 

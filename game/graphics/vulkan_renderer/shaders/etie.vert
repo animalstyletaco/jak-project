@@ -6,25 +6,22 @@ layout (location = 2) in int time_of_day_index;
 layout (location = 3) in vec3 normal;
 layout (location = 4) in vec4 proto_tint;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
-  vec4 hvdf_offset;
-  mat4 camera;
-  float fog_constant;
-  float fog_min;
-  float fog_max;
-  vec4 envmap_tod_tint;
-} ubo;
-
 // etie stuff
 layout (set = 0, binding = 1) uniform EtieUniformBufferObject {
+   mat4 cam_no_persp;
+   vec4 envmap_tod_tint;
    vec4 persp0;
    vec4 persp1;
-   mat4 cam_no_persp;
 } etie_ubo;
 
 layout(push_constant) uniform PushConstant {
-   float height_scale;
-   float scissor_adjust;
+  layout(offset = 0) mat4 camera;
+  layout(offset = 64)vec4 hvdf_offset;
+  layout(offset = 80)float fog_constant;
+  layout(offset = 84)float fog_min;
+  layout(offset = 88)float fog_max;
+  layout(offset = 92)float height_scale;
+  layout(offset = 96)float scissor_adjust;
 } pc;
 
 layout (location = 0) out vec4 fragment_color;
@@ -34,8 +31,8 @@ layout (location = 2) out float fogginess;
 void main() {
 
     // maybe we could do fog faster using intermediate results from below, but it doesn't seem significant.
-    float fog1 = ubo.camera[3].w + ubo.camera[0].w * position_in.x + ubo.camera[1].w * position_in.y + ubo.camera[2].w * position_in.z;
-    fogginess = 255 - clamp(fog1 + ubo.hvdf_offset.w, ubo.fog_min, ubo.fog_max);
+    float fog1 = pc.camera[3].w + pc.camera[0].w * position_in.x + pc.camera[1].w * position_in.y + pc.camera[2].w * position_in.z;
+    fogginess = 255 - clamp(fog1 + pc.hvdf_offset.w, pc.fog_min, pc.fog_max);
 
     // rotate the normal
     vec3 nrm_vf23 = etie_ubo.cam_no_persp[0].xyz * normal.x
@@ -167,6 +164,6 @@ void main() {
     gl_Position = transformed;
 
 
-    fragment_color = proto_tint * ubo.envmap_tod_tint;
+    fragment_color = proto_tint * etie_ubo.envmap_tod_tint;
     
 }

@@ -8,21 +8,17 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_debug_pipeline_config_info);
   
-  m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
-  m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
+  m_vertex_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
+  m_vertex_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
 
   InitializeInputVertexAttribute();
   initialize_debug_pipeline();
 
   m_pipeline_layouts.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {m_device});
 
-  m_vertex_shader_uniform_buffer =
-      std::make_unique<BackgroundCommonVertexUniformBuffer>(device, background_common::TIME_OF_DAY_COLOR_COUNT, 1);
-
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_fragment_descriptor_layout =
@@ -44,13 +40,8 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   m_vertex_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   m_fragment_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 
-  m_vertex_shader_buffer_descriptor_info =
-      VkDescriptorBufferInfo{m_vertex_shader_uniform_buffer->getBuffer(), 0,
-                             m_vertex_shader_uniform_buffer->getAlignmentSize()};
-
   m_descriptor_sets.resize(2);
-  m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_shader_buffer_descriptor_info)
-      .writeImage(1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info())
+  m_vertex_descriptor_writer->writeImage(0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info())
       .build(m_descriptor_sets[0]);
 
   m_fragment_descriptor_writer->writeImage(
@@ -213,6 +204,7 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
             m_device, sizeof(tfrag3::PreloadedVertex), verts, 1);
         tree_cache.index_buffer = std::make_unique<IndexBuffer>(m_device, sizeof(u32),
                                                                 tree.unpacked.indices.size(), 1);
+        tree_cache.graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
       }
     }
   }
@@ -311,8 +303,8 @@ void Tfrag3Vulkan::render_tree(int geom,
 
   prof.add_tri(total_tris);
 
-  m_pipeline_layouts[settings.tree_idx].createGraphicsPipeline(m_pipeline_config_info);
-  m_pipeline_layouts[settings.tree_idx].bind(m_vulkan_info.render_command_buffer);
+  tree.graphics_pipeline_layout->createGraphicsPipeline(m_pipeline_config_info);
+  tree.graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
 
   PrepareVulkanDraw(tree, settings.tree_idx);
 
@@ -338,13 +330,13 @@ void Tfrag3Vulkan::render_tree(int geom,
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
         render_state, draw.mode, m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
         m_time_of_day_color_push_constant);
-    m_push_constant.decal_mode = (draw.mode.get_decal()) ? 1 : 0;
+    m_vertex_push_constant.decal_mode = (draw.mode.get_decal()) ? 1 : 0;
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
-                       (void*)&m_push_constant);
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant),
+                       (void*)&m_vertex_push_constant);
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(math::Vector4f),
+                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
                        sizeof(m_time_of_day_color_push_constant),
                        (void*)&m_time_of_day_color_push_constant);
 
@@ -369,10 +361,10 @@ void Tfrag3Vulkan::render_tree(int geom,
         m_time_of_day_color_push_constant.alpha_min = -10.f;
         m_time_of_day_color_push_constant.alpha_max = double_draw.aref_second;
 
-        vkCmdPushConstants(m_vulkan_info.render_command_buffer,
-                       m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT,
-                       sizeof(math::Vector4f), sizeof(m_time_of_day_color_push_constant),
-                       (void*)&m_time_of_day_color_push_constant);
+        vkCmdPushConstants(
+            m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+            VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
+            sizeof(m_time_of_day_color_push_constant), (void*)&m_time_of_day_color_push_constant);
 
         //glDepthMask(GL_FALSE);
         if (render_state->no_multidraw) {
@@ -437,15 +429,11 @@ void Tfrag3Vulkan::render_tree_cull_debug(const TfragRenderSettings& settings,
   debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
                  tree.vis->vis_nodes, m_debug_vert_data);
 
-  for (uint32_t instanceIdx = 0; instanceIdx < m_vertex_shader_uniform_buffer->getInstanceCount();
-       instanceIdx++) {
-    m_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-        "camera", 1, GL_FALSE, (float*)settings.math_camera.data(), instanceIdx);
-    m_vertex_shader_uniform_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
-                                                 settings.hvdf_offset[1], settings.hvdf_offset[2],
-                                                 settings.hvdf_offset[3], instanceIdx);
-    m_vertex_shader_uniform_buffer->SetUniform1f("fog_constant", settings.fog.x(), instanceIdx);
-  }
+  m_vertex_push_constant.camera = settings.math_camera;
+  m_vertex_push_constant.hvdf_offset = math::Vector4f{settings.hvdf_offset[0],
+                                               settings.hvdf_offset[1], settings.hvdf_offset[2],
+                                               settings.hvdf_offset[3]};
+  m_vertex_push_constant.fog_constant = settings.fog.x();
 
   m_debug_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_debug_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
@@ -527,11 +515,11 @@ void Tfrag3Vulkan::create_pipeline_layout() {
 
   std::array<VkPushConstantRange, 2> pushConstantRanges;
   pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(VertexPushConstant);
+  pushConstantRanges[0].size = sizeof(m_vertex_push_constant);
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  pushConstantRanges[1].offset = sizeof(math::Vector4f);
-  pushConstantRanges[1].size = sizeof(BackgroundCommonFragmentPushConstantShaderData);
+  pushConstantRanges[1].offset = pushConstantRanges[0].size;
+  pushConstantRanges[1].size = sizeof(m_time_of_day_color_push_constant);
   pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
@@ -551,8 +539,8 @@ void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& vertex_write_descriptors_sets = m_vertex_descriptor_writer->getWriteDescriptorSets();
-  vertex_write_descriptors_sets[1] = m_vertex_descriptor_writer->writeImageDescriptorSet(
-      1, &m_descriptor_image_infos[index]);
+  vertex_write_descriptors_sets[0] = m_vertex_descriptor_writer->writeImageDescriptorSet(
+      0, &m_descriptor_image_infos[index]);
 
   auto& fragment_write_descriptors_sets = m_fragment_descriptor_writer->getWriteDescriptorSets();
   fragment_write_descriptors_sets[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
@@ -570,10 +558,8 @@ void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  uint32_t dynamicDescriptorOffset = index * m_vertex_shader_uniform_buffer->getAlignmentSize();
-
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
-                          m_descriptor_sets.data(), 1,
-                          &dynamicDescriptorOffset);
+                          m_descriptor_sets.data(), 0,
+                          NULL);
 }

@@ -7,26 +7,21 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
 
 struct BackgroundCommonVertexUniformShaderData {
-  math::Vector4f hvdf_offset;
   math::Matrix4f camera;
+  math::Vector4f hvdf_offset;
   float fog_constant;
   float fog_min;
   float fog_max;
 };
 
-class BackgroundCommonVertexUniformBuffer : public UniformVulkanBuffer {
- public:
-  BackgroundCommonVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                      uint32_t instanceCount,
-                                      VkDeviceSize minOffsetAlignment,
-                                      VkDeviceSize instanceSize = sizeof(BackgroundCommonVertexUniformShaderData));
-};
-
-struct BackgroundCommonEtieVertexUniformShaderData : BackgroundCommonVertexUniformShaderData {
+struct BackgroundCommonEtieVertexUniformShaderData {
+  math::Matrix4f cam_no_persp;
+  math::Vector4f perspective0;
+  math::Vector4f perspective1;
   math::Vector4f envmap_tod_tint;
 };
 
-class BackgroundCommonEtieVertexUniformBuffer : public BackgroundCommonVertexUniformBuffer {
+class BackgroundCommonEtieVertexUniformBuffer : public UniformVulkanBuffer {
  public:
   BackgroundCommonEtieVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                           uint32_t instanceCount,
@@ -34,9 +29,9 @@ class BackgroundCommonEtieVertexUniformBuffer : public BackgroundCommonVertexUni
 };
 
 struct BackgroundCommonFragmentPushConstantShaderData {
-  math::Vector4f fog_color;
   float alpha_min;
   float alpha_max;
+  math::Vector4f fog_color;
 };
 
 namespace vulkan_background_common {
@@ -96,7 +91,7 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
                             BaseSharedRenderState* render_state,
-                            BackgroundCommonVertexUniformBuffer* uniform_buffer);
+                            BackgroundCommonVertexUniformShaderData* shader_data);
 
 VkDescriptorImageInfo create_placeholder_descriptor_image_info(
     std::unique_ptr<VulkanTexture>& texture,

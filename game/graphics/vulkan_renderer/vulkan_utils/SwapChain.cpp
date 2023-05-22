@@ -485,10 +485,11 @@ void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
-
-  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0, descriptors.size(),
-                          descriptors.data(), 0, nullptr);
-
+  
+  if (!descriptors.empty()) {
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
+                            descriptors.size(), descriptors.data(), 0, nullptr);
+  }
   vkCmdDraw(commandBuffer, vertex_buffer->getBufferSize(), 0, 0, 0);
 }
 

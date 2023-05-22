@@ -58,13 +58,14 @@ class Tfrag3Vulkan : public BaseTfrag3 {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
     std::unique_ptr<IndexBuffer> single_draw_index_buffer;
+    std::unique_ptr<GraphicsPipelineLayout> graphics_pipeline_layout;
   };
 
-  struct VertexPushConstant {
+  struct alignas(float) TiePushConstant : BackgroundCommonVertexUniformShaderData {
     float height_scale;
     float scissor_adjust;
     int decal_mode = 0;
-  } m_push_constant;
+  } m_vertex_push_constant;
 
   void PrepareVulkanDraw(TreeCacheVulkan& tree, int index);
 
@@ -87,7 +88,6 @@ class Tfrag3Vulkan : public BaseTfrag3 {
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
 
-  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_color_push_constant;
 
   std::vector<VkDescriptorSet> m_vertex_shader_descriptor_sets;

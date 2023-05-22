@@ -10,6 +10,8 @@ GenericVulkan2::GenericVulkan2(const std::string& name,
                                u32 num_adgif,
                                u32 num_buckets)
     : BucketVulkanRenderer(device, vulkan_info), BaseGeneric2(name, my_id, num_verts, num_frags, num_adgif, num_buckets) {
+  m_vertex_push_constant.height_scale = m_push_constant.height_scale;
+  m_vertex_push_constant.scissor_adjust = m_push_constant.scissor_adjust;
   graphics_setup();
 }
 
@@ -42,14 +44,6 @@ void GenericVulkan2::graphics_setup() {
   m_ogl.index_buffer = std::make_unique<IndexBuffer>(
       m_device, sizeof(u32), m_indices.size(), 1);
 
-  m_vertex_uniform_buffer = std::make_unique<GenericCommonVertexUniformBuffer>(
-    m_device, 1, 1);
-
-  m_vertex_descriptor_layout =
-      DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .build();
-
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -61,11 +55,6 @@ void GenericVulkan2::graphics_setup() {
 
   m_fragment_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
-
-
-  m_vertex_buffer_descriptor_info = m_vertex_uniform_buffer->descriptorInfo();
-  m_vertex_descriptor_writer->writeBuffer(0, &m_vertex_buffer_descriptor_info)
-      .build(m_vertex_descriptor_set);
 
   auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
   m_fragment_descriptor_sets.resize(m_buckets.size());
@@ -81,23 +70,20 @@ void GenericVulkan2::graphics_setup() {
 }
 
 void GenericVulkan2::create_pipeline_layout() {
-  //If push constants are needed put them here
-
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{m_vertex_descriptor_layout->getDescriptorSetLayout(),
-                                                          m_fragment_descriptor_layout->getDescriptorSetLayout()};
+  auto descriptor_layout = m_fragment_descriptor_layout->getDescriptorSetLayout();
 
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+  pipelineLayoutInfo.pSetLayouts = &descriptor_layout;
+  pipelineLayoutInfo.setLayoutCount = 1;
 
   VkPushConstantRange pushConstantVertexRange = {};
   pushConstantVertexRange.offset = 0;
-  pushConstantVertexRange.size = sizeof(m_push_constant) + sizeof(m_warp_sample_mode);
+  pushConstantVertexRange.size = sizeof(m_vertex_push_constant);
   pushConstantVertexRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   VkPushConstantRange pushConstantFragmentRange = {};
-  pushConstantFragmentRange.offset = sizeof(math::Vector4f);
+  pushConstantFragmentRange.offset = pushConstantVertexRange.size;
   pushConstantFragmentRange.size = sizeof(m_fragment_push_constant);
   pushConstantFragmentRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
@@ -137,22 +123,16 @@ void GenericVulkan2::init_shaders(VulkanShaderLibrary& shaders) {
 }
 
 void GenericVulkan2::graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) {
-  m_vertex_uniform_buffer->SetUniform4f("scale", m_drawing_config.proj_scale[0],
-                                        m_drawing_config.proj_scale[1],
-              m_drawing_config.proj_scale[2], 0);
-  m_vertex_uniform_buffer->SetUniform1f("mat_23", m_drawing_config.proj_mat_23);
-  m_vertex_uniform_buffer->SetUniform1f("mat_32", m_drawing_config.proj_mat_32);
-  m_vertex_uniform_buffer->SetUniform1f("mat_33", 0);
-  m_vertex_uniform_buffer->SetUniform3f(
-              "fog_constants", m_drawing_config.pfog0, m_drawing_config.fog_min,
-              m_drawing_config.fog_max);
-  m_vertex_uniform_buffer->SetUniform4f(
-              "hvdf_offset", m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
-              m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]);
-
-  m_vertex_uniform_buffer->map();
-  m_vertex_uniform_buffer->flush();
-  m_vertex_uniform_buffer->unmap();
+  m_vertex_push_constant.scale = math::Vector4f{m_drawing_config.proj_scale[0], m_drawing_config.proj_scale[1],
+                                  m_drawing_config.proj_scale[2], 0};
+  m_vertex_push_constant.mat_23 = m_drawing_config.proj_mat_23;
+  m_vertex_push_constant.mat_32 = m_drawing_config.proj_mat_32;
+  m_vertex_push_constant.mat_33 = 0;
+  m_vertex_push_constant.fog_constants = math::Vector3f{m_drawing_config.pfog0, m_drawing_config.fog_min,
+                                          m_drawing_config.fog_max};
+  m_vertex_push_constant.hvdf_offset = math::Vector4f{
+      m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
+      m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]};
 }
 
 void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
@@ -382,16 +362,17 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
     samplerInfo.magFilter = VK_FILTER_NEAREST;
   }
 
-  m_warp_sample_mode =
+  m_vertex_push_constant.warp_sample_mode =
       (render_state->version == GameVersion::Jak2 && tbp_to_lookup == 1216) ? 1 : 0;
-  if (m_warp_sample_mode) {
+  if (m_vertex_push_constant.warp_sample_mode) {
     // warp shader uses region clamp, which isn't supported by DrawMode.
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   }
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, sizeof(m_push_constant), sizeof(uint32_t), (void*) &m_warp_sample_mode);
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant),
+                     (void*)&m_vertex_push_constant);
 
   m_samplers[bucketId].CreateSampler();
 
@@ -434,10 +415,7 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
 
   m_fragment_push_constant.hack_no_tex = Gfx::g_global_settings.hack_no_tex;
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
-                     (void*)&m_push_constant);
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(math::Vector4f),
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
                      sizeof(m_fragment_push_constant), (void*)&m_fragment_push_constant);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
@@ -466,12 +444,15 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
   }
 
   if (m_drawing_config.uses_hud) {
-    m_vertex_uniform_buffer->SetUniform4f("scale", m_drawing_config.hud_scale[0],
-                                          m_drawing_config.hud_scale[1],
-                                          m_drawing_config.hud_scale[2], 0);
-    m_vertex_uniform_buffer->SetUniform1f("mat_23", m_drawing_config.hud_mat_23);
-    m_vertex_uniform_buffer->SetUniform1f("mat_32", m_drawing_config.hud_mat_32);
-    m_vertex_uniform_buffer->SetUniform1f("mat_33", m_drawing_config.hud_mat_33);
+    m_vertex_push_constant.scale = math::Vector4f{m_drawing_config.hud_scale[0], m_drawing_config.hud_scale[1],
+                                    m_drawing_config.hud_scale[2], 0};
+    m_vertex_push_constant.mat_23 = m_drawing_config.hud_mat_23;
+    m_vertex_push_constant.mat_32 = m_drawing_config.hud_mat_32;
+    m_vertex_push_constant.mat_33 = m_drawing_config.hud_mat_33;
+
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant),
+                       &m_vertex_push_constant);
 
     do_hud_draws(render_state, prof);
   }
@@ -512,8 +493,7 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
   m_graphics_pipeline_layouts[bucket].createGraphicsPipeline(m_pipeline_config_info);
   m_graphics_pipeline_layouts[bucket].bind(m_vulkan_info.render_command_buffer);
 
-  std::vector<VkDescriptorSet> descriptor_sets = {m_vertex_descriptor_set,
-                                                  m_fragment_descriptor_sets[bucket]};
+  std::vector<VkDescriptorSet> descriptor_sets = {m_fragment_descriptor_sets[bucket]};
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
@@ -553,22 +533,5 @@ void GenericVulkan2::InitializeInputAttributes() {
   attributeDescriptions[3].offset = offsetof(Vertex, tex_unit);
   m_pipeline_config_info.attributeDescriptions.insert(
     m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(), attributeDescriptions.end());
-}
-
-GenericCommonVertexUniformBuffer::GenericCommonVertexUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
-    uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device,
-                          sizeof(GenericCommonVertexUniformShaderData),
-                          instanceCount,
-                          minOffsetAlignment) {
-  section_name_to_memory_offset_map = {
-      {"fog_constants", offsetof(GenericCommonVertexUniformShaderData, fog_constants)},
-      {"hvdf_offset", offsetof(GenericCommonVertexUniformShaderData, hvdf_offset)},
-      {"mat_23", offsetof(GenericCommonVertexUniformShaderData, mat_23)},
-      {"mat_32", offsetof(GenericCommonVertexUniformShaderData, mat_32)},
-      {"mat_33", offsetof(GenericCommonVertexUniformShaderData, mat_33)},
-      {"scale", offsetof(GenericCommonVertexUniformShaderData, scale)}};
 }
 

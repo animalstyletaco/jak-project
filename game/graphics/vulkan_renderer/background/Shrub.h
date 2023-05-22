@@ -35,9 +35,8 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   void update_load(const LevelDataVulkan* loader_data);
   bool setup_for_level(const std::string& level, BaseSharedRenderState* render_state) override;
   void discard_tree_cache() override;
-  void PrepareVulkanDraw(int bucket);
 
-  struct Tree {
+  struct TreeVulkan : Tree {
     std::unique_ptr<VulkanTexture> time_of_day_texture;
     std::vector<MultiDrawVulkanBuffer> multidraw_buffers;
 
@@ -45,32 +44,28 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
     std::unique_ptr<IndexBuffer> index_buffer;
     std::unique_ptr<IndexBuffer> single_draw_index_buffer;
 
-    u32 vert_count;
-    const std::vector<tfrag3::ShrubDraw>* draws = nullptr;
-    const std::vector<tfrag3::TieWindInstance>* instance_info = nullptr;
-    const std::vector<tfrag3::TimeOfDayColor>* colors = nullptr;
-    const u32* index_data = nullptr;
-    SwizzledTimeOfDay tod_cache;
+    std::vector<GraphicsPipelineLayout> pipeline_layouts;
+    std::vector<GraphicsPipelineLayout> double_draw_pipeline_layouts;
 
-    struct {
-      u32 draws = 0;
-      u32 wind_draws = 0;
-      Filtered<float> cull_time;
-      Filtered<float> index_time;
-      Filtered<float> tod_time;
-      Filtered<float> setup_time;
-      Filtered<float> draw_time;
-      Filtered<float> tree_time;
-    } perf;
+    std::unique_ptr<VulkanSamplerHelper> time_of_day_sampler_helper;
+    std::vector<VulkanSamplerHelper> sampler_helpers;
+
+    VkDescriptorSet vertex_shader_descriptor_set;
+    std::vector<VkDescriptorSet> fragment_shader_descriptor_sets;
+
+    VkDescriptorImageInfo time_of_day_descriptor_image_info;
+    VkDescriptorImageInfo descriptor_image_info;
   };
 
-  struct ShrubPushConstant {
+  void PrepareVulkanDraw(TreeVulkan& tree, unsigned index);
+
+  struct alignas(float) ShrubPushConstant : BackgroundCommonVertexUniformShaderData {
     float height_scale;
     float scissor_adjust;
     int decal_mode = 0;
-  } m_shrub_push_constant;
+  } m_vertex_shrub_push_constant;
 
-  std::vector<Tree> m_trees;
+  std::vector<TreeVulkan> m_trees;
   std::string m_level_name;
   std::unordered_map<u32, VulkanTexture>* m_textures;
   u64 m_load_id = -1;
@@ -85,17 +80,8 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
 
-  VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
-
-  std::vector<VkDescriptorImageInfo> m_time_of_day_descriptor_image_infos;
-  std::vector<VkDescriptorImageInfo> m_shrub_descriptor_image_infos;
-
-  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_push_constant;
 
-  std::vector<VkDescriptorSet> m_time_of_day_descriptor_sets;
-  std::vector<VkDescriptorSet> m_shrub_descriptor_sets;
-
-  std::vector<VulkanSamplerHelper> m_time_of_day_samplers;
+  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
 };
 

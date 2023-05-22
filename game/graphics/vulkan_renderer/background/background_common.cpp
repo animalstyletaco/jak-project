@@ -235,23 +235,14 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
 void vulkan_background_common::first_tfrag_draw_setup(
   const TfragRenderSettings& settings,
   BaseSharedRenderState* render_state,
-  BackgroundCommonVertexUniformBuffer* uniform_vertex_shader_buffer) {
-  for (uint32_t instanceIdx = 0; instanceIdx < uniform_vertex_shader_buffer->getInstanceCount(); instanceIdx++) {
-    uniform_vertex_shader_buffer->SetUniform1f("gfx_hack_no_tex", Gfx::g_global_settings.hack_no_tex);
-    uniform_vertex_shader_buffer->SetUniform1i("decal", false);
-    uniform_vertex_shader_buffer->Set4x4MatrixDataInVkDeviceMemory(
-        "camera", 1, GL_FALSE, (float*)settings.math_camera.data(), instanceIdx);
-    uniform_vertex_shader_buffer->SetUniform4f("hvdf_offset", settings.hvdf_offset[0],
-                                               settings.hvdf_offset[1], settings.hvdf_offset[2],
-                                               settings.hvdf_offset[3], instanceIdx);
-    uniform_vertex_shader_buffer->SetUniform1f("fog_constant", settings.fog.x(), instanceIdx);
-    uniform_vertex_shader_buffer->SetUniform1f("fog_min", settings.fog.y(), instanceIdx);
-    uniform_vertex_shader_buffer->SetUniform1f("fog_max", settings.fog.z(), instanceIdx);
-    uniform_vertex_shader_buffer->SetUniform4f(
-        "fog_color", render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
-        render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255, instanceIdx);
-    //TODO: Flush uniform buffer
-  }
+  BackgroundCommonVertexUniformShaderData* uniform_vertex_push_constant) {
+    uniform_vertex_push_constant->camera = settings.math_camera;
+    uniform_vertex_push_constant->hvdf_offset =
+        math::Vector4f{settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
+                       settings.hvdf_offset[3]};
+    uniform_vertex_push_constant->fog_constant = settings.fog.x();
+    uniform_vertex_push_constant->fog_min = settings.fog.y();
+    uniform_vertex_push_constant->fog_max = settings.fog.z();
 }
 
 void vulkan_background_common::make_all_visible_multidraws(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
@@ -566,31 +557,19 @@ VkDescriptorImageInfo vulkan_background_common::create_placeholder_descriptor_im
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 }
 
-BackgroundCommonVertexUniformBuffer::BackgroundCommonVertexUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
-    uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment,
-    VkDeviceSize instanceSize)
-    : UniformVulkanBuffer(device,
-                    instanceSize,
-                    instanceCount,
-                    minOffsetAlignment) {
-  section_name_to_memory_offset_map = {
-      {"hvdf_offset", offsetof(BackgroundCommonVertexUniformShaderData, hvdf_offset)},
-      {"camera", offsetof(BackgroundCommonVertexUniformShaderData, camera)},
-      {"fog_constant", offsetof(BackgroundCommonVertexUniformShaderData, fog_constant)},
-      {"fog_min", offsetof(BackgroundCommonVertexUniformShaderData, fog_min)},
-      {"fog_max", offsetof(BackgroundCommonVertexUniformShaderData, fog_max)}};
-}
-
 BackgroundCommonEtieVertexUniformBuffer::BackgroundCommonEtieVertexUniformBuffer(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
-    : BackgroundCommonVertexUniformBuffer(device,
-                                          instanceCount,
-                                          minOffsetAlignment,
-                                          sizeof(BackgroundCommonEtieVertexUniformShaderData)) {
-  section_name_to_memory_offset_map.insert(std::pair<std::string, uint32_t>(
-      "envmap_tod_tint", offsetof(BackgroundCommonEtieVertexUniformShaderData, envmap_tod_tint)));
+    : UniformVulkanBuffer(device,
+                          sizeof(BackgroundCommonEtieVertexUniformShaderData),
+                          instanceCount,    
+                          minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+    {"cam_no_persp", offsetof(BackgroundCommonEtieVertexUniformShaderData, cam_no_persp)},
+    {"perspective0", offsetof(BackgroundCommonEtieVertexUniformShaderData, perspective0)},
+    {"perspective1", offsetof(BackgroundCommonEtieVertexUniformShaderData, perspective1)},
+    {"envmap_tod_tint", offsetof(BackgroundCommonEtieVertexUniformShaderData, envmap_tod_tint)}
+  };
 }
+

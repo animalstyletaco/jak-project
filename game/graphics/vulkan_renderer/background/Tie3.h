@@ -61,7 +61,14 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
     std::unique_ptr<VertexBuffer> wind_vertex_buffer;
     std::unique_ptr<IndexBuffer> wind_index_buffer;
-    std::unique_ptr<GraphicsPipelineLayout> graphics_pipeline_layout;
+    std::vector<GraphicsPipelineLayout> graphics_pipeline_layouts;
+    std::unique_ptr<VulkanSamplerHelper> time_of_day_sampler_helper;
+    std::vector<VulkanSamplerHelper> sampler_helpers;
+    std::vector<VkDescriptorSet> vertex_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> fragment_shader_descriptor_sets;
+
+    std::vector<VkDescriptorImageInfo> time_of_day_descriptor_image_infos;
+    std::vector<VkDescriptorImageInfo> descriptor_image_infos;
   };
 
   void envmap_second_pass_draw(TreeVulkan& tree,
@@ -79,11 +86,11 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
 
-  struct TiePushConstant {
+  struct TiePushConstant : BackgroundCommonVertexUniformShaderData {
     float height_scale;
     float scissor_adjust;
     int decal_mode = 0;
-  } m_tie_vertex_push_constant;
+  };
 
   void PrepareVulkanDraw(TreeVulkan& tree, VkSampler, int index);
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
@@ -91,21 +98,20 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   std::array<std::vector<TreeVulkan>, 4> m_trees;  // includes 4 lods!
   std::unordered_map<u32, VulkanTexture>* m_textures;
-  std::array<std::vector<VulkanSamplerHelper>, 4> m_tree_time_of_day_samplers;
 
-  std::unique_ptr<BackgroundCommonVertexUniformBuffer> m_vertex_shader_uniform_buffer;
+  std::unique_ptr<DescriptorLayout> m_etie_vertex_descriptor_layout;
+  VkPipelineLayout m_tie_pipeline_layout;
+  VkPipelineLayout m_etie_pipeline_layout;
+
+  TiePushConstant m_tie_vertex_push_constant;
+  TiePushConstant m_etie_vertex_push_constant;
+
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_color_push_constant;
-
-  std::unique_ptr<BackgroundCommonEtieVertexUniformBuffer> m_etie_vertex_shader_uniform_buffer;
   BackgroundCommonFragmentPushConstantShaderData m_etie_time_of_day_color_push_constant;
 
-  std::unique_ptr<UniformVulkanBuffer> m_time_of_day_uniform_buffer;
+  std::unique_ptr<BackgroundCommonEtieVertexUniformBuffer> m_etie_vertex_shader_uniform_buffer;
   std::unordered_map<u32, VulkanTexture> texture_maps[tfrag3::TIE_GEOS];
 
-  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
-
-  std::vector<VkDescriptorSet> m_vertex_shader_descriptor_sets;
-  std::vector<VkDescriptorSet> m_fragment_shader_descriptor_sets;
 };
 
 class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkanRenderer {

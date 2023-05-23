@@ -9,19 +9,20 @@ layout (location = 3) in flat uvec4 tex_info;
 layout (location = 4) in flat uint use_uv;
 layout (location = 5) in flat vec4 gs_scissor;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
-  float alpha_reject;
-  float color_mult;
-  float alpha_mult;
-  float alpha_sub;
-  vec4 fog_color;
-  vec4 game_sizes;
-  float ta0;
-  int scissor_enable;
+layout (push_constant) uniform UniformBufferObject {
+  layout(offset = 16) vec4 fog_color;
+  layout(offset = 32) vec4 game_sizes;
+  layout(offset = 48) float alpha_reject;
+  layout(offset = 52) float color_mult;
+  layout(offset = 56) float alpha_mult;
+  layout(offset = 60) float alpha_sub;
+
+  layout(offset = 64) float ta0;
+  layout(offset = 68) int scissor_enable;
 } ubo;
 
 //TODO: See if we can set this up into some sort of array
-layout (set = 0, binding = 1) uniform sampler2D tex_T0;
+layout (set = 0, binding = 0) uniform sampler2D tex_T0;
 
 vec4 sample_tex(vec2 coord, uint unit) {
    return texture(tex_T0, coord);

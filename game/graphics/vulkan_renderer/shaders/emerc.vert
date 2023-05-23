@@ -125,4 +125,5 @@ void main() {
 
     vtx_color = pc.fade.xyz;
     vtx_st = st_mod;
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

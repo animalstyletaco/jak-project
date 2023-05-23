@@ -56,4 +56,5 @@ void main() {
     transformed.y *= pc.height_scale;
 
     gl_Position = transformed;
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

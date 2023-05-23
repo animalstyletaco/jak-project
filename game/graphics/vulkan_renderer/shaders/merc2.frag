@@ -6,19 +6,21 @@ layout (location = 1) in vec2 vtx_st;
 layout (location = 2) in float fog;
 
 layout(push_constant) uniform PushConstant {
-  layout(offset = 16) vec4 fog_color;
-  layout(offset = 32) int ignore_alpha;
-  layout(offset = 36) int decal_enable;
-  layout(offset = 40) int gfx_hack_no_tex;
+  layout(offset = 104) int ignore_alpha;
+  layout(offset = 108) int settings;
+  layout(offset = 112) vec4 fog_color;
 } pc;
 
 layout (set = 1, binding = 0) uniform sampler2D tex_T0;
 
 void main() {
-    if(pc.gfx_hack_no_tex == 0){
+    int decal_enable = pc.settings >> 16;
+    int gfx_hack_no_tex = pc.settings & 0xff;
+
+    if(gfx_hack_no_tex == 0){
        vec4 T0 = texture(tex_T0, vtx_st);
        
-       if (pc.decal_enable == 0) {
+       if (decal_enable == 0) {
            color.xyz = vtx_color * T0.xyz;
        } else {
            color.xyz = T0.xyz * 0.5;

@@ -92,6 +92,7 @@ void main() {
     gl_Position = transformed;
     // scissoring area adjust
     gl_Position.y *= (pc.scissor_adjust * pc.height_scale);
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 
     fragment_color = vec4(rgba_in.rgb, rgba_in.a * 2);
     tex_info = byte_info.xy;

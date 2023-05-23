@@ -19,4 +19,5 @@ void main() {
   // scissoring area adjust
   gl_Position.y *= pc.scissor_adjust;
   fragment_color = vec4(rgba_in.x, rgba_in.y, rgba_in.z, rgba_in.w * 2.);
+  gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

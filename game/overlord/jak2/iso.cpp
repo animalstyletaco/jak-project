@@ -192,7 +192,6 @@ u32 InitISOFS() {
 }
 
 void IsoQueueVagStream(VagCmd* cmd, int param_2) {
-  int iVar1;
   VagCmd* new_cmd;
   LoadStackEntry* pLVar5;
   VagCmd* pVVar7;
@@ -212,7 +211,7 @@ void IsoQueueVagStream(VagCmd* cmd, int param_2) {
   // allocate/find a vag cmd to hold this stream command. We don't own the incoming command.
   if ((cmd->id == 0) ||
       (((cmd->vag_dir_entry && cmd->vag_dir_entry->flag & 1U) != 0 &&  // added null check
-        (iVar1 = HowManyBelowThisPriority(cmd->priority, 0), iVar1 < 2))))
+        (HowManyBelowThisPriority(cmd->priority, 0) < 2))))
     goto LAB_000049dc;
   new_cmd = FindThisVagStream(cmd->name, cmd->id);
   if (!new_cmd) {
@@ -244,7 +243,7 @@ void IsoQueueVagStream(VagCmd* cmd, int param_2) {
     new_cmd->unk_196 = cmd->unk_196;
     new_cmd->num_processed_chunks = cmd->num_processed_chunks;
     new_cmd->xfer_size = cmd->xfer_size;
-    new_cmd->unk_248 = cmd->unk_248;
+    new_cmd->sample_rate = cmd->sample_rate;
     new_cmd->unk_260 = cmd->unk_260;
     new_cmd->unk_264 = cmd->unk_264;
     new_cmd->unk_268 = cmd->unk_268;
@@ -277,9 +276,16 @@ void IsoQueueVagStream(VagCmd* cmd, int param_2) {
         new_cmd = nullptr;
       } else {
         // set up stereo command.
-        if ((*(u32*)&new_stereo_cmd->status_bytes[BYTE4] & 0xffff00) != 0) {
+        // if ((*(u32*)&new_stereo_cmd->status_bytes[BYTE4] & 0xffff00) != 0) {
+        if (new_stereo_cmd->byte5 || new_stereo_cmd->byte6) {
           IsoStopVagStream(new_stereo_cmd, 0);
         }
+
+        // ADDED this line: seems random if this is set or not and other code relies on it not
+        // being set. I don't understand why this doesn't happen on the real game, but it could just
+        // be dma timing differences.
+        new_stereo_cmd->byte21 = 0;
+
         new_stereo_cmd->status_bytes[BYTE11] = true;
         new_cmd->stereo_sibling = new_stereo_cmd;
         new_stereo_cmd->stereo_sibling = new_cmd;
@@ -293,8 +299,7 @@ void IsoQueueVagStream(VagCmd* cmd, int param_2) {
       goto LAB_000049dc;
 
     // queue the command.
-    iVar1 = QueueMessage(&new_cmd->header, 3, "QueueVAGStream", 0);
-    if (iVar1 == 0) {
+    if (QueueMessage(&new_cmd->header, 3, "QueueVAGStream", 0) == 0) {
       // queue failed, give up.
       new_cmd->sb_scanned = false;
       RemoveVagCmd(new_cmd, 0);
@@ -1064,8 +1069,6 @@ void IsoStopVagStream(VagCmd* param_1, int param_2) {
   if (param_1->id == 0) {
     if (param_1->name[0] != false) {
       while (pRVar2 = FindVagStreamName(param_1->name), pRVar2 != nullptr) {
-        printf("terminate from IsoStop 1");
-
         TerminateVAG(pRVar2, 0);
         bVar1 = true;
       }
@@ -1073,7 +1076,6 @@ void IsoStopVagStream(VagCmd* param_1, int param_2) {
   } else {
     pRVar2 = FindThisVagStream(param_1->name, param_1->id);
     if (pRVar2 != nullptr) {
-      printf("terminate from IsoStop 2");
       TerminateVAG(pRVar2, 0);
       bVar1 = true;
     }

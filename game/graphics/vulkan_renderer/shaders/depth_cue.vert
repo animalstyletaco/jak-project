@@ -27,4 +27,5 @@ void main() {
     position.xyz = (position.xyz * 2) - 1.0; // convert from [0,1] to clip-space
 
     gl_Position = position;
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

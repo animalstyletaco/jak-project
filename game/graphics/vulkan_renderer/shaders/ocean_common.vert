@@ -31,4 +31,5 @@ void main() {
     } else if (pc.bucket == 4) {
         fragment_color.a = 0;
     }
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

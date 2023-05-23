@@ -86,4 +86,5 @@ void main() {
 
     tex_coord = tex_coord_in;
     tex_coord.xy /= 4096;
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

@@ -10,23 +10,15 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DirectRenderer.h"
 
-struct DirectBasicTexturedFragmentUniformShaderData {
+struct alignas(float) DirectBasicTexturedFragmentUniformShaderData {
+  math::Vector4f fog_color;
+  math::Vector4f game_sizes;
   float alpha_reject;
   float color_mult;
   float alpha_mult;
   float alpha_sub;
-  math::Vector4f fog_color;
-  math::Vector4f game_sizes;
   float ta0;
   int scissor_enable;
-  float pad0[2];
-};
-
-class DirectBasicTexturedFragmentUniformBuffer : public UniformVulkanBuffer {
- public:
-  DirectBasicTexturedFragmentUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
-                                           uint32_t instanceCount,
-                                           VkDeviceSize minOffsetAlignment);
 };
 
 /*!
@@ -94,11 +86,10 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   std::array<VkVertexInputAttributeDescription, 2> directBasicAttributeDescriptions{};
   std::array<VkVertexInputAttributeDescription, 6> directBasicTexturedAttributeDescriptions{};
 
-  std::unique_ptr<DirectBasicTexturedFragmentUniformBuffer> m_direct_basic_fragment_uniform_buffer;
   std::unique_ptr<DescriptorLayout> m_direct_basic_fragment_descriptor_layout;
 
-  VkDescriptorBufferInfo m_fragment_buffer_descriptor_info{};
   VkDescriptorImageInfo m_descriptor_image_info{};
+  DirectBasicTexturedFragmentUniformShaderData m_direct_basic_fragment_push_constant;
 
   std::vector<VkDescriptorSet> m_descriptor_sets;
   std::unordered_map<u32, RendererGraphicsHelper> m_graphics_helper_map;

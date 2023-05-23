@@ -19,22 +19,16 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
   m_ogl.vertex_buffer_bytes = m_ogl.vertex_buffer_max_verts * sizeof(BaseDirectRenderer::Vertex);
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, m_ogl.vertex_buffer_bytes, 1, 1);
 
-  m_direct_basic_fragment_uniform_buffer = std::make_unique<DirectBasicTexturedFragmentUniformBuffer>(
-    m_device, 1, 1);
-
   m_direct_basic_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(
       m_direct_basic_fragment_descriptor_layout,
       m_vulkan_info.descriptor_pool);
 
-  m_fragment_buffer_descriptor_info = m_direct_basic_fragment_uniform_buffer->descriptorInfo();
-  m_fragment_descriptor_writer->writeBuffer(0, &m_fragment_buffer_descriptor_info)
-      .writeImage(1, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+  m_fragment_descriptor_writer->writeImage(0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
 
   allocate_new_descriptor_set();
 
@@ -189,7 +183,7 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VkPushConstantRange pushConstantRange = {};
+  VkPushConstantRange pushConstantRange{};
   pushConstantRange.offset = 0;
   pushConstantRange.size = sizeof(m_push_constant);
   pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -207,13 +201,17 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   texturedPipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   texturedPipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VkPushConstantRange texturedPushConstantRange = {};
-  texturedPushConstantRange.offset = 0;
-  texturedPushConstantRange.size = sizeof(m_textured_pipeline_push_constant);
-  texturedPushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  std::array<VkPushConstantRange, 2> texturedPushConstantRanges = {};
+  texturedPushConstantRanges[0].offset = 0;
+  texturedPushConstantRanges[0].size = sizeof(m_textured_pipeline_push_constant);
+  texturedPushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  texturedPipelineLayoutInfo.pPushConstantRanges = &texturedPushConstantRange;
-  texturedPipelineLayoutInfo.pushConstantRangeCount = 1;
+  texturedPushConstantRanges[1].offset = sizeof(math::Vector4f);
+  texturedPushConstantRanges[1].size = sizeof(m_direct_basic_fragment_push_constant);
+  texturedPushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+  texturedPipelineLayoutInfo.pPushConstantRanges = texturedPushConstantRanges.data();
+  texturedPipelineLayoutInfo.pushConstantRangeCount = texturedPushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr, &m_textured_pipeline_layout) !=
       VK_SUCCESS) {
@@ -285,20 +283,24 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
     }
 
     SetShaderModule(ShaderId::DIRECT_BASIC_TEXTURED);
-    m_direct_basic_fragment_uniform_buffer->SetUniform1f("alpha_reject", alpha_reject);
-    m_direct_basic_fragment_uniform_buffer->SetUniform1f("color_mult", m_ogl.color_mult);
-    m_direct_basic_fragment_uniform_buffer->SetUniform1f("alpha_mult", m_ogl.alpha_mult);
-    m_direct_basic_fragment_uniform_buffer->SetUniform4f("fog_color",
-                render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
-                render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
-    m_direct_basic_fragment_uniform_buffer->SetUniform1f("offscreen_mode", state.ta0 / 255.f);
-    m_direct_basic_fragment_uniform_buffer->SetUniform1ui("scissor_enable",
-                                                          m_scissor_enable && !m_offscreen_mode);
+    m_direct_basic_fragment_push_constant.alpha_reject = alpha_reject;
+    m_direct_basic_fragment_push_constant.color_mult = m_ogl.color_mult;
+    m_direct_basic_fragment_push_constant.alpha_mult = m_ogl.alpha_mult;
+    m_direct_basic_fragment_push_constant.fog_color =
+        math::Vector4f{render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
+                       render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255};
+    m_textured_pipeline_push_constant.offscreen_mode = state.ta0 / 255.f;
+    m_direct_basic_fragment_push_constant.scissor_enable = (m_scissor_enable && !m_offscreen_mode);
     auto swapchain_extents = m_vulkan_info.swap_chain->getSwapChainExtent();
 
-    m_direct_basic_fragment_uniform_buffer->SetUniform4f(
-        "game_sizes", 512.0f, GetHeightScaleByGameVersion(m_vulkan_info.m_version),
-        swapchain_extents.width, swapchain_extents.height);
+    m_direct_basic_fragment_push_constant.game_sizes =
+        math::Vector4f{512.0f, GetHeightScaleByGameVersion(m_vulkan_info.m_version),
+                       swapchain_extents.width, swapchain_extents.height};
+
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(math::Vector4f),
+                       sizeof(m_direct_basic_fragment_push_constant),
+                       &m_direct_basic_fragment_push_constant);
 
   } else {
     SetShaderModule(ShaderId::DIRECT_BASIC);
@@ -385,8 +387,8 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
                                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-  write_descriptors_info[1] = m_fragment_descriptor_writer->writeImageDescriptorSet(
-      1, &m_descriptor_image_info, 1);
+  write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
+      0, &m_descriptor_image_info, 1);
 
   m_fragment_descriptor_writer->overwrite(m_descriptor_sets[currentImageIndex]);
 }
@@ -686,22 +688,3 @@ void DirectVulkanRenderer::handle_trxdir(u64 dir,
   }
 }
 
-DirectBasicTexturedFragmentUniformBuffer::DirectBasicTexturedFragmentUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
-    uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device,
-                          sizeof(DirectBasicTexturedFragmentUniformShaderData),
-                          instanceCount,
-                          minOffsetAlignment) {
-  section_name_to_memory_offset_map = {
-      {"alpha_reject", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_reject)},
-      {"color_mult", offsetof(DirectBasicTexturedFragmentUniformShaderData, color_mult)},
-      {"alpha_mult", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_mult)},
-      {"alpha_sub", offsetof(DirectBasicTexturedFragmentUniformShaderData, alpha_sub)},
-      {"fog_color", offsetof(DirectBasicTexturedFragmentUniformShaderData, fog_color)},
-      {"game_sizes", offsetof(DirectBasicTexturedFragmentUniformShaderData, game_sizes)},
-      {"ta0", offsetof(DirectBasicTexturedFragmentUniformShaderData, ta0)},
-      {"scissor_enable", offsetof(DirectBasicTexturedFragmentUniformShaderData, ta0)},
-  };
-}

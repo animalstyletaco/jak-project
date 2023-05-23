@@ -19,24 +19,13 @@ layout (set = 0, binding = 0) uniform LightControlUniformBufferObject {
    vec3 light_ambient;
 }light_control;
 
-// camera control
-layout (set = 0, binding = 1) uniform CameraControlUniformBufferObject {
-   vec4 hvdf_offset;
-   vec4 perspective0;
-   vec4 perspective1;
-   vec4 perspective2;
-   vec4 perspective3;
-   vec4 fog_constants;
-} camera_control;
-
-layout (set = 0, binding = 2) uniform PerspectiveMatrixUniformBufferObject {
-   mat4 perspective_matrix;
-} perspective_matrix;
-
 layout(push_constant) uniform PushConstant
 {
-	float height_scale;
-  float scissor_adjust;
+  layout(offset = 0)  mat4 perspective_matrix;
+  layout(offset = 64) vec4 hvdf_offset;
+  layout(offset = 80) vec4 fog_constants;
+	layout(offset = 96) float height_scale;
+  layout(offset = 100) float scissor_adjust;
 }pc;
 
 // output
@@ -51,7 +40,7 @@ struct MercMatrixData {
     vec4 pad;
 };
 
-layout (std140, binding = 3) uniform ub_bones {
+layout (std140, binding = 1) uniform ub_bones {
     MercMatrixData bones[128];
 };
 
@@ -97,7 +86,7 @@ void main() {
         rotated_nrm += bones[mats[2]].R * normal_in * weights_in[2];
     }
 
-    vec4 transformed = perspective_matrix.perspective_matrix * vtx_pos;
+    vec4 transformed = pc.perspective_matrix * vtx_pos;
 
     rotated_nrm = normalize(rotated_nrm);
     vec3 light_intensity = light_control.light_dir0 * rotated_nrm.x + light_control.light_dir1 * rotated_nrm.y + light_control.light_dir2 * rotated_nrm.z;
@@ -109,11 +98,11 @@ void main() {
 
     vec3 light_color = light_control.light_ambient + light_color_no_ambient;
 
-    float Q = camera_control.fog_constants.x / transformed[3];
-    fog = 255 - clamp(-transformed.w + camera_control.hvdf_offset.w, camera_control.fog_constants.y, camera_control.fog_constants.z);
+    float Q = pc.fog_constants.x / transformed[3];
+    fog = 255 - clamp(-transformed.w + pc.hvdf_offset.w, pc.fog_constants.y, pc.fog_constants.z);
 
     transformed.xyz *= Q;
-    transformed.xyz += camera_control.hvdf_offset.xyz;
+    transformed.xyz += pc.hvdf_offset.xyz;
     transformed.xy -= (2048.);
     transformed.z /= (8388608);
     transformed.z -= 1;
@@ -122,7 +111,7 @@ void main() {
     transformed.xyz *= transformed.w;
     transformed.y *= (pc.scissor_adjust * pc.height_scale);
     gl_Position = transformed;
-
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 
     vtx_color = rgba * light_color;
     vtx_st = st_in;

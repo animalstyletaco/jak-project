@@ -98,6 +98,8 @@ VulkanShaderLibrary::VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& 
   at(ShaderId::ETIE_BASE).initialize_shader(m_device->getLogicalDevice(), "etie_base");
   at(ShaderId::ETIE).initialize_shader(m_device->getLogicalDevice(), "etie");
   at(ShaderId::SHADOW2).initialize_shader(m_device->getLogicalDevice(), "shadow2");
+  at(ShaderId::DIRECT_BASIC_TEXTURED_MULTI_UNIT)
+      .initialize_shader(m_device->getLogicalDevice(), "direct_basic_textured_multi_unit");
 
   for (auto& shader : m_shaders) {
     ASSERT_MSG(shader.okay(), "Shader compiled");

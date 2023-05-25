@@ -292,7 +292,7 @@ void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
         break;
       case GsTest::ZTest::GEQUAL:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp =
-            VK_COMPARE_OP_LESS_OR_EQUAL;  // VK_COMPARE_OP_GREATER_OR_EQUAL;
+            VK_COMPARE_OP_GREATER_OR_EQUAL;  // VK_COMPARE_OP_GREATER_OR_EQUAL;
         break;
       case GsTest::ZTest::GREATER:
         m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER;

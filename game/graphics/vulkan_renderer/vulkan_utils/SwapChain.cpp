@@ -564,11 +564,11 @@ void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
     clearValues.resize(3);
     clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
     clearValues[1].color = {0.0f, 0.0f, 0.0f, 1.0f};
-    clearValues[2].depthStencil = {1.0f, 0}; //Double check to see if this is correct. Clear value for depth is normally 1
+    clearValues[2].depthStencil = {0.0f, 1}; //Double check to see if this is correct. Clear value for depth is normally 1
   } else {
     clearValues.resize(2);
     clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
-    clearValues[1].depthStencil = {1.0f, 0}; //Double check to see if this is correct. Clear value for depth is normally 1
+    clearValues[1].depthStencil = {0.0f, 1}; //Double check to see if this is correct. Clear value for depth is normally 1
   }
 
   renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());

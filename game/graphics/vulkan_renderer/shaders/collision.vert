@@ -126,5 +126,5 @@ void main() {
     } else {
         fragment_color = vec4(0.12, 0.12, 0.12, 0.5);
     }
-    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
+    gl_Position.z = (gl_Position.z + 1) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

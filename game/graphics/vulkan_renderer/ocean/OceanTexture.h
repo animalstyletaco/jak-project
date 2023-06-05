@@ -17,7 +17,6 @@ class OceanVulkanTexture : public BaseOceanTexture {
       BaseSharedRenderState* render_state,
       ScopedProfilerNode& prof);
   void init_textures(VulkanTexturePool& pool);
-  void set_gpu_texture(BaseTextureInput&) override;
   void draw_debug_window();
   ~OceanVulkanTexture();
 
@@ -45,15 +44,15 @@ class OceanVulkanTexture : public BaseOceanTexture {
   } m_vulkan_pc;
 
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  std::unique_ptr<CommonOceanFragmentUniformBuffer> m_common_uniform_fragment_buffer;
 
   VkDescriptorImageInfo m_descriptor_image_info;
+  std::array<VkDescriptorImageInfo, NUM_MIPS> m_mipmap_descriptor_image_infos;
 
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
 
   std::unique_ptr<GraphicsPipelineLayout> m_ocean_texture_graphics_pipeline_layout;
-  std::unique_ptr<GraphicsPipelineLayout> m_ocean_texture_mipmap_graphics_pipeline_layout;
+  std::vector<GraphicsPipelineLayout> m_ocean_texture_mipmap_graphics_pipeline_layouts;
 
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   PipelineConfigInfo m_pipeline_info;
@@ -72,9 +71,7 @@ class OceanVulkanTexture : public BaseOceanTexture {
       m_ocean_texture_input_binding_attribute_descriptions;
   VkVertexInputBindingDescription m_ocean_texture_mipmap_input_binding_attribute_description;
 
-  std::vector<GraphicsPipelineLayout> m_mipmap_graphics_layouts;
-
   VkDescriptorSet m_ocean_texture_descriptor_set;
-  VkDescriptorSet m_ocean_mipmap_texture_descriptor_set;
+  std::array<VkDescriptorSet, NUM_MIPS> m_ocean_mipmap_texture_descriptor_sets;
   VulkanSamplerHelper m_sampler_helper{m_device};
 };

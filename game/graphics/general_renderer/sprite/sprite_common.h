@@ -245,7 +245,7 @@ struct SpriteGlowConsts {
 };
 static_assert(sizeof(SpriteGlowConsts) == 0x180);
 
-struct Sprite3dVertexUniformShaderData {
+struct alignas(float) Sprite3dVertexUniformShaderData {
   math::Vector4f hvdf_offset;
   math::Matrix4f camera;
   math::Matrix4f hud_matrix;
@@ -263,7 +263,6 @@ struct Sprite3dVertexUniformShaderData {
   math::Vector4f xy_array[8];
   math::Vector4f xyz_array[4];
   math::Vector4f st_array[4];
-  float height_scale;
 };
 
 struct Sprite3dFragmentUniformShaderData {

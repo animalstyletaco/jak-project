@@ -39,6 +39,10 @@ class BaseSprite3 : public BaseBucketRenderer {
                                          u32 numberOfFloats,
                                          bool isTransponsedMatrix,
                                          float* data, u32 flags = 0) = 0;
+  virtual void SetSprite3UniformVertexUserHvdfVector(const char* name,
+                                                     u32 totalBytes,
+                                                     float* data,
+                                                     u32 flags = 0) = 0;
 
   void render_jak1(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void render_jak2(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);

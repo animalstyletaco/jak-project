@@ -1,8 +1,8 @@
 #version 430 core
 
 layout (location = 0) in vec4 position_in;
-layout (location = 1) in vec4 rgba_in;
-layout (location = 2) in vec3 tex_coord_in;
+layout (location = 1) in vec3 tex_coord_in;
+layout (location = 2) in vec4 rgba_in;
 layout (location = 3) in uvec4 tex_info_in;
 layout (location = 4) in uint use_uv_in;
 layout (location = 5) in vec4 gs_scissor_in;
@@ -34,5 +34,6 @@ void main() {
   tex_info = tex_info_in;
   fog = 255 - position_in.w;
   gs_scissor = gs_scissor_in;
+  use_uv = use_uv_in;
   gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

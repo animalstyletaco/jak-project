@@ -60,7 +60,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
     std::unique_ptr<IndexBuffer>
         index_buffer;  // contains all instance specific data for each sprite per frame
 
-    std::unique_ptr<FramebufferVulkan> fbo;
+    std::unique_ptr<FramebufferVulkanHelper> fbo;
   };
   VulkanDistortOgl m_distort_ogl;
 
@@ -90,9 +90,12 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
                                               bool isTransponsedMatrix,
                                               float* data,
                                               u32 flags = 0) override;
+  void SetSprite3UniformVertexUserHvdfVector(const char* name,
+                                             u32 totalBytes,
+                                             float* data,
+                                             u32 flags = 0) override;
 
   void EnableSprite3GraphicsBlending() override;
-  void createDistortFramebuffer();
 
   DirectVulkanRenderer m_direct;
   GlowVulkanRenderer m_glow_renderer;
@@ -113,13 +116,46 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   } m_sprite_distort_push_constant;
 
   struct Sprite3GraphicsSettings {
-    Sprite3GraphicsSettings(std::unique_ptr<GraphicsDeviceVulkan>& device){
-      sampler_helpers.resize(10, device);
-      pipeline_layouts.resize(10, device);
+    Sprite3GraphicsSettings(std::unique_ptr<DescriptorPool>& descriptorPool,
+                            VkDescriptorSetLayout descriptorSetLayout,
+                            u32 bucketSize) : m_descriptor_pool(descriptorPool){
+      Reinitialize(descriptorSetLayout, bucketSize);
+    }
+
+    void Reinitialize(VkDescriptorSetLayout descriptorSetLayout, u32 bucket_size) {
+      sampler_helpers.clear();
+      pipeline_layouts.clear();
+      descriptor_image_infos.clear();
+      if (!fragment_descriptor_sets.empty()) {
+        m_descriptor_pool->freeDescriptors(fragment_descriptor_sets);
+      }
+
+      sampler_helpers.resize(bucket_size, m_descriptor_pool->device());
+      pipeline_layouts.resize(bucket_size, m_descriptor_pool->device());
+      descriptor_image_infos.resize(bucket_size);
+
+      fragment_descriptor_sets.resize(bucket_size);
+      std::vector<VkDescriptorSetLayout> descriptorSetLayouts{bucket_size, descriptorSetLayout};
+      if (!descriptorSetLayouts.empty()) {
+        m_descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(),
+                                              fragment_descriptor_sets.data(),
+                                              fragment_descriptor_sets.size());
+      }
+    }
+
+    ~Sprite3GraphicsSettings() {
+      if (!fragment_descriptor_sets.empty()) {
+        m_descriptor_pool->freeDescriptors(fragment_descriptor_sets);
+      }
     }
 
     std::vector<VulkanSamplerHelper> sampler_helpers;
     std::vector<GraphicsPipelineLayout> pipeline_layouts;
+    std::vector<VkDescriptorImageInfo> descriptor_image_infos;
+    std::vector<VkDescriptorSet> fragment_descriptor_sets;
+
+    private:
+    std::unique_ptr<DescriptorPool>& m_descriptor_pool;
   };
 
   GraphicsPipelineLayout m_distorted_pipeline_layout;
@@ -153,8 +189,6 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   VkDescriptorSet m_sprite_distort_fragment_descriptor_set = VK_NULL_HANDLE;
 
   VkDescriptorImageInfo m_sprite_distort_descriptor_image_info;
-  std::vector<std::array<VkDescriptorSet, 10>> m_fragment_descriptor_set_map;
-  std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
 
   void AllocateNewDescriptorMapElement();
 

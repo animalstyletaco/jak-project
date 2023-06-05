@@ -71,6 +71,7 @@ class SwapChain {
                               MultiDrawVulkanBuffer* multiDrawBuffer);
 
   void setViewportScissor(VkCommandBuffer commandBuffer);
+  void clearFramebufferImage(uint32_t currentImageIndex);
   void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);
   void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
@@ -102,7 +103,7 @@ class SwapChain {
   void createColorResources();
   void createDepthResources();
   void createRenderPass();
-  void createFramebuffers();
+  void createFramebuffers(VkRenderPass);
   void createSyncObjects();
 
   // Helper functions
@@ -119,6 +120,7 @@ class SwapChain {
 
   std::vector<VkFramebuffer> swapChainFramebuffers;
   VkRenderPass renderPass = VK_NULL_HANDLE;
+  VkRenderPass noClearRenderPass = VK_NULL_HANDLE;
 
   std::vector<VkImage> swapChainImages;
   std::vector<VkImageView> swapChainImageViews;

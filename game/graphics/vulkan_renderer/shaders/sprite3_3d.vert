@@ -182,5 +182,5 @@ void main() {
     fragment_color.w *= 2;
 
     tex_info = tex_info_in.xy;
-    //gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
+    gl_Position.z = (gl_Position.z + gl_Position.w) / 2.0; //Depth hack for OpenGL to Vulkan depth range conversion
 }

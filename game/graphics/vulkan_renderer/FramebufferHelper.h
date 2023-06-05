@@ -20,32 +20,28 @@ class FramebufferVulkan {
   FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VkFormat format);
   ~FramebufferVulkan();
 
+  VkFramebuffer framebuffer = VK_NULL_HANDLE;
   VkRenderPass render_pass = VK_NULL_HANDLE;
-  VkFramebuffer frame_buffer = VK_NULL_HANDLE;
 
-  VulkanTexture color_texture;
-  VulkanTexture depth_texture;
-  VulkanTexture mipmap_texture;
-  
-  VulkanSamplerHelper sampler_helper;
 
   VkExtent2D extents;
-  void setViewportScissor(VkCommandBuffer);
-  VkFormat GetSupportedDepthFormat();
 
-  void createRenderPass();
   void createFramebuffer();
-  void initializeFramebufferAtLevel(int level = 0);
+  void initializeFramebufferAtLevel(VkImage, VkImage, unsigned level);
   void beginRenderPass(VkCommandBuffer commandBuffer);
   void beginRenderPass(VkCommandBuffer commandBuffer,
-                       std::vector<VkClearValue> clearValues);
+                       std::vector<VkClearValue>&);
+  void createRenderPass();
+  VkImageView GetColorImageView() { return m_mipmap_image_view; }
 
   VkSampleCountFlags m_current_msaa = VK_SAMPLE_COUNT_1_BIT;
-  uint32_t GetMipmapLevel(int level);
 
  private:
   std::unique_ptr<GraphicsDeviceVulkan>& m_device;
   VkFormat m_format;
+
+  VkImageView m_mipmap_image_view = VK_NULL_HANDLE;
+  VkImageView m_depth_mipmap_image_view = VK_NULL_HANDLE;
 };
 
 class FramebufferVulkanHelper {
@@ -56,26 +52,32 @@ class FramebufferVulkanHelper {
                           std::unique_ptr<GraphicsDeviceVulkan>& device,
                           int num_levels = 1);
 
-  void setViewportScissor(VkCommandBuffer command, int level = 0) {
-    m_framebuffers[level].setViewportScissor(command);
+  void setViewportScissor(VkCommandBuffer command);
+  VulkanTexture& ColorAttachmentTexture() { return m_color_texture; }
+  VulkanTexture& DepthAttachmentTexture() {
+    return m_depth_texture;
   }
-  VulkanTexture& Texture(int level = 0) { return m_framebuffers[level].mipmap_texture; }
-  VulkanTexture& ColorAttachmentTexture(int level = 0) { return m_framebuffers[level].color_texture; }
-  VulkanTexture& DepthAttachmentTexture(int level = 0) {
-    return m_framebuffers[level].depth_texture;
+  VulkanSamplerHelper& GetSamplerHelper() {
+    return m_sampler_helper;
   }
-  VulkanSamplerHelper& GetSamplerHelper(int level = 0) {
-    return m_framebuffers[level].sampler_helper;
+  VkRenderPass GetRenderPass(unsigned index = 0) { return m_framebuffers[index].render_pass; }
+  void beginRenderPass(VkCommandBuffer commandBuffer, unsigned mipmapLevel = 0);
+  void beginRenderPass(VkCommandBuffer commandBuffer,
+                       std::vector<VkClearValue>&,
+                       unsigned mipmapLevel = 0);
+  VkImageView GetColorImageViewAtIndex(unsigned index) {
+    return m_framebuffers[index].GetColorImageView();
   }
-  VkRenderPass GetRenderPass(int level = 0) { return m_framebuffers[level].render_pass; }
 
   FramebufferVulkanHelper(const FramebufferVulkanHelper&) = delete;
   FramebufferVulkanHelper& operator=(const FramebufferVulkanHelper&) = delete;
 
-  void beginRenderPass(VkCommandBuffer commandBuffer, int level = 0);
-  void beginRenderPass(VkCommandBuffer commandBuffer, std::vector<VkClearValue>&, int level = 0);
-
  private:
+  VulkanTexture m_color_texture;
+  VulkanTexture m_depth_texture;
+
+  VulkanSamplerHelper m_sampler_helper;
+
   VkExtent2D extents = {640, 480};
   VkOffset2D offsetExtents;
 

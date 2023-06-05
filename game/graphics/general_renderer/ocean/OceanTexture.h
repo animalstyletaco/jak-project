@@ -29,7 +29,6 @@ class BaseOceanTexture {
   void run_L2_PC_jak2();
   void run_L3_PC_jak2();
 
-  virtual void set_gpu_texture(BaseTextureInput&) = 0;
   void setup_renderer();
   virtual void flush(BaseSharedRenderState* render_state,
                      ScopedProfilerNode& prof) = 0;

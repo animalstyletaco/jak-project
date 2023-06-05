@@ -19,8 +19,7 @@ class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
 
   struct {
     // Framebuffer for depth-cue-base-page
-    std::unique_ptr<FramebufferVulkan> fbo;
-    std::unique_ptr<VulkanTexture> fbo_texture;
+    std::unique_ptr<FramebufferVulkanHelper> fbo;
     int fbo_width = 0;
     int fbo_height = 0;
 
@@ -31,8 +30,7 @@ class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
     std::unique_ptr<VertexBuffer> on_screen_vertex_buffer;
 
     // Texture to sample the framebuffer from
-    std::unique_ptr<FramebufferVulkan> framebuffer_sample_fbo;
-    std::unique_ptr<VulkanTexture> framebuffer_sample_tex;
+    std::unique_ptr<FramebufferVulkanHelper> framebuffer_sample_fbo;
     int framebuffer_sample_width = 0;
     int framebuffer_sample_height = 0;
 

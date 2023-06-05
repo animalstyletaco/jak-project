@@ -1,11 +1,12 @@
 #include "CommonOceanRenderer.h"
 
 CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info)
-    : m_device(device), m_vulkan_info{vulkan_info} {
+    : m_device(device),
+      m_vulkan_info{vulkan_info} {
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
 
-  m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
-  m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512 / 448.0) : (-512 / 416.0);
+  m_vertex_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
+  m_vertex_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512 / 448.0) : (-512 / 416.0);
 
   InitializeVertexInputAttributes();
   InitializeShaders();
@@ -15,18 +16,16 @@ CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDev
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   CreatePipelineLayout();
-
-  m_ocean_near.Initialize(device, 4096 * 10, m_fragment_descriptor_layout,
-                              m_vulkan_info.descriptor_pool,
-                              m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
-  m_ocean_mid.Initialize(device, 4096 * 10, m_fragment_descriptor_layout,
-                         m_vulkan_info.descriptor_pool,
-                         m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+  m_ocean_near = std::make_unique<OceanVulkanGraphicsHelper>(
+      device, 4096 * 10, m_fragment_descriptor_layout, vulkan_info.descriptor_pool,
+      vulkan_info.texture_pool->get_placeholder_descriptor_image_info()),
+  m_ocean_mid = std::make_unique<OceanVulkanGraphicsHelper>(
+      device, 4096 * 10, m_fragment_descriptor_layout, vulkan_info.descriptor_pool,
+      vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
 }
 
 void CommonOceanVulkanRenderer::CreatePipelineLayout() {
@@ -38,13 +37,13 @@ void CommonOceanVulkanRenderer::CreatePipelineLayout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  std::array<VkPushConstantRange, 2> pushConstantRanges;
+  std::array<VkPushConstantRange, 2> pushConstantRanges{};
   pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(PushConstant);
+  pushConstantRanges[0].size = sizeof(VertexPushConstant);
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   pushConstantRanges[1].offset = pushConstantRanges[0].size;
-  pushConstantRanges[1].size = sizeof(int);
+  pushConstantRanges[1].size = sizeof(FragmentPushConstant);
   pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
@@ -88,7 +87,7 @@ void CommonOceanVulkanRenderer::InitializeVertexInputAttributes() {
 
   attributeDescriptions[1].binding = 0;
   attributeDescriptions[1].location = 1;
-  attributeDescriptions[1].format = VK_FORMAT_R8G8B8A8_SNORM;
+  attributeDescriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
   attributeDescriptions[1].offset = offsetof(Vertex, rgba);
 
   // FIXME: Make sure format for byte and shorts are correct
@@ -117,8 +116,7 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
 
   vertex_buffer->writeToGpuBuffer(m_vertices.data(), m_next_free_vertex * sizeof(Vertex), 0);
 
-  //glDepthMask(GL_FALSE);
-
+  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
@@ -138,13 +136,13 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
   m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
 
   for (int bucket = 0; bucket < NUM_BUCKETS; bucket++) {
-    m_ocean_near.m_uniform_fragment_buffers[bucket]->SetUniform4f(
-        "fog_color", render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
-        render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
+    m_fragment_push_constant.fog_color =
+        math::Vector4f{render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
+                       render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255};
 
     VulkanTexture* tex = nullptr;
 
-    auto& sampler_create_info = m_ocean_near.m_ocean_samplers[bucket]->GetSamplerCreateInfo();
+    auto& sampler_create_info = m_ocean_near->ocean_samplers[bucket]->GetSamplerCreateInfo();
     switch (bucket) {
       case 0: {
         //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
@@ -177,7 +175,7 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
         m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-        m_ocean_near.m_uniform_fragment_buffers[bucket]->SetUniform1f("alpha_mult", 1.f);
+        m_fragment_push_constant.alpha_mult = 1.f;
 
         auto tbp = render_state->version == GameVersion::Jak1 ? ocean_common::OCEAN_TEX_TBP_JAK1
                                                               : ocean_common::OCEAN_TEX_TBP_JAK2;
@@ -211,7 +209,7 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state, 
     sampler_create_info.magFilter = VK_FILTER_LINEAR;
     sampler_create_info.minFilter = VK_FILTER_LINEAR;
 
-    m_ocean_near.m_ocean_samplers[bucket]->CreateSampler();
+    m_ocean_near->ocean_samplers[bucket]->CreateSampler();
 
     FinalizeVulkanDraw(m_ocean_near, tex, bucket);
 
@@ -228,6 +226,8 @@ void CommonOceanVulkanRenderer::flush_mid(
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
+
+  vertex_buffer->writeToGpuBuffer(m_vertices.data(), m_next_free_vertex * sizeof(Vertex), 0);
 
   // note:
   // there are some places where the game draws the same section of ocean twice, in this order:
@@ -273,11 +273,11 @@ void CommonOceanVulkanRenderer::flush_mid(
   for (int bucket = 0; bucket < 2; bucket++) {
     VulkanTexture* tex = nullptr;
 
-    m_ocean_mid.m_uniform_fragment_buffers[bucket]->SetUniform4f(
-        "fog_color", render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
-        render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255);
+    m_fragment_push_constant.fog_color = math::Vector4f{
+        render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
+        render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255};
 
-    auto& sampler_create_info = m_ocean_mid.m_ocean_samplers[bucket]->GetSamplerCreateInfo(); 
+    auto& sampler_create_info = m_ocean_mid->ocean_samplers[bucket]->GetSamplerCreateInfo(); 
     switch (bucket) {
       case 0: {
         auto tbp = render_state->version == GameVersion::Jak1 ? ocean_common::OCEAN_TEX_TBP_JAK1
@@ -293,7 +293,7 @@ void CommonOceanVulkanRenderer::flush_mid(
         sampler_create_info.minFilter = VK_FILTER_LINEAR;
         sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-        m_ocean_mid.m_ocean_samplers[bucket]->CreateSampler();
+        m_ocean_mid->ocean_samplers[bucket]->CreateSampler();
       }
 
       break;
@@ -318,7 +318,7 @@ void CommonOceanVulkanRenderer::flush_mid(
         sampler_create_info.minFilter = VK_FILTER_LINEAR;
         sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 
-        m_ocean_mid.m_ocean_samplers[bucket]->CreateSampler();
+        m_ocean_mid->ocean_samplers[bucket]->CreateSampler();
         break;
     }
 
@@ -330,65 +330,67 @@ void CommonOceanVulkanRenderer::flush_mid(
   }
 }
 
-void CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::Initialize(
+CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::OceanVulkanGraphicsHelper(
     std::unique_ptr<GraphicsDeviceVulkan>& device,
     u32 index_count,
     std::unique_ptr<DescriptorLayout>& setLayout,
     std::unique_ptr<DescriptorPool>& descriptor_pool,
-    VkDescriptorImageInfo* defaultImageInfo) {
+    VkDescriptorImageInfo* defaultImageInfo) : m_descriptor_pool(descriptor_pool) {
   for (int i = 0; i < NUM_BUCKETS; i++) {
-    m_ocean_samplers[i] = std::make_unique<VulkanSamplerHelper>(device);
+    ocean_samplers[i] = std::make_unique<VulkanSamplerHelper>(device);
     index_buffers[i] =
         std::make_unique<IndexBuffer>(device, sizeof(u32), index_count, 1);
 
-    m_pipeline_layouts[i] = std::make_unique<GraphicsPipelineLayout>(device);
+    pipeline_layouts[i] = std::make_unique<GraphicsPipelineLayout>(device);
 
-    m_uniform_fragment_buffers[i] =
-        std::make_unique<CommonOceanFragmentUniformBuffer>(device, 1, 1);
-
-    m_fragment_buffer_descriptor_infos[i] =
-        m_uniform_fragment_buffers[i]->descriptorInfo();
-
-    m_fragment_descriptor_writers[i] = std::make_unique<DescriptorWriter>(
+    fragment_descriptor_writers[i] = std::make_unique<DescriptorWriter>(
         setLayout, descriptor_pool);
 
-    m_fragment_descriptor_writers[i]
-        ->writeBuffer(0, &m_fragment_buffer_descriptor_infos[i])
-        .build(m_descriptor_sets[i]);
-
-    m_fragment_descriptor_writers[i]->writeImage(1, defaultImageInfo);
+    fragment_descriptor_writers[i]->writeImage(0, defaultImageInfo);
   }
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{NUM_BUCKETS, setLayout->getDescriptorSetLayout()};
+  descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(), descriptor_sets, NUM_BUCKETS);
 }
 
-void CommonOceanVulkanRenderer::FinalizeVulkanDraw(OceanVulkanGraphicsHelper& ocean_graphics, VulkanTexture* texture,
+CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::~OceanVulkanGraphicsHelper() {
+  std::vector<VkDescriptorSet> descriptorSets;
+  for (uint32_t i = 0; i < NUM_BUCKETS; i++) {
+    descriptorSets.push_back(descriptor_sets[i]);
+  }
+  m_descriptor_pool->freeDescriptors(descriptorSets);
+}
+
+void CommonOceanVulkanRenderer::FinalizeVulkanDraw(std::unique_ptr<OceanVulkanGraphicsHelper>& ocean_graphics, VulkanTexture* texture,
                                                    uint32_t bucket) {
-  ocean_graphics.index_buffers[bucket]->writeToGpuBuffer(m_indices[bucket].data(),
+  ocean_graphics->index_buffers[bucket]->writeToGpuBuffer(m_indices[bucket].data(),
                                                        m_next_free_index[bucket] * sizeof(u32));
 
-  if (ocean_graphics.m_ocean_samplers[bucket]->GetSampler()) {
-    ocean_graphics.m_descriptor_image_infos[bucket] =
-        VkDescriptorImageInfo{ocean_graphics.m_ocean_samplers[bucket]->GetSampler(), texture->getImageView(),
+  if (ocean_graphics->ocean_samplers[bucket]->GetSampler()) {
+    ocean_graphics->descriptor_image_infos[bucket] =
+        VkDescriptorImageInfo{ocean_graphics->ocean_samplers[bucket]->GetSampler(), texture->getImageView(),
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     auto& write_descriptors_sets =
-        ocean_graphics.m_fragment_descriptor_writers[bucket]->getWriteDescriptorSets();
+        ocean_graphics->fragment_descriptor_writers[bucket]->getWriteDescriptorSets();
     write_descriptors_sets[0] =
-        ocean_graphics.m_fragment_descriptor_writers[bucket]->writeImageDescriptorSet(
-            1, &ocean_graphics.m_descriptor_image_infos[bucket], 1);
-    ocean_graphics.m_fragment_descriptor_writers[bucket]->overwrite(
-        ocean_graphics.m_descriptor_sets[bucket]);
+        ocean_graphics->fragment_descriptor_writers[bucket]->writeImageDescriptorSet(
+            0, &ocean_graphics->descriptor_image_infos[bucket], 1);
+    ocean_graphics->fragment_descriptor_writers[bucket]->overwrite(
+        ocean_graphics->descriptor_sets[bucket]);
   }
 
-  ocean_graphics.m_pipeline_layouts[bucket]->createGraphicsPipeline(m_pipeline_config_info);
-  ocean_graphics.m_pipeline_layouts[bucket]->bind(m_vulkan_info.render_command_buffer);
+  ocean_graphics->pipeline_layouts[bucket]->createGraphicsPipeline(m_pipeline_config_info);
+  ocean_graphics->pipeline_layouts[bucket]->bind(m_vulkan_info.render_command_buffer);
 
-  m_push_constant.bucket = bucket;
+  m_vertex_push_constant.bucket = bucket;
+  m_fragment_push_constant.bucket = bucket;
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant), (void*)&m_push_constant);
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant),
+                     (void*)&m_vertex_push_constant);
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_push_constant), sizeof(int),
-                     (void*)&bucket);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
+                     sizeof(m_fragment_push_constant), (void*)&m_fragment_push_constant);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
@@ -397,12 +399,12 @@ void CommonOceanVulkanRenderer::FinalizeVulkanDraw(OceanVulkanGraphicsHelper& oc
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
-                       ocean_graphics.index_buffers[bucket]->getBuffer(), 0,
+                       ocean_graphics->index_buffers[bucket]->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, 1,
-                          &ocean_graphics.m_descriptor_sets[bucket], 0, nullptr);
+                          &ocean_graphics->descriptor_sets[bucket], 0, nullptr);
 
   vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
                    m_next_free_index[bucket] / sizeof(unsigned), 1, 0,
@@ -410,18 +412,4 @@ void CommonOceanVulkanRenderer::FinalizeVulkanDraw(OceanVulkanGraphicsHelper& oc
 }
 
 CommonOceanVulkanRenderer::~CommonOceanVulkanRenderer() {
-}
-
-CommonOceanFragmentUniformBuffer::CommonOceanFragmentUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
-    uint32_t instanceCount,
-    VkDeviceSize minOffsetAlignment )
-    : UniformVulkanBuffer(device,
-                    sizeof(CommonOceanFragmentUniformShaderData),
-                    instanceCount,
-                    minOffsetAlignment) {
-  section_name_to_memory_offset_map = {
-      {"color_mult", offsetof(CommonOceanFragmentUniformShaderData, color_mult)},
-      {"alpha_mult", offsetof(CommonOceanFragmentUniformShaderData, alpha_mult)},
-      {"fog_color", offsetof(CommonOceanFragmentUniformShaderData, fog_color)}};
 }

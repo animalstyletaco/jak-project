@@ -20,8 +20,6 @@ SpriteVulkan3::SpriteVulkan3(const std::string& name,
   m_sprite_3d_vertex_uniform_buffer = std::make_unique<Sprite3dVertexUniformBuffer>(
       m_device, 1);
 
-  m_descriptor_image_infos.resize(
-      10, *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
   graphics_setup();
 }
 
@@ -159,8 +157,6 @@ void SpriteVulkan3::graphics_setup_normal() {
 
   m_current_mode = m_default_mode;
 
-  m_distort_ogl.fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
-
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
@@ -182,12 +178,6 @@ void SpriteVulkan3::graphics_setup_normal() {
 
   m_fragment_descriptor_writer->writeImage(
       0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info()); 
-
-  const unsigned initial_size = 5;  // arbituary
-  for (uint32_t i = 0; i < initial_size; i++) {
-    m_sprite_graphics_settings_map.insert({i, {m_device}});
-    AllocateNewDescriptorMapElement();
-  }
 
   std::array<VkVertexInputBindingDescription, 1> bindingDescriptions{};
   bindingDescriptions[0].binding = 0;
@@ -221,23 +211,12 @@ void SpriteVulkan3::graphics_setup_normal() {
 
   attributeDescriptions[4].binding = 0;
   attributeDescriptions[4].location = 4;
-  attributeDescriptions[4].format = VK_FORMAT_R32G32B32A32_UINT;
+  attributeDescriptions[4].format = VK_FORMAT_R16G16B16A16_UINT;
   attributeDescriptions[4].offset = offsetof(SpriteVertex3D, info);
 
   m_sprite_attribute_descriptions.insert(m_sprite_attribute_descriptions.end(),
                                          attributeDescriptions.begin(),
                                          attributeDescriptions.end());
-}
-
-void SpriteVulkan3::AllocateNewDescriptorMapElement(){
-  m_fragment_descriptor_set_map.emplace_back();
-  auto& fragment_descriptor_sets = m_fragment_descriptor_set_map.back();
-
-  auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{10, descriptorSetLayout};
-  m_vulkan_info.descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(),
-                                                    fragment_descriptor_sets.data(),
-                                                    fragment_descriptor_sets.size());
 }
 
 void SpriteVulkan3::setup_graphics_for_2d_group_0_render() {
@@ -278,9 +257,23 @@ void SpriteVulkan3::setup_graphics_for_2d_group_0_render() {
 void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
                             ScopedProfilerNode& prof,
                             bool double_draw) {
+  if (m_bucket_list.empty()) {
+    return;
+  }
+
+  //TODO: see if there is an easier way to accomplish add/update existing sprite_graphics_settings objects
+  auto fragment_descriptor_layout = m_fragment_descriptor_layout->getDescriptorSetLayout();
   while (m_flush_sprite_call_count >= m_sprite_graphics_settings_map.size()) {
-    m_sprite_graphics_settings_map.insert({m_sprite_graphics_settings_map.size(), {m_device}});
-    AllocateNewDescriptorMapElement();
+    m_sprite_graphics_settings_map.insert(
+        {m_sprite_graphics_settings_map.size(),
+         {m_vulkan_info.descriptor_pool, fragment_descriptor_layout, 0}});
+    m_sprite_graphics_settings_map.at(m_sprite_graphics_settings_map.size() - 1)
+        .Reinitialize(fragment_descriptor_layout, m_bucket_list.size());
+  }
+
+  if (m_sprite_graphics_settings_map.at(m_flush_sprite_call_count).pipeline_layouts.size() < m_bucket_list.size()) {
+    m_sprite_graphics_settings_map.at(m_flush_sprite_call_count)
+        .Reinitialize(fragment_descriptor_layout, m_bucket_list.size());
   }
 
   // Enable prim restart, we need this to break up the triangle strips
@@ -346,18 +339,19 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
     graphics_layout.createGraphicsPipeline(m_pipeline_config_info);
     graphics_layout.bind(m_vulkan_info.render_command_buffer);
 
-    m_descriptor_image_infos[index] =
+    sprite_graphics_settings.descriptor_image_infos[index] =
         VkDescriptorImageInfo{sampler_helper.GetSampler(), tex->getImageView(),
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
     
     auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-    write_descriptors_info[0] =
-        m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_infos[index]);
+    write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
+        0, &sprite_graphics_settings.descriptor_image_infos[index]);
 
     m_fragment_descriptor_writer->overwrite(
-        m_fragment_descriptor_set_map[m_flush_sprite_call_count][index]);
+        sprite_graphics_settings.fragment_descriptor_sets[index]);
     std::vector<VkDescriptorSet> descriptorSets{
-        m_vertex_descriptor_set, m_fragment_descriptor_set_map[m_flush_sprite_call_count][index]};
+        m_vertex_descriptor_set,
+        sprite_graphics_settings.fragment_descriptor_sets[index]};
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, descriptorSets.size(),
@@ -377,9 +371,9 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
           m_sprite_fragment_push_constant.alpha_max = settings.aref_second;
           
           vkCmdPushConstants(m_vulkan_info.render_command_buffer,
-                                   m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT,
-                                   sizeof(m_push_constant), sizeof(m_sprite_fragment_push_constant),
-                                   &m_sprite_fragment_push_constant);
+                             m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT,
+                             sizeof(m_push_constant), sizeof(m_sprite_fragment_push_constant),
+                             &m_sprite_fragment_push_constant);
 
           //glDepthMask(GL_FALSE);
           //glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
@@ -420,18 +414,28 @@ void SpriteVulkan3::direct_renderer_flush_pending(BaseSharedRenderState* render_
   m_direct.set_current_index(m_direct_renderer_call_count++);
   m_direct.flush_pending(render_state, prof);
 }
+
 void SpriteVulkan3::SetSprite3UniformVertexFourFloatVector(const char* name,
                                                      u32 numberOfFloats,
                                                      float* data,
                                                      u32 flags) {
   m_sprite_3d_vertex_uniform_buffer->SetUniform4f(name, data[0], data[1], data[2], data[3], flags);
 }
+
 void SpriteVulkan3::SetSprite3UniformMatrixFourFloatVector(const char* name,
                                                      u32 numberOfMatrices,
                                                      bool isTransponsedMatrix,
                                                      float* data,
                                                      u32 flags) {
   m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(name, numberOfMatrices, isTransponsedMatrix, data, true);
+}
+
+void SpriteVulkan3::SetSprite3UniformVertexUserHvdfVector(const char* name,
+                                                          u32 totalBytes,
+                                                          float* data,
+                                                          u32 flags) {
+  u32 offset = m_sprite_3d_vertex_uniform_buffer->GetDeviceMemoryOffset(name);
+  m_sprite_3d_vertex_uniform_buffer->SetDataInVkDeviceMemory(offset, (u8*)data, totalBytes, flags);
 }
 
 void SpriteVulkan3::EnableSprite3GraphicsBlending() {
@@ -462,13 +466,6 @@ SpriteVulkan3::~SpriteVulkan3() {
   std::vector<VkDescriptorSet> m_sprite_distort_fragment_descriptor_sets{
       m_sprite_distort_fragment_descriptor_set};
 
-  std::vector<VkDescriptorSet> fragment_descriptors;
-  for (auto& fragment_descriptor_set : m_fragment_descriptor_set_map) {
-    fragment_descriptors.insert(fragment_descriptors.end(), fragment_descriptor_set.begin(),
-                                fragment_descriptor_set.end());
-  }
-
-  m_vulkan_info.descriptor_pool->freeDescriptors(fragment_descriptors);
   m_vulkan_info.descriptor_pool->freeDescriptors(vertex_descriptor_sets);
   m_vulkan_info.descriptor_pool->freeDescriptors(m_sprite_distort_fragment_descriptor_sets);
 }
@@ -493,8 +490,7 @@ Sprite3dVertexUniformBuffer::Sprite3dVertexUniformBuffer(std::unique_ptr<Graphic
       {"basis_y", offsetof(Sprite3dVertexUniformShaderData, basis_y)},
       {"xy_array", offsetof(Sprite3dVertexUniformShaderData, xy_array)},
       {"xyz_array", offsetof(Sprite3dVertexUniformShaderData, xyz_array)},
-      {"st_array", offsetof(Sprite3dVertexUniformShaderData, st_array)},
-      {"height_scale", offsetof(Sprite3dVertexUniformShaderData, height_scale)},
+      {"st_array", offsetof(Sprite3dVertexUniformShaderData, st_array)}
   };
 }
 

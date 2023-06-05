@@ -139,6 +139,7 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[2].offset = offsetof(BaseDirectRenderer::Vertex, stq);
 
+
   attributeDescriptions[3].binding = 0;
   attributeDescriptions[3].location = 3;
   attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
@@ -171,6 +172,8 @@ void DirectVulkanRenderer::render(DmaFollower& dma,
                                   SharedVulkanRenderState* render_state,
                                   ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples =
+      m_vulkan_info.swap_chain->get_render_pass_sample_count();
   BaseDirectRenderer::render(dma, render_state, prof);
 }
 
@@ -609,15 +612,19 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
                           m_pipeline_config_info.pipelineLayout, 0, 1,
                           &m_descriptor_sets[currentImageIndex], 0,
                           nullptr);
+  //Hack OpenGL and Vulkan Y-Axis are inverted in VkCmdDraw(...) (OpenGL equivalent - glDrawArrays(...))
+  //This doesn't need to happen when using vkCmdDrawIndexed(...) (OpenGL Equivalent - glDrawElements(...))
+  for (unsigned i = 0; i < m_prim_buffer.vert_count; i++) {
+    m_prim_buffer.vertices[i].xyzf[1] *= -1;
+  }
   vkCmdDraw(m_vulkan_info.render_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
 
   draw_count++;
-  VkPipelineRasterizationStateCreateInfo& rasterizer = m_pipeline_config_info.rasterizationInfo;
 
   if (m_debug_state.wireframe) {
     SetShaderModule(ShaderId::DEBUG_RED);
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 
     m_graphics_helper_map[currentImageIndex].debug_graphics_pipeline_layout->createGraphicsPipeline(m_pipeline_config_info);
     m_graphics_helper_map[currentImageIndex].debug_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
@@ -628,15 +635,18 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
                             nullptr);
     vkCmdDraw(m_vulkan_info.render_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
 
-    rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
-    rasterizer.lineWidth = 1.0f;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
+    m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
+    m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+    m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
     m_blend_state_needs_graphics_update = true;
     m_prim_graphics_state_needs_graphics_update = true;
     draw_count++;
+  }
+  for (unsigned i = 0; i < m_prim_buffer.vert_count; i++) {
+    m_prim_buffer.vertices[i].xyzf[1] *= -1;
   }
 
   int n_tris = draw_count * (m_prim_buffer.vert_count / 3);

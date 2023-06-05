@@ -150,9 +150,9 @@ void VulkanTexture::destroyTexture() {
   }
 };
 
-void VulkanTexture::transitionImageLayout(VkImageLayout imageLayout) {
+void VulkanTexture::transitionImageLayout(VkImageLayout imageLayout, unsigned baseMipLevel, unsigned levelCount) {
   m_device->transitionImageLayout(m_image, m_image_create_info.initialLayout,
-                                  imageLayout);
+                                  imageLayout, baseMipLevel, levelCount);
   m_image_create_info.initialLayout = imageLayout; //TODO: Should there be a separate variable to keep track of image layout is
 }
 

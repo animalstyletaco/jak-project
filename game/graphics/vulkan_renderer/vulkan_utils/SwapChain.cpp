@@ -24,7 +24,7 @@ void SwapChain::init(bool vsyncEnabled) {
   createRenderPass();
   createColorResources();
   createDepthResources();
-  createFramebuffers();
+  createFramebuffers(renderPass);
   createSyncObjects();
 }
 
@@ -214,12 +214,16 @@ void SwapChain::createRenderPass() {
   VkAttachmentDescription colorAttachment = {};
   colorAttachment.format = getSwapChainImageFormat();
   colorAttachment.samples = sampleCount;
-  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; 
   colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+  VkAttachmentDescription noClearColorAttachment = colorAttachment;
+  noClearColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+  noClearColorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
   VkAttachmentDescription colorAttachmentResolve{};
   if (sampleCount != VK_SAMPLE_COUNT_1_BIT) {
@@ -242,6 +246,10 @@ void SwapChain::createRenderPass() {
   depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+  VkAttachmentDescription noClearDepthAttachment = depthAttachment;
+  noClearDepthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+  noClearDepthAttachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
   VkAttachmentReference colorAttachmentRef = {};
   colorAttachmentRef.attachment = 0;
@@ -293,10 +301,13 @@ void SwapChain::createRenderPass() {
   dependencies[1].dependencyFlags = 0;
 
   std::vector<VkAttachmentDescription> attachments;
+  std::vector<VkAttachmentDescription> noClearAttachments;
   if (sampleCount != VK_SAMPLE_COUNT_1_BIT) {
     attachments = {colorAttachment, colorAttachmentResolve, depthAttachment};
+    noClearAttachments = {noClearColorAttachment, colorAttachmentResolve, noClearDepthAttachment};
   } else {
     attachments = {colorAttachment, depthAttachment};
+    noClearAttachments = {noClearColorAttachment, noClearDepthAttachment};
   }
 
   VkRenderPassCreateInfo renderPassInfo = {};
@@ -311,9 +322,18 @@ void SwapChain::createRenderPass() {
   if (vkCreateRenderPass(device->getLogicalDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
     throw std::runtime_error("failed to create render pass!");
   }
+
+  VkRenderPassCreateInfo noClearRenderPassInfo = renderPassInfo;
+  noClearRenderPassInfo.pAttachments = noClearAttachments.data();
+
+  if (vkCreateRenderPass(device->getLogicalDevice(), &noClearRenderPassInfo, nullptr,
+                         &noClearRenderPass) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to create render pass!");
+  }
 }
 
-void SwapChain::createFramebuffers() {
+void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
   for (auto& framebuffer : swapChainFramebuffers) {
     vkDestroyFramebuffer(device->getLogicalDevice(), framebuffer, nullptr);
   }
@@ -333,7 +353,7 @@ void SwapChain::createFramebuffers() {
     VkExtent2D swapChainExtent = getSwapChainExtent();
     VkFramebufferCreateInfo framebufferInfo = {};
     framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = renderPass;
+    framebufferInfo.renderPass = selectedRenderPass;
     framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
     framebufferInfo.pAttachments = attachments.data();
     framebufferInfo.width = swapChainExtent.width;
@@ -549,8 +569,9 @@ void SwapChain::multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                            sizeof(VkDrawIndexedIndirectCommand));
 }
 
-void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
-                                         uint32_t currentImageIndex) {
+void SwapChain::clearFramebufferImage(uint32_t currentImageIndex) {
+  VkCommandBuffer commandBuffer = device->beginSingleTimeCommands();
+
   VkRenderPassBeginInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   renderPassInfo.renderPass = renderPass;
@@ -564,15 +585,34 @@ void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
     clearValues.resize(3);
     clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
     clearValues[1].color = {0.0f, 0.0f, 0.0f, 1.0f};
-    clearValues[2].depthStencil = {0.0f, 1}; //Double check to see if this is correct. Clear value for depth is normally 1
+    clearValues[2].depthStencil = {
+        0.0f, 1};  // Double check to see if this is correct. Clear value for depth is normally 1
   } else {
     clearValues.resize(2);
     clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
-    clearValues[1].depthStencil = {0.0f, 1}; //Double check to see if this is correct. Clear value for depth is normally 1
+    clearValues[1].depthStencil = {
+        0.0f, 1};  // Double check to see if this is correct. Clear value for depth is normally 1
   }
 
   renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
   renderPassInfo.pClearValues = clearValues.data();
+
+  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdEndRenderPass(commandBuffer);
+  device->endSingleTimeCommands(commandBuffer);
+
+  createFramebuffers(noClearRenderPass);
+}
+
+void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
+                                         uint32_t currentImageIndex) {
+  VkRenderPassBeginInfo renderPassInfo{};
+  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  renderPassInfo.renderPass = noClearRenderPass;
+  renderPassInfo.framebuffer = getFrameBuffer(currentImageIndex);
+
+  renderPassInfo.renderArea.offset = {0, 0};
+  renderPassInfo.renderArea.extent = getSwapChainExtent();
 
   vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }

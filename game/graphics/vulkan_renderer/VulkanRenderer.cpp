@@ -109,7 +109,8 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
   for (auto& poolSize : poolSizes) {
     maxSets += poolSize.descriptorCount;
   }
-  m_vulkan_info.descriptor_pool = std::make_unique<DescriptorPool>(m_device, maxSets, 0, poolSizes);
+  m_vulkan_info.descriptor_pool = std::make_unique<DescriptorPool>(
+      m_device, maxSets, VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, poolSizes);
   m_collide_renderer = std::make_unique<CollideMeshVulkanRenderer>(m_device, m_vulkan_info);
 
   m_blackout_renderer = std::make_unique<FullScreenDrawVulkan>(m_device, m_vulkan_info);
@@ -867,6 +868,7 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
 
   m_vulkan_info.render_command_buffer = beginFrame();
   m_vulkan_info.currentFrame = currentFrame;
+  m_vulkan_info.swap_chain->clearFramebufferImage(currentFrame);
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, currentFrame);
 
   // loop over the buckets!
@@ -1069,6 +1071,7 @@ void VulkanRenderer::recreateSwapChain(bool vsyncEnabled) {
   }
 }
 
+//TODO: Implement secondary command buffer so existing framebuffer doesn't get overriden
 VkCommandBuffer VulkanRenderer::beginFrame() {
   assert(!isFrameStarted && "Can't call beginFrame while already in progress");
 

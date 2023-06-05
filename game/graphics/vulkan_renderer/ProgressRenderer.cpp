@@ -8,7 +8,7 @@ ProgressVulkanRenderer::ProgressVulkanRenderer(const std::string& name,
     : DirectVulkanRenderer(name, my_id, device, vulkan_info, batch_size),
       m_minimap_fb(kMinimapWidth, kMinimapHeight, VK_FORMAT_R8G8B8A8_SRGB, device) {
   VulkanTextureInput in;
-  in.texture = &m_minimap_fb.ColorAttachmentTexture(0);
+  in.texture = &m_minimap_fb.ColorAttachmentTexture();
   in.debug_page_name = "PC-MAP";
   in.debug_name = "map";
   in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture(m_vulkan_info.m_version);

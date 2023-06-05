@@ -309,7 +309,9 @@ uint32_t GraphicsDeviceVulkan::findMemoryType(uint32_t typeFilter, VkMemoryPrope
 
 void GraphicsDeviceVulkan::transitionImageLayout(VkImage image,
                            VkImageLayout oldLayout,
-                           VkImageLayout newLayout) {
+                           VkImageLayout newLayout,
+                           unsigned baseMipLevel,
+                           unsigned levelCount) {
   if (oldLayout == newLayout) {
     return;
   }
@@ -324,8 +326,8 @@ void GraphicsDeviceVulkan::transitionImageLayout(VkImage image,
   barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
   barrier.image = image;
   barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  barrier.subresourceRange.baseMipLevel = 0;
-  barrier.subresourceRange.levelCount = 1;
+  barrier.subresourceRange.baseMipLevel = baseMipLevel;
+  barrier.subresourceRange.levelCount = levelCount;
   barrier.subresourceRange.baseArrayLayer = 0;
   barrier.subresourceRange.layerCount = 1;
 

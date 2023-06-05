@@ -54,13 +54,13 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   struct TreeVulkan : Tree {
     std::vector<background_common::DrawSettings> draw_idx_temp;
     std::vector<background_common::DrawSettings> multidraw_idx_temp;
-    std::unique_ptr<VertexBuffer> vertex_buffer;
-    std::unique_ptr<IndexBuffer> index_buffer;
+    VertexBuffer* vertex_buffer;
+    IndexBuffer* index_buffer;
     std::unique_ptr<IndexBuffer> single_draw_index_buffer;
     std::unique_ptr<VulkanTexture> time_of_day_texture;
 
-    std::unique_ptr<VertexBuffer> wind_vertex_buffer;
-    std::unique_ptr<IndexBuffer> wind_index_buffer;
+    VertexBuffer* wind_vertex_buffer;
+    IndexBuffer* wind_index_buffer;
     std::vector<GraphicsPipelineLayout> graphics_pipeline_layouts;
     std::unique_ptr<VulkanSamplerHelper> time_of_day_sampler_helper;
     std::vector<VulkanSamplerHelper> sampler_helpers;

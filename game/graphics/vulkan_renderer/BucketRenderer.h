@@ -29,7 +29,7 @@ struct SharedVulkanRenderState : public BaseSharedRenderState {
                                    std::unique_ptr<GraphicsDeviceVulkan>& device)
       : BaseSharedRenderState(version) {}
   EyeVulkanRenderer* eye_renderer = nullptr;
-  std::unique_ptr<FramebufferVulkan> back_fbo;
+  std::unique_ptr<FramebufferVulkanHelper> back_fbo;
   bool isFramebufferValid = false;
 };
 

@@ -32,12 +32,6 @@ DepthCueVulkan::DepthCueVulkan(const std::string& name,
 
 void DepthCueVulkan::graphics_setup() {
   // Gen texture for sampling the framebuffer
-  m_ogl.framebuffer_sample_fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
-  m_ogl.framebuffer_sample_tex = std::make_unique<VulkanTexture>(m_device);
-
-  m_ogl.fbo = std::make_unique<FramebufferVulkan>(m_device, VK_FORMAT_R8G8B8A8_UNORM);
-  m_ogl.fbo_texture = std::make_unique<VulkanTexture>(m_device);
-
   m_ogl.depth_cue_page_vertex_buffer = std::make_unique<VertexBuffer>(
       m_device, sizeof(SpriteVertex), 4, 1);
 
@@ -122,13 +116,13 @@ void DepthCueVulkan::InitializeInputAttributes(){
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
   vertShaderStageInfo.module = shader.GetVertexShader();
-  vertShaderStageInfo.pName = "Depth Cue Fragment";
+  vertShaderStageInfo.pName = "main";
 
   VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
   fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
   fragShaderStageInfo.module = shader.GetFragmentShader();
-  fragShaderStageInfo.pName = "Depth Cue Fragment";
+  fragShaderStageInfo.pName = "main";
 
   m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
@@ -137,7 +131,7 @@ void DepthCueVulkan::create_pipeline_layout() {
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
         m_fragment_descriptor_layout->getDescriptorSetLayout()};
 
-    VkPushConstantRange pushConstantRange = {};
+    VkPushConstantRange pushConstantRange{};
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(m_depth_cue_push_constant);
     pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -157,6 +151,9 @@ void DepthCueVulkan::create_pipeline_layout() {
 }
 
 void DepthCueVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples =
+      m_vulkan_info.swap_chain->get_render_pass_sample_count();
   BaseDepthCue::render(dma, render_state, prof);
 }
 
@@ -241,13 +238,9 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
   m_ogl.framebuffer_sample_width = pc_fb_sample_width;
   m_ogl.framebuffer_sample_height = pc_fb_sample_height;
 
-  VkExtent3D extents{m_ogl.framebuffer_sample_width, m_ogl.framebuffer_sample_height, 1};
-  m_ogl.framebuffer_sample_tex->createImage(
-      extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), VK_FORMAT_R8G8B8_SRGB,
-      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-
-  m_ogl.framebuffer_sample_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_SRGB,
-                                                VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  m_ogl.framebuffer_sample_fbo = std::make_unique<FramebufferVulkanHelper>(
+      m_ogl.framebuffer_sample_width, m_ogl.framebuffer_sample_height, VK_FORMAT_R8G8B8A8_UNORM,
+      m_device, 1);
 
   // DEPTH CUE BASE PAGE FRAMEBUFFER
   // --------------------------
@@ -269,13 +262,9 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
   m_ogl.fbo_width = pc_depth_cue_fb_width;
   m_ogl.fbo_height = pc_depth_cue_fb_height;
 
-  VkExtent3D depth_extents{m_ogl.fbo_width, m_ogl.fbo_height, 1};
-  m_ogl.framebuffer_sample_tex->createImage(
-      depth_extents, 1, VK_IMAGE_TYPE_2D, m_device->getMsaaCount(), VK_FORMAT_R8G8B8_USCALED,
-      VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
+  m_ogl.fbo = std::make_unique<FramebufferVulkanHelper>(m_ogl.fbo_width, m_ogl.fbo_width,
+                                                        VK_FORMAT_R8G8B8A8_UNORM, m_device, 1);
 
-  m_ogl.framebuffer_sample_tex->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8_USCALED,
-                                                VK_IMAGE_ASPECT_DEPTH_BIT, 1);
   // DEPTH CUE BASE PAGE VERTEX DATA
   // --------------------------
   // Now that we have a framebuffer to draw each slice to, we need the actual vertex data.
@@ -434,7 +423,7 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
       m_vulkan_info.swap_chain->GetColorAttachmentImageAtIndex(m_vulkan_info.currentFrame);
   vkCmdResolveImage(
       m_vulkan_info.render_command_buffer, color_texture.getImage(),
-      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_ogl.fbo->color_texture.getImage(),
+      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_ogl.fbo->ColorAttachmentTexture().getImage(),
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageResolves.size(), imageResolves.data());
 
   // Next, we need to draw from the framebuffer sample texture to the depth-cue-base-page

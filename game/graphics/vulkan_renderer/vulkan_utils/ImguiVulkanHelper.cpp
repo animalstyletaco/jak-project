@@ -85,6 +85,7 @@ void ImguiVulkanHelper::InitializeNewFrame() {
   ImGui::NewFrame();
 }
 
+//TODO: Implement secondary command buffer to prevent frame buffer from clearing data too fast
 void ImguiVulkanHelper::Render(uint32_t width, uint32_t height, std::unique_ptr<SwapChain>& swapChain) {
   ImGui_ImplVulkan_Data* bd = (ImGui_ImplVulkan_Data*)ImGui::GetIO().BackendRendererUserData;
   bd->RenderPass = swapChain->getRenderPass();

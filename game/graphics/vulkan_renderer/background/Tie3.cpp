@@ -143,8 +143,7 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
       auto& lod_tree = m_trees.at(l_geo);
 
       // openGL vertex buffer from loader
-      lod_tree[l_tree].vertex_buffer =
-          std::make_unique<VertexBuffer>(m_device, sizeof(tree.packed_vertices.color_indices[0]), verts);
+      lod_tree[l_tree].vertex_buffer = loader_data->tie_data[l_geo][l_tree].vertex_buffer.get();
       // draw array from FR3 data
       lod_tree[l_tree].draws = &tree.static_draws;
       // base TOD colors from FR3
@@ -160,17 +159,17 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
       // preprocess colors for faster interpolation (TODO: move to loader)
       lod_tree[l_tree].tod_cache = background_common::swizzle_time_of_day(tree.colors);
       // OpenGL index buffer (fixed index buffer for multidraw system)
-      lod_tree[l_tree].index_buffer = std::make_unique<IndexBuffer>(m_device, sizeof(tree.unpacked.indices[0]),
-                                                                    tree.unpacked.indices.size());
+      lod_tree[l_tree].index_buffer = loader_data->tie_data[l_geo][l_tree].index_buffer.get();
       lod_tree[l_tree].category_draw_indices = tree.category_draw_indices;
 
       if (wind_idx_buffer_len > 0) {
         lod_tree[l_tree].wind_matrix_cache.resize(tree.wind_instance_info.size());
         lod_tree[l_tree].has_wind = true;
         lod_tree[l_tree].wind_vertex_buffer =
-            std::make_unique<VertexBuffer>(m_device, sizeof(u32), wind_idx_buffer_len); //TODO: Check to see if this is correct
+            loader_data->tie_data[l_geo][l_tree]
+                .wind_vertices.get();  // TODO: Check to see if this is correct
         lod_tree[l_tree].wind_index_buffer =
-            std::make_unique<IndexBuffer>(m_device, sizeof(u32), wind_idx_buffer_len);
+            loader_data->tie_data[l_geo][l_tree].wind_indices.get();
         u32 off = 0;
         for (auto& draw : tree.instanced_wind_draws) {
           lod_tree[l_tree].wind_vertex_index_offsets.push_back(off);
@@ -350,7 +349,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
   int last_texture = -1;
 
   VkDeviceSize offsets[] = {0};
-  VkBuffer vertex_buffers[] = {tree.wind_vertex_buffer->getBuffer()};
+  VkBuffer vertex_buffers[] = {tree.vertex_buffer->getBuffer()};
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.wind_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
@@ -364,6 +363,11 @@ void Tie3Vulkan::render_tree_wind(int idx,
         render_state, draw.mode,
         sampler_helper, m_pipeline_config_info,
         m_time_of_day_color_push_constant);
+    
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_tie_vertex_push_constant),
+                       sizeof(m_time_of_day_color_push_constant),
+                       (void*)&m_time_of_day_color_push_constant);
 
     tree.graphics_pipeline_layouts[draw_idx].createGraphicsPipeline(m_pipeline_config_info);
     tree.graphics_pipeline_layouts[draw_idx].bind(m_vulkan_info.render_command_buffer);

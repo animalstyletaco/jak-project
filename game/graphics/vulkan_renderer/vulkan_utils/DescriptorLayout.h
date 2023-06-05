@@ -68,6 +68,7 @@ class DescriptorPool {
 
   void freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const;
   VkDescriptorPool getDescriptorPool() { return m_descriptor_pool; }
+  std::unique_ptr<GraphicsDeviceVulkan>& device(){ return m_device; }
 
   void resetPool();
 

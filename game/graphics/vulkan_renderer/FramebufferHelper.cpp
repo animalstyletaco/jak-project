@@ -8,12 +8,58 @@
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
+
+namespace framebuffer_vulkan {
+  VkFormat GetSupportedDepthFormat(std::unique_ptr<GraphicsDeviceVulkan>& device) {
+    return device->findSupportedFormat(
+        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+        VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+  }
+}  // namespace framebuffer_vulkan
+
 FramebufferVulkan::FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VkFormat format)
-    : color_texture(device),
-      depth_texture(device),
-      mipmap_texture(device),
-      sampler_helper(device), m_device(device), m_format(format) {
-  VkSamplerCreateInfo& samplerInfo = sampler_helper.GetSamplerCreateInfo();
+    : m_device(device), m_format(format) {
+}
+
+void FramebufferVulkan::createFramebuffer() {
+  if (framebuffer) {
+    vkDestroyFramebuffer(m_device->getLogicalDevice(), framebuffer, nullptr);
+  }
+  std::vector<VkImageView> attachments{m_mipmap_image_view, m_depth_mipmap_image_view};
+
+  VkFramebufferCreateInfo framebufferInfo{};
+  framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+  framebufferInfo.renderPass = render_pass;
+  framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+  framebufferInfo.pAttachments = attachments.data();
+  framebufferInfo.width = extents.width;
+  framebufferInfo.height = extents.height;
+  framebufferInfo.layers = 1;
+
+  if (vkCreateFramebuffer(m_device->getLogicalDevice(), &framebufferInfo, nullptr, &framebuffer) !=
+      VK_SUCCESS) {
+    throw std::runtime_error("failed to create framebuffer!");
+  }
+}
+
+FramebufferVulkan::~FramebufferVulkan() {
+  if (framebuffer) {
+    vkDestroyFramebuffer(m_device->getLogicalDevice(), framebuffer, nullptr);
+  }
+  if (m_mipmap_image_view) {
+    vkDestroyImageView(m_device->getLogicalDevice(), m_mipmap_image_view, NULL);
+  }
+  if (m_depth_mipmap_image_view) {
+    vkDestroyImageView(m_device->getLogicalDevice(), m_depth_mipmap_image_view, NULL);
+  }
+}
+
+FramebufferVulkanHelper::FramebufferVulkanHelper(unsigned w,
+                                                 unsigned h,
+                                                 VkFormat format,
+                                                 std::unique_ptr<GraphicsDeviceVulkan>& device, int mipmapLevel)
+    : m_device(device), m_format(format), m_sampler_helper(device), m_color_texture(device), m_depth_texture(device) {
+  VkSamplerCreateInfo& samplerInfo = m_sampler_helper.GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 
   samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -26,9 +72,40 @@ FramebufferVulkan::FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& devi
   samplerInfo.magFilter = VK_FILTER_LINEAR;
   samplerInfo.minFilter = VK_FILTER_NEAREST;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+  m_sampler_helper.CreateSampler();
+
+  extents = {w, h};
+
+  VkExtent3D textureExtents{extents.width, extents.height, 1};
+  m_color_texture.createImage(textureExtents, mipmapLevel, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+                            m_format, VK_IMAGE_TILING_OPTIMAL,
+                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+
+  m_color_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, m_format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  
+  m_depth_texture.createImage(textureExtents, mipmapLevel, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
+                            framebuffer_vulkan::GetSupportedDepthFormat(m_device), VK_IMAGE_TILING_OPTIMAL,
+                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+  m_depth_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, framebuffer_vulkan::GetSupportedDepthFormat(m_device),
+                                VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+
+  m_framebuffers.resize(mipmapLevel, {device, format});
+
+  //FIXME: Weird hack. Ocean texture mipmap write/draws aren't done using vkCmdBlitImage().
+  //Instead we need to have a image view for each mipmap level so vkCmdDraw() knows which level of the image to write to.
+  //Back up color image and depth image views are used for image mipmap level greater than 0
+  for (uint32_t i = 0; i < mipmapLevel; i++) {
+    m_framebuffers[i].extents.width = extents.width >> i;
+    m_framebuffers[i].extents.height = extents.height >> i;
+
+    m_framebuffers[i].initializeFramebufferAtLevel(m_color_texture.getImage(),
+                                                   m_depth_texture.getImage(), i);
+  }
 }
 
-void FramebufferVulkan::setViewportScissor(VkCommandBuffer commandBuffer) {
+void FramebufferVulkanHelper::setViewportScissor(VkCommandBuffer commandBuffer) {
   VkViewport viewport{};
   viewport.x = 0.0f;
   viewport.y = 0.0f;
@@ -41,99 +118,36 @@ void FramebufferVulkan::setViewportScissor(VkCommandBuffer commandBuffer) {
   vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
-void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer,
-                                        std::vector<VkClearValue> clearValues) {
-  VkRenderPassBeginInfo renderPassInfo{};
-  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-  renderPassInfo.renderPass = render_pass;
-  renderPassInfo.framebuffer = frame_buffer;
+void FramebufferVulkan::initializeFramebufferAtLevel(VkImage colorImage, VkImage depthImage, unsigned mipmapLevel) {
+  VkImageViewCreateInfo viewCreateInfo{};
+  viewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+  viewCreateInfo.image = colorImage;
+  viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  viewCreateInfo.format = m_format;
+  viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  viewCreateInfo.subresourceRange.baseMipLevel = mipmapLevel;
+  viewCreateInfo.subresourceRange.levelCount = 1;
+  viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+  viewCreateInfo.subresourceRange.layerCount = 1;
 
-  renderPassInfo.renderArea.offset = {0, 0};
-  renderPassInfo.renderArea.extent = extents;
-
-  renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-  renderPassInfo.pClearValues = clearValues.data();
-
-  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-}
-
-void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer) {
-  std::vector<VkClearValue> clearValues;
-  clearValues.resize(2);
-
-  clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
-  clearValues[1].depthStencil = {1.0f, 0};
-
-  beginRenderPass(commandBuffer, clearValues);
-}
-
-FramebufferVulkan::~FramebufferVulkan() {
-  if (frame_buffer) {
-    vkDestroyFramebuffer(m_device->getLogicalDevice(), frame_buffer, nullptr);
+  if (vkCreateImageView(m_device->getLogicalDevice(), &viewCreateInfo, nullptr,
+                        &m_mipmap_image_view) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create texture image view!");
   }
-  if (render_pass) {
-    vkDestroyRenderPass(m_device->getLogicalDevice(), render_pass, nullptr);
+
+  viewCreateInfo.image = depthImage;
+  viewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+  viewCreateInfo.format = framebuffer_vulkan::GetSupportedDepthFormat(m_device);
+  viewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+  viewCreateInfo.subresourceRange.baseMipLevel = mipmapLevel;
+  viewCreateInfo.subresourceRange.levelCount = 1;
+  viewCreateInfo.subresourceRange.baseArrayLayer = 0;
+  viewCreateInfo.subresourceRange.layerCount = 1;
+
+  if (vkCreateImageView(m_device->getLogicalDevice(), &viewCreateInfo, nullptr,
+                        &m_depth_mipmap_image_view) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create texture image view!");
   }
-}
-
-FramebufferVulkanHelper::FramebufferVulkanHelper(unsigned w,
-                                                 unsigned h,
-                                                 VkFormat format,
-                                                 std::unique_ptr<GraphicsDeviceVulkan>& device, int num_levels)
-    : m_device(device), m_format(format) {
-  extents = {w, h};
-
-  m_framebuffers.resize(num_levels, {m_device, format});
-
-  uint32_t iterator = 0;
-  for (uint32_t i = 0; i < m_framebuffers.size(); i++) {
-    VkExtent3D textureExtents = {extents.width >> i, extents.height >> i, 1};
-    m_framebuffers[i].extents.width = textureExtents.width;
-    m_framebuffers[i].extents.height = textureExtents.height;
-
-    uint32_t mipmapLevel = m_framebuffers[i].GetMipmapLevel(i);
-    m_framebuffers[i].initializeFramebufferAtLevel(mipmapLevel);
-  }
-}
-
-uint32_t FramebufferVulkan::GetMipmapLevel(int level) {
-  // Check needed to avoid validation error. See
-  // https://vulkan-tutorial.com/Generating_Mipmaps#page_Image-creation for more info
-  uint32_t maxMinmapLevels =
-      static_cast<uint32_t>(
-          std::floor(std::log2(std::max(extents.width, extents.height)))) +
-      1;
-  return (level + 1 > maxMinmapLevels) ? maxMinmapLevels : level + 1;
-}
-
-void FramebufferVulkan::initializeFramebufferAtLevel(int mipmapLevel) {
-  VkExtent3D textureExtents{extents.width, extents.height, 1};
-  mipmap_texture.createImage(textureExtents, mipmapLevel, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
-                             m_format, VK_IMAGE_TILING_OPTIMAL,
-      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
-
-  mipmap_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, m_format,
-                                 VK_IMAGE_ASPECT_COLOR_BIT, mipmapLevel);
-
-  color_texture.createImage(textureExtents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT, m_format,
-                            VK_IMAGE_TILING_OPTIMAL,
-      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-          VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-
-  color_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, m_format,
-                                VK_IMAGE_ASPECT_COLOR_BIT, 1);
-
-  depth_texture.createImage(textureExtents, 1, VK_IMAGE_TYPE_2D, VK_SAMPLE_COUNT_1_BIT,
-                            GetSupportedDepthFormat(), VK_IMAGE_TILING_OPTIMAL,
-      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-  depth_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, GetSupportedDepthFormat(),
-                                            VK_IMAGE_ASPECT_DEPTH_BIT, 1);
-
-  auto& samplerInfo = sampler_helper.GetSamplerCreateInfo();
-  samplerInfo.maxLod = static_cast<float>(mipmapLevel);
-
-  sampler_helper.CreateSampler();
 
   createRenderPass();
   createFramebuffer();
@@ -156,7 +170,7 @@ void FramebufferVulkan::createRenderPass() {
   colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
   VkAttachmentDescription depthAttachment{};
-  depthAttachment.format = GetSupportedDepthFormat();
+  depthAttachment.format = framebuffer_vulkan::GetSupportedDepthFormat(m_device);
   depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
   depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -214,42 +228,41 @@ void FramebufferVulkan::createRenderPass() {
   }
 }
 
-void FramebufferVulkan::createFramebuffer() {
-  if (frame_buffer) {
-    vkDestroyFramebuffer(m_device->getLogicalDevice(), frame_buffer, nullptr);
-  }
+void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer,
+                                        std::vector<VkClearValue>& clearValues) {
+  VkRenderPassBeginInfo renderPassInfo{};
+  renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+  renderPassInfo.renderPass = render_pass;
+  renderPassInfo.framebuffer = framebuffer;
 
-  std::array<VkImageView, 2> attachments = {color_texture.getImageView(),
-                                            depth_texture.getImageView()};
+  renderPassInfo.renderArea.offset = {0, 0};
+  renderPassInfo.renderArea.extent = extents;
 
-  VkFramebufferCreateInfo framebufferInfo{};
-  framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-  framebufferInfo.renderPass = render_pass;
-  framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-  framebufferInfo.pAttachments = attachments.data();
-  framebufferInfo.width = extents.width;
-  framebufferInfo.height = extents.height;
-  framebufferInfo.layers = 1;
+  renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+  renderPassInfo.pClearValues = clearValues.data();
 
-  if (vkCreateFramebuffer(m_device->getLogicalDevice(), &framebufferInfo, nullptr,
-                          &frame_buffer) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create framebuffer!");
-  }
+  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 }
 
-void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, int index) {
-  m_framebuffers[index].beginRenderPass(commandBuffer);
+void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer) {
+  std::vector<VkClearValue> clearValues;
+  clearValues.resize(2);
+
+  clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
+  clearValues[1].depthStencil = {1.0f, 0};
+
+  beginRenderPass(commandBuffer, clearValues);
 }
 
-void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, std::vector<VkClearValue>& clearValues, int index) {
-  m_framebuffers[index].beginRenderPass(commandBuffer, clearValues);
+void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer,
+                                              unsigned mipmapLevel) {
+  m_framebuffers[mipmapLevel].beginRenderPass(commandBuffer);
 }
 
-
-VkFormat FramebufferVulkan::GetSupportedDepthFormat() {
-  return m_device->findSupportedFormat(
-      {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-      VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer,
+                                              std::vector<VkClearValue>& clearValues,
+                                              unsigned mipmapLevel) {
+  m_framebuffers[mipmapLevel].beginRenderPass(commandBuffer, clearValues);
 }
 
 FramebufferVulkanCopier::FramebufferVulkanCopier(std::unique_ptr<GraphicsDeviceVulkan>& device, std::unique_ptr<SwapChain>& swapChain)

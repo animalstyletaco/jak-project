@@ -26,7 +26,8 @@ void SpriteVulkan3::graphics_setup_distort() {
 
   // Create framebuffer to snapshot current render to a texture that can be bound for the distort
   // shader This will represent tex0 from the original GS data
-  createDistortFramebuffer();
+  m_distort_ogl.fbo = std::make_unique<FramebufferVulkanHelper>(
+      m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, VK_FORMAT_R8G8B8A8_UNORM, m_device, 1);
 
   VkSamplerCreateInfo& samplerInfo = m_distort_sampler_helper.GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -169,7 +170,7 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   distort_draw_common(render_state, prof);
   m_distort_ogl.fbo->beginRenderPass(m_vulkan_info.render_command_buffer);
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-  m_pipeline_config_info.renderPass = m_distort_ogl.fbo->render_pass;
+  m_pipeline_config_info.renderPass = m_distort_ogl.fbo->GetRenderPass();
 
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT);
@@ -222,7 +223,7 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
                        VK_INDEX_TYPE_UINT32);
 
   m_sprite_distort_descriptor_image_info = VkDescriptorImageInfo{
-    m_distort_sampler_helper.GetSampler(), m_distort_ogl.fbo->color_texture.getImageView(),
+    m_distort_sampler_helper.GetSampler(), m_distort_ogl.fbo->ColorAttachmentTexture().getImageView(),
     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& write_descriptors_info =
@@ -265,7 +266,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   distort_draw_common(render_state, prof);
   m_distort_ogl.fbo->beginRenderPass(m_vulkan_info.render_command_buffer);
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-  m_pipeline_config_info.renderPass = m_distort_ogl.fbo->render_pass;
+  m_pipeline_config_info.renderPass = m_distort_ogl.fbo->GetRenderPass();
 
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT_INSTANCED);
@@ -291,7 +292,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   //TODO: update descriptor set here
   m_sprite_distort_descriptor_image_info = VkDescriptorImageInfo{
       m_distort_sampler_helper.GetSampler(),
-      m_distort_ogl.fbo->color_texture.getImageView(),
+      m_distort_ogl.fbo->ColorAttachmentTexture().getImageView(),
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
@@ -377,7 +378,7 @@ void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state,
       srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
   vkCmdBlitImage(m_vulkan_info.render_command_buffer, srcImage,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
-                 m_distort_ogl.fbo->color_texture.getImage(),
+                 m_distort_ogl.fbo->ColorAttachmentTexture().getImage(),
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_NEAREST);
   m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                       VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -406,13 +407,7 @@ void SpriteVulkan3::distort_setup_framebuffer_dims(BaseSharedRenderState* render
     m_distort_ogl.fbo_width = render_state->render_fb_w;
     m_distort_ogl.fbo_height = render_state->render_fb_h;
 
-    createDistortFramebuffer();
+    m_distort_ogl.fbo = std::make_unique<FramebufferVulkanHelper>(
+        m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, VK_FORMAT_R8G8B8A8_UNORM, m_device, 1);
   }
-}
-
-void SpriteVulkan3::createDistortFramebuffer() {
-  m_distort_ogl.fbo->extents.width = m_distort_ogl.fbo_width;
-  m_distort_ogl.fbo->extents.height = m_distort_ogl.fbo_height;
-
-  m_distort_ogl.fbo->initializeFramebufferAtLevel(1);
 }

@@ -87,6 +87,7 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
         auto& in_trees = data.lev_data->level->tfrag_trees[geo];
         for (auto& in_tree : in_trees) {
           VertexBuffer tree_vertex_buffer(m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(), 1);
+          tree_vertex_buffer.writeToGpuBuffer(in_tree.unpacked.vertices.data());
           data.lev_data->tfrag_vertex_data[geo].push_back(tree_vertex_buffer);
         }
       }
@@ -282,6 +283,10 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
           LevelDataVulkan::TieVulkan& tree_out = data.lev_data->tie_data[geo].emplace_back();
           tree_out.vertex_buffer = std::make_unique<VertexBuffer>(
               m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(), 1);
+          tree_out.vertex_buffer->writeToGpuBuffer(in_tree.unpacked.vertices.data());
+          tree_out.index_buffer = std::make_unique<IndexBuffer>(
+              m_device, sizeof(u32), in_tree.unpacked.indices.size(), 1);
+          tree_out.index_buffer->writeToGpuBuffer(in_tree.unpacked.indices.data());
         }
       }
       m_vulkan_created = true;

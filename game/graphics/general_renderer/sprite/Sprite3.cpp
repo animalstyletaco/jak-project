@@ -204,7 +204,7 @@ void BaseSprite3::render_2d_group1(DmaFollower& dma,
   SetupShader(ShaderId::SPRITE3);
   SetSprite3UniformVertexFourFloatVector("hud_hvdf_offset", sizeof(m_hud_matrix_data.hvdf_offset),
                                          m_hud_matrix_data.hvdf_offset.data());
-  SetSprite3UniformVertexFourFloatVector("hud_hvdf_user", sizeof(m_hud_matrix_data.user_hvdf),
+  SetSprite3UniformVertexUserHvdfVector("hud_hvdf_user", sizeof(m_hud_matrix_data.user_hvdf),
                                          m_hud_matrix_data.user_hvdf[0].data());
   SetSprite3UniformMatrixFourFloatVector("hud_matrix", 1, false,
                                          m_hud_matrix_data.matrix.data());

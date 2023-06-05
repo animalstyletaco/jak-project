@@ -95,7 +95,9 @@ class GraphicsDeviceVulkan {
 
   void transitionImageLayout(VkImage image,
                              VkImageLayout oldLayout,
-                             VkImageLayout newLayout);
+                             VkImageLayout newLayout,
+                             unsigned baseMipLevel = 0,
+                             unsigned levelCount = 1);
 
   VkFormatProperties getPhysicalDeviceFormatProperties(VkFormat format);
 

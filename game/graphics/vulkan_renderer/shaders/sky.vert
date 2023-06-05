@@ -14,7 +14,7 @@ layout(push_constant) uniform PER_OBJECT
 }pc;
 
 void main() {
-    gl_Position = vec4((position_in.x - 0.5) * 16. , -(position_in.y - 0.5) * 32, position_in.z * 2 - 1., 1.0);
+    gl_Position = vec4((position_in.x - 0.5) * 16. , -(-position_in.y - 0.5) * 32, position_in.z * 2 - 1., 1.0);
     // scissoring area adjust
     gl_Position.y *= pc.height_scale * pc.scissor_adjust;
     fragment_color = vec4(rgba_in.x, rgba_in.y, rgba_in.z, rgba_in.a * 2);

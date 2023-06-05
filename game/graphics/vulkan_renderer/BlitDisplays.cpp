@@ -70,9 +70,9 @@ void BlitDisplaysVulkan::render(DmaFollower& dma,
             imageCopy.srcSubresource.layerCount = 1;
             imageCopy.srcSubresource.mipLevel = 0;
 
-            imageCopy.dstOffset.x = back->color_texture.getWidth();
-            imageCopy.dstOffset.x = back->color_texture.getHeight();
-            imageCopy.dstOffset.x = back->color_texture.getDepth();
+            imageCopy.dstOffset.x = back->ColorAttachmentTexture().getWidth();
+            imageCopy.dstOffset.x = back->ColorAttachmentTexture().getHeight();
+            imageCopy.dstOffset.x = back->ColorAttachmentTexture().getDepth();
 
             imageCopy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             imageCopy.dstSubresource.baseArrayLayer = 0;
@@ -80,7 +80,8 @@ void BlitDisplaysVulkan::render(DmaFollower& dma,
             imageCopy.dstSubresource.mipLevel = 0;
 
             vkCmdCopyImage(m_vulkan_info.render_command_buffer, my_tex_id->getImage(),
-                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, back->color_texture.getImage(),
+                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                           back->ColorAttachmentTexture().getImage(),
                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, &imageCopy);  
 
             m_vulkan_info.texture_pool->move_existing_to_vram(m_gpu_tex, m_tbp);

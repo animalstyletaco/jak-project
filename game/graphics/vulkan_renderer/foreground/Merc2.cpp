@@ -487,7 +487,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
 
   // will hold graphics vertex buffers for the updated vertices
   std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>> mod_graphics_buffers;
-  if (settings.model_uses_mod) {  // only if we've enabled, this path is slow.
+  if (/*settings.model_uses_mod*/ 0) {  // only if we've enabled, this path is slow.
     auto p = scoped_prof("update-verts");
 
     // loop over effects. Mod vertices are done per effect (possibly a bad idea?)

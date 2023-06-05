@@ -13,7 +13,7 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
  public:
   GlowVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
 
-  FramebufferVulkan* render_fb = NULL;
+  FramebufferVulkanHelper* render_fb = NULL;
  private:
   void blit_depth(BaseSharedRenderState* render_state);
 
@@ -61,7 +61,7 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
 
-    std::unique_ptr<FramebufferVulkan> probe_fbo;
+    std::unique_ptr<FramebufferVulkanHelper> probe_fbo;
     std::unique_ptr<VulkanTexture> probe_fbo_rgba_tex;
 
     // TODO: verify that this is right. Render objects sound more like swap chain images than

@@ -407,7 +407,7 @@ void CommonOceanVulkanRenderer::FinalizeVulkanDraw(std::unique_ptr<OceanVulkanGr
                           &ocean_graphics->descriptor_sets[bucket], 0, nullptr);
 
   vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
-                   m_next_free_index[bucket] / sizeof(unsigned), 1, 0,
+                   m_next_free_index[bucket], 1, 0,
                    0, 0);
 }
 

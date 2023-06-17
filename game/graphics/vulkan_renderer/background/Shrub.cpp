@@ -137,17 +137,11 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
         VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
     m_trees[l_tree].vert_count = verts;
-    m_trees[l_tree].vertex_buffer = std::make_unique<VertexBuffer>(
-        m_device, sizeof(tfrag3::ShrubGpuVertex), tree.unpacked.vertices.size());
-    m_trees[l_tree].vertex_buffer->writeToGpuBuffer(
-        (tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data());
+    m_trees[l_tree].vertex_buffer = (VertexBuffer*)&loader_data->shrub_vertex_data.at(l_tree);
 
-    m_trees[l_tree].index_buffer = std::make_unique<IndexBuffer>(m_device, sizeof(u32), tree.indices.size());
-    m_trees[l_tree].index_buffer->writeToGpuBuffer((u32*)tree.indices.data());
-
+    m_trees[l_tree].index_buffer = (IndexBuffer*)&loader_data->shrub_index_data.at(l_tree);
     m_trees[l_tree].single_draw_index_buffer =
-    std::make_unique<IndexBuffer>(m_device, sizeof(u32), tree.indices.size());
-    m_trees[l_tree].single_draw_index_buffer->writeToGpuBuffer((u32*)tree.indices.data());
+        (IndexBuffer*)&loader_data->shrub_index_data.at(l_tree);
 
     m_trees[l_tree].draws = &tree.static_draws;
     m_trees[l_tree].colors = &tree.time_of_day_colors;
@@ -187,7 +181,6 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
 
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
-  m_cache.multi_draw_indexed_infos_collection.resize(max_draws);
   ASSERT(time_of_day_count <= background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 
@@ -339,7 +332,7 @@ void ShrubVulkan::render_tree(int idx,
   if (render_state->no_multidraw) {
     vulkan_background_common::make_all_visible_index_list(m_cache.draw_idx_temp.data(), m_cache.index_temp.data(), *tree.draws, tree.index_data);
   } else {
-    vulkan_background_common::make_all_visible_multidraws(m_cache.multi_draw_indexed_infos_collection,
+    vulkan_background_common::make_all_visible_multidraws(tree.multi_draw_indexed_infos_collection,
                                                           *tree.draws);
   }
 
@@ -372,7 +365,7 @@ void ShrubVulkan::render_tree(int idx,
   Timer draw_timer;
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->at(draw_idx);
-    const auto& multidraw_indices = m_cache.multi_draw_indexed_infos_collection[draw_idx];
+    const auto& multidraw_indices = tree.multi_draw_indexed_infos_collection[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     if (render_state->no_multidraw) {
@@ -380,30 +373,11 @@ void ShrubVulkan::render_tree(int idx,
         continue;
       }
     } else {
-      if (multidraw_indices.empty() == 0) {
+      if (multidraw_indices.empty()) {
         continue;
       }
     }
 
-    if (render_state->no_multidraw) {
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
-                       singledraw_indices.draw_index, 0, 0);
-    } else {
-      //TODO: vkCmdDrawMultiIndexedExt is OpenGL equivalent but some device may not have this extension available
-      if (vkCmdDrawMultiIndexedEXT) {
-        vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.size(),
-                                 multidraw_indices.data(), 1, 0, sizeof(multidraw_indices[0]),
-                                 NULL);
-      } else {
-        for (auto& indexInfo : multidraw_indices) {
-          printf("Shrub - Draw count %d index count %d\n", indexInfo.indexCount,
-                 indexInfo.firstIndex);
-          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexInfo.indexCount, 1,
-                           indexInfo.firstIndex, 0, 0);
-        }
-        printf("\n");
-      }
-    }
     auto& time_of_day_texture = m_textures->at(draw.tree_tex_id);
     auto& time_of_day_sampler = tree.sampler_helpers.at(draw_idx);
 
@@ -416,6 +390,24 @@ void ShrubVulkan::render_tree(int idx,
                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
     PrepareVulkanDraw(tree, draw_idx);
+
+    if (render_state->no_multidraw) {
+      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
+                       singledraw_indices.draw_index, 0, 0);
+    } else {
+      // TODO: vkCmdDrawMultiIndexedExt is OpenGL equivalent but some device may not have this
+      // extension available
+      if (vkCmdDrawMultiIndexedEXT) {
+        vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.size(),
+                                 multidraw_indices.data(), 1, 0, sizeof(multidraw_indices[0]),
+                                 NULL);
+      } else {
+        for (auto& indexInfo : multidraw_indices) {
+          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexInfo.indexCount, 1,
+                           indexInfo.firstIndex, 0, 0);
+        }
+      }
+    }
 
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);

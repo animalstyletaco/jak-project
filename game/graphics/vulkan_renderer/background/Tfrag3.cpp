@@ -43,6 +43,7 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
 
   m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
   m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 }
 
 void Tfrag3Vulkan::InitializeDebugInputVertexAttribute() {
@@ -531,7 +532,7 @@ void Tfrag3Vulkan::initialize_debug_pipeline() {
   bindingDescription.binding = 0;
   bindingDescription.stride = sizeof(BaseTfrag3::DebugVertex);
   bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-  m_pipeline_config_info.bindingDescriptions = {bindingDescription};
+  m_debug_pipeline_config_info.bindingDescriptions = {bindingDescription};
 
   std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;

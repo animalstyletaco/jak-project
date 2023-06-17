@@ -48,6 +48,7 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
   // indexing works properly.
   m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
   InitializeInputAttributes();
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 }
 
 Tie3Vulkan::~Tie3Vulkan() {

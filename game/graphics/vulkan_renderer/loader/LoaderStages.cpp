@@ -88,6 +88,8 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
         for (auto& in_tree : in_trees) {
           data.lev_data->tfrag_vertex_data[geo].push_back(
               {m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(), 1});
+          data.lev_data->tfrag_vertex_data[geo].back().writeToGpuBuffer(
+              in_tree.unpacked.vertices.data());
           data.lev_data->tfrag_indices_data[geo].push_back(
               {m_device, sizeof(u32), in_tree.unpacked.indices.size(), 1});
           data.lev_data->tfrag_indices_data[geo].back().writeToGpuBuffer(
@@ -132,9 +134,9 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
         auto& tree_vertex_buffer = data.lev_data->tfrag_vertex_data[m_next_geo][m_next_tree];
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
-        tree_vertex_buffer.writeToGpuBuffer(
-            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
-            upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
+        //tree_vertex_buffer.writeToGpuBuffer(
+        //    (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
+        //    upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
 
         uploaded_bytes += upload_size;
       }
@@ -197,9 +199,12 @@ class ShrubVulkanLoadStage : public LoaderStageVulkan {
 
     if (!m_vulkan_created) {
       for (auto& in_tree : data.lev_data->level->shrub_trees) {
-        data.lev_data->shrub_vertex_data.push_back(VertexBuffer{m_device, sizeof(tfrag3::ShrubGpuVertex),
-                                                   in_tree.unpacked.vertices.size(), 1
-      });
+        data.lev_data->shrub_vertex_data.push_back(VertexBuffer{
+            m_device, sizeof(tfrag3::ShrubGpuVertex), in_tree.unpacked.vertices.size(), 1});
+        data.lev_data->shrub_vertex_data.back().writeToGpuBuffer(in_tree.unpacked.vertices.data());
+        data.lev_data->shrub_index_data.push_back(IndexBuffer{
+            m_device, sizeof(u32), in_tree.indices.size(), 1});
+        data.lev_data->shrub_index_data.back().writeToGpuBuffer(in_tree.indices.data());
       }
       m_vulkan_created = true;
       return false;
@@ -233,9 +238,9 @@ class ShrubVulkanLoadStage : public LoaderStageVulkan {
 
       u32 upload_size =
           (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
-      data.lev_data->shrub_vertex_data[m_next_tree].writeToGpuBuffer(
-        (tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data(), upload_size, 
-        start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
+      //data.lev_data->shrub_vertex_data[m_next_tree].writeToGpuBuffer(
+      //  (tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data(), upload_size, 
+      //  start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
       uploaded_bytes += upload_size;
 
       if (complete_tree) {
@@ -288,6 +293,7 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
           LevelDataVulkan::TieVulkan& tree_out = data.lev_data->tie_data[geo].emplace_back();
           tree_out.vertex_buffer = std::make_unique<VertexBuffer>(
               m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(), 1);
+          tree_out.vertex_buffer->writeToGpuBuffer(in_tree.unpacked.vertices.data());
           tree_out.index_buffer = std::make_unique<IndexBuffer>(
               m_device, sizeof(u32), in_tree.unpacked.indices.size(), 1);
           tree_out.index_buffer->writeToGpuBuffer(in_tree.unpacked.indices.data());
@@ -326,9 +332,9 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
 
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
-        data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->writeToGpuBuffer(
-            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
-            upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
+        //data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->writeToGpuBuffer(
+        //    (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
+        //    upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
 
         uploaded_bytes += upload_size;
 

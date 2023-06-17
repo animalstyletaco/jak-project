@@ -75,9 +75,8 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
 
   struct Cache {
     std::vector<background_common::DrawSettings> draw_idx_temp;
-    std::vector<background_common::DrawSettings> multidraw_offset_per_stripdraw;
     std::vector<u32> index_temp;
-    std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>> multi_draw_indexed_infos_collection;
   } m_cache;
 
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_push_constant;

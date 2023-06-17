@@ -52,6 +52,9 @@ class VulkanTexture {
     m_device->GenerateMipmaps(m_image, imageFormat, m_image_create_info.extent.width,
                               m_image_create_info.extent.height, mipLevels);
   }
+  void SetImageLayout(VkImageLayout imageLayout) {
+    m_image_create_info.initialLayout = imageLayout;
+  }
 
   unsigned long GetTextureId() { return m_image_id; }
 

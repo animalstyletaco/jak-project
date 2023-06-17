@@ -79,11 +79,10 @@ GlowVulkanRenderer::GlowVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& de
 
     m_ogl.downsample_fbos[i].texture = std::make_unique<VulkanTexture>(m_device);
     m_ogl.downsample_fbos[i].texture->createImage(extents, 1, VK_IMAGE_TYPE_2D,
-                                                  VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_LINEAR,
+                                                  VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_LINEAR,
                                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
 
-    m_ogl.downsample_fbos[i].texture->createImageView(VK_IMAGE_VIEW_TYPE_2D,
-                                                      VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    m_ogl.downsample_fbos[i].texture->createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
     
     ds_size /= 2;
   }
@@ -376,7 +375,7 @@ void GlowVulkanRenderer::blit_depth(BaseSharedRenderState* render_state) {
     m_ogl.probe_fbo_h = render_state->render_fb_h;
 
     m_ogl.probe_fbo = std::make_unique<FramebufferVulkanHelper>(
-        m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, VK_FORMAT_R8G8B8A8_UNORM, m_device, 1);
+        m_ogl.probe_fbo_w, m_ogl.probe_fbo_h, VK_FORMAT_R8G8B8A8_UNORM, m_device);
   }
 
   std::array<VkImageBlit, 1> imageBlits{};

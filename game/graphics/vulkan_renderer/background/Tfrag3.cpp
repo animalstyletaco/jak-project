@@ -14,8 +14,6 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   InitializeInputVertexAttribute();
   initialize_debug_pipeline();
 
-  m_pipeline_layouts.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {m_device});
-
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_VERTEX_BIT)
@@ -33,47 +31,18 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   m_fragment_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
 
+  m_vertex_descriptor_writer->writeImage(
+      0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+  m_fragment_descriptor_writer->writeImage(
+      0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
   m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
-  m_vertex_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
-  m_fragment_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
-
-  m_descriptor_sets.resize(2);
-  m_vertex_descriptor_writer->writeImage(0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info())
-      .build(m_descriptor_sets[0]);
-
-  m_fragment_descriptor_writer->writeImage(
-      0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info()).build(m_descriptor_sets[1]);
 
   m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
   m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
-
-  m_descriptor_image_infos.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
-  m_time_of_day_samplers.resize(background_common::TIME_OF_DAY_COLOR_COUNT, {device});
-
-  auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
-      background_common::TIME_OF_DAY_COLOR_COUNT, descriptorSetLayout};
-
-  VkDescriptorSetAllocateInfo allocInfo{};
-  allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-  allocInfo.descriptorPool = m_vulkan_info.descriptor_pool->getDescriptorPool();
-  allocInfo.pSetLayouts = descriptorSetLayouts.data();
-  allocInfo.descriptorSetCount = descriptorSetLayouts.size();
-
-  m_vertex_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
-  m_fragment_shader_descriptor_sets.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
-
-  if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &allocInfo,
-                               m_vertex_shader_descriptor_sets.data())) {
-    throw std::exception("Failed to allocated descriptor set in Shrub");
-  }
-  if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &allocInfo,
-                               m_fragment_shader_descriptor_sets.data())) {
-    throw std::exception("Failed to allocated descriptor set in Shrub");
-  }
 }
 
 void Tfrag3Vulkan::InitializeDebugInputVertexAttribute() {
@@ -137,7 +106,7 @@ void Tfrag3Vulkan::InitializeInputVertexAttribute() {
 
   attributeDescriptions[2].binding = 0;
   attributeDescriptions[2].location = 2;
-  attributeDescriptions[2].format = VK_FORMAT_R32_SINT;
+  attributeDescriptions[2].format = VK_FORMAT_R16G16_SINT;
   attributeDescriptions[2].offset = offsetof(tfrag3::PreloadedVertex, color_index);
   m_pipeline_config_info.attributeDescriptions.insert(
       m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
@@ -146,12 +115,6 @@ void Tfrag3Vulkan::InitializeInputVertexAttribute() {
 
 Tfrag3Vulkan::~Tfrag3Vulkan() {
   discard_tree_cache();
-  vkFreeDescriptorSets(
-      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
-      m_vertex_shader_descriptor_sets.size(), m_vertex_shader_descriptor_sets.data());
-  vkFreeDescriptorSets(
-      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
-      m_fragment_shader_descriptor_sets.size(), m_fragment_shader_descriptor_sets.data());
 }
 
 BaseTfrag3::TreeCache& Tfrag3Vulkan::get_cached_tree(int bucket_index, int cache_index) {
@@ -175,6 +138,9 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
   size_t max_draws = 0;
   size_t max_num_grps = 0;
   size_t max_inds = 0;
+
+  auto vertexDescriptorSetLayout = m_vertex_descriptor_layout->getDescriptorSetLayout();
+  auto fragmentDescriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
 
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
     for (size_t tree_idx = 0; tree_idx < lev_data->tfrag_trees[geom].size(); tree_idx++) {
@@ -200,11 +166,34 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
         tree_cache.tod_cache = background_common::swizzle_time_of_day(tree.colors);
         tree_cache.draw_mode = tree.use_strips ? VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         vis_temp_len = std::max(vis_temp_len, tree.bvh.vis_nodes.size());
-        tree_cache.vertex_buffer = std::make_unique<VertexBuffer>(
-            m_device, sizeof(tfrag3::PreloadedVertex), verts, 1);
-        tree_cache.index_buffer = std::make_unique<IndexBuffer>(m_device, sizeof(u32),
-                                                                tree.unpacked.indices.size(), 1);
-        tree_cache.graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
+        tree_cache.vertex_buffer = (VertexBuffer*)&loader_data->tfrag_vertex_data[geom][tree_idx];
+        tree_cache.index_buffer = (IndexBuffer*)&loader_data->tfrag_indices_data[geom][tree_idx];
+        tree_cache.single_draw_index_buffer =
+            std::make_unique<IndexBuffer>(m_device, sizeof(u32), tree.unpacked.indices.size(), 1);
+        tree_cache.graphics_pipeline_layouts.resize(tree.draws.size(), {m_device});
+        tree_cache.time_of_day_samplers.resize(tree.draws.size(), {m_device});
+        tree_cache.sampler_helpers.resize(tree.draws.size(), {m_device});
+
+        tree_cache.time_of_day_texture = std::make_unique<VulkanTexture>(m_device);
+        VkExtent3D extents{background_common::TIME_OF_DAY_COLOR_COUNT, 1, 1};
+        tree_cache.time_of_day_texture->createImage(
+            extents, 1, VK_IMAGE_TYPE_1D, VK_SAMPLE_COUNT_1_BIT, VK_FORMAT_R8G8B8A8_UNORM,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                VK_IMAGE_USAGE_SAMPLED_BIT);
+        tree_cache.time_of_day_texture->createImageView(
+            VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+
+        tree_cache.vertex_shader_descriptor_sets.resize(tree.draws.size());
+        tree_cache.fragment_shader_descriptor_sets.resize(tree.draws.size());
+
+        tree_cache.vertex_descriptor_image_infos.resize(tree.draws.size());
+        tree_cache.fragment_descriptor_image_infos.resize(tree.draws.size());
+
+        AllocateDescriptorSets(tree_cache.vertex_shader_descriptor_sets,
+                               vertexDescriptorSetLayout, tree.draws.size());
+        AllocateDescriptorSets(tree_cache.fragment_shader_descriptor_sets,
+                               fragmentDescriptorSetLayout, tree.draws.size());
       }
     }
   }
@@ -212,9 +201,29 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
   m_cache.vis_temp.resize(vis_temp_len);
   m_cache.draw_idx_temp.resize(max_draws);
   m_cache.index_temp.resize(max_inds);
-  m_cache.multidraw_offset_per_stripdraw.resize(max_draws);
-  m_cache.multi_draw_indexed_infos.resize(max_draws);
   ASSERT(time_of_day_count <= background_common::TIME_OF_DAY_COLOR_COUNT);
+}
+
+// This is pretty dumb but if our descriptor pool is big enough this shouldn't be a problem
+void Tfrag3Vulkan::AllocateDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets,
+                                        VkDescriptorSetLayout& layout,
+                                        u32 descriptorSetCount) {
+  if (!descriptorSetCount) {
+    return;
+  }
+  VkDescriptorSetAllocateInfo descriptorSetAllocInfo{};
+  descriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+  descriptorSetAllocInfo.descriptorPool = m_vulkan_info.descriptor_pool->getDescriptorPool();
+
+  descriptorSets.resize(descriptorSetCount);
+  std::vector<VkDescriptorSetLayout> fragmentDescriptorSetLayouts{descriptorSetCount, layout};
+  descriptorSetAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
+  descriptorSetAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
+
+  if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &descriptorSetAllocInfo,
+                               descriptorSets.data())) {
+    throw std::exception("Failed to allocated descriptor set in Shrub");
+  }
 }
 
 bool Tfrag3Vulkan::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
@@ -287,6 +296,7 @@ void Tfrag3Vulkan::render_tree(int geom,
     background_common::interp_time_of_day_slow(itimes, *tree.colors, m_color_result.data());
   }
 
+  vulkan_background_common::first_tfrag_draw_setup(settings, &m_vertex_push_constant);
   background_common::cull_check_all_slow(settings.planes, tree.vis->vis_nodes, settings.occlusion_culling,
                       m_cache.vis_temp.data());
 
@@ -298,19 +308,28 @@ void Tfrag3Vulkan::render_tree(int geom,
     tree.index_buffer->writeToGpuBuffer(m_cache.index_temp.data(), idx_buffer_size, 0);
   } else {
     total_tris = vulkan_background_common::make_multidraws_from_vis_string(
-        m_cache.multi_draw_indexed_infos, *tree.draws, m_cache.vis_temp);
+        tree.multi_draw_indexed_infos_collection, *tree.draws, m_cache.vis_temp);
   }
+  tree.time_of_day_texture->writeToImage((tfrag3::TimeOfDayColor*)tree.colors->data(),
+                             tree.colors->size() * sizeof(tfrag3::TimeOfDayColor));
 
   prof.add_tri(total_tris);
 
-  tree.graphics_pipeline_layout->createGraphicsPipeline(m_pipeline_config_info);
-  tree.graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
-  PrepareVulkanDraw(tree, settings.tree_idx);
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = tree.vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
+                       VK_INDEX_TYPE_UINT32);
+
+  int32_t lastIndex = -1;
+  int32_t lastDrawCount = -1;
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->at(draw_idx);
-    const auto& multidraw_indices = m_cache.multidraw_offset_per_stripdraw[draw_idx];
+    const auto& multidraw_indices = tree.multi_draw_indexed_infos_collection[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     if (render_state->no_multidraw) {
@@ -318,18 +337,21 @@ void Tfrag3Vulkan::render_tree(int geom,
         continue;
       }
     } else {
-      if (multidraw_indices.number_of_draws == 0) {
+      if (multidraw_indices.empty()) {
         continue;
       }
     }
 
     ASSERT(m_textures);
     VulkanTexture& vulkanTexture = m_textures->at(draw.tree_tex_id);
-    vulkanTexture.writeToImage(m_color_result.data());
 
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
-        render_state, draw.mode, m_time_of_day_samplers[draw.tree_tex_id], m_pipeline_config_info,
+        render_state, draw.mode, tree.sampler_helpers[draw_idx], m_pipeline_config_info,
         m_time_of_day_color_push_constant);
+
+    tree.graphics_pipeline_layouts[draw_idx].createGraphicsPipeline(m_pipeline_config_info);
+    tree.graphics_pipeline_layouts[draw_idx].bind(m_vulkan_info.render_command_buffer);
+
     m_vertex_push_constant.decal_mode = (draw.mode.get_decal()) ? 1 : 0;
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
@@ -340,6 +362,8 @@ void Tfrag3Vulkan::render_tree(int geom,
                        sizeof(m_time_of_day_color_push_constant),
                        (void*)&m_time_of_day_color_push_constant);
 
+    PrepareVulkanDraw(tree, vulkanTexture, draw_idx);
+
     tree.tris_this_frame += draw.num_triangles;
     tree.draws_this_frame++;
 
@@ -348,9 +372,17 @@ void Tfrag3Vulkan::render_tree(int geom,
       vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
                        singledraw_indices.draw_index, 0, 0);
     } else {
-      vkCmdDrawMultiIndexedEXT(
-          m_vulkan_info.render_command_buffer, multidraw_indices.number_of_draws,
-          m_cache.multi_draw_indexed_infos.data(), 1, 0, sizeof(VkMultiDrawIndexedInfoEXT), NULL);
+      // Checks to see if Multi draw module is loaded otherwise run vkCmdDrawIndexed multiple times
+      if (vkCmdDrawMultiIndexedEXT) {
+        vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.size(),
+                                 multidraw_indices.data(), 1, 0, sizeof(VkMultiDrawIndexedInfoEXT),
+                                 NULL);
+      } else {
+        for (const auto& indexInfo : multidraw_indices) {
+          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexInfo.indexCount, 1,
+                           indexInfo.firstIndex, 0, 0);
+        }
+      }
     }
 
     switch (double_draw.kind) {
@@ -371,10 +403,18 @@ void Tfrag3Vulkan::render_tree(int geom,
           vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,
                            1, singledraw_indices.draw_index, 0, 0);
         } else {
-          vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer,
-                                   multidraw_indices.number_of_draws,
-                                   m_cache.multi_draw_indexed_infos.data(), 1, 0,
-                                   sizeof(VkMultiDrawIndexedInfoEXT), NULL);
+          // Checks to see if Multi draw module is loaded otherwise run vkCmdDrawIndexed multiple
+          // times
+          if (vkCmdDrawMultiIndexedEXT) {
+            vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.size(),
+                                     multidraw_indices.data(), 1, 0,
+                                     sizeof(VkMultiDrawIndexedInfoEXT), NULL);
+          } else {
+            for (const auto& indexInfo : multidraw_indices) {
+              vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexInfo.indexCount, 1,
+                               indexInfo.firstIndex, 0, 0);
+            }
+          }
         }
         break;
       default:
@@ -415,7 +455,14 @@ void Tfrag3Vulkan::render_matching_trees(int geom,
 void Tfrag3Vulkan::discard_tree_cache() {
   m_textures = nullptr;
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
-    m_cached_trees[geom].clear();
+    for (auto& tree : m_cached_trees[geom]) {
+      vkFreeDescriptorSets(
+          m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
+          tree.vertex_shader_descriptor_sets.size(), tree.vertex_shader_descriptor_sets.data());
+      vkFreeDescriptorSets(
+          m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
+          tree.fragment_shader_descriptor_sets.size(), tree.fragment_shader_descriptor_sets.data());
+    }
   }
 }
 
@@ -513,7 +560,7 @@ void Tfrag3Vulkan::create_pipeline_layout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  std::array<VkPushConstantRange, 2> pushConstantRanges;
+  std::array<VkPushConstantRange, 2> pushConstantRanges{};
   pushConstantRanges[0].offset = 0;
   pushConstantRanges[0].size = sizeof(m_vertex_push_constant);
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
@@ -531,35 +578,31 @@ void Tfrag3Vulkan::create_pipeline_layout() {
   }
 }
 
-void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, int index) {
-  m_time_of_day_samplers.at(index).CreateSampler();
+void Tfrag3Vulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, VulkanTexture& texture, int index) {
+  tree.time_of_day_samplers[index].CreateSampler();
 
-  m_descriptor_image_infos[index] = VkDescriptorImageInfo{
-      m_time_of_day_samplers.at(index).GetSampler(), m_textures->at(index).getImageView(),
+  tree.vertex_descriptor_image_infos[index] = VkDescriptorImageInfo{
+      tree.time_of_day_samplers.at(index).GetSampler(), tree.time_of_day_texture->getImageView(),
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  tree.fragment_descriptor_image_infos[index] =
+      VkDescriptorImageInfo{tree.sampler_helpers.at(index).GetSampler(), texture.getImageView(),
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& vertex_write_descriptors_sets = m_vertex_descriptor_writer->getWriteDescriptorSets();
   vertex_write_descriptors_sets[0] = m_vertex_descriptor_writer->writeImageDescriptorSet(
-      0, &m_descriptor_image_infos[index]);
+      0, &tree.vertex_descriptor_image_infos[index]);
 
   auto& fragment_write_descriptors_sets = m_fragment_descriptor_writer->getWriteDescriptorSets();
   fragment_write_descriptors_sets[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
-      0, &m_descriptor_image_infos[index]);
+      0, &tree.fragment_descriptor_image_infos[index]);
 
-  m_vertex_descriptor_writer->overwrite(m_descriptor_sets[0]);
-  m_fragment_descriptor_writer->overwrite(m_descriptor_sets[1]);
+  m_vertex_descriptor_writer->overwrite(tree.vertex_shader_descriptor_sets[index]);
+  m_fragment_descriptor_writer->overwrite(tree.fragment_shader_descriptor_sets[index]);
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
-
-  VkDeviceSize offsets[] = {0};
-  VkBuffer vertex_buffer_vulkan = tree.vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
-
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
-                       VK_INDEX_TYPE_UINT32);
-
+  std::vector<VkDescriptorSet> descriptor_sets{tree.vertex_shader_descriptor_sets[index],
+                                              tree.fragment_shader_descriptor_sets[index]};
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
-                          m_descriptor_sets.data(), 0,
+                          m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
+                          descriptor_sets.data(), 0,
                           NULL);
 }

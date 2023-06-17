@@ -57,8 +57,8 @@ class OceanVulkanTexture : public BaseOceanTexture {
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
   PipelineConfigInfo m_pipeline_info;
   VulkanInitializationInfo& m_vulkan_info;
-  FramebufferVulkanHelper m_result_texture;
-  FramebufferVulkanHelper m_temp_texture;
+  std::unique_ptr<FramebufferVulkanHelper> m_result_texture;
+  std::unique_ptr<FramebufferVulkanHelper> m_temp_texture;
 
   VkPipelineLayout m_ocean_texture_pipeline_layout;
   VkPipelineLayout m_ocean_texture_mipmap_pipeline_layout;

@@ -345,7 +345,7 @@ void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
     std::vector<VkImageView> attachments;
     if(sampleCount != VK_SAMPLE_COUNT_1_BIT){
       attachments = {colorImages[i].getImageView(),
-        swapChainImageViews[i], depthImages[i].getImageView()}; //resolve image view not used but needs to be specified as null
+        swapChainImageViews[i], depthImages[i].getImageView()}; 
     } else {
       attachments = {colorImages[i].getImageView(), depthImages[i].getImageView()};
     }

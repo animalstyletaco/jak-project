@@ -6,7 +6,7 @@ ProgressVulkanRenderer::ProgressVulkanRenderer(const std::string& name,
                                                VulkanInitializationInfo& vulkan_info,
                                                int batch_size)
     : DirectVulkanRenderer(name, my_id, device, vulkan_info, batch_size),
-      m_minimap_fb(kMinimapWidth, kMinimapHeight, VK_FORMAT_R8G8B8A8_SRGB, device) {
+      m_minimap_fb(kMinimapWidth, kMinimapHeight, VK_FORMAT_R8G8B8A8_UNORM, device) {
   VulkanTextureInput in;
   in.texture = &m_minimap_fb.ColorAttachmentTexture();
   in.debug_page_name = "PC-MAP";

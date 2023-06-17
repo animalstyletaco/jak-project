@@ -61,16 +61,30 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
     VertexBuffer* wind_vertex_buffer;
     IndexBuffer* wind_index_buffer;
-    std::vector<GraphicsPipelineLayout> graphics_pipeline_layouts;
+
+    std::vector<GraphicsPipelineLayout> graphics_pipeline_catergory_layouts;
+    std::vector<GraphicsPipelineLayout> instanced_wind_graphics_pipeline_layouts;
+
     std::unique_ptr<VulkanSamplerHelper> time_of_day_sampler_helper;
-    std::vector<VulkanSamplerHelper> sampler_helpers;
+    std::vector<VulkanSamplerHelper> instanced_wind_sampler_helpers;
+    std::vector<VulkanSamplerHelper> sampler_helpers_categories;
+    std::vector<VulkanSamplerHelper> etie_sampler_helpers_categories;
     std::vector<VkDescriptorSet> vertex_shader_descriptor_sets;
     std::vector<VkDescriptorSet> fragment_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> instanced_wind_vertex_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> instanced_wind_fragment_shader_descriptor_sets;
 
     std::vector<VkDescriptorImageInfo> time_of_day_descriptor_image_infos;
+    std::vector<VkDescriptorImageInfo> time_of_day_instanced_wind_descriptor_image_infos;
     std::vector<VkDescriptorImageInfo> descriptor_image_infos;
+    std::vector<VkDescriptorImageInfo> instanced_wind_descriptor_image_infos;
+
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>> multi_draw_indexed_infos_collection;
   };
 
+  void AllocateDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets,
+                              VkDescriptorSetLayout& layout,
+                              u32 descriptorSetCount);
   void envmap_second_pass_draw(TreeVulkan& tree,
                                const TfragRenderSettings& settings,
                                BaseSharedRenderState* render_state,
@@ -80,10 +94,8 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   struct Cache {
     std::vector<background_common::DrawSettings> draw_idx_temp;
-    std::vector<background_common::DrawSettings> multidraw_offset_per_stripdraw;
     std::vector<u32> index_temp;
     std::vector<u8> vis_temp;
-    std::vector<VkMultiDrawIndexedInfoEXT> multi_draw_indexed_infos;
   } m_cache;
 
   struct TiePushConstant : BackgroundCommonVertexUniformShaderData {
@@ -92,7 +104,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     int decal_mode = 0;
   };
 
-  void PrepareVulkanDraw(TreeVulkan& tree, VkSampler, int index);
+  void PrepareVulkanDraw(TreeVulkan& tree, VkSampler, VulkanTexture& texture, int index, bool isInstancedWindDraw);
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
   void init_etie_cam_uniforms(const BaseSharedRenderState* render_state);
 

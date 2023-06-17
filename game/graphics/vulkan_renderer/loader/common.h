@@ -24,6 +24,7 @@ struct LevelDataVulkan : BaseLevelData {
   };
   std::array<std::vector<TieVulkan>, tfrag3::TIE_GEOS> tie_data;
   std::array<std::vector<VertexBuffer>, tfrag3::TIE_GEOS> tfrag_vertex_data;
+  std::array<std::vector<IndexBuffer>, tfrag3::TIE_GEOS> tfrag_indices_data;
   std::vector<VertexBuffer> shrub_vertex_data;
   std::unique_ptr<VertexBuffer> collide_vertices;
 

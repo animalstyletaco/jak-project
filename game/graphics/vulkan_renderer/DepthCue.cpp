@@ -240,7 +240,7 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
 
   m_ogl.framebuffer_sample_fbo = std::make_unique<FramebufferVulkanHelper>(
       m_ogl.framebuffer_sample_width, m_ogl.framebuffer_sample_height, VK_FORMAT_R8G8B8A8_UNORM,
-      m_device, 1);
+      m_device);
 
   // DEPTH CUE BASE PAGE FRAMEBUFFER
   // --------------------------
@@ -263,7 +263,7 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
   m_ogl.fbo_height = pc_depth_cue_fb_height;
 
   m_ogl.fbo = std::make_unique<FramebufferVulkanHelper>(m_ogl.fbo_width, m_ogl.fbo_width,
-                                                        VK_FORMAT_R8G8B8A8_UNORM, m_device, 1);
+                                                        VK_FORMAT_R8G8B8A8_UNORM, m_device);
 
   // DEPTH CUE BASE PAGE VERTEX DATA
   // --------------------------

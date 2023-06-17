@@ -120,6 +120,7 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
         pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         double_draw.color_mult = 0.5f;
+        break;
       default:
         ASSERT(false);
     }
@@ -234,7 +235,6 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
 
 void vulkan_background_common::first_tfrag_draw_setup(
   const TfragRenderSettings& settings,
-  BaseSharedRenderState* render_state,
   BackgroundCommonVertexUniformShaderData* uniform_vertex_push_constant) {
     uniform_vertex_push_constant->camera = settings.math_camera;
     uniform_vertex_push_constant->hvdf_offset =
@@ -245,22 +245,27 @@ void vulkan_background_common::first_tfrag_draw_setup(
     uniform_vertex_push_constant->fog_max = settings.fog.z();
 }
 
-void vulkan_background_common::make_all_visible_multidraws(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
+void vulkan_background_common::make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
                                                            const std::vector<tfrag3::ShrubDraw>& draws) {
+  multiDrawIndexedInfos.clear();
+  multiDrawIndexedInfos.resize(draws.size());
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
     u64 iidx = draw.first_index_index;
     // Assumes Vertex offset is not used
-    multiDrawIndexedInfos[i].indexCount = draw.num_indices;
-    multiDrawIndexedInfos[i].firstIndex = iidx;
+    VkMultiDrawIndexedInfoEXT multiDrawIndexedInfo{};
+    multiDrawIndexedInfo.indexCount = draw.num_indices;
+    multiDrawIndexedInfo.firstIndex = iidx;
+    multiDrawIndexedInfos[i].push_back(multiDrawIndexedInfo);
   }
 }
 
-u32 vulkan_background_common::make_all_visible_multidraws(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
+u32 vulkan_background_common::make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
                                                           const std::vector<tfrag3::StripDraw>& draws) {
   u32 num_tris = 0;
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
+    auto& multiDrawIndexedInfos = multiDrawIndexedInfosCollection[i];
     u64 iidx = draw.unpacked.idx_of_first_idx_in_full_buffer;
     int num_inds = 0;
     for (auto& grp : draw.vis_groups) {
@@ -268,8 +273,10 @@ u32 vulkan_background_common::make_all_visible_multidraws(std::vector<VkMultiDra
       num_inds += grp.num_inds;
     }
     //Assumes Vertex offset is not used
-    multiDrawIndexedInfos[i].indexCount = num_inds;
-    multiDrawIndexedInfos[i].firstIndex = iidx;
+    VkMultiDrawIndexedInfoEXT multiDrawIndexedInfo{};
+    multiDrawIndexedInfo.indexCount = num_inds;
+    multiDrawIndexedInfo.firstIndex = iidx;
+    multiDrawIndexedInfos.push_back(multiDrawIndexedInfo);
   }
   return num_tris;
 }
@@ -292,13 +299,16 @@ u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_ou
   return idx_buffer_ptr;
 }
 
-u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
+u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
                                                               const std::vector<tfrag3::StripDraw>& draws,
                                                               const std::vector<u8>& vis_data) {
   u32 num_tris = 0;
   u32 sanity_check = 0;
+  multiDrawIndexedInfosCollection.clear();
+  multiDrawIndexedInfosCollection.resize(draws.size());
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
+    auto& multidrawInfoVector = multiDrawIndexedInfosCollection[i];
     u64 iidx = draw.unpacked.idx_of_first_idx_in_full_buffer;
     ASSERT(sanity_check == iidx);
     bool building_run = false;
@@ -306,11 +316,7 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<VkMult
     for (auto& grp : draw.vis_groups) {
       sanity_check += grp.num_inds;
 
-      bool vis = false;
-      if (grp.vis_idx_in_pc_bvh < vis_data.size()) {
-        vis = grp.vis_idx_in_pc_bvh == 0xffffffff || vis_data[grp.vis_idx_in_pc_bvh];
-      }
-
+      bool vis = grp.vis_idx_in_pc_bvh == UINT16_MAX || vis_data[grp.vis_idx_in_pc_bvh];
       if (vis) {
         num_tris += grp.num_tris;
       }
@@ -318,8 +324,10 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<VkMult
       if (building_run) {
         if (!vis) {
           building_run = false;
-          multiDrawIndexedInfos[i].indexCount = iidx - run_start;
-          multiDrawIndexedInfos[i].firstIndex = run_start;
+          VkMultiDrawIndexedInfoEXT multidrawInfo{};
+          multidrawInfo.indexCount = iidx - run_start;
+          multidrawInfo.firstIndex = run_start;
+          multidrawInfoVector.push_back(multidrawInfo);
         }
       } else {
         if (vis) {
@@ -333,8 +341,10 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<VkMult
 
     if (building_run) {
       building_run = false;
-      multiDrawIndexedInfos[i].indexCount = iidx - run_start;
-      multiDrawIndexedInfos[i].firstIndex = run_start;
+      VkMultiDrawIndexedInfoEXT multidrawInfo{};
+      multidrawInfo.indexCount = iidx - run_start;
+      multidrawInfo.firstIndex = run_start;
+      multidrawInfoVector.push_back(multidrawInfo);
     }
   }
   return num_tris;

@@ -27,7 +27,7 @@ void SpriteVulkan3::graphics_setup_distort() {
   // Create framebuffer to snapshot current render to a texture that can be bound for the distort
   // shader This will represent tex0 from the original GS data
   m_distort_ogl.fbo = std::make_unique<FramebufferVulkanHelper>(
-      m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, VK_FORMAT_R8G8B8A8_UNORM, m_device, 1);
+      m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, VK_FORMAT_R8G8B8A8_UNORM, m_device);
 
   VkSamplerCreateInfo& samplerInfo = m_distort_sampler_helper.GetSamplerCreateInfo();
   samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -408,6 +408,6 @@ void SpriteVulkan3::distort_setup_framebuffer_dims(BaseSharedRenderState* render
     m_distort_ogl.fbo_height = render_state->render_fb_h;
 
     m_distort_ogl.fbo = std::make_unique<FramebufferVulkanHelper>(
-        m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, VK_FORMAT_R8G8B8A8_UNORM, m_device, 1);
+        m_distort_ogl.fbo_width, m_distort_ogl.fbo_height, VK_FORMAT_R8G8B8A8_UNORM, m_device);
   }
 }

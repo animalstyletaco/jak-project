@@ -35,13 +35,13 @@ struct BackgroundCommonFragmentPushConstantShaderData {
 };
 
 namespace vulkan_background_common {
-void make_all_visible_multidraws(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
+void make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
                                  const std::vector<tfrag3::ShrubDraw>& draws);
 
-u32 make_all_visible_multidraws(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
+u32 make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
                                 const std::vector<tfrag3::StripDraw>& draws);
 
-u32 make_multidraws_from_vis_string(std::vector<VkMultiDrawIndexedInfoEXT>& multiDrawIndexedInfos,
+u32 make_multidraws_from_vis_string(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
                                     const std::vector<tfrag3::StripDraw>& draws,
                                     const std::vector<u8>& vis_data);
 
@@ -90,7 +90,6 @@ DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
                                        bool mipmap);
 
 void first_tfrag_draw_setup(const TfragRenderSettings& settings,
-                            BaseSharedRenderState* render_state,
                             BackgroundCommonVertexUniformShaderData* shader_data);
 
 VkDescriptorImageInfo create_placeholder_descriptor_image_info(

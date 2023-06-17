@@ -251,13 +251,22 @@ void VulkanBuffer::writeToGpuBuffer(void* data, VkDeviceSize size, VkDeviceSize 
     return;
   }
 
-  StagingBuffer stagingBuffer(m_device, instanceSize, instanceCount,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT, alignmentSize);
+  unsigned desiredSize = 0;
+  unsigned desiredInstancedCount = 0;
+  if (size < instanceSize * instanceCount) {
+    desiredSize = size;
+    desiredInstancedCount = 1;
+  } else {
+    desiredSize = instanceSize;
+    desiredInstancedCount = instanceCount;
+  }
+  StagingBuffer stagingBuffer(m_device, desiredSize, desiredInstancedCount,
+                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT, minOffsetAlignment);
 
   stagingBuffer.map();
   if (size < bufferSize) {
-    stagingBuffer.writeToCpuBuffer(data, size, offset);
-    m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, size);
+    stagingBuffer.writeToCpuBuffer(data, size, 0);
+    m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, size, 0, offset);
   } else {
     stagingBuffer.writeToCpuBuffer(data, bufferSize, 0);
     m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, bufferSize);

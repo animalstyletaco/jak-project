@@ -86,9 +86,13 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
       for (int geo = 0; geo < tfrag3::TFRAG_GEOS; geo++) {
         auto& in_trees = data.lev_data->level->tfrag_trees[geo];
         for (auto& in_tree : in_trees) {
-          VertexBuffer tree_vertex_buffer(m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(), 1);
-          tree_vertex_buffer.writeToGpuBuffer(in_tree.unpacked.vertices.data());
-          data.lev_data->tfrag_vertex_data[geo].push_back(tree_vertex_buffer);
+          data.lev_data->tfrag_vertex_data[geo].push_back(
+              {m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(), 1});
+          data.lev_data->tfrag_indices_data[geo].push_back(
+              {m_device, sizeof(u32), in_tree.unpacked.indices.size(), 1});
+          data.lev_data->tfrag_indices_data[geo].back().writeToGpuBuffer(
+              in_tree.unpacked.indices.data(),
+              sizeof(u32) * in_tree.unpacked.indices.size());
         }
       }
       m_vulkan_created = true;
@@ -106,7 +110,7 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
         complete_tree = true;
       } else {
         const auto& tree = data.lev_data->level->tfrag_trees[m_next_geo][m_next_tree];
-        u32 end_vert_in_tree = tree.unpacked.vertices.size();
+        size_t end_vert_in_tree = tree.unpacked.vertices.size();
         // the number of vertices we'd need to finish the tree right now
         size_t num_verts_left_in_tree = end_vert_in_tree - m_next_vert;
         size_t start_vert_for_chunk;
@@ -128,9 +132,10 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
         auto& tree_vertex_buffer = data.lev_data->tfrag_vertex_data[m_next_geo][m_next_tree];
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
+        tree_vertex_buffer.writeToGpuBuffer(
+            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
+            upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
 
-        tree_vertex_buffer.writeToGpuBuffer((tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
-                                          upload_size, 0);
         uploaded_bytes += upload_size;
       }
 
@@ -192,8 +197,9 @@ class ShrubVulkanLoadStage : public LoaderStageVulkan {
 
     if (!m_vulkan_created) {
       for (auto& in_tree : data.lev_data->level->shrub_trees) {
-        VertexBuffer tree_out(m_device, sizeof(tfrag3::ShrubGpuVertex), in_tree.unpacked.vertices.size(), 1);
-        data.lev_data->shrub_vertex_data.push_back(tree_out);
+        data.lev_data->shrub_vertex_data.push_back(VertexBuffer{m_device, sizeof(tfrag3::ShrubGpuVertex),
+                                                   in_tree.unpacked.vertices.size(), 1
+      });
       }
       m_vulkan_created = true;
       return false;
@@ -204,7 +210,7 @@ class ShrubVulkanLoadStage : public LoaderStageVulkan {
 
     while (true) {
       const auto& tree = data.lev_data->level->shrub_trees[m_next_tree];
-      u32 end_vert_in_tree = tree.unpacked.vertices.size();
+      size_t end_vert_in_tree = tree.unpacked.vertices.size();
       // the number of vertices we'd need to finish the tree right now
       size_t num_verts_left_in_tree = end_vert_in_tree - m_next_vert;
       size_t start_vert_for_chunk;
@@ -228,9 +234,8 @@ class ShrubVulkanLoadStage : public LoaderStageVulkan {
       u32 upload_size =
           (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::ShrubGpuVertex);
       data.lev_data->shrub_vertex_data[m_next_tree].writeToGpuBuffer(
-        (tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data(),
-        tree.unpacked.vertices.size() - start_vert_for_chunk, 
-        start_vert_for_chunk);
+        (tfrag3::ShrubGpuVertex*)tree.unpacked.vertices.data(), upload_size, 
+        start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
       uploaded_bytes += upload_size;
 
       if (complete_tree) {
@@ -283,7 +288,6 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
           LevelDataVulkan::TieVulkan& tree_out = data.lev_data->tie_data[geo].emplace_back();
           tree_out.vertex_buffer = std::make_unique<VertexBuffer>(
               m_device, sizeof(tfrag3::PreloadedVertex), in_tree.unpacked.vertices.size(), 1);
-          tree_out.vertex_buffer->writeToGpuBuffer(in_tree.unpacked.vertices.data());
           tree_out.index_buffer = std::make_unique<IndexBuffer>(
               m_device, sizeof(u32), in_tree.unpacked.indices.size(), 1);
           tree_out.index_buffer->writeToGpuBuffer(in_tree.unpacked.indices.data());
@@ -322,9 +326,10 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
 
         u32 upload_size =
             (end_vert_for_chunk - start_vert_for_chunk) * sizeof(tfrag3::PreloadedVertex);
-
         data.lev_data->tie_data[m_next_geo][m_next_tree].vertex_buffer->writeToGpuBuffer(
-            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk, upload_size);
+            (tfrag3::PreloadedVertex*)tree.unpacked.vertices.data() + start_vert_for_chunk,
+            upload_size, start_vert_for_chunk * sizeof(tfrag3::PreloadedVertex));
+
         uploaded_bytes += upload_size;
 
         if (complete_tree) {
@@ -374,9 +379,12 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
                      draw.vertex_index_stream.size() * sizeof(u32));
               off += draw.vertex_index_stream.size();
             }
+            out_tree.wind_vertices =
+                std::make_unique<VertexBuffer>(m_device, sizeof(u32), wind_idx_buffer_len, 1);
             out_tree.wind_indices = std::make_unique<IndexBuffer>(
                 m_device, sizeof(u32), wind_idx_buffer_len, 1);
 
+            out_tree.wind_vertices->writeToGpuBuffer((u32*)temp.data());
             out_tree.wind_indices->writeToGpuBuffer((u32*)temp.data());
             abort = true;
           }

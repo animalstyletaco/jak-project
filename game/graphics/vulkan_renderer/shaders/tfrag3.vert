@@ -2,7 +2,7 @@
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
-layout (location = 2) in int time_of_day_index;
+layout (location = 2) in ivec2 time_of_day_index;
 
 layout(push_constant) uniform PER_OBJECT
 {
@@ -70,7 +70,7 @@ void main() {
     gl_Position = transformed;
 
     // time of day lookup
-    int index = time_of_day_index >> 16; //Vulkan won't allow uint16_t as data type without extensions enabled. Only 16 MSB has valid data
+    int index = time_of_day_index.x; //Vulkan won't allow uint16_t as data type without extensions enabled.
     fragment_color = texelFetch(tex_T1, index, 0);
     // color adjustment
     fragment_color *= 2;

@@ -130,32 +130,11 @@ void SpriteVulkan3::SetupShader(ShaderId shaderId) {
 
 
 void SpriteVulkan3::graphics_setup_normal() {
-  auto verts = SPRITE_RENDERER_MAX_SPRITES * 4;
-  auto bytes = verts * sizeof(SpriteVertex3D);
-
-  VkDeviceSize index_device_size = SPRITE_RENDERER_MAX_SPRITES * 5 * sizeof(u32);
-  
-  m_vertices_3d.resize(verts);
-  m_index_buffer_data.resize(index_device_size);
-
-  m_ogl.index_buffer = std::make_unique<IndexBuffer>(m_device, index_device_size, 1);
-
-  m_vertices_3d.resize(verts);
-
-  VkDeviceSize vertex_device_size = bytes;
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, vertex_device_size, 1);
-
-  m_default_mode.disable_depth_write();
-  m_default_mode.set_depth_test(GsTest::ZTest::GEQUAL);
-  m_default_mode.set_alpha_blend(DrawMode::AlphaBlend::SRC_DST_SRC_DST);
-  m_default_mode.set_aref(38);
-  m_default_mode.set_alpha_test(DrawMode::AlphaTest::GEQUAL);
-  m_default_mode.set_alpha_fail(GsTest::AlphaFail::FB_ONLY);
-  m_default_mode.set_at(true);
-  m_default_mode.set_zt(true);
-  m_default_mode.set_ab(true);
-
-  m_current_mode = m_default_mode;
+  BaseSprite3::graphics_setup_normal();
+  m_ogl.index_buffer =
+      std::make_unique<IndexBuffer>(m_device, sizeof(u32), m_index_buffer_data.size(), 1);
+  m_ogl.vertex_buffer =
+      std::make_unique<VertexBuffer>(m_device, m_vertices_3d.size(), sizeof(SpriteVertex3D), 1);
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)

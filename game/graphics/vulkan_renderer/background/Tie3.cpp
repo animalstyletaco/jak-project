@@ -169,12 +169,10 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
       if (wind_idx_buffer_len > 0) {
         lod_tree[l_tree].wind_matrix_cache.resize(tree.wind_instance_info.size());
         lod_tree[l_tree].has_wind = true;
-        lod_tree[l_tree].wind_vertex_buffer =
-            loader_data->tie_data[l_geo][l_tree]
-                .wind_vertices.get();  // TODO: Check to see if this is correct
         lod_tree[l_tree].wind_index_buffer =
             loader_data->tie_data[l_geo][l_tree].wind_indices.get();
         u32 off = 0;
+        lod_tree[l_tree].wind_vertex_index_offsets.clear();
         for (auto& draw : tree.instanced_wind_draws) {
           lod_tree[l_tree].wind_vertex_index_offsets.push_back(off);
           off += draw.vertex_index_stream.size();
@@ -358,7 +356,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
   int last_texture = -1;
 
   VkDeviceSize offsets[] = {0};
-  VkBuffer vertex_buffers[] = {tree.wind_vertex_buffer->getBuffer()};
+  VkBuffer vertex_buffers[] = {tree.vertex_buffer->getBuffer()};
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.wind_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
@@ -419,10 +417,10 @@ void Tie3Vulkan::render_tree_wind(int idx,
           m_time_of_day_color_push_constant.alpha_min = -10.f;
           m_time_of_day_color_push_constant.alpha_max = double_draw.aref_second;
 
-          vkCmdPushConstants(m_vulkan_info.render_command_buffer,
-                             m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT,
-                             sizeof(math::Vector4f), sizeof(m_time_of_day_color_push_constant),
-                             (void*)&m_time_of_day_color_push_constant);
+          vkCmdPushConstants(
+              m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+              VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_tie_vertex_push_constant),
+              sizeof(m_time_of_day_color_push_constant), (void*)&m_time_of_day_color_push_constant);
           //glDepthMask(GL_FALSE);
           vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
                            draw.vertex_index_stream.size(), 1,
@@ -538,7 +536,7 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
 
         vkCmdPushConstants(m_vulkan_info.render_command_buffer,
                            m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT,
-                           sizeof(math::Vector4f),
+                           sizeof(m_etie_vertex_push_constant),
                            sizeof(m_etie_time_of_day_color_push_constant),
                            (void*)&m_etie_time_of_day_color_push_constant);
 
@@ -702,9 +700,9 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
         m_etie_time_of_day_color_push_constant);
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                   VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(math::Vector4f),
-                   sizeof(m_etie_time_of_day_color_push_constant),
-                   (void*)&m_etie_time_of_day_color_push_constant);
+                       VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_etie_vertex_push_constant),
+                       sizeof(m_etie_time_of_day_color_push_constant),
+                       (void*)&m_etie_time_of_day_color_push_constant);
 
     prof.add_draw_call();
 

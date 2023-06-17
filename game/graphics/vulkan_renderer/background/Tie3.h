@@ -58,8 +58,6 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     IndexBuffer* index_buffer;
     std::unique_ptr<IndexBuffer> single_draw_index_buffer;
     std::unique_ptr<VulkanTexture> time_of_day_texture;
-
-    VertexBuffer* wind_vertex_buffer;
     IndexBuffer* wind_index_buffer;
 
     std::vector<GraphicsPipelineLayout> graphics_pipeline_catergory_layouts;

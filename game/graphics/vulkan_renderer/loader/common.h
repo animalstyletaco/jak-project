@@ -19,7 +19,6 @@ struct LevelDataVulkan : BaseLevelData {
     std::unique_ptr<VertexBuffer> vertex_buffer;
     std::unique_ptr<IndexBuffer> index_buffer;
     bool has_wind = false;
-    std::unique_ptr<VertexBuffer> wind_vertices;
     std::unique_ptr<IndexBuffer> wind_indices;
   };
   std::array<std::vector<TieVulkan>, tfrag3::TIE_GEOS> tie_data;

@@ -9,7 +9,7 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_debug_pipeline_config_info);
   
   m_vertex_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
-  m_vertex_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? 448.0 : 416.0;
+  m_vertex_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512 / 448.0) : (-512 / 416.0);
 
   InitializeInputVertexAttribute();
   initialize_debug_pipeline();

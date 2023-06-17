@@ -385,12 +385,9 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
                      draw.vertex_index_stream.size() * sizeof(u32));
               off += draw.vertex_index_stream.size();
             }
-            out_tree.wind_vertices =
-                std::make_unique<VertexBuffer>(m_device, sizeof(u32), wind_idx_buffer_len, 1);
             out_tree.wind_indices = std::make_unique<IndexBuffer>(
                 m_device, sizeof(u32), wind_idx_buffer_len, 1);
 
-            out_tree.wind_vertices->writeToGpuBuffer((u32*)temp.data());
             out_tree.wind_indices->writeToGpuBuffer((u32*)temp.data());
             abort = true;
           }

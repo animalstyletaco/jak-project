@@ -1,23 +1,19 @@
 #version 430 core
-
+#extension GL_GOOGLE_include_directive : enable
 
 layout (location = 0) in vec4 fragment_color;
 layout (location = 1) in vec3 tex_coord;
 layout (location = 2) in float fogginess;
+layout (location = 3) flat in int gfx_hack_no_tex;
 
 layout (set = 1, binding = 0) uniform sampler2D tex_T0;
 
-layout(push_constant) uniform PushConstant {
-   layout(offset = 100) int gfx_hack_no_tex;
-   layout(offset = 104) float alpha_min;
-   layout(offset = 108) float alpha_max;
-   layout(offset = 112) vec4 fog_color;
-} pc;
+#include "fragment_global_settings.glsl"
 
 layout (location = 0) out vec4 color;
 
 void main() {
-    if (pc.gfx_hack_no_tex == 0) {
+    if (gfx_hack_no_tex == 0) {
       //vec4 T0 = texture(tex_T0, tex_coord);
       vec4 T0 = texture(tex_T0, tex_coord.xy);
       color = fragment_color * T0;

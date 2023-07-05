@@ -1,4 +1,5 @@
 #version 430 core
+#extension GL_GOOGLE_include_directive : enable
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
@@ -7,26 +8,19 @@ layout (location = 3) in vec3 normal;
 layout (location = 4) in vec4 proto_tint;
 
 // etie stuff
-layout (set = 0, binding = 1) uniform EtieUniformBufferObject {
+layout (set = 0, binding = 0) uniform EtieUniformBufferObject {
    mat4 cam_no_persp;
-   vec4 envmap_tod_tint;
    vec4 persp0;
    vec4 persp1;
+   vec4 envmap_tod_tint;
 } etie_ubo;
 
-layout(push_constant) uniform PushConstant {
-  layout(offset = 0) mat4 camera;
-  layout(offset = 64)vec4 hvdf_offset;
-  layout(offset = 80)float fog_constant;
-  layout(offset = 84)float fog_min;
-  layout(offset = 88)float fog_max;
-  layout(offset = 92)float height_scale;
-  layout(offset = 96)float scissor_adjust;
-} pc;
+#include "vertex_global_settings.glsl"
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
 layout (location = 2) out float fogginess;
+layout (location = 3) out int gfx_hack_no_tex;
 
 void main() {
 
@@ -165,5 +159,6 @@ void main() {
 
 
     fragment_color = proto_tint * etie_ubo.envmap_tod_tint;
+    gfx_hack_no_tex = (pc.settings & 0x10);
     
 }

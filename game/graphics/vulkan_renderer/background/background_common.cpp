@@ -351,22 +351,19 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<std::v
 }
 
 u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
-                                              background_common::DrawSettings* draw_ptrs_out,
-                                              GLsizei* counts_out,
-                                              void** index_offsets_out,
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
                                               const std::vector<tfrag3::StripDraw>& draws,
                                               const std::vector<u8>& vis_data,
                                               const std::vector<u8>& proto_vis_data) {
-  u64 md_idx = 0;
   u32 num_tris = 0;
   u32 sanity_check = 0;
+  multiDrawIndexedInfosCollection.clear();
+  multiDrawIndexedInfosCollection.resize(draws.size());
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
     u64 iidx = draw.unpacked.idx_of_first_idx_in_full_buffer;
     ASSERT(sanity_check == iidx);
-    background_common::DrawSettings ds;
-    ds.draw_index = md_idx;
-    ds.number_of_draws = 0;
+    auto& multiDrawIndexedInfo = multiDrawIndexedInfosCollection[i];
     bool building_run = false;
     u64 run_start = 0;
     for (auto& grp : draw.vis_groups) {
@@ -380,10 +377,10 @@ u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
       if (building_run) {
         if (!vis) {
           building_run = false;
-          counts_out[md_idx] = iidx - run_start;
-          index_offsets_out[md_idx] = (void*)(run_start * sizeof(u32));
-          ds.number_of_draws++;
-          md_idx++;
+          VkMultiDrawIndexedInfoEXT indexInfo{};
+          indexInfo.indexCount = iidx - run_start;
+          indexInfo.firstIndex = run_start;
+          multiDrawIndexedInfo.push_back(indexInfo);
         }
       } else {
         if (vis) {
@@ -397,13 +394,11 @@ u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
 
     if (building_run) {
       building_run = false;
-      counts_out[md_idx] = iidx - run_start;
-      index_offsets_out[md_idx] = (void*)(run_start * sizeof(u32));
-      ds.number_of_draws++;
-      md_idx++;
+      VkMultiDrawIndexedInfoEXT indexInfo{};
+      indexInfo.indexCount = iidx - run_start;
+      indexInfo.firstIndex = run_start;
+      multiDrawIndexedInfo.push_back(indexInfo);
     }
-
-    draw_ptrs_out[i] = ds;
   }
   return num_tris;
 }
@@ -565,6 +560,20 @@ VkDescriptorImageInfo vulkan_background_common::create_placeholder_descriptor_im
   return VkDescriptorImageInfo{
       sampler->GetSampler(), texture->getImageView(),
       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+}
+
+BackgroundCommonEtieBaseVertexUniformBuffer::BackgroundCommonEtieBaseVertexUniformBuffer(
+    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    uint32_t instanceCount,
+    VkDeviceSize minOffsetAlignment)
+    : UniformVulkanBuffer(device,
+                          sizeof(BackgroundCommonEtieBaseVertexUniformShaderData),
+                          instanceCount,
+                          minOffsetAlignment) {
+  section_name_to_memory_offset_map = {
+      {"cam_no_persp", offsetof(BackgroundCommonEtieBaseVertexUniformShaderData, cam_no_persp)},
+      {"perspective0", offsetof(BackgroundCommonEtieBaseVertexUniformShaderData, perspective0)},
+      {"perspective1", offsetof(BackgroundCommonEtieBaseVertexUniformShaderData, perspective1)}};
 }
 
 BackgroundCommonEtieVertexUniformBuffer::BackgroundCommonEtieVertexUniformBuffer(

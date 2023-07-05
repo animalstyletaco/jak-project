@@ -14,11 +14,22 @@ struct BackgroundCommonVertexUniformShaderData {
   float fog_max;
 };
 
-struct BackgroundCommonEtieVertexUniformShaderData {
+struct BackgroundCommonEtieBaseVertexUniformShaderData {
   math::Matrix4f cam_no_persp;
   math::Vector4f perspective0;
   math::Vector4f perspective1;
+};
+
+struct BackgroundCommonEtieVertexUniformShaderData
+    : BackgroundCommonEtieBaseVertexUniformShaderData {
   math::Vector4f envmap_tod_tint;
+};
+
+class BackgroundCommonEtieBaseVertexUniformBuffer : public UniformVulkanBuffer {
+ public:
+  BackgroundCommonEtieBaseVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                          uint32_t instanceCount,
+                                          VkDeviceSize minOffsetAlignment);
 };
 
 class BackgroundCommonEtieVertexUniformBuffer : public UniformVulkanBuffer {
@@ -63,12 +74,11 @@ u32 make_all_visible_index_list(background_common::DrawSettings* group_out,
                                 const std::vector<tfrag3::ShrubDraw>& draws,
                                 const u32* idx_in);
 
-u32 make_multidraws_from_vis_and_proto_string(background_common::DrawSettings* draw_ptrs_out,
-                                              GLsizei* counts_out,
-                                              void** index_offsets_out,
-                                              const std::vector<tfrag3::StripDraw>& draws,
-                                              const std::vector<u8>& vis_data,
-                                              const std::vector<u8>& proto_vis_data);
+u32 make_multidraws_from_vis_and_proto_string(
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    const std::vector<tfrag3::StripDraw>& draws,
+    const std::vector<u8>& vis_data,
+    const std::vector<u8>& proto_vis_data);
 
 u32 make_index_list_from_vis_and_proto_string(background_common::DrawSettings* group_out,
                                               u32* idx_out,

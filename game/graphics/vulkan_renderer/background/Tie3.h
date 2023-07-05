@@ -18,7 +18,6 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
              int level_id,
              tfrag3::TieCategory category = tfrag3::TieCategory::NORMAL);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void init_shaders(VulkanShaderLibrary& shaders) override;
   ~Tie3Vulkan();
 
   bool try_loading_level(const std::string& str, BaseSharedRenderState* render_state) override;
@@ -38,6 +37,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
                   size_t proto_vis_data_size,
                   bool use_multidraw,
                   ScopedProfilerNode& prof) override;
+  void setup_shader(ShaderId);
 
   int lod() const { return Gfx::g_global_settings.lod_tie; }
 
@@ -61,21 +61,32 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     IndexBuffer* wind_index_buffer;
 
     std::vector<GraphicsPipelineLayout> graphics_pipeline_catergory_layouts;
+    std::vector<GraphicsPipelineLayout> etie_graphics_pipeline_catergory_layouts;
     std::vector<GraphicsPipelineLayout> instanced_wind_graphics_pipeline_layouts;
 
     std::unique_ptr<VulkanSamplerHelper> time_of_day_sampler_helper;
     std::vector<VulkanSamplerHelper> instanced_wind_sampler_helpers;
     std::vector<VulkanSamplerHelper> sampler_helpers_categories;
-    std::vector<VulkanSamplerHelper> etie_sampler_helpers_categories;
-    std::vector<VkDescriptorSet> vertex_shader_descriptor_sets;
-    std::vector<VkDescriptorSet> fragment_shader_descriptor_sets;
-    std::vector<VkDescriptorSet> instanced_wind_vertex_shader_descriptor_sets;
-    std::vector<VkDescriptorSet> instanced_wind_fragment_shader_descriptor_sets;
 
+    uint32_t etie_base_vertex_shader_descriptor_set_start_index;
+    uint32_t etie_vertex_shader_descriptor_set_start_index;
+    uint32_t vertex_shader_descriptor_set_start_index;
+    uint32_t fragment_shader_descriptor_set_start_index;
+    uint32_t instanced_wind_vertex_shader_descriptor_set_start_index;
+    uint32_t instanced_wind_fragment_shader_descriptor_set_start_index;
+
+    std::vector<VkDescriptorBufferInfo> etie_descriptor_buffer_infos;
     std::vector<VkDescriptorImageInfo> time_of_day_descriptor_image_infos;
     std::vector<VkDescriptorImageInfo> time_of_day_instanced_wind_descriptor_image_infos;
     std::vector<VkDescriptorImageInfo> descriptor_image_infos;
     std::vector<VkDescriptorImageInfo> instanced_wind_descriptor_image_infos;
+
+    std::vector<VkDescriptorSet> etie_base_vertex_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> etie_vertex_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> vertex_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> fragment_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> instanced_wind_vertex_shader_descriptor_sets;
+    std::vector<VkDescriptorSet> instanced_wind_fragment_shader_descriptor_sets;
 
     std::vector<std::vector<VkMultiDrawIndexedInfoEXT>> multi_draw_indexed_infos_collection;
   };
@@ -99,10 +110,19 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   struct TiePushConstant : BackgroundCommonVertexUniformShaderData {
     float height_scale;
     float scissor_adjust;
-    int decal_mode = 0;
+    int settings = 0;
   };
 
-  void PrepareVulkanDraw(TreeVulkan& tree, VkSampler, VulkanTexture& texture, int index, bool isInstancedWindDraw);
+  void PrepareVulkanDraw(TreeVulkan& tree,
+                         VkImageView textureImageView,
+                         VkSampler sampler,
+                         VkDescriptorImageInfo& time_of_day_descriptor_info,
+                         VkDescriptorImageInfo& descriptor_info,
+                         VkDescriptorSet vertex_descriptor_set,
+                         VkDescriptorSet fragment_descriptor_set,
+                         std::unique_ptr<DescriptorWriter>& vertex_descriptor_writer,
+                         std::unique_ptr<DescriptorWriter>& fragment_descriptor_writer);
+
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
   void init_etie_cam_uniforms(const BaseSharedRenderState* render_state);
 
@@ -110,18 +130,32 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::unordered_map<u32, VulkanTexture>* m_textures;
 
   std::unique_ptr<DescriptorLayout> m_etie_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorLayout> m_etie_base_vertex_descriptor_layout;
+
   VkPipelineLayout m_tie_pipeline_layout;
   VkPipelineLayout m_etie_pipeline_layout;
+  VkPipelineLayout m_etie_base_pipeline_layout;
 
   TiePushConstant m_tie_vertex_push_constant;
-  TiePushConstant m_etie_vertex_push_constant;
-
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_color_push_constant;
-  BackgroundCommonFragmentPushConstantShaderData m_etie_time_of_day_color_push_constant;
 
+  std::unique_ptr<BackgroundCommonEtieBaseVertexUniformBuffer> m_etie_base_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonEtieVertexUniformBuffer> m_etie_vertex_shader_uniform_buffer;
+
+  VkDescriptorBufferInfo m_etie_base_descriptor_buffer_info{};
+  VkDescriptorBufferInfo m_etie_descriptor_buffer_info{};
+
   std::unordered_map<u32, VulkanTexture> texture_maps[tfrag3::TIE_GEOS];
 
+  std::array<VkVertexInputAttributeDescription, 3> tfrag_attribute_descriptions{};
+  std::array<VkVertexInputAttributeDescription, 5> etie_attribute_descriptions{};
+
+  std::vector<VkDescriptorSet> m_global_etie_base_vertex_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_global_etie_vertex_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_global_vertex_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_global_fragment_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_global_instanced_wind_vertex_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_global_instanced_wind_fragment_shader_descriptor_sets;
 };
 
 class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkanRenderer {

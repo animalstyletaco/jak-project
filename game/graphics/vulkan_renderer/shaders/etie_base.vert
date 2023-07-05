@@ -1,40 +1,31 @@
 #version 430 core
+#extension GL_GOOGLE_include_directive : enable
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in int time_of_day_index;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
-  vec4 hvdf_offset;
-  mat4 camera;
-  float fog_constant;
-  float fog_min;
-  float fog_max;
-} ubo;
+#include "vertex_global_settings.glsl"
+
+layout (set = 0, binding = 0) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
 
 // etie stuff
 layout (set = 0, binding = 1) uniform EtieUniformBufferObject {
+   mat4 cam_no_persp;
    vec4 persp0;
    vec4 persp1;
-   mat4 cam_no_persp;
 } etie_ubo;
 
-layout (set = 0, binding = 2) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
-
-layout (push_constant) uniform PushConstant {
-   float height_scale;
-   float scissor_adjust;
-   int decal;
-} pc;
 
 layout (location = 0) out vec4 fragment_color;
 layout (location = 1) out vec3 tex_coord;
 layout (location = 2) out float fogginess;
+layout (location = 3) out int gfx_hack_no_tex;
 
 
 void main() {
-    float fog1 = ubo.camera[3].w + ubo.camera[0].w * position_in.x + ubo.camera[1].w * position_in.y + ubo.camera[2].w * position_in.z;
-    fogginess = 255 - clamp(fog1 + ubo.hvdf_offset.w, ubo.fog_min, ubo.fog_max);
+    float fog1 = pc.camera[3].w + pc.camera[0].w * position_in.x + pc.camera[1].w * position_in.y + pc.camera[2].w * position_in.z;
+    fogginess = 255 - clamp(fog1 + pc.hvdf_offset.w, pc.fog_min, pc.fog_max);
     vec4 vf17 = etie_ubo.cam_no_persp[3];
     vf17 += etie_ubo.cam_no_persp[0] * position_in.x;
     vf17 += etie_ubo.cam_no_persp[1] * position_in.y;
@@ -61,8 +52,8 @@ void main() {
     gl_Position = transformed;
 
 
-
-    if (pc.decal == 1) {
+    int decal = (pc.settings & 1);
+    if (decal == 1) {
         fragment_color = vec4(1.0, 1.0, 1.0, 1.0);
     } else {
         // time of day lookup
@@ -78,4 +69,5 @@ void main() {
     }
 
     tex_coord = tex_coord_in;
+    gfx_hack_no_tex = (pc.settings & 0x10);
 }

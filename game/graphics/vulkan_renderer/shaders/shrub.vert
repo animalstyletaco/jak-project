@@ -1,22 +1,12 @@
 #version 430 core
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in int time_of_day_index;
 layout (location = 3) in vec3 rgba_base;
 
-layout(push_constant) uniform PER_OBJECT
-{
-  layout(offset = 0) mat4 camera;
-  layout(offset = 64) vec4 hvdf_offset;
-  layout(offset = 80) float fog_constant;
-  layout(offset = 84) float fog_min;
-  layout(offset = 88) float fog_max;
-  layout(offset = 92) float height_scale;
-  layout(offset = 96) float scissor_adjust;
-  layout(offset = 100) int decal;
-}pc;
+#include "vertex_global_settings.glsl"
 
 layout (set = 0, binding = 0) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
 
@@ -80,7 +70,8 @@ void main() {
     fragment_color *= tod_color * 4;
     fragment_color.a *= 2;
 
-    if (pc.decal == 1) {
+    int decal = (pc.settings & 1);
+    if (decal == 1) {
         fragment_color.xyz = vec3(1.0, 1.0, 1.0);
     }
 

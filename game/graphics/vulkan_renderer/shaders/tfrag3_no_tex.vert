@@ -1,18 +1,12 @@
 #version 430 core
+#extension GL_GOOGLE_include_directive : enable
 
 layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec4 rgba_in;
 
 layout (location = 0) out vec4 fragment_color;
 
-layout(push_constant) uniform PushConstant
-{
-  layout(offset = 0) mat4 camera;
-  layout(offset = 64) vec4 hvdf_offset;
-  layout(offset = 80) float height_scale;
-  layout(offset = 84) float scissor_adjust;
-  layout(offset = 88) float fog_constant;
-}pc;
+#include "global_settings.glsl"
 
 // this is just for debugging.
 void main() {

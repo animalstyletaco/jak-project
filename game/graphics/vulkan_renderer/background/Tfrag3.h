@@ -62,6 +62,7 @@ class Tfrag3Vulkan : public BaseTfrag3 {
 
     std::vector<VkDescriptorImageInfo> vertex_descriptor_image_infos;
     std::vector<VkDescriptorImageInfo> fragment_descriptor_image_infos;
+
     std::vector<VkDescriptorSet> vertex_shader_descriptor_sets;
     std::vector<VkDescriptorSet> fragment_shader_descriptor_sets;
 
@@ -95,6 +96,9 @@ class Tfrag3Vulkan : public BaseTfrag3 {
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+
+  std::vector<VkDescriptorSet> m_global_vertex_shader_descriptor_sets;
+  std::vector<VkDescriptorSet> m_global_fragment_shader_descriptor_sets;
 
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_color_push_constant;
 

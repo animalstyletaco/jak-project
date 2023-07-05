@@ -251,6 +251,11 @@ struct alignas(float) Sprite3dVertexUniformShaderData {
   math::Matrix4f hud_matrix;
   math::Vector4f hud_hvdf_offset;
   math::Vector4f hud_hvdf_user[75];
+  math::Vector4f basis_x;
+  math::Vector4f basis_y;
+  math::Vector4f xy_array[8];
+  math::Vector4f xyz_array[4];
+  math::Vector4f st_array[4];
   float pfog0;
   float fog_min;
   float fog_max;
@@ -258,11 +263,7 @@ struct alignas(float) Sprite3dVertexUniformShaderData {
   float max_scale;
   float deg_to_rad;
   float inv_area;
-  math::Vector4f basis_x;
-  math::Vector4f basis_y;
-  math::Vector4f xy_array[8];
-  math::Vector4f xyz_array[4];
-  math::Vector4f st_array[4];
+  float pad0;
 };
 
 struct Sprite3dFragmentUniformShaderData {

@@ -13,16 +13,14 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   vec4 hud_hvdf_offset;
   vec4 hud_hvdf_user[75];
   float pfog0;
+  float fog_min;
+  float fog_max;
   float min_scale;
   float max_scale;
-  float bonus;
   float deg_to_rad;
   float inv_area;
   vec4 basis_x;
   vec4 basis_y;
-  float fog_min;
-  float fog_max;
-  vec4 hmge_scale;
   vec4 xy_array[8];
   vec4 xyz_array[4];
   vec4 st_array[4];

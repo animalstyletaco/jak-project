@@ -12,6 +12,11 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   mat4 hud_matrix;
   vec4 hud_hvdf_offset;
   vec4 hud_hvdf_user[75];
+  vec4 basis_x;
+  vec4 basis_y;
+  vec4 xy_array[8];
+  vec4 xyz_array[4];
+  vec4 st_array[4];
   float pfog0;
   float fog_min;
   float fog_max;
@@ -19,11 +24,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
   float max_scale;
   float deg_to_rad;
   float inv_area;
-  vec4 basis_x;
-  vec4 basis_y;
-  vec4 xy_array[8];
-  vec4 xyz_array[4];
-  vec4 st_array[4];
+  float pad0;
 }ubo;
 
 layout (location = 0) out flat vec4 fragment_color;

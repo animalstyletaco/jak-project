@@ -89,6 +89,8 @@ class BucketVulkanRenderer {
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
 
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_etie_base_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_etie_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
 };
 

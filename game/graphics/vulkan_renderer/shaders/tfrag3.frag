@@ -1,5 +1,5 @@
 #version 430 core
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_GOOGLE_include_directive : enable
 
 layout (location = 0) out vec4 color;
 
@@ -7,11 +7,7 @@ layout (location = 0) in vec4 fragment_color;
 layout (location = 1) in vec3 tex_coord;
 layout (location = 2) in float fogginess;
 
-layout (push_constant) uniform PushConstant {
-  layout(offset = 104) float alpha_min;
-  layout(offset = 108) float alpha_max;
-  layout(offset = 112) vec4 fog_color;
-} pc;
+#include "fragment_global_settings.glsl"
 
 layout (set = 1, binding = 0) uniform sampler2D texture0;
 

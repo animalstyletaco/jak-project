@@ -139,7 +139,6 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
   attributeDescriptions[2].format = VK_FORMAT_R32G32B32_SFLOAT;
   attributeDescriptions[2].offset = offsetof(BaseDirectRenderer::Vertex, stq);
 
-
   attributeDescriptions[3].binding = 0;
   attributeDescriptions[3].location = 3;
   attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;

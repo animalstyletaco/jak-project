@@ -40,6 +40,14 @@ Tfrag3Vulkan::Tfrag3Vulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
   m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
+  
+  auto vertexDescriptorSetLayout = m_vertex_descriptor_layout->getDescriptorSetLayout();
+  auto fragmentDescriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
+
+  AllocateDescriptorSets(m_global_vertex_shader_descriptor_sets, vertexDescriptorSetLayout,
+                         background_common::TIME_OF_DAY_COLOR_COUNT);
+  AllocateDescriptorSets(m_global_fragment_shader_descriptor_sets, fragmentDescriptorSetLayout,
+                         background_common::TIME_OF_DAY_COLOR_COUNT);
 
   m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
   m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
@@ -116,6 +124,13 @@ void Tfrag3Vulkan::InitializeInputVertexAttribute() {
 
 Tfrag3Vulkan::~Tfrag3Vulkan() {
   discard_tree_cache();
+
+  vkFreeDescriptorSets(
+      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
+      m_global_vertex_shader_descriptor_sets.size(), m_global_vertex_shader_descriptor_sets.data());
+  vkFreeDescriptorSets(
+      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
+      m_global_fragment_shader_descriptor_sets.size(), m_global_fragment_shader_descriptor_sets.data());
 }
 
 BaseTfrag3::TreeCache& Tfrag3Vulkan::get_cached_tree(int bucket_index, int cache_index) {
@@ -140,8 +155,7 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
   size_t max_num_grps = 0;
   size_t max_inds = 0;
 
-  auto vertexDescriptorSetLayout = m_vertex_descriptor_layout->getDescriptorSetLayout();
-  auto fragmentDescriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
+  u32 static_draw_index = 0;
 
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
     for (size_t tree_idx = 0; tree_idx < lev_data->tfrag_trees[geom].size(); tree_idx++) {
@@ -185,16 +199,17 @@ void Tfrag3Vulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& tre
         tree_cache.time_of_day_texture->createImageView(
             VK_IMAGE_VIEW_TYPE_1D, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-        tree_cache.vertex_shader_descriptor_sets.resize(tree.draws.size());
-        tree_cache.fragment_shader_descriptor_sets.resize(tree.draws.size());
+        tree_cache.vertex_shader_descriptor_sets = {
+            m_global_vertex_shader_descriptor_sets.begin() + static_draw_index,
+            m_global_vertex_shader_descriptor_sets.begin() + static_draw_index + tree.draws.size()};
+        tree_cache.fragment_shader_descriptor_sets = {
+            m_global_fragment_shader_descriptor_sets.begin() + static_draw_index,
+            m_global_fragment_shader_descriptor_sets.begin() + static_draw_index + tree.draws.size()};
 
         tree_cache.vertex_descriptor_image_infos.resize(tree.draws.size());
         tree_cache.fragment_descriptor_image_infos.resize(tree.draws.size());
 
-        AllocateDescriptorSets(tree_cache.vertex_shader_descriptor_sets,
-                               vertexDescriptorSetLayout, tree.draws.size());
-        AllocateDescriptorSets(tree_cache.fragment_shader_descriptor_sets,
-                               fragmentDescriptorSetLayout, tree.draws.size());
+        static_draw_index += tree.draws.size();
       }
     }
   }

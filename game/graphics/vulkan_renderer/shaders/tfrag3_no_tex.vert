@@ -6,7 +6,7 @@ layout (location = 1) in vec4 rgba_in;
 
 layout (location = 0) out vec4 fragment_color;
 
-#include "global_settings.glsl"
+#include "vertex_global_settings.glsl"
 
 // this is just for debugging.
 void main() {

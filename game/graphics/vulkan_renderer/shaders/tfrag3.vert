@@ -5,7 +5,7 @@ layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 tex_coord_in;
 layout (location = 2) in ivec2 time_of_day_index;
 
-#include "global_settings.glsl"
+#include "vertex_global_settings.glsl"
 
 layout (set = 0, binding = 0) uniform sampler1D tex_T1; // note, sampled in the vertex shader on purpose.
 

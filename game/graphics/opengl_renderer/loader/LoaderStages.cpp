@@ -6,6 +6,8 @@
 
 constexpr float LOAD_BUDGET = 2.5f;
 
+using namespace profiler;
+
 /*!
  * Upload a texture to the GPU, and give it to the pool.
  */

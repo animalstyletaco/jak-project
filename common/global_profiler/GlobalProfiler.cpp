@@ -179,6 +179,7 @@ void GlobalProfiler::dump_to_json(const std::string& path) {
   file_util::write_text_file(path, json.dump());
 }
 
+namespace profiler {
 GlobalProfiler gprof;
 GlobalProfiler& prof() {
   return gprof;
@@ -189,3 +190,4 @@ ScopedEvent scoped_prof(const char* name) {
   p.begin_event(name);
   return {&p};
 }
+}  // namespace profiler

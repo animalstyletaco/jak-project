@@ -4,7 +4,7 @@
 #include "DescriptorLayout.h"
 
 #include "third-party/imgui/imgui_impl_vulkan.h"
-#include "third-party/imgui/imgui_impl_glfw.h"
+#include "third-party/imgui/imgui_impl_sdl.h"
 
 class ImguiVulkanHelper {
  public:

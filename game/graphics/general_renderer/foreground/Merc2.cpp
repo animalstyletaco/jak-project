@@ -4,10 +4,7 @@
 
 #include "third-party/imgui/imgui.h"
 
-BaseMerc2::BaseMerc2(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
-}
-
-void BaseMerc2::draw_debug_window() {
+void BaseMerc2::draw_debug_window(BaseMercDebugStats* debug_status) {
   ImGui::Text("Models   : %d", m_stats.num_models);
   ImGui::Text("Effects  : %d", m_stats.num_effects);
   ImGui::Text("Draws (p): %d", m_stats.num_predicted_draws);
@@ -20,7 +17,7 @@ void BaseMerc2::draw_debug_window() {
       ImGui::Checkbox(fmt::format("e{:02d}", i).c_str(), &m_effect_debug_mask[i]);
     }
 
-    for (const auto& model : m_debug.model_list) {
+    for (const auto& model : debug_status->model_list) {
       if (ImGui::TreeNode(model.name.c_str())) {
         ImGui::Text("Level: %s\n", model.level.c_str());
         for (const auto& e : model.effects) {
@@ -38,30 +35,22 @@ void BaseMerc2::draw_debug_window() {
 /*!
  * Main BaseMerc2 rendering.
  */
-void BaseMerc2::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
-  m_stats = {};
-  if (m_debug_mode) {
-    m_debug = {};
-  }
-
-  // skip if disabled
-  if (!m_enabled) {
-    while (dma.current_tag_offset() != render_state->next_bucket) {
-      dma.read_and_advance();
-    }
-    return;
+void BaseMerc2::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
+  *debug_stats = {};
+  if (debug_stats->collect_debug_model_list) {
+    debug_stats->model_list.clear();
   }
 
   {
-    auto pp = scoped_prof("handle-all-dma");
+    auto pp = profiler::scoped_prof("handle-all-dma");
     // iterate through the dma chain, filling buckets
-    handle_all_dma(dma, render_state, prof);
+    handle_all_dma(dma, render_state, prof, debug_stats);
   }
 
   {
-    auto pp = scoped_prof("flush-buckets");
+    auto pp = profiler::scoped_prof("flush-buckets");
     // flush buckets to draws
-    flush_draw_buckets(render_state, prof);
+    flush_draw_buckets(render_state, prof, debug_stats);
   }
 }
 
@@ -98,7 +87,7 @@ void BaseMerc2::handle_matrix_dma(const DmaTransfer& dma) {
  */
 void BaseMerc2::handle_all_dma(DmaFollower& dma,
                            BaseSharedRenderState* render_state,
-                           ScopedProfilerNode& prof) {
+                           ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
   // process the first tag. this is just jumping to the merc-specific dma.
   auto data0 = dma.read_and_advance();
   ASSERT(data0.vif1() == 0 || data0.vifcode1().kind == VifCode::Kind::NOP);
@@ -123,7 +112,7 @@ void BaseMerc2::handle_all_dma(DmaFollower& dma,
 
   // handle each merc transfer
   while (dma.current_tag_offset() != render_state->next_bucket) {
-    handle_merc_chain(dma, render_state, prof);
+    handle_merc_chain(dma, render_state, prof, debug_stats);
   }
   ASSERT(dma.current_tag_offset() == render_state->next_bucket);
 }
@@ -217,7 +206,7 @@ bool tag_is_nothing_cnt(const DmaFollower& dma) {
 
 void BaseMerc2::handle_merc_chain(DmaFollower& dma,
                               BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof) {
+                              ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
   while (tag_is_nothing_next(dma)) {
     auto nothing = dma.read_and_advance();
     ASSERT(nothing.size_bytes == 0);
@@ -237,7 +226,7 @@ void BaseMerc2::handle_merc_chain(DmaFollower& dma,
 
   while (init.vifcode1().kind == VifCode::Kind::PC_PORT) {
     // flush_pending_model(render_state, prof);
-    handle_pc_model(init, render_state, prof);
+    handle_pc_model(init, render_state, prof, debug_stats);
     for (int i = 0; i < skip_count; i++) {
       auto link = dma.read_and_advance();
       ASSERT(link.vifcode0().kind == VifCode::Kind::NOP);
@@ -325,7 +314,7 @@ void BaseMerc2::handle_mod_vertices(const DmaTransfer& setup,
   u32 vidx = 0;
   // u32 st_vif_add = model->st_vif_add;
   float xyz_scale = model->xyz_scale;
-  prof().end_event();
+  profiler::prof().end_event();
   {
     // we're going to look at data that the game may be modifying.
     // in the original game, they didn't have any lock, but I think that the
@@ -335,7 +324,7 @@ void BaseMerc2::handle_mod_vertices(const DmaTransfer& setup,
     // which can take up to 2ms on really blerc-heavy scenes
     std::unique_lock<std::mutex> lk(g_merc_data_mutex);
     int frags_done = 0;
-    auto p = scoped_prof("vert-math");
+    auto p = profiler::scoped_prof("vert-math");
 
     // loop over fragments
     for (u32 fi = 0; fi < effect.mod.fragment_mask.size(); fi++) {
@@ -415,7 +404,7 @@ void BaseMerc2::handle_mod_vertices(const DmaTransfer& setup,
   }
 
   {
-    auto pp = scoped_prof("copy");
+    auto pp = profiler::scoped_prof("copy");
     // now copy the data in merc original vertex order to the output.
     for (u32 vi = 0; vi < effect.mod.vertices.size(); vi++) {
       u32 addr = effect.mod.vertex_lump4_addr[vi];

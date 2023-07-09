@@ -55,7 +55,7 @@ class ProfilerNode {
 class ScopedProfilerNode {
  public:
   ScopedProfilerNode(ProfilerNode* node)
-      : m_node(node), m_global_event(scoped_prof(node->name().c_str())) {}
+      : m_node(node), m_global_event(profiler::scoped_prof(node->name().c_str())) {}
   ScopedProfilerNode(const ScopedProfilerNode& other) = delete;
   ScopedProfilerNode& operator=(const ScopedProfilerNode& other) = delete;
   ProfilerNode* make_child(const std::string& name) { return m_node->make_child(name); }

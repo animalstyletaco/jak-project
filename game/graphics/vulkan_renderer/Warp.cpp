@@ -1,7 +1,7 @@
 #include "Warp.h"
 
-WarpVulkan::WarpVulkan(const std::string& name, int id, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
-  BaseWarp(name, id), BucketVulkanRenderer(device, vulkan_info), m_generic(name, id, device, vulkan_info), m_fb_copier(device, vulkan_info.swap_chain) {
+WarpVulkan::WarpVulkan(const std::string& name, int id, std::shared_ptr<GenericVulkan2> generic2_renderer, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+  BaseWarp(name, id), BucketVulkanRenderer(device, vulkan_info), m_generic(generic2_renderer), m_fb_copier(device, vulkan_info.swap_chain) {
 
   VulkanTextureInput in;
   // point to fb copier's texture.
@@ -17,7 +17,7 @@ WarpVulkan::WarpVulkan(const std::string& name, int id, std::unique_ptr<Graphics
 WarpVulkan::~WarpVulkan() {}
 
 void WarpVulkan::generic_draw_debug_window() {
-  m_generic.draw_debug_window();
+  m_generic->draw_debug_window();
 }
 
 void WarpVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {

@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "GraphicsDeviceVulkan.h"
+#include "third-party/SDL/include/SDL_vulkan.h"
 
 namespace vulkan_device {
 static bool is_vulkan_loaded = false;
@@ -44,7 +45,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
   }
 }
 
-GraphicsDeviceVulkan::GraphicsDeviceVulkan(GLFWwindow* window) : m_window(window) {
+GraphicsDeviceVulkan::GraphicsDeviceVulkan(SDL_Window* window) : m_window(window) {
   if (!vulkan_device::is_vulkan_loaded) {
     gladLoaderLoadVulkan(nullptr, nullptr, nullptr); //Initial load to get vulkan function loaded
   }
@@ -135,7 +136,7 @@ void GraphicsDeviceVulkan::populateDebugMessengerCreateInfo(
 }
 
 void GraphicsDeviceVulkan::createSurface() {
-  if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_surface) != VK_SUCCESS) {
+  if (SDL_Vulkan_CreateSurface(m_window, m_instance, &m_surface) != VK_SUCCESS) {
     lg::error("failed to create window surface!");
   }
 }
@@ -472,11 +473,13 @@ void GraphicsDeviceVulkan::copyImageToBuffer(VkImage image,
 }
 
 std::vector<const char*> GraphicsDeviceVulkan::getRequiredExtensions() {
-  uint32_t glfwExtensionCount = 0;
-  const char** glfwExtensions;
-  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+  uint32_t sdlExtensionCount = 0;
+  const char** sdlExtensions = NULL;
+  if (SDL_Vulkan_GetInstanceExtensions(m_window, &sdlExtensionCount, sdlExtensions) != SDL_TRUE) {
+    return {};
+  }
 
-  std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+  std::vector<const char*> extensions(sdlExtensions, sdlExtensions + sdlExtensionCount);
   extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 
   if (enableValidationLayers) {

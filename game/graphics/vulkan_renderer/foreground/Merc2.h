@@ -34,33 +34,39 @@ class MercVertexBoneUniformBuffer : public UniformVulkanBuffer {
                               VkDeviceSize minOffsetAlignment = 1);
 };
 
-class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
+class MercVulkan2 : public BaseMerc2 {
  public:
-  MercVulkan2(const std::string& name,
-        int my_id,
-        std::unique_ptr<GraphicsDeviceVulkan>& device,
+  MercVulkan2(std::unique_ptr<GraphicsDeviceVulkan>& device,
         VulkanInitializationInfo& vulkan_info);
   ~MercVulkan2();
   void init_shaders();
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats);
 
   protected:
     void handle_pc_model(const DmaTransfer& setup,
                          BaseSharedRenderState* render_state,
-                         ScopedProfilerNode& prof) override;
-    void flush_draw_buckets(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+                        ScopedProfilerNode& prof,
+                        BaseMercDebugStats*) override;
+   void flush_draw_buckets(BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof,
+                           BaseMercDebugStats*) override;
     void set_merc_uniform_buffer_data(const DmaTransfer& dma) override;
 
     std::unique_ptr<VertexBuffer> vertex;
 
-    struct alignas(float) PushConstant {
+    struct alignas(float) VertexPushConstant {
+      float height_scale;
+      float scissor_adjust;
+    } m_vertex_push_constant;
+
+    struct alignas(float) TieVertexPushConstant {
       math::Matrix4f perspective_matrix;
       MercUniformBufferVertexData camera_control;
       float height_scale = 0;
       float scissor_adjust;
     } m_tie_vertex_push_constant;
 
-    struct alignas(float) EmercPushConstant {
+    struct alignas(float) TieVertexEmercPushConstant {
       math::Matrix4f perspective_matrix;
       EmercUniformBufferVertexData etie_data;
       float height_scale = 0;
@@ -94,7 +100,7 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
     };
 
   private:
-    void create_pipeline_layout() override;
+    void create_pipeline_layout();
     void draw_merc2(LevelDrawBucketVulkan& level_bucket, ScopedProfilerNode& prof);
     void draw_emercs(LevelDrawBucketVulkan& level_bucket, ScopedProfilerNode& prof);
     void InitializeInputAttributes();
@@ -129,6 +135,18 @@ class MercVulkan2 : public BaseMerc2, public BucketVulkanRenderer {
   void FinalizeVulkanDraw(uint32_t drawIndex,
                           LevelDrawBucketVulkan& lev_bucket,
                           VulkanTexture* texture);
+
+  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  VulkanInitializationInfo& m_vulkan_info;
+
+  std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+
+  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+
+  PipelineConfigInfo m_pipeline_config_info{};
+  std::vector<GraphicsPipelineLayout> m_graphics_pipeline_layouts;
 
   MercUniformBufferFragmentData m_fragment_push_constant;
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;

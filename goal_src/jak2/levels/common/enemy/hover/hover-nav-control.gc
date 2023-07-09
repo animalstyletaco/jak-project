@@ -191,7 +191,7 @@
     )
   (if (not (handle->process (-> obj control-handle)))
       (set! (-> obj control-handle)
-            (process->handle (the-as process (ppointer->process (process-spawn nav-network-control obj arg0))))
+            (process->handle (ppointer->process (process-spawn nav-network-control obj arg0)))
             )
       )
   0
@@ -242,7 +242,7 @@
             (add-debug-x #t (bucket-id debug2) (-> s4-0 pos) *color-white*)
             (format (clear *temp-string*) "~d" s5-0)
             (let ((a2-2 *temp-string*))
-              (add-debug-text-3d #t (bucket-id debug2) a2-2 (-> s4-0 pos) (font-color font-color-1) (the-as vector2h #f))
+              (add-debug-text-3d #t (bucket-id debug2) a2-2 (-> s4-0 pos) (font-color white) (the-as vector2h #f))
               )
             (dotimes (s3-1 (-> s4-0 count))
               (let ((a2-3 (new 'stack-no-clear 'vector)))
@@ -1216,7 +1216,7 @@
 
 (defmethod hover-nav-control-method-20 hover-nav-control ((obj hover-nav-control))
   (hover-nav-control-method-21 obj)
-  (set! (-> obj flags) (logand -2 (-> obj flags)))
+  (logand! (-> obj flags) -2)
   0
   (none)
   )
@@ -1295,7 +1295,7 @@
                )
               (else
                 (set! (-> obj los-last-clear-time) (current-time))
-                (set! (-> obj flags) (logand -3 (-> obj flags)))
+                (logand! (-> obj flags) -3)
                 )
               )
             )

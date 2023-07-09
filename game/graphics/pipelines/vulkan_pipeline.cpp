@@ -17,17 +17,20 @@
 #include "common/util/FrameLimiter.h"
 #include "common/util/Timer.h"
 #include "common/util/compress.h"
+#include "game/system/hid/input_manager.h"
+#include "game/system/hid/sdl_util.h"
 
+#include "third-party/SDL/include/SDL.h"
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
 #include "game/graphics/general_renderer/debug_gui.h"
 #include "game/graphics/vulkan_renderer/VulkanRenderer.h"
 #include "game/graphics/texture/VulkanTexturePool.h"
 #include "game/runtime.h"
-#include "game/system/newpad.h"
 
 #include "third-party/imgui/imgui.h"
 #define STBI_WINDOWS_UTF8
+#include "common/util/dialogs.h"
 #include "third-party/stb_image/stb_image.h"
 
 namespace {
@@ -72,301 +75,269 @@ struct VulkanGraphicsData {
 std::unique_ptr<VulkanGraphicsData> g_gfx_data;
 std::unique_ptr<GraphicsDeviceVulkan> g_vulkan_device;
 
-static bool want_hotkey_screenshot = false;
-
-struct {
-  bool callbacks_registered = false;
-  GLFWmonitor** monitors;
-  int monitor_count;
-} g_glfw_state;
-
-void SetGlobalGLFWCallbacks() {
-  if (g_glfw_state.callbacks_registered) {
-    lg::warn("Global GLFW callbacks were already registered!");
-  }
-
-  // Get initial state
-  g_glfw_state.monitors = glfwGetMonitors(&g_glfw_state.monitor_count);
-
-  // Listen for events
-  glfwSetMonitorCallback([](GLFWmonitor* /*monitor*/, int /*event*/) {
-    // Reload monitor list
-    g_glfw_state.monitors = glfwGetMonitors(&g_glfw_state.monitor_count);
-  });
-
-  g_glfw_state.callbacks_registered = true;
-}
-
-void ClearGlobalGLFWCallbacks() {
-  if (!g_glfw_state.callbacks_registered) {
-    return;
-  }
-
-  glfwSetMonitorCallback(NULL);
-
-  g_glfw_state.callbacks_registered = false;
-}
-
-void ErrorCallback(int err, const char* msg) {
-  lg::error("GLFW ERR {}: {}", err, std::string(msg));
-}
-
-bool HasError() {
-  const char* ptr;
-  if (glfwGetError(&ptr) != GLFW_NO_ERROR) {
-    lg::error("glfw error: {}", ptr);
-    return true;
-  } else {
-    return false;
-  }
-}
-
-}  // namespace
-
 static bool vk_inited = false;
-static int vk_init(GfxSettings& settings) {
-  if (glfwSetErrorCallback(ErrorCallback) != NULL) {
-    lg::warn("glfwSetErrorCallback has been re-set!");
+static int vk_init(GfxGlobalSettings& settings) {
+  profiler::prof().instant_event("ROOT");
+  Timer gl_init_timer;
+  // Initialize SDL
+  {
+    auto p = profiler::scoped_prof("startup::sdl::init_sdl");
+    // remove SDL garbage from hooking signal handler.
+    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
+      sdl_util::log_error("Could not initialize SDL, exiting");
+      dialogs::create_error_message_dialog("Critical Error Encountered",
+                                           "Could not initialize SDL, exiting");
+      return 1;
+    }
   }
 
-  if (glfwInit() == GLFW_FALSE) {
-    lg::error("glfwInit error");
-    return 1;
+  {
+    auto p = profiler::scoped_prof("startup::sdl::get_version_info");
+    SDL_version compiled;
+    SDL_VERSION(&compiled);
+    SDL_version linked;
+    SDL_GetVersion(&linked);
+    lg::info("SDL Initialized, compiled with version - {}.{}.{} | linked with version - {}.{}.{}",
+             compiled.major, compiled.minor, compiled.patch, linked.major, linked.minor,
+             linked.patch);
   }
 
-  // Vulkan doesn't require a context according to the glfw documentation: https://www.glfw.org/docs/3.3/vulkan_guide.html#vulkan_window
-  glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+  {
+    auto p = profiler::scoped_prof("startup::sdl::set_gl_attributes");
 
-  glfwWindowHint(GLFW_DOUBLEBUFFER, GLFW_TRUE);  // Should we have an option for triple buffered?
-
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    if (settings.debug) {
+      SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+    } else {
+      SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
+    }
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+#ifdef __APPLE__
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+#endif
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+  }
+  lg::info("gl init took {:.3f}s\n", gl_init_timer.getSeconds());
   return 0;
 }
 
-static void vk_exit() {
-  ClearGlobalGLFWCallbacks();
+static void gl_exit() {
   g_gfx_data.reset();
-  glfwTerminate();
-  glfwSetErrorCallback(NULL);
   vk_inited = false;
+}
+
+static void init_imgui(SDL_Window* window,
+                       SDL_GLContext gl_context,
+                       const std::string& glsl_version) {
+
 }
 
 static std::shared_ptr<GfxDisplay> vk_make_display(int width,
                                                    int height,
                                                    const char* title,
-                                                   GfxSettings& settings,
+                                                   GfxGlobalSettings& /*settings*/,
                                                    GameVersion game_version,
                                                    bool is_main) {
-  GLFWwindow* window = glfwCreateWindow(width, height, title, nullptr, nullptr);
-
+  // Setup the window
+  profiler::prof().instant_event("ROOT");
+  profiler::prof().begin_event("startup::sdl::create_window");
+  // TODO - SDL2 doesn't seem to support HDR (and neither does windows)
+  //   Related -
+  //   https://answers.microsoft.com/en-us/windows/forum/all/hdr-monitor-low-brightness-after-exiting-full/999f7ee9-7ba3-4f9c-b812-bbeb9ff8dcc1
+  SDL_Window* window =
+      SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
+                       SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+  profiler::prof().end_event();
   if (!window) {
-    lg::error("vk_make_display failed - Could not create display window");
+    sdl_util::log_error("gl_make_display failed - Could not create display window");
+    dialogs::create_error_message_dialog(
+        "Critical Error Encountered",
+        "Unable to create OpenGL window.\nOpenGOAL requires OpenGL 4.3.\nEnsure your GPU "
+        "supports this and your drivers are up to date.");
     return NULL;
   }
 
-  g_vulkan_device = std::make_unique<GraphicsDeviceVulkan>(window);
-  g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version, g_vulkan_device);
-
-  // window icon
-  std::string image_path =
-      (file_util::get_jak_project_dir() / "game" / "assets" / "appicon.png").string();
-
-  GLFWimage images[1];
-  auto load_result = stbi_load(image_path.c_str(), &images[0].width, &images[0].height, 0, 4);
-  if (load_result) {
-    images[0].pixels = load_result;  // rgba channels
-    glfwSetWindowIcon(window, 1, images);
-    stbi_image_free(images[0].pixels);
-  } else {
-    lg::error("Could not load icon for Vulkan window");
-  }
-
-  SetGlobalGLFWCallbacks();
-  Pad::initialize();
-
-  if (HasError()) {
-    lg::error("vk_make_display error");
+  // Make an OpenGL Context
+  profiler::prof().begin_event("startup::sdl::create_context");
+  SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+  profiler::prof().end_event();
+  if (!gl_context) {
+    sdl_util::log_error("gl_make_display failed - Could not create OpenGL Context");
+    dialogs::create_error_message_dialog(
+        "Critical Error Encountered",
+        "Unable to create OpenGL context.\nOpenGOAL requires OpenGL 4.3.\nEnsure your GPU "
+        "supports this and your drivers are up to date.");
     return NULL;
   }
-  
-  // check that version of the library is okay
-  IMGUI_CHECKVERSION();
 
-  // this does initialization for stuff like the font data
-  ImGui::CreateContext();
+  {
+    auto p = profiler::scoped_prof("startup::sdl::assign_context");
+    if (SDL_GL_MakeCurrent(window, gl_context) != 0) {
+      sdl_util::log_error("gl_make_display failed - Could not associated context with window");
+      dialogs::create_error_message_dialog("Critical Error Encountered",
+                                           "Unable to create OpenGL window with context.\nOpenGOAL "
+                                           "requires OpenGL 4.3.\nEnsure your GPU "
+                                           "supports this and your drivers are up to date.");
+      return NULL;
+    }
+  }
 
-  // Init ImGui settings
-  auto imgui_filename = file_util::get_file_path({"imgui.ini"});
-  auto imgui_log_filename = file_util::get_file_path({"imgui_log.txt"});
-  ImGuiIO& io = ImGui::GetIO();
-  io.IniFilename = imgui_filename.c_str();
-  io.LogFilename = imgui_log_filename.c_str();
+  if (!vk_inited) {
+    {
+      auto p = profiler::scoped_prof("startup::sdl::glad_init");
+      gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
+      if (!gladLoadGL()) {
+        lg::error("GL init fail");
+        dialogs::create_error_message_dialog("Critical Error Encountered",
+                                             "Unable to initialize OpenGL API.\nOpenGOAL requires "
+                                             "OpenGL 4.3.\nEnsure your GPU "
+                                             "supports this and your drivers are up to date.");
+        return NULL;
+      }
+    }
+    {
+      auto p = profiler::scoped_prof("startup::sdl::gfx_data_init");
+      g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version);
+    }
+    vk_inited = true;
+    const char* gl_version = (const char*)glGetString(GL_VERSION);
+    lg::info("OpenGL initialized - v{}.{} | Renderer: {}", GLVersion.major, GLVersion.minor,
+             gl_version);
+  }
 
-  // set up to get inputs for this window
-  ImGui_ImplGlfw_InitForVulkan(window, true);
+  {
+    auto p = profiler::scoped_prof("startup::sdl::window_extras");
+    // Setup Window Icon
+    // TODO - hiDPI icon
+    // https://sourcegraph.com/github.com/dfranx/SHADERed/-/blob/main.cpp?L422:24&subtree=true
+    int icon_width;
+    int icon_height;
+    std::string image_path =
+        (file_util::get_jak_project_dir() / "game" / "assets" / "appicon.png").string();
+    auto icon_data =
+        stbi_load(image_path.c_str(), &icon_width, &icon_height, nullptr, STBI_rgb_alpha);
+    if (icon_data) {
+      SDL_Surface* icon_surf = SDL_CreateRGBSurfaceWithFormatFrom(
+          (void*)icon_data, icon_width, icon_height, 32, 4 * icon_width, SDL_PIXELFORMAT_RGBA32);
+      SDL_SetWindowIcon(window, icon_surf);
+      SDL_FreeSurface(icon_surf);
+      stbi_image_free(icon_data);
+    } else {
+      lg::error("Could not load icon for OpenGL window");
+    }
+  }
 
-  auto display = std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer.GetSwapChain(), is_main);
+  profiler::prof().begin_event("startup::sdl::create_GLDisplay");
+  auto display = std::make_shared<VkDisplay>(window, gl_context, is_main);
   display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
-  display->update_cursor_visibility(window, display->is_imgui_visible());
-  // lg::debug("init display #x{:x}", (uintptr_t)display);
+  profiler::prof().end_event();
+
+  {
+    auto p = profiler::scoped_prof("startup::sdl::init_imgui");
+    // check that version of the library is okay
+    IMGUI_CHECKVERSION();
+
+    // this does initialization for stuff like the font data
+    ImGui::CreateContext();
+
+    // Init ImGui settings
+    g_gfx_data->imgui_filename = file_util::get_file_path({"imgui.ini"});
+    g_gfx_data->imgui_log_filename = file_util::get_file_path({"imgui_log.txt"});
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;  // We manage the mouse cursor!
+    if (!Gfx::g_debug_settings.monospaced_font) {
+      // TODO - add or switch to Noto since it supports the entire unicode range
+      std::string font_path =
+          (file_util::get_jak_project_dir() / "game" / "assets" / "fonts" / "NotoSansJP-Medium.ttf")
+              .string();
+      if (file_util::file_exists(font_path)) {
+        static const ImWchar ranges[] = {
+            0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+            0x0400, 0x052F,  // Cyrillic + Cyrillic Supplement
+            0x2000, 0x206F,  // General Punctuation
+            0x2DE0, 0x2DFF,  // Cyrillic Extended-A
+            0x3000, 0x30FF,  // CJK Symbols and Punctuations, Hiragana, Katakana
+            0x3131, 0x3163,  // Korean alphabets
+            0x31F0, 0x31FF,  // Katakana Phonetic Extensions
+            0x4E00, 0x9FAF,  // CJK Ideograms
+            0xA640, 0xA69F,  // Cyrillic Extended-B
+            0xAC00, 0xD7A3,  // Korean characters
+            0xFF00, 0xFFEF,  // Half-width characters
+            0xFFFD, 0xFFFD,  // Invalid
+            0,
+        };
+        io.Fonts->AddFontFromFileTTF(font_path.c_str(), Gfx::g_debug_settings.imgui_font_size,
+                                     nullptr, ranges);
+      }
+    }
+
+    io.IniFilename = g_gfx_data->imgui_filename.c_str();
+    io.LogFilename = g_gfx_data->imgui_log_filename.c_str();
+
+    if (Gfx::g_debug_settings.alternate_style) {
+      ImGui::applyAlternateStyle();
+    }
+
+    // set up to get inputs for this window
+    ImGui_ImplSDL2_InitForVulkan(window);
+
+    // NOTE: imgui's setup calls functions that may fail intentionally, and attempts to disable
+    // error reporting so these errors are invisible. But it does not work, and some weird X11
+    // default cursor error is set here that we clear.
+    SDL_ClearError();
+  }
 
   return std::static_pointer_cast<GfxDisplay>(display);
 }
 
-VkDisplay::VkDisplay(GLFWwindow* window,
-                     std::unique_ptr<SwapChain>& swapChain,
-                     bool is_main)
-    : m_imgui_helper(swapChain) ,m_window(window) {
+
+static void vk_exit() {
+  g_gfx_data.reset();
+  vk_inited = false;
+}
+
+VkDisplay::VkDisplay(SDL_Window* window,
+          std::unique_ptr<SwapChain>& swapChain,
+          std::shared_ptr<DisplayManager>,
+          std::shared_ptr<InputManager> inputManager,
+          bool is_main) {
+    : m_imgui_helper(swapChain),
+      m_window(window),
+      m_display_manager(std::make_shared<DisplayManager>(window)),
+      m_input_manager(std::make_shared<InputManager>()) {
   m_main = is_main;
-
-  // Get initial state
-  get_position(&m_last_windowed_xpos, &m_last_windowed_ypos);
-  get_size(&m_last_windowed_width, &m_last_windowed_height);
-
-  // Listen for window-specific GLFW events
-  glfwSetWindowUserPointer(window, reinterpret_cast<void*>(this));
-
-  glfwSetKeyCallback(window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
-    display->on_key(window, key, scancode, action, mods);
-  });
-
-  glfwSetMouseButtonCallback(window, [](GLFWwindow* window, int button, int action, int mode) {
-    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
-    display->on_mouse_key(window, button, action, mode);
-  });
-
-  glfwSetCursorPosCallback(window, [](GLFWwindow* window, double xposition, double yposition) {
-    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
-    display->on_cursor_position(window, xposition, yposition);
-  });
-
-  glfwSetWindowPosCallback(window, [](GLFWwindow* window, int xpos, int ypos) {
-    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
-    display->on_window_pos(window, xpos, ypos);
-  });
-
-  glfwSetWindowSizeCallback(window, [](GLFWwindow* window, int width, int height) {
-    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
-    display->on_window_size(window, width, height);
-  });
-
-  glfwSetWindowIconifyCallback(window, [](GLFWwindow* window, int iconified) {
-    VkDisplay* display = reinterpret_cast<VkDisplay*>(glfwGetWindowUserPointer(window));
-    display->on_iconify(window, iconified);
-  });
+  m_display_manager->set_input_manager(m_input_manager);
+  // Register commands
+  m_input_manager->register_command(CommandBinding::Source::KEYBOARD,
+                                    CommandBinding(SDLK_F12, [&]() {
+                                      if (!Gfx::g_debug_settings.ignore_hide_imgui) {
+                                        set_imgui_visible(!is_imgui_visible());
+                                      }
+                                    }));
+  m_input_manager->register_command(
+      CommandBinding::Source::KEYBOARD,
+      CommandBinding(SDLK_F2, [&]() { m_take_screenshot_next_frame = true; }));
 }
 
 VkDisplay::~VkDisplay() {
-  ImGuiIO& io = ImGui::GetIO();
-  io.IniFilename = nullptr;
-  io.LogFilename = nullptr;
-  glfwSetKeyCallback(m_window, NULL);
-  glfwSetWindowPosCallback(m_window, NULL);
-  glfwSetWindowSizeCallback(m_window, NULL);
-  glfwSetWindowIconifyCallback(m_window, NULL);
-  glfwSetWindowUserPointer(m_window, nullptr);
-  ImGui_ImplGlfw_Shutdown();
-  ImGui::DestroyContext();
-  glfwDestroyWindow(m_window);
-  if (m_main) {
-    vk_exit();
-  }
-}
-
-void VkDisplay::update_cursor_visibility(GLFWwindow* window, bool is_visible) {
-  if (Gfx::get_button_mapping().use_mouse) {
-    auto cursor_mode = is_visible ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED;
-    glfwSetInputMode(window, GLFW_CURSOR, cursor_mode);
-  }
-}
-
-void VkDisplay::on_key(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
-  if (action == GlfwKeyAction::Press) {
-    // lg::debug("KEY PRESS:   key: {} scancode: {} mods: {:X}", key, scancode, mods);
-    Pad::OnKeyPress(key);
-  } else if (action == GlfwKeyAction::Release) {
-    // lg::debug("KEY RELEASE: key: {} scancode: {} mods: {:X}", key, scancode, mods);
-    Pad::OnKeyRelease(key);
-    // Debug keys input mapping TODO add remapping
-    switch (key) {
-      case GLFW_KEY_LEFT_ALT:
-      case GLFW_KEY_RIGHT_ALT:
-        if (glfwGetWindowAttrib(window, GLFW_FOCUSED)) {
-          set_imgui_visible(!is_imgui_visible());
-          update_cursor_visibility(window, is_imgui_visible());
-        }
-        break;
-      case GLFW_KEY_F2:
-        want_hotkey_screenshot = true;
-        break;
+    // Cleanup ImGUI
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;
+    io.LogFilename = nullptr;
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    // Cleanup SDL
+    SDL_DestroyWindow(m_window);
+    SDL_Quit();
+    if (m_main) {
+      vk_exit();
     }
   }
-}
-
-void VkDisplay::on_mouse_key(GLFWwindow* /*window*/, int button, int action, int /*mode*/) {
-  int key =
-      button + GLFW_KEY_LAST;  // Mouse button index are appended after initial GLFW keys in newpad
-
-  if (button == GLFW_MOUSE_BUTTON_LEFT &&
-      is_imgui_visible()) {  // Are there any other mouse buttons we don't want to use?
-    Pad::ClearKey(key);
-    return;
-  }
-
-  if (action == GlfwKeyAction::Press) {
-    Pad::OnKeyPress(key);
-  } else if (action == GlfwKeyAction::Release) {
-    Pad::OnKeyRelease(key);
-  }
-}
-
-void VkDisplay::on_cursor_position(GLFWwindow* /*window*/, double xposition, double yposition) {
-  last_cursor_x_position = xposition;
-  last_cursor_y_position = yposition;
-  Pad::MappingInfo mapping_info = Gfx::get_button_mapping();
-  if (is_imgui_visible() || !mapping_info.use_mouse) {
-    if (is_cursor_position_valid == true) {
-      Pad::ClearAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_X_AXIS);
-      Pad::ClearAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_Y_AXIS);
-      is_cursor_position_valid = false;
-    }
-    return;
-  }
-
-  if (is_cursor_position_valid == false) {
-    is_cursor_position_valid = true;
-    return;
-  }
-
-  double xoffset = xposition - last_cursor_x_position;
-  double yoffset = yposition - last_cursor_y_position;
-
-  Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_X_AXIS, xoffset);
-  Pad::SetAnalogAxisValue(mapping_info, GlfwKeyCustomAxis::CURSOR_Y_AXIS, yoffset);
-}
-
-void VkDisplay::on_window_pos(GLFWwindow* /*window*/, int xpos, int ypos) {
-  // only change them on a legit change, not on the initial update
-  if (m_fullscreen_mode != GfxDisplayMode::ForceUpdate &&
-      m_fullscreen_target_mode == GfxDisplayMode::Windowed) {
-    m_last_windowed_xpos = xpos;
-    m_last_windowed_ypos = ypos;
-  }
-}
-
-void VkDisplay::on_window_size(GLFWwindow* /*window*/, int width, int height) {
-  // only change them on a legit change, not on the initial update
-  if (m_fullscreen_mode != GfxDisplayMode::ForceUpdate &&
-      m_fullscreen_target_mode == GfxDisplayMode::Windowed) {
-    m_last_windowed_width = width;
-    m_last_windowed_height = height;
-  }
-}	
-
-
-void VkDisplay::on_iconify(GLFWwindow* window, int iconified) {
-  m_minimized = iconified == GLFW_TRUE;
-}
 
 namespace {
 std::string make_full_screenshot_output_file_path(const std::string& file_name) {

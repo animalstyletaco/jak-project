@@ -4,13 +4,11 @@
 
 #include "third-party/imgui/imgui.h"
 
-BaseGeneric2::BaseGeneric2(const std::string& name,
-                   int my_id,
+BaseGeneric2::BaseGeneric2(
                    u32 num_verts,
                    u32 num_frags,
                    u32 num_adgif,
-                   u32 num_buckets)
-    : BaseBucketRenderer(name, my_id) {
+                   u32 num_buckets) {
   m_verts.resize(num_verts);
   m_fragments.resize(num_frags);
   m_adgifs.resize(num_adgif);
@@ -61,15 +59,6 @@ void BaseGeneric2::render_in_mode(DmaFollower& dma,
   // by draw_debug_window() if the user opens that window
   m_debug.clear();
   m_stats = Stats();
-
-  // if the user has asked to disable the renderer, just advance the dma follower to the next
-  // bucket and return immediately.
-  if (!m_enabled) {
-    while (dma.current_tag_offset() != render_state->next_bucket) {
-      dma.read_and_advance();
-    }
-    return;
-  }
 
   // Generic2 has 3 passes.
   {

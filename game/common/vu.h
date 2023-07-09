@@ -28,6 +28,8 @@ enum class Mask {
 
 #ifdef __linux__
 #define REALLY_INLINE __attribute__((always_inline))
+#elif __APPLE__
+#define REALLY_INLINE __attribute__((always_inline))
 #else
 #define REALLY_INLINE __forceinline
 #endif
@@ -460,6 +462,10 @@ struct alignas(16) Vf {
 
 struct alignas(16) Accumulator {
   float data[4];
+
+  std::string print() const {
+    return fmt::format("{} {} {} {}", data[0], data[1], data[2], data[3]);
+  }
 
   void adda(Mask mask, const Vf& a, float b) {
     for (int i = 0; i < 4; i++) {

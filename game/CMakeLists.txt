@@ -6,9 +6,12 @@ set(CMAKE_ASM_NASM_SOURCE_FILE_EXTENSIONS ${CMAKE_ASM_NASM_SOURCE_FILE_EXTENSION
 set(CMAKE_ASM_NASM_COMPILE_OBJECT "<CMAKE_ASM_NASM_COMPILER> <INCLUDES> -f ${CMAKE_ASM_NASM_OBJECT_FORMAT} -o <OBJECT> <SOURCE>")
 set_source_files_properties(kernel/asm_funcs.asm PROPERTIES COMPILE_FLAGS "-g")
 set(RUNTIME_SOURCE
-        discord.cpp
+        external/discord.cpp
+        external/discord_jak1.cpp
+        external/discord_jak2.cpp
         graphics/display.cpp
         graphics/gfx.cpp
+        graphics/gfx_test.cpp
         graphics/jak2_texture_remap.cpp
         graphics/general_renderer/background/background_common.cpp
         graphics/general_renderer/background/Shrub.cpp
@@ -23,9 +26,10 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/foreground/Generic2_Build.cpp
         graphics/general_renderer/foreground/Generic2_DMA.cpp
         graphics/general_renderer/foreground/Generic2.cpp
+        graphics/general_renderer/foreground/Generic2BucketRenderer.cpp
         graphics/general_renderer/foreground/Merc2.cpp
+        graphics/general_renderer/foreground/Merc2BucketRenderer.cpp
         graphics/general_renderer/foreground/Shadow2.cpp
-        graphics/general_renderer/LightningRenderer.cpp
         graphics/general_renderer/ocean/CommonOceanRenderer.cpp
         graphics/general_renderer/ocean/OceanMid_PS2.cpp
         graphics/general_renderer/ocean/OceanMid.cpp
@@ -44,6 +48,7 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/sprite/Sprite3_Distort.cpp
         graphics/general_renderer/sprite/Sprite3_Glow.cpp
         graphics/general_renderer/sprite/Sprite3.cpp
+        graphics/general_renderer/TextureAnimator.cpp
         graphics/general_renderer/TextureUploadHandler.cpp
         graphics/general_renderer/VisDataHandler.cpp
         graphics/general_renderer/Warp.cpp
@@ -185,70 +190,23 @@ set(RUNTIME_SOURCE
         sce/sif_ee_memcard.cpp
         sce/sif_ee.cpp
         sce/stubs.cpp
+        settings/settings.cpp
         system/Deci2Server.cpp
+        system/hid/devices/game_controller.cpp
+        system/hid/devices/keyboard.cpp
+        system/hid/devices/mouse.cpp
+        system/hid/display_manager.cpp
+        system/hid/input_bindings.cpp
+        system/hid/input_manager.cpp
+        system/hid/sdl_util.cpp
         system/IOP_Kernel.cpp
         system/iop_thread.cpp
-        system/newpad.cpp
         system/SystemThread.cpp
         system/vm/dmac.cpp
         system/vm/vm.cpp
         tools/filter_menu/filter_menu.cpp
         tools/subtitles/subtitle_editor.cpp
-
-        graphics/gfx.cpp
-        graphics/jak2_texture_remap.cpp
-        graphics/display.cpp
-        graphics/sceGraphicsInterface.cpp
-        graphics/texture/jak1_tpage_dir.cpp
-        graphics/texture/jak2_tpage_dir.cpp
-        graphics/texture/TextureConverter.cpp
-        graphics/texture/TexturePoolCommon.cpp
-
-        graphics/general_renderer/renderer_utils/Buffer.cpp
-        graphics/general_renderer/background/background_common.cpp
-        graphics/general_renderer/background/Shrub.cpp
-        graphics/general_renderer/background/Tfrag3.cpp
-        graphics/general_renderer/background/TFragment.cpp
-        graphics/general_renderer/background/Tie3.cpp
-        graphics/general_renderer/foreground/Generic2.cpp
-        graphics/general_renderer/foreground/Generic2_DMA.cpp
-        graphics/general_renderer/foreground/Generic2_Build.cpp
-        graphics/general_renderer/foreground/Merc2.cpp
-        graphics/general_renderer/ocean/CommonOceanRenderer.cpp
-        graphics/general_renderer/ocean/OceanMid.cpp
-        graphics/general_renderer/ocean/OceanMid_PS2.cpp
-        graphics/general_renderer/ocean/OceanMidAndFar.cpp
-        graphics/general_renderer/ocean/OceanNear.cpp
-        graphics/general_renderer/ocean/OceanNear_PS2.cpp
-        graphics/general_renderer/ocean/OceanTexture.cpp
-        graphics/general_renderer/ocean/OceanTexture_PC.cpp
-        graphics/general_renderer/BucketRenderer.cpp
-        graphics/general_renderer/debug_gui.cpp
-        graphics/general_renderer/DirectRenderer.cpp
-        graphics/general_renderer/DirectRenderer2.cpp
-        graphics/general_renderer/EyeRenderer.cpp
-        graphics/general_renderer/dma_helpers.cpp
-        graphics/general_renderer/Profiler.cpp
-        graphics/general_renderer/LightningRenderer.cpp
-        graphics/general_renderer/Shadow_PS2.cpp
-        graphics/general_renderer/ShadowRenderer.cpp
-        graphics/general_renderer/SkyBlendCPU.cpp
-        graphics/general_renderer/SkyBlendGPU.cpp
-        graphics/general_renderer/SkyRenderer.cpp
-        graphics/general_renderer/sprite/sprite_common.cpp
-        graphics/general_renderer/sprite/GlowRenderer.cpp
-        graphics/general_renderer/sprite/Sprite3.cpp
-        graphics/general_renderer/sprite/Sprite3_Distort.cpp
-        graphics/general_renderer/sprite/Sprite3_Glow.cpp
-        graphics/general_renderer/DepthCue.cpp
-        graphics/general_renderer/TextureUploadHandler.cpp
-        graphics/general_renderer/VisDataHandler.cpp
-        graphics/general_renderer/Warp.cpp
-
-        system/vm/dmac.cpp
-        system/vm/vm.cpp
-        tools/subtitles/subtitle_editor.cpp
-        tools/filter_menu/filter_menu.cpp
+        tools/subtitles2/subtitle2_editor.cpp
         )
 
 if(WIN32)
@@ -295,7 +253,6 @@ if(WIN32)
         graphics/vulkan_renderer/foreground/Generic2_Vulkan.cpp
         graphics/vulkan_renderer/foreground/Merc2.cpp
         graphics/vulkan_renderer/foreground/Shadow2.cpp
-        graphics/vulkan_renderer/LightningRenderer.cpp
         graphics/vulkan_renderer/loader/Loader.cpp
         graphics/vulkan_renderer/loader/LoaderStages.cpp
         graphics/vulkan_renderer/ocean/CommonOceanRenderer.cpp
@@ -342,7 +299,6 @@ endif()
         graphics/opengl_renderer/foreground/Generic2.cpp
         graphics/opengl_renderer/foreground/Merc2.cpp
         graphics/opengl_renderer/foreground/Shadow2.cpp
-        graphics/opengl_renderer/LightningRenderer.cpp
         graphics/opengl_renderer/loader/Loader.cpp
         graphics/opengl_renderer/loader/LoaderStages.cpp
         graphics/opengl_renderer/ocean/CommonOceanRenderer.cpp
@@ -377,7 +333,7 @@ add_subdirectory(sound)
 # we build the runtime as a static library.
 add_library(runtime STATIC ${RUNTIME_SOURCE})
 
-target_link_libraries(runtime common fmt glfw imgui discord-rpc sound stb_image libco SQLiteCpp)
+target_link_libraries(runtime common fmt SDL2::SDL2 imgui discord-rpc sound stb_image libco)
 if(WIN32)
     target_link_libraries(runtime mman)
 else()

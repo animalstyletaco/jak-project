@@ -51,7 +51,7 @@ void Tie3::init_shaders(ShaderLibrary& shaders) {
  * and this function just updates things to reference loader data.
  */
 void Tie3::load_from_fr3_data(const LevelData* loader_data) {
-  auto ul = scoped_prof("update-load");
+  auto ul = profiler::scoped_prof("update-load");
   const tfrag3::Level* lev_data = loader_data->level.get();
   m_wind_vectors.clear();
 
@@ -68,7 +68,7 @@ void Tie3::load_from_fr3_data(const LevelData* loader_data) {
   for (u32 l_geo = 0; l_geo < tfrag3::TIE_GEOS; l_geo++) {
     // loop over all trees
     for (u32 l_tree = 0; l_tree < lev_data->tie_trees[l_geo].size(); l_tree++) {
-      auto ul = scoped_prof("load-tree");
+      auto ul = profiler::scoped_prof("load-tree");
       size_t wind_idx_buffer_len = 0;
       size_t num_grps = 0;
       const auto& tree = lev_data->tie_trees[l_geo][l_tree];

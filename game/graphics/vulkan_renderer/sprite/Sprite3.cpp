@@ -213,7 +213,7 @@ void SpriteVulkan3::setup_graphics_for_2d_group_0_render() {
   m_sprite_3d_vertex_uniform_buffer->SetUniform1f("deg_to_rad", m_frame_data.deg_to_rad);
   m_sprite_3d_vertex_uniform_buffer->SetUniform1f("inv_area", m_frame_data.inv_area);
   m_sprite_3d_vertex_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "camera", 1, GL_FALSE, m_3d_matrix_data.camera.data());
+      "camera", 1, VK_FALSE, m_3d_matrix_data.camera.data());
   m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xy_array", 8,
                                                                m_frame_data.xy_array[0].data());
   m_sprite_3d_vertex_uniform_buffer->SetUniformVectorFourFloat("xyz_array", 4,

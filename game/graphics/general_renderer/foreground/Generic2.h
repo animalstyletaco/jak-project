@@ -2,17 +2,16 @@
 
 #include "game/graphics/general_renderer/BucketRenderer.h"
 
-class BaseGeneric2 : public BaseBucketRenderer {
+class BaseGeneric2 {
  public:
-  BaseGeneric2(const std::string& name,
-           int my_id,
+  BaseGeneric2(
            u32 num_verts = 200000,
            u32 num_frags = 2000,
            u32 num_adgif = 6000,
            u32 num_buckets = 800);
   ~BaseGeneric2();
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
-  void draw_debug_window() override;
+  virtual void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void draw_debug_window();
 
   enum class Mode {
     NORMAL,

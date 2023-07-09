@@ -44,5 +44,7 @@ struct ScopedEvent {
   }
 };
 
+namespace profiler {
 GlobalProfiler& prof();
 ScopedEvent scoped_prof(const char* name);
+}  // namespace profiler

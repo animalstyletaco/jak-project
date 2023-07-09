@@ -8,10 +8,11 @@ struct RenderOptions {
   bool draw_loader_window = false;
   bool draw_small_profiler_window = false;
   bool draw_subtitle_editor_window = false;
+  bool draw_subtitle2_editor_window = false;
   bool draw_filters_window = false;
 
   // internal rendering settings - The OpenGLRenderer will internally use this resolution/format.
-  int msaa_samples = 4;
+  int msaa_samples = 2;
   int game_res_w = 640;
   int game_res_h = 480;
 
@@ -26,10 +27,9 @@ struct RenderOptions {
   int draw_region_height = 0;
   int draw_region_width = 0;
 
-  // windows-specific tweaks to the size of the drawing area in borderless.
-  bool borderless_windows_hacks = false;
-
   bool save_screenshot = false;
+  bool quick_screenshot = false;
+  bool internal_res_screenshot = false;
   std::string screenshot_path;
 
   float pmode_alp_register = 0.f;

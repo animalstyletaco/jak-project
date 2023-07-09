@@ -81,7 +81,7 @@ ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swapChain) : m_
 
 void ImguiVulkanHelper::InitializeNewFrame() {
   ImGui_ImplVulkan_NewFrame();
-  ImGui_ImplGlfw_NewFrame();
+  ImGui_ImplSDL2_NewFrame();
   ImGui::NewFrame();
 }
 

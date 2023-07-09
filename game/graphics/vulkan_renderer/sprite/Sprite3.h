@@ -161,6 +161,7 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   GraphicsPipelineLayout m_distorted_pipeline_layout;
   GraphicsPipelineLayout m_distorted_instance_pipeline_layout;
 
+  VkDescriptorBufferInfo m_vertex_buffer_descriptor_info{};
   std::unique_ptr<Sprite3dVertexUniformBuffer> m_sprite_3d_vertex_uniform_buffer;
 
   std::unique_ptr<DescriptorLayout> m_sprite_distort_vertex_descriptor_layout;

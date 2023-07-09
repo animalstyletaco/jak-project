@@ -1,17 +1,17 @@
 #include "Generic2.h"
 #include "game/graphics/gfx.h"
 
-GenericVulkan2::GenericVulkan2(const std::string& name,
-                               int my_id,
-                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+GenericVulkan2::GenericVulkan2(std::unique_ptr<GraphicsDeviceVulkan>& device,
                                VulkanInitializationInfo& vulkan_info,
                                u32 num_verts,
                                u32 num_frags,
                                u32 num_adgif,
                                u32 num_buckets)
-    : BucketVulkanRenderer(device, vulkan_info), BaseGeneric2(name, my_id, num_verts, num_frags, num_adgif, num_buckets) {
-  m_vertex_push_constant.height_scale = m_push_constant.height_scale;
-  m_vertex_push_constant.scissor_adjust = m_push_constant.scissor_adjust;
+    : m_device(device), m_vulkan_info(vulkan_info), BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets) {
+  m_vertex_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
+  m_vertex_push_constant.scissor_adjust =
+      (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512 / 448.0) : (-512 / 416.0);
+  init_shaders();
   graphics_setup();
 }
 
@@ -104,8 +104,8 @@ void GenericVulkan2::graphics_cleanup() {
   m_vulkan_info.descriptor_pool->freeDescriptors(m_fragment_descriptor_sets);
 }
 
-void GenericVulkan2::init_shaders(VulkanShaderLibrary& shaders) {
-  auto& shader = shaders[ShaderId::GENERIC];
+void GenericVulkan2::init_shaders() {
+  auto& shader = m_vulkan_info.shaders[ShaderId::GENERIC];
 
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

@@ -19,7 +19,6 @@
 #include "game/graphics/vulkan_renderer/ocean/OceanMidAndFar.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanNear.h"
 #include "game/graphics/vulkan_renderer/ProgressRenderer.h"
-#include "game/graphics/vulkan_renderer/LightningRenderer.h"
 
 #include "third-party/imgui/imgui.h"
 #include "third-party/imgui/imgui_impl_vulkan.h"
@@ -564,7 +563,6 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-sprite", BucketCategory::TEX, BucketId::TEX_ALL_SPRITE, m_device, m_vulkan_info);
   init_bucket_renderer<SpriteVulkan3>("particles", BucketCategory::SPRITE, BucketId::PARTICLES, m_device,
                                 m_vulkan_info);
-  init_bucket_renderer<LightningVulkanRenderer>("lightning", BucketCategory::OTHER, BucketId::EFFECTS, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-warp", BucketCategory::TEX,
                                                    BucketId::TEX_ALL_WARP, m_device, m_vulkan_info);
   init_bucket_renderer<DirectVulkanRenderer>("debug-no-zbuf1", BucketCategory::OTHER,
@@ -778,12 +776,6 @@ void VulkanRenderer::setup_frame(const RenderOptions& settings) {
   m_render_state.draw_offset_y =
       (settings.window_framebuffer_height - m_render_state.draw_region_h) / 2;
 
-  if (settings.borderless_windows_hacks) {
-    // pretend the framebuffer is 1 pixel shorter on borderless. fullscreen issues!
-    // add one pixel of vertical letterbox on borderless to make up for extra line
-    m_render_state.draw_offset_y++;
-  }
-
   if (m_render_state.draw_region_w <= 0 || m_render_state.draw_region_h <= 0) {
     // trying to draw to 0 size region... opengl doesn't like this.
     m_render_state.draw_region_w = 640;
@@ -881,7 +873,7 @@ void VulkanRenderer::dispatch_buckets_jak1(DmaFollower dma,
     //lg::info("Render: %s start\n", g_current_render.c_str());
     graphics_renderer->render(dma, &m_render_state, bucket_prof);
     if (sync_after_buckets) {
-      auto pp = scoped_prof("finish");
+      auto pp = profiler::scoped_prof("finish");
       vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
     }
 
@@ -933,7 +925,7 @@ void VulkanRenderer::dispatch_buckets_jak2(DmaFollower dma,
     //lg::info("Render: {} start", g_current_render);
     graphics_renderer->render(dma, &m_render_state, bucket_prof);
     if (sync_after_buckets) {
-      auto pp = scoped_prof("finish");
+      auto pp = profiler::scoped_prof("finish");
       //glFinish();
       vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
     }
@@ -1053,9 +1045,6 @@ void VulkanRenderer::createCommandBuffers() {
 }
 
 void VulkanRenderer::recreateSwapChain(bool vsyncEnabled) {
-  while (m_extents.width == 0 || m_extents.height == 0) {
-    glfwWaitEvents();
-  }
   vkDeviceWaitIdle(m_device->getLogicalDevice());
 
   if (m_vulkan_info.swap_chain == nullptr) {

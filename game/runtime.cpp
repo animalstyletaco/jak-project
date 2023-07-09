@@ -30,7 +30,7 @@
 #include "common/util/FileUtil.h"
 #include "common/versions/versions.h"
 
-#include "game/discord.h"
+#include "game/external/discord.h"
 #include "game/graphics/gfx.h"
 #include "game/kernel/common/fileio.h"
 #include "game/kernel/common/kdgo.h"
@@ -142,6 +142,7 @@ void deci2_runner(SystemThreadInterface& iface) {
  * SystemThread Function for the EE (PS2 Main CPU)
  */
 void ee_runner(SystemThreadInterface& iface) {
+  profiler::prof().root_event();
   // Allocate Main RAM. Must have execute enabled.
   if (EE_MEM_LOW_MAP) {
     g_ee_main_mem =
@@ -230,8 +231,8 @@ void ee_runner(SystemThreadInterface& iface) {
  * SystemThread function for running the IOP (separate I/O Processor)
  */
 void iop_runner(SystemThreadInterface& iface, GameVersion version) {
-  prof().root_event();
-  prof().begin_event("iop-init");
+  profiler::prof().root_event();
+  profiler::prof().begin_event("iop-init");
   IOP iop;
   lg::debug("[IOP] Restart!");
   iop.reset_allocator();
@@ -266,12 +267,12 @@ void iop_runner(SystemThreadInterface& iface, GameVersion version) {
 
   jak1::stream_init_globals();
   jak2::stream_init_globals();
-  prof().end_event();
+  profiler::prof().end_event();
   iface.initialization_complete();
 
   lg::debug("[IOP] Wait for OVERLORD to start...");
   {
-    auto p = scoped_prof("iop-wait-for-ee");
+    auto p = profiler::scoped_prof("iop-wait-for-ee");
     iop.wait_for_overlord_start_cmd();
   }
   if (iop.status == IOP_OVERLORD_INIT) {
@@ -287,7 +288,7 @@ void iop_runner(SystemThreadInterface& iface, GameVersion version) {
 
   bool complete = false;
   {
-    auto p = scoped_prof("overlord-start");
+    auto p = profiler::scoped_prof("overlord-start");
     switch (version) {
       case GameVersion::Jak1:
         jak1::start_overlord_wrapper(iop.overlord_argc, iop.overlord_argv, &complete);
@@ -301,9 +302,9 @@ void iop_runner(SystemThreadInterface& iface, GameVersion version) {
   }
 
   {
-    auto p = scoped_prof("overlord-wait-for-init");
+    auto p = profiler::scoped_prof("overlord-wait-for-init");
     while (complete == false) {
-      prof().root_event();
+      profiler::prof().root_event();
       iop.kernel.dispatch();
     }
   }
@@ -313,12 +314,11 @@ void iop_runner(SystemThreadInterface& iface, GameVersion version) {
 
   // IOP Kernel loop
   while (!iface.get_want_exit() && !iop.want_exit) {
-    prof().root_event();
+    profiler::prof().root_event();
     // The IOP scheduler informs us of how many microseconds are left until it has something to do.
     // So we can wait for that long or until something else needs it to wake up.
     auto wait_duration = iop.kernel.dispatch();
-    if (wait_duration &&
-        *wait_duration - std::chrono::steady_clock::now() > std::chrono::microseconds(100)) {
+    if (wait_duration) {
       iop.wait_run_iop(*wait_duration);
     }
   }
@@ -365,7 +365,7 @@ void dmac_runner(SystemThreadInterface& iface) {
  * GOAL kernel arguments are currently ignored.
  */
 RuntimeExitStatus exec_runtime(GameLaunchOptions game_options, int argc, const char** argv) {
-  prof().root_event();
+  profiler::prof().root_event();
   g_argc = argc;
   g_argv = argv;
   g_main_thread_id = std::this_thread::get_id();
@@ -380,23 +380,25 @@ RuntimeExitStatus exec_runtime(GameLaunchOptions game_options, int argc, const c
   g_game_version = game_options.game_version;
   g_server_port = game_options.server_port;
 
-  // set up discord stuff
   gStartTime = time(nullptr);
+  profiler::prof().instant_event("ROOT");
   {
-    auto p = scoped_prof("init-discord");
+    auto p = profiler::scoped_prof("startup::exec_runtime::init_discord_rpc");
     init_discord_rpc();
   }
 
   // initialize graphics first - the EE code will upload textures during boot and we
   // want the graphics system to catch them.
-  if (enable_display) {
-    auto p = scoped_prof("init-gfx");
-    Gfx::Init(g_game_version);
+  {
+    auto p = profiler::scoped_prof("startup::exec_runtime::init_gfx");
+    if (enable_display) {
+      Gfx::Init(g_game_version);
+    }
   }
 
   // step 1: sce library prep
   {
-    auto p = scoped_prof("init-library");
+    auto p = profiler::scoped_prof("startup::exec_runtime::library_prep");
     iop::LIBRARY_INIT();
     ee::LIBRARY_INIT_sceCd();
     ee::LIBRARY_INIT_sceDeci2();
@@ -404,41 +406,43 @@ RuntimeExitStatus exec_runtime(GameLaunchOptions game_options, int argc, const c
   }
 
   // step 2: system prep
+  profiler::prof().begin_event("startup::exec_runtime::system_prep");
   VM::vm_prepare();  // our fake ps2 VM needs to be prepared
   SystemThreadManager tm;
   auto& deci_thread = tm.create_thread("DMP");
   auto& iop_thread = tm.create_thread("IOP");
   auto& ee_thread = tm.create_thread("EE");
   auto& vm_dmac_thread = tm.create_thread("VM-DMAC");
+  profiler::prof().end_event();
 
   // step 3: start the EE!
   {
-    auto p = scoped_prof("iop-start");
+    auto p = profiler::scoped_prof("startup::exec_runtime::iop-start");
     iop_thread.start([=](SystemThreadInterface& sti) { iop_runner(sti, g_game_version); });
   }
   {
-    auto p = scoped_prof("deci-start");
+    auto p = profiler::scoped_prof("startup::exec_runtime::deci-start");
     deci_thread.start(deci2_runner);
   }
   {
-    auto p = scoped_prof("ee-start");
+    auto p = profiler::scoped_prof("startup::exec_runtime::ee-start");
     ee_thread.start(ee_runner);
   }
   if (VM::use) {
-    auto p = scoped_prof("dmac-start");
+    auto p = profiler::scoped_prof("startup::exec_runtime::dmac-start");
     vm_dmac_thread.start(dmac_runner);
   }
 
   // step 4: wait for EE to signal a shutdown. meanwhile, run video loop on main thread.
   // TODO relegate this to its own function
   if (enable_display) {
-   // try {
+    try {
       Gfx::Loop([]() { return MasterExit == RuntimeExitStatus::RUNNING; });
-    //} catch (std::exception& e) {
-    //  fmt::print("Exception thrown from graphics loop: {}\n", e.what());
-    //  fmt::print("Everything will crash now. good luck\n");
-    //  throw;
-    //}
+    } catch (std::exception& e) {
+      lg::error("Exception thrown from graphics loop: {}\n", e.what());
+      lg::error("Everything will crash now. good luck\n");
+      throw;
+    }
   }
 
   // hack to make the IOP die quicker if it's loading/unloading music

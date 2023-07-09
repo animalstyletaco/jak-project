@@ -45,7 +45,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     if(WIN32)
         # Increase the reserved stack size for all threads to 16MB
         # Note: this is only _reserved_ memory, not necessarily _committed_ memory
-        # TODO - test with add_link_options instead
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LDFLAGS} -Xlinker /STACK:16000000")
     else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb -g -Wextra")
@@ -57,7 +56,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     endif()
 
     if(CMAKE_BUILD_TYPE MATCHES "RelWithDebInfo")
-        # TODO - test with add_link_options instead
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LDFLAGS} -Xlinker /debug")
     endif()
 
@@ -177,15 +175,20 @@ add_subdirectory(third-party/replxx EXCLUDE_FROM_ALL)
 # SQLite - Jak 2/3's built in editor
 add_definitions(-DHAVE_USLEEP=1)
 add_definitions(-DSQLITE_THREADSAFE=1)
+add_definitions(-DSQLITE_ENABLE_JSON1)
 add_definitions(-DSQLITE_ENABLE_RTREE)
-include_directories(third-party/SQLiteCpp/include)
-add_subdirectory(third-party/SQLiteCpp)
-string(REPLACE " ${THIRDPARTY_IGNORED_WARNINGS} " "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+add_definitions(-DUSE_VULKAN)
+add_subdirectory(third-party/sqlite3)
 
 # build tree-sitter parser
 include_directories(third-party/tree-sitter/tree-sitter/lib/include)
 include_directories(third-party/tree-sitter/tree-sitter-opengoal/include)
 add_subdirectory(third-party/tree-sitter EXCLUDE_FROM_ALL)
+
+# native OS dialogs for error messages
+add_subdirectory(third-party/libtinyfiledialogs)
+
+string(REPLACE " ${THIRDPARTY_IGNORED_WARNINGS} " "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
 # build common library
 add_subdirectory(common)
@@ -202,9 +205,11 @@ add_subdirectory(lsp)
 # build libco
 add_subdirectory(third-party/libco)
 
-# build glfw library
-add_subdirectory(third-party/glfw EXCLUDE_FROM_ALL)
 add_subdirectory(third-party/zstd EXCLUDE_FROM_ALL)
+
+# build SDL
+include(SDLOptions)
+add_subdirectory(third-party/SDL EXCLUDE_FROM_ALL)
 
 # build imgui
 include_directories(third-party/glad/include)
@@ -212,7 +217,8 @@ include_directories(third-party/glad/include)
 #if(USE_VULKAN)
 include_directories(third-party/vulkan-headers/include)
 #endif()
-include_directories(third-party/glfw/include)
+include_directories(third-party/SDL/include)
+
 add_subdirectory(third-party/imgui EXCLUDE_FROM_ALL)
 string(REPLACE " ${THIRDPARTY_IGNORED_WARNINGS} " "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 

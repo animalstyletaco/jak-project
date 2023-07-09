@@ -8,8 +8,8 @@
 
 #include "third-party/glad/include/vulkan/vulkan.h"
 
-#define GLFW_INCLUDE_VULKAN
-#include "third-party/glfw/include/GLFW/glfw3.h"
+#define SDL_INCLUDE_VULKAN
+#include "third-party/SDL/include/SDL.h"
 
 struct SwapChainSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;
@@ -31,7 +31,7 @@ class GraphicsDeviceVulkan {
   const bool enableValidationLayers = true;
 #endif
 
-  GraphicsDeviceVulkan(GLFWwindow* window);
+  GraphicsDeviceVulkan(SDL_Window* window);
   ~GraphicsDeviceVulkan();
 
   // Not copyable or movable
@@ -132,7 +132,7 @@ class GraphicsDeviceVulkan {
   VkQueue m_graphics_queue = VK_NULL_HANDLE;
   VkQueue m_present_queue = VK_NULL_HANDLE;
 
-  GLFWwindow* m_window = nullptr;
+  SDL_Window* m_window = nullptr;
 
   const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
   const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME,

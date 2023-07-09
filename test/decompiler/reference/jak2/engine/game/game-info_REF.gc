@@ -71,7 +71,7 @@
   (new 'static 'continue-point
     :name "default"
     :level #f
-    :flags (continue-flags cf2)
+    :flags (continue-flags change-continue)
     :trans (new 'static 'vector :w 1.0)
     :quat (new 'static 'vector :w 1.0)
     :camera-trans (new 'static 'vector :w 1.0)
@@ -227,7 +227,7 @@
           )
         )
       )
-    (if (and (logtest? (-> obj current-continue flags) (continue-flags cf2))
+    (if (and (logtest? (-> obj current-continue flags) (continue-flags change-continue))
              (and (!= (-> obj current-continue) *default-continue*) (not arg1))
              )
         (set! (-> obj current-continue) s5-0)
@@ -513,7 +513,7 @@
            (set! (-> obj task-deaths) 0)
            (set! (-> obj task-pickup-time) (-> *display* game-clock frame-counter))
            (set! (-> obj unknown-array1 task) (-> *display* game-clock frame-counter))
-           (set! (-> obj fuel) (+ 1.0 (-> obj fuel)))
+           (+! (-> obj fuel) 1.0)
            (logior! (-> obj task-perm-list data task status) (entity-perm-status complete))
            (task-resolution-close! (the-as game-task task))
            )
@@ -780,7 +780,7 @@
                                (+ (the int (/ (the float (+ (/ (-> s3-0 x) 16) -1792)) (-> *video-params* relative-x-scale))) -48)
                                (+ (/ (-> s3-0 y) 16) -1855)
                                0.0
-                               (font-color gold)
+                               (font-color orange)
                                (font-flags shadow kerning)
                                )
                              )
@@ -1059,7 +1059,7 @@
              )
         (when actor-perm
           (set! (-> entity-perm quad) (-> actor-perm quad))
-          (update entity-perm 'try (entity-perm-status bit-0 bit-1 dead no-kill bit-5 subtask-complete bit-9 bit-12))
+          (update entity-perm 'try (entity-perm-status bit-0 error dead no-kill bit-5 subtask-complete bit-9 bit-12))
           )
         )
       )
@@ -1082,7 +1082,7 @@
     (bucket-id debug-no-zbuf1)
     (-> obj name)
     (-> obj trans)
-    (font-color font-color-1)
+    (font-color white)
     (new 'static 'vector2h :data (new 'static 'array int16 2 0 8))
     )
   (let ((a3-2 (vector-z-quaternion! (new-stack-vector0) (the-as quaternion (-> obj quat)))))
@@ -1274,7 +1274,7 @@
       (let ((conts (-> (the-as level-load-info (-> (the-as symbol (car levels)) value)) continues)))
         (while (not (null? conts))
           (let ((cont (the-as continue-point (car conts))))
-            (if (not (logtest? (-> cont flags) (continue-flags cf2)))
+            (if (not (logtest? (-> cont flags) (continue-flags change-continue)))
                 (format #t "~S~%" (-> cont name))
                 )
             )

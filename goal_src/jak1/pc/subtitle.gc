@@ -89,7 +89,7 @@
 ;; the global subtitle text info bank
 (deftype subtitle-text-info (basic)
   ((length  int32)
-   (lang    pc-subtitle-lang)
+   (lang    pc-language)
    (dummy   int32)
    (data    subtitle-text :inline :dynamic)
    )
@@ -191,13 +191,14 @@
 (defmethod get-scene-by-name subtitle-text-info ((obj subtitle-text-info) (kind pc-subtitle-channel) (name string))
   "get a subtitle scene info with the corresponding name. #f = none found"
 
-  ;; invalid kind so return invalid scene.
-  (if (or (not name) (= kind (pc-subtitle-channel invalid)))
+  ;; invalid name so return invalid scene.
+  (if (not name)
       (return (the subtitle-text #f)))
 
   (dotimes (i (-> obj length))
     ;; name and kind matches, return that!
-    (when (and (= kind (-> obj data i kind)) (string= (-> obj data i name) name))
+    (when (and (or (= kind (pc-subtitle-channel invalid)) (= kind (-> obj data i kind)))
+               (string= (-> obj data i name) name))
       (return (-> obj data i))
       )
     )
@@ -207,13 +208,10 @@
 (defmethod get-scene-by-text-id subtitle-text-info ((obj subtitle-text-info) (kind pc-subtitle-channel) (id text-id))
   "get a subtitle scene info with the corresponding name. #f = none found"
 
-  ;; invalid kind so return invalid scene.
-  (if (= kind (pc-subtitle-channel invalid))
-      (return (the subtitle-text #f)))
-
   (dotimes (i (-> obj length))
     ;; name and kind matches, return that!
-    (when (and (= kind (-> obj data i kind)) (= (-> obj data i id) id))
+    (when (and (or (= kind (pc-subtitle-channel invalid)) (= kind (-> obj data i kind)))
+               (= (-> obj data i id) id))
       (return (-> obj data i))
       )
     )
@@ -296,7 +294,7 @@
   `(begin
       (asm-text-file subtitle :files ("game/assets/game_subtitle.gp"))
       (if *subtitle-text*
-          (+! (-> *subtitle-text* lang) (the-as pc-subtitle-lang 1)))
+          (+! (-> *subtitle-text* lang) 1))
       (load-level-subtitle-files 0)))
 
 (defmacro reload-text ()
@@ -316,7 +314,7 @@
 
 
 
-(defun-recursive print-game-subtitle float ((str string) (font-ctxt font-context) (opaque symbol) (alpha int) (line-height int))
+(defun-recursive print-game-subtitle float ((str string) (font-ctxt font-context) (no-draw symbol) (alpha int) (line-height int))
   "Print text. Not worth commenting until we get stack variables in lets, I think"
   (local-vars
    (sv-112 float)
@@ -469,7 +467,7 @@
               (if (nonzero? (-> *game-text-line* data 0))
                   (set! sv-168 (+ sv-168 1))
                   )
-              (when (not opaque)
+              (when (not no-draw)
                 (let* ((s1-1 (-> *display* frames (-> *display* on-screen) frame global-buf))
                        (s2-1 (-> s1-1 base))
                        )
@@ -693,19 +691,20 @@
         (((pc-subtitle-channel hint) (pc-subtitle-channel hint-named))
           ;; hint! find it. or else.
           (set! (-> self hint-subtitle?) #t)
-          (awhen (if (= (-> self cur-channel) (pc-subtitle-channel hint-named))
-                     (get-scene-by-name *subtitle-text* (-> self cur-channel) (-> self spool-name))
-                     (get-scene-by-text-id *subtitle-text* (-> self cur-channel) (-> self text-id))
-                     )
 
-            (let ((pos (subtitle-str-adjust (current-str-pos (-> *hint-semaphore* 0 sound-id)))))
-                ;; find closest keyframe
-                (dotimes (i (-> it length))
-                  (when (>= pos (-> it keyframes i frame))
-                    (set! keyframe (-> it keyframes i)))
-                  )
-              )
-            )
+          (let ((scene (get-scene-by-text-id *subtitle-text* (pc-subtitle-channel hint) (-> self text-id))))
+            (if (not scene)
+                (set! scene (get-scene-by-name *subtitle-text* (pc-subtitle-channel hint-named) (-> self spool-name))))
+
+            (when scene
+              (let ((pos (subtitle-str-adjust (current-str-pos (-> *hint-semaphore* 0 sound-id)))))
+                  ;; find closest keyframe
+                  (dotimes (i (-> scene length))
+                    (when (>= pos (-> scene keyframes i frame))
+                      (set! keyframe (-> scene keyframes i)))
+                    )
+                )
+              ))
           )
         ))
 

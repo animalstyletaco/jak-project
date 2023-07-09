@@ -132,7 +132,7 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
   }
 
   m_collision_mesh_vertex_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
-      "camera", 1, GL_FALSE,
+      "camera", 1, VK_FALSE,
                      settings.math_camera.data());
   m_collision_mesh_vertex_uniform_buffer.SetUniform4f(
       "hvdf_offset", settings.hvdf_offset[0],

@@ -177,7 +177,7 @@ void VulkanLoader::draw_debug_window() {
 
 bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTexturePool& texture_pool) {
   // try to move level from initializing to initialized:
-  auto evt = scoped_prof("upload-textures");
+  auto evt = profiler::scoped_prof("upload-textures");
   constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 128;
 
   int bytes_this_run = 0;
@@ -403,7 +403,7 @@ void VulkanLoader::update(VulkanTexturePool& texture_pool) {
   }
 
   if (!did_gpu_stuff) {
-    auto evt = scoped_prof("gpu-unload");
+    auto evt = profiler::scoped_prof("gpu-unload");
     // try to remove levels.
     Timer unload_timer;
     if (m_loaded_tfrag3_levels.size() >= MAX_LEVELS_LOADED) {

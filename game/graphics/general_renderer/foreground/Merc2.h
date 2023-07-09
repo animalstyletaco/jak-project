@@ -1,31 +1,23 @@
 #pragma once
 #include "game/graphics/general_renderer/BucketRenderer.h"
 
-class BaseMerc2 : public BaseBucketRenderer {
- public:
-  BaseMerc2(const std::string& name, int my_id);
-  void draw_debug_window() override;
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+struct BaseMercDebugStats {
+  int num_models = 0;
+  int num_missing_models = 0;
+  int num_chains = 0;
+  int num_effects = 0;
+  int num_predicted_draws = 0;
+  int num_predicted_tris = 0;
+  int num_bones_uploaded = 0;
+  int num_lights = 0;
+  int num_draw_flush = 0;
 
+  int num_envmap_effects = 0;
+  int num_envmap_tris = 0;
 
- protected:
-  virtual void flush_draw_buckets(BaseSharedRenderState* render_state,
-                                   ScopedProfilerNode& prof) = 0;
-  virtual void handle_pc_model(const DmaTransfer& setup,
-                               BaseSharedRenderState* render_state,
-                               ScopedProfilerNode& prof) = 0;
-  virtual void set_merc_uniform_buffer_data(const DmaTransfer& dma) = 0;
-  void handle_merc_chain(DmaFollower& dma,
-                         BaseSharedRenderState* render_state,
-                         ScopedProfilerNode& prof);
-  void handle_mod_vertices(const DmaTransfer& setup,
-                           const tfrag3::MercEffect& effect,
-                           const u8* input_data,
-                           uint32_t index,
-                           const tfrag3::MercModel* model);
+  int num_upload_bytes = 0;
+  int num_uploads = 0;
 
-  std::mutex g_merc_data_mutex;
-  bool m_debug_mode = false;
   struct DrawDebug {
     DrawMode mode;
     int num_tris;
@@ -40,9 +32,42 @@ class BaseMerc2 : public BaseBucketRenderer {
     std::string level;
     std::vector<EffectDebug> effects;
   };
-  struct {
-    std::vector<ModelDebug> model_list;
-  } m_debug;
+
+  std::vector<ModelDebug> model_list;
+
+  bool collect_debug_model_list = false;
+};
+
+class BaseMerc2 {
+ public:
+  void draw_debug_window(BaseMercDebugStats*);
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof,
+              BaseMercDebugStats* stats);
+  static constexpr int kMaxBlerc = 40;
+
+ protected:
+  virtual void flush_draw_buckets(BaseSharedRenderState* render_state,
+                                  ScopedProfilerNode& prof,
+                                  BaseMercDebugStats*) = 0;
+  virtual void handle_pc_model(const DmaTransfer& setup,
+                               BaseSharedRenderState* render_state,
+                               ScopedProfilerNode& prof,
+                               BaseMercDebugStats*) = 0;
+  virtual void set_merc_uniform_buffer_data(const DmaTransfer& dma) = 0;
+  void handle_merc_chain(DmaFollower& dma,
+                         BaseSharedRenderState* render_state,
+                         ScopedProfilerNode& prof,
+                         BaseMercDebugStats*);
+  void handle_mod_vertices(const DmaTransfer& setup,
+                           const tfrag3::MercEffect& effect,
+                           const u8* input_data,
+                           uint32_t index,
+                           const tfrag3::MercModel* model);
+
+  std::mutex g_merc_data_mutex;
+  bool m_debug_mode = false;
 
   enum MercDataMemory {
     LOW_MEMORY = 0,
@@ -73,7 +98,10 @@ class BaseMerc2 : public BaseBucketRenderer {
     math::Vector4f ambient;
   };
 
-  void handle_all_dma(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void handle_all_dma(DmaFollower& dma,
+                      BaseSharedRenderState* render_state,
+                      ScopedProfilerNode& prof,
+                      BaseMercDebugStats* debug_stats);
   void handle_setup_dma(DmaFollower& dma, BaseSharedRenderState* render_state);
   u32 alloc_lights(const VuLights& lights);
   void set_lights(const DmaTransfer& dma);

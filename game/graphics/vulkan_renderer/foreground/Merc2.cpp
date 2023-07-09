@@ -38,13 +38,18 @@
  * - batch uploading the vertex modification data
  */
 
-MercVulkan2::MercVulkan2(const std::string& name,
-             int my_id,
+MercVulkan2::MercVulkan2(
              std::unique_ptr<GraphicsDeviceVulkan>& device,
              VulkanInitializationInfo& vulkan_info) :
-  BaseMerc2(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
-  m_tie_vertex_push_constant.height_scale = (vulkan_info.m_version == GameVersion::Jak2) ? 0.5 : 1;
-  m_tie_vertex_push_constant.scissor_adjust = (vulkan_info.m_version == GameVersion::Jak2) ? (-512 / 416.f) : (-512/448.f);
+  m_device(device), m_vulkan_info(vulkan_info) {
+  m_vertex_push_constant.height_scale = (vulkan_info.m_version == GameVersion::Jak2) ? 0.5 : 1;
+  m_vertex_push_constant.scissor_adjust = (vulkan_info.m_version == GameVersion::Jak2) ? (-512 / 416.f) : (-512/448.f);
+
+  m_tie_vertex_push_constant.height_scale = m_tie_vertex_push_constant.height_scale;
+  m_tie_vertex_push_constant.scissor_adjust = m_tie_vertex_push_constant.scissor_adjust;
+
+  m_etie_vertex_push_constant.height_scale = m_tie_vertex_push_constant.height_scale;
+  m_etie_vertex_push_constant.scissor_adjust = m_tie_vertex_push_constant.scissor_adjust;
 
   m_light_control_vertex_uniform_buffer =
       std::make_unique<MercLightControlVertexUniformBuffer>(m_device, MAX_DRAWS_PER_LEVEL, 1);
@@ -127,9 +132,9 @@ MercVulkan2::MercVulkan2(const std::string& name,
 /*!
  * Main MercVulkan2 rendering.
  */
-void MercVulkan2::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void MercVulkan2::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  BaseMerc2::render(dma, render_state, prof);
+  BaseMerc2::render(dma, render_state, prof, debug_stats);
 }
 
 void MercVulkan2::create_pipeline_layout() {
@@ -187,10 +192,10 @@ void MercVulkan2::create_pipeline_layout() {
 }
 
 void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
-                                     ScopedProfilerNode& prof) {
+                                     ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.height_scale),
-                     (void*)&m_push_constant.height_scale);
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant.height_scale),
+                     (void*)&m_vertex_push_constant.height_scale);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
@@ -332,8 +337,8 @@ void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
  */
 void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
                                   BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode& proff) {
-  auto p = scoped_prof("init-pc");
+                                  ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
+  auto p = profiler::scoped_prof("init-pc");
 
   // the format of the data is:
   //  ;; name   (128 char, 8 qw)
@@ -369,7 +374,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
   // each model uses only 1 light.
   if (m_next_free_light >= MAX_LIGHTS) {
     fmt::print("MERC2 out of lights, consider increasing MAX_LIGHTS\n");
-    flush_draw_buckets(render_state, proff);
+    flush_draw_buckets(render_state, prof, debug_stats);
   }
 
   // models use many bones. First check if we need to flush:
@@ -377,7 +382,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
   if (m_next_free_bone_vector + m_graphics_buffer_alignment + bone_count * 8 >
       MAX_SHADER_BONE_VECTORS) {
     fmt::print("MERC2 out of bones, consider increasing MAX_SHADER_BONE_VECTORS\n");
-    flush_draw_buckets(render_state, proff);
+    flush_draw_buckets(render_state, prof, debug_stats);
   }
 
   // also sanity check that we have enough to draw the model
@@ -402,7 +407,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
     if (m_next_free_level_bucket >= m_level_draw_buckets.size()) {
       // out of room, flush
       // fmt::print("MERC2 out of levels, consider increasing MAX_LEVELS\n");
-      flush_draw_buckets(render_state, proff);
+      flush_draw_buckets(render_state, prof, debug_stats);
     }
     // alloc a new one
     lev_bucket = &m_level_draw_buckets[m_next_free_level_bucket++];
@@ -414,7 +419,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
   if (lev_bucket->next_free_draw + model->max_draws >= lev_bucket->draws.size()) {
     // out of room, flush
     fmt::print("MERC2 out of draws, consider increasing MAX_DRAWS_PER_LEVEL\n");
-    flush_draw_buckets(render_state, proff);
+    flush_draw_buckets(render_state, prof, debug_stats);
     if (model->max_draws >= lev_bucket->draws.size()) {
       ASSERT_NOT_REACHED_MSG("MERC2 draw buffer not big enough");
     }
@@ -424,7 +429,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
   if (lev_bucket->next_free_envmap_draw + model->max_draws >= lev_bucket->envmap_draws.size()) {
     // out of room, flush
     fmt::print("MERC2 out of envmap draws, consider increasing MAX_ENVMAP_DRAWS_PER_LEVEL\n");
-    flush_draw_buckets(render_state, proff);
+    flush_draw_buckets(render_state, prof, debug_stats);
     if (model->max_draws >= lev_bucket->envmap_draws.size()) {
       ASSERT_NOT_REACHED_MSG("MERC2 envmap draw buffer not big enough");
     }
@@ -488,7 +493,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
   // will hold graphics vertex buffers for the updated vertices
   std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>> mod_graphics_buffers;
   if (/*settings.model_uses_mod*/ 0) {  // only if we've enabled, this path is slow.
-    auto p = scoped_prof("update-verts");
+    auto p = profiler::scoped_prof("update-verts");
 
     // loop over effects. Mod vertices are done per effect (possibly a bad idea?)
     for (unsigned ei = 0; ei < num_effects; ei++) {
@@ -498,7 +503,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
         continue;
       }
 
-      prof().begin_event("start1");
+      profiler::prof().begin_event("start1");
       std::unique_ptr<VertexBuffer> mod_vertex_buffer = std::make_unique<VertexBuffer>(*model_ref->level->merc_vertices);
       mod_graphics_buffers.insert({ei, std::move(mod_vertex_buffer)});
 
@@ -522,7 +527,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
       m_stats.num_uploads++;
       m_stats.num_upload_bytes += effect.mod.vertices.size() * sizeof(tfrag3::MercVertex);
       {
-        auto pp = scoped_prof("update-verts-upload");
+        auto pp = profiler::scoped_prof("update-verts-upload");
         mod_graphics_buffers.at(ei)->writeToGpuBuffer(
             m_mod_vtx_temp.data(), effect.mod.vertices.size() * sizeof(tfrag3::MercVertex), 0);
       }
@@ -547,7 +552,7 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
     }
 
     if (m_debug_mode) {
-      auto& d = m_debug.model_list.emplace_back();
+      auto& d = debug_stats->model_list.emplace_back();
       d.name = model->name;
       d.level = model_ref->level->level->level_name;
       for (auto& e : model->effects) {

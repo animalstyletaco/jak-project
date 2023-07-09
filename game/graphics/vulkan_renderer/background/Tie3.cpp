@@ -869,9 +869,9 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
 
 void Tie3Vulkan::init_etie_cam_uniforms(const BaseSharedRenderState* render_state) {
   m_etie_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "camera_no_presp", 1, GL_FALSE, (float*)render_state->camera_no_persp[0].data());
+      "camera_no_presp", 1, VK_FALSE, (float*)render_state->camera_no_persp[0].data());
   m_etie_base_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "camera_no_presp", 1, GL_FALSE, (float*)render_state->camera_no_persp[0].data());
+      "camera_no_presp", 1, VK_FALSE, (float*)render_state->camera_no_persp[0].data());
 
   math::Vector4f perspective[2] = {};
   float inv_fog = 1.f / render_state->camera_fog[0];

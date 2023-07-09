@@ -129,8 +129,13 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::array<std::vector<TreeVulkan>, 4> m_trees;  // includes 4 lods!
   std::unordered_map<u32, VulkanTexture>* m_textures;
 
+  VkDescriptorBufferInfo m_etie_vertex_buffer_descriptor_info{};
+
   std::unique_ptr<DescriptorLayout> m_etie_vertex_descriptor_layout;
   std::unique_ptr<DescriptorLayout> m_etie_base_vertex_descriptor_layout;
+
+  std::unique_ptr<DescriptorWriter> m_etie_vertex_descriptor_writer;
+  std::unique_ptr<DescriptorWriter> m_etie_base_vertex_descriptor_writer;
 
   VkPipelineLayout m_tie_pipeline_layout;
   VkPipelineLayout m_etie_pipeline_layout;

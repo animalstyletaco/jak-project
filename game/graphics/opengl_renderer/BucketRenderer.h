@@ -11,7 +11,7 @@
 #include "game/graphics/general_renderer/buckets.h"
 #include "game/graphics/opengl_renderer/TextureAnimator.h"
 #include "game/graphics/opengl_renderer/loader/Loader.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/texture/TexturePoolOpenGL.h"
 
 struct Fbo;
 

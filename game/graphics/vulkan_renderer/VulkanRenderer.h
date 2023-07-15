@@ -5,6 +5,8 @@
 
 #include "common/dma/dma_chain_read.h"
 
+#include "game/graphics/vulkan_renderer/foreground/Generic2.h"
+#include "game/graphics/vulkan_renderer/foreground/Merc2.h"
 #include "game/graphics/general_renderer/renderer_utils/RenderOptions.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/CollideMeshRenderer.h"
@@ -63,7 +65,7 @@ class VulkanRenderer {
   void init_bucket_renderers_jak1();
   void init_bucket_renderers_jak2();
   void draw_renderer_selection_window();
-  void finish_screenshot(const std::string& output_name, int px, int py, int x, int y);
+  void finish_screenshot(const std::string& output_name, int px, int py, int x, int y, bool quick_screenshot);
   template <typename T, typename U, class... Args>
   T* init_bucket_renderer(const std::string& name,
                           BucketCategory cat,
@@ -106,6 +108,8 @@ class VulkanRenderer {
 
   VulkanInitializationInfo m_vulkan_info;
   std::unique_ptr<FullScreenDrawVulkan> m_blackout_renderer;
+  std::shared_ptr<MercVulkan2> m_merc2;
+  std::shared_ptr<GenericVulkan2> m_generic2;
 
   std::unique_ptr<CollideMeshVulkanRenderer> m_collide_renderer;
 

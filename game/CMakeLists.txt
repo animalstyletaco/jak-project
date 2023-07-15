@@ -19,7 +19,9 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/background/TFragment.cpp
         graphics/general_renderer/background/Tie3.cpp
         graphics/general_renderer/BucketRenderer.cpp
+        graphics/general_renderer/debug_gui.cpp
         graphics/general_renderer/DepthCue.cpp
+        graphics/general_renderer/dma_helpers.cpp
         graphics/general_renderer/DirectRenderer.cpp
         graphics/general_renderer/DirectRenderer2.cpp
         graphics/general_renderer/EyeRenderer.cpp
@@ -44,7 +46,10 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/SkyBlendCPU.cpp
         graphics/general_renderer/SkyBlendGPU.cpp
         graphics/general_renderer/SkyRenderer.cpp
+        graphics/general_renderer/renderer_utils/Buffer.cpp
+        graphics/general_renderer/renderer_utils/GeneralRenderer.cpp
         graphics/general_renderer/sprite/GlowRenderer.cpp
+        graphics/general_renderer/sprite/sprite_common.cpp
         graphics/general_renderer/sprite/Sprite3_Distort.cpp
         graphics/general_renderer/sprite/Sprite3_Glow.cpp
         graphics/general_renderer/sprite/Sprite3.cpp
@@ -56,7 +61,7 @@ set(RUNTIME_SOURCE
         graphics/texture/jak1_tpage_dir.cpp
         graphics/texture/jak2_tpage_dir.cpp
         graphics/texture/TextureConverter.cpp
-        graphics/texture/TexturePool.cpp
+        graphics/texture/TexturePoolCommon.cpp
         kernel/asm_funcs.asm
         kernel/common/fileio.cpp
         kernel/common/kboot.cpp
@@ -281,6 +286,7 @@ if(WIN32)
         ../third-party/glad/src/vulkan.c)
 endif()
    list(APPEND RUNTIME_SOURCE
+        graphics/texture/TexturePoolOpenGL.cpp
         graphics/opengl_renderer/background/background_common.cpp
         graphics/opengl_renderer/background/Shrub.cpp
         graphics/opengl_renderer/background/Tfrag3.cpp
@@ -297,7 +303,9 @@ endif()
         graphics/opengl_renderer/foreground/Generic2_DMA.cpp
         graphics/opengl_renderer/foreground/Generic2_OpenGL.cpp
         graphics/opengl_renderer/foreground/Generic2.cpp
+        graphics/opengl_renderer/foreground/Generic2BucketRenderer.cpp
         graphics/opengl_renderer/foreground/Merc2.cpp
+        graphics/opengl_renderer/foreground/Merc2BucketRenderer.cpp
         graphics/opengl_renderer/foreground/Shadow2.cpp
         graphics/opengl_renderer/loader/Loader.cpp
         graphics/opengl_renderer/loader/LoaderStages.cpp
@@ -331,7 +339,7 @@ endif()
 add_subdirectory(sound)
 
 # we build the runtime as a static library.
-add_library(runtime STATIC ${RUNTIME_SOURCE})
+add_library(runtime STATIC ${RUNTIME_SOURCE} "graphics/general_renderer/renderer_utils/GeneralRenderer.h")
 
 target_link_libraries(runtime common fmt SDL2::SDL2 imgui discord-rpc sound stb_image libco)
 if(WIN32)
@@ -341,7 +349,7 @@ else()
 endif()
 
 if(WIN32)
-    add_executable(gk main.cpp ${SHADERS})
+    add_executable(gk main.cpp ${SHADERS} "graphics/general_renderer/renderer_utils/GeneralRenderer.h")
     add_dependencies(gk shaders)
 else()
     add_executable(gk main.cpp)

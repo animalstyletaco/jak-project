@@ -20,15 +20,17 @@
 #include "game/system/hid/input_manager.h"
 #include "game/system/hid/sdl_util.h"
 
-#include "third-party/SDL/include/SDL.h"
+#include "third-party/SDL/include/SDL_vulkan.h"
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
 #include "game/graphics/general_renderer/debug_gui.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
 #include "game/graphics/vulkan_renderer/VulkanRenderer.h"
 #include "game/graphics/texture/VulkanTexturePool.h"
 #include "game/runtime.h"
 
 #include "third-party/imgui/imgui.h"
+#include "third-party/imgui/imgui_style.h"
 #define STBI_WINDOWS_UTF8
 #include "common/util/dialogs.h"
 #include "third-party/stb_image/stb_image.h"
@@ -54,6 +56,7 @@ struct VulkanGraphicsData {
   std::shared_ptr<VulkanLoader> loader;
 
   VulkanRenderer vulkan_renderer;
+  GraphicsDebugGui debug_gui;
 
   FrameLimiter frame_limiter;
   Timer engine_timer;
@@ -66,11 +69,14 @@ struct VulkanGraphicsData {
   VulkanGraphicsData(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& vulkan_device)
       : dma_copier(EE_MAIN_MEM_SIZE),
         texture_pool(std::make_shared<VulkanTexturePool>(version, vulkan_device)),
-        loader(std::make_shared<VulkanLoader>(vulkan_device, file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
+        loader(std::make_shared<VulkanLoader>(
+            vulkan_device,
+            file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
             pipeline_common::fr3_level_count[version])),
-        vulkan_renderer(texture_pool, loader, version, vulkan_device),
+        vulkan_renderer(texture_pool, loader, version, vulkan_device), debug_gui(version),
         version(version) {}
 };
+}  // namespace
 
 std::unique_ptr<VulkanGraphicsData> g_gfx_data;
 std::unique_ptr<GraphicsDeviceVulkan> g_vulkan_device;
@@ -126,17 +132,6 @@ static int vk_init(GfxGlobalSettings& settings) {
   return 0;
 }
 
-static void gl_exit() {
-  g_gfx_data.reset();
-  vk_inited = false;
-}
-
-static void init_imgui(SDL_Window* window,
-                       SDL_GLContext gl_context,
-                       const std::string& glsl_version) {
-
-}
-
 static std::shared_ptr<GfxDisplay> vk_make_display(int width,
                                                    int height,
                                                    const char* title,
@@ -188,26 +183,10 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   }
 
   if (!vk_inited) {
-    {
-      auto p = profiler::scoped_prof("startup::sdl::glad_init");
-      gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress);
-      if (!gladLoadGL()) {
-        lg::error("GL init fail");
-        dialogs::create_error_message_dialog("Critical Error Encountered",
-                                             "Unable to initialize OpenGL API.\nOpenGOAL requires "
-                                             "OpenGL 4.3.\nEnsure your GPU "
-                                             "supports this and your drivers are up to date.");
-        return NULL;
-      }
-    }
-    {
-      auto p = profiler::scoped_prof("startup::sdl::gfx_data_init");
-      g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version);
-    }
+    auto p = profiler::scoped_prof("startup::sdl::gfx_data_init");
+    g_vulkan_device = std::make_unique<GraphicsDeviceVulkan>(window);
+    g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version, g_vulkan_device);
     vk_inited = true;
-    const char* gl_version = (const char*)glGetString(GL_VERSION);
-    lg::info("OpenGL initialized - v{}.{} | Renderer: {}", GLVersion.major, GLVersion.minor,
-             gl_version);
   }
 
   {
@@ -233,7 +212,9 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   }
 
   profiler::prof().begin_event("startup::sdl::create_GLDisplay");
-  auto display = std::make_shared<VkDisplay>(window, gl_context, is_main);
+  auto display =
+      std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer.GetSwapChain(),
+                                  Display::g_display_manager, Display::g_input_manager, is_main);
   display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
   profiler::prof().end_event();
 
@@ -303,13 +284,13 @@ static void vk_exit() {
 
 VkDisplay::VkDisplay(SDL_Window* window,
           std::unique_ptr<SwapChain>& swapChain,
-          std::shared_ptr<DisplayManager>,
-          std::shared_ptr<InputManager> inputManager,
-          bool is_main) {
-    : m_imgui_helper(swapChain),
-      m_window(window),
-      m_display_manager(std::make_shared<DisplayManager>(window)),
-      m_input_manager(std::make_shared<InputManager>()) {
+          std::shared_ptr<DisplayManager> display_manager,
+          std::shared_ptr<InputManager> input_manager,
+          bool is_main)
+    : m_window(window),
+      m_imgui_helper(swapChain),
+      m_display_manager(display_manager),
+      m_input_manager(input_manager) {
   m_main = is_main;
   m_display_manager->set_input_manager(m_input_manager);
   // Register commands
@@ -364,22 +345,21 @@ static bool endsWith(std::string_view str, std::string_view suffix) {
          0 == str.compare(str.size() - suffix.size(), suffix.size(), suffix);
 }
 
-void vulkan_render_game_frame(int game_width,
-                              int game_height,
-                              int window_fb_width,
-                              int window_fb_height,
-                              int draw_region_width,
-                              int draw_region_height,
-                              int msaa_samples,
-                              bool windows_borderless_hack) {
+void render_vk_game_frame(int game_width,
+                       int game_height,
+                       int window_fb_width,
+                       int window_fb_height,
+                       int draw_region_width,
+                       int draw_region_height,
+                       int msaa_samples,
+                       bool take_screenshot) {
   // wait for a copied chain.
   bool got_chain = false;
   {
-    auto p = scoped_prof("wait-for-dma");
+    auto p = profiler::scoped_prof("wait-for-dma");
     std::unique_lock<std::mutex> lock(g_gfx_data->dma_mutex);
-    // note: there's a timeout here. If the engine is messed up and not sending us frames,
-    // we still want to run the glfw loop.
-    got_chain = g_gfx_data->dma_cv.wait_for(lock, std::chrono::milliseconds(50),
+    // there's a timeout here, so imgui can still be responsive even if we don't render anything
+    got_chain = g_gfx_data->dma_cv.wait_for(lock, std::chrono::milliseconds(40),
                                             [=] { return g_gfx_data->has_data_to_render; });
   }
   // render that chain.
@@ -393,53 +373,45 @@ void vulkan_render_game_frame(int game_width,
     options.draw_region_width = draw_region_width;
     options.draw_region_height = draw_region_height;
     options.msaa_samples = msaa_samples;
-    options.draw_render_debug_window = Gfx::debug_gui.should_draw_render_debug();
-    options.draw_profiler_window = Gfx::debug_gui.should_draw_profiler();
-    options.draw_loader_window = Gfx::debug_gui.should_draw_loader_menu();
-    options.draw_subtitle_editor_window = Gfx::debug_gui.should_draw_subtitle_editor();
+    options.draw_render_debug_window = g_gfx_data->debug_gui.should_draw_render_debug();
+    options.draw_profiler_window = g_gfx_data->debug_gui.should_draw_profiler();
+    options.draw_loader_window = g_gfx_data->debug_gui.should_draw_loader_menu();
+    options.draw_subtitle_editor_window = g_gfx_data->debug_gui.should_draw_subtitle_editor();
+    options.draw_subtitle2_editor_window = g_gfx_data->debug_gui.should_draw_subtitle2_editor();
+    options.draw_filters_window = g_gfx_data->debug_gui.should_draw_filters_menu();
     options.save_screenshot = false;
-    options.gpu_sync = Gfx::debug_gui.should_gl_finish();
-    options.borderless_windows_hacks = windows_borderless_hack;
+    options.quick_screenshot = false;
+    options.internal_res_screenshot = false;
+    options.gpu_sync = g_gfx_data->debug_gui.should_gl_finish();
 
-    want_hotkey_screenshot =
-        want_hotkey_screenshot && Gfx::debug_gui.screenshot_hotkey_enabled;
-    if (want_hotkey_screenshot) {
-      want_hotkey_screenshot = false;
+    if (take_screenshot) {
       options.save_screenshot = true;
-      std::string screenshot_file_name = make_hotkey_screenshot_file_name();
-      options.screenshot_path = make_full_screenshot_output_file_path(screenshot_file_name);
+      options.quick_screenshot = true;
+      options.screenshot_path = file_util::make_screenshot_filepath(g_game_version);
     }
-    if (Gfx::debug_gui.get_screenshot_flag()) {
+    if (g_gfx_data->debug_gui.get_screenshot_flag()) {
       options.save_screenshot = true;
-      options.game_res_w = Gfx::debug_gui.screenshot_width;
-      options.game_res_h = Gfx::debug_gui.screenshot_height;
+      options.game_res_w = g_gfx_data->debug_gui.screenshot_width;
+      options.game_res_h = g_gfx_data->debug_gui.screenshot_height;
       options.draw_region_width = options.game_res_w;
       options.draw_region_height = options.game_res_h;
-      options.msaa_samples = Gfx::debug_gui.screenshot_samples;
-      std::string screenshot_file_name = Gfx::debug_gui.screenshot_name();
-      if (!endsWith(screenshot_file_name, ".png")) {
-        screenshot_file_name += ".png";
-      }
-      options.screenshot_path = make_full_screenshot_output_file_path(screenshot_file_name);
+      options.msaa_samples = g_gfx_data->debug_gui.screenshot_samples;
+      options.screenshot_path = file_util::make_screenshot_filepath(
+          g_game_version, g_gfx_data->debug_gui.screenshot_name());
     }
-    options.draw_small_profiler_window = Gfx::debug_gui.small_profiler;
-    options.pmode_alp_register = g_gfx_data->pmode_alp;
 
-    auto msaa_max = g_gfx_data->vulkan_renderer.GetMaxUsableSampleCount();
-    if (options.msaa_samples > msaa_max) {
-      options.msaa_samples = msaa_max;
-    }
+    options.draw_small_profiler_window =
+        g_gfx_data->debug_gui.master_enable && g_gfx_data->debug_gui.small_profiler;
+    options.pmode_alp_register = g_gfx_data->pmode_alp;
 
     if constexpr (pipeline_common::run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
-      g_gfx_data->vulkan_renderer.render(DmaFollower(chain.data.data(), chain.start_offset),
-                                         options);
+      g_gfx_data->vulkan_renderer.render(DmaFollower(chain.data.data(), chain.start_offset), options);
     } else {
-      auto p = scoped_prof("ogl-render");
-      g_gfx_data->vulkan_renderer.render(
-          DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
-                      g_gfx_data->dma_copier.get_last_input_offset()),
-          options);
+      auto p = profiler::scoped_prof("vulkan-render");
+      g_gfx_data->vulkan_renderer.render(DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
+                                                  g_gfx_data->dma_copier.get_last_input_offset()),
+                                      options);
     }
   }
 
@@ -453,295 +425,59 @@ void vulkan_render_game_frame(int game_width,
     g_gfx_data->sync_cv.notify_all();
   }
 }
-
-void VkDisplay::get_position(int* x, int* y) {
-  std::lock_guard<std::mutex> lk(m_lock);
-  if (x) {
-    *x = m_display_state.window_pos_x;
-  }
-  if (y) {
-    *y = m_display_state.window_pos_y;
-  }
-}
-void VkDisplay::get_size(int* width, int* height) {
-  std::lock_guard<std::mutex> lk(m_lock);
-  if (width) {
-    *width = m_display_state.window_size_width;
-  }
-  if (height) {
-    *height = m_display_state.window_size_height;
-  }
-}
-void VkDisplay::get_scale(float* xs, float* ys) {
-  std::lock_guard<std::mutex> lk(m_lock);
-  if (xs) {
-    *xs = m_display_state.window_scale_x;
-  }
-  if (ys) {
-    *ys = m_display_state.window_scale_y;
-  }
-}
-
-void VkDisplay::set_size(int width, int height) {
-  // glfwSetWindowSize(m_window, width, height);
-  m_pending_size.width = width;
-  m_pending_size.height = height;
-  m_pending_size.pending = true;
-  if (windowed()) {
-    m_last_windowed_width = width;
-    m_last_windowed_height = height;
-  }
-}
-
-void VkDisplay::update_fullscreen(GfxDisplayMode mode, int screen) {
-  GLFWmonitor* monitor = get_monitor(screen);
-
-  switch (mode) {
-    case GfxDisplayMode::Windowed: {
-      // windowed
-      // TODO - display mode doesn't re-position the window
-      int x, y, width, height;
-
-      if (m_last_fullscreen_mode == GfxDisplayMode::Windowed) {
-        // windowed -> windowed, keep position and size
-        width = m_last_windowed_width;
-        height = m_last_windowed_height;
-        x = m_last_windowed_xpos;
-        y = m_last_windowed_ypos;
-        lg::debug("Windowed -> Windowed - x:{} | y:{}", x, y);
-      } else {
-        // fullscreen -> windowed, use last windowed size but on the monitor previously fullscreened
-        //
-        // glfwGetMonitorWorkarea will return the width/height of the scaled fullscreen window
-        // - for example, you full screened a 1280x720 game on a 4K monitor -- you won't get the 4k
-        // resolution!
-        //
-        // Additionally, the coordinates for the top left seem very weird in stacked displays (you
-        // get a negative Y coordinate)
-        int monitorX, monitorY, monitorWidth, monitorHeight;
-        glfwGetMonitorWorkarea(monitor, &monitorX, &monitorY, &monitorWidth, &monitorHeight);
-
-        width = m_last_windowed_width;
-        height = m_last_windowed_height;
-        if (monitorX < 0) {
-          x = monitorX - 50;
-        } else {
-          x = monitorX + 50;
-        }
-        if (monitorY < 0) {
-          y = monitorY - 50;
-        } else {
-          y = monitorY + 50;
-        }
-        lg::debug("FS -> Windowed screen: {} - x:{}:{}/{} | y:{}:{}/{}", screen, monitorX, x, width,
-                  monitorY, y, height);
-      }
-
-      glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_TRUE);
-      glfwSetWindowFocusCallback(m_window, NULL);
-      glfwSetWindowAttrib(m_window, GLFW_FLOATING, GLFW_FALSE);
-      glfwSetWindowMonitor(m_window, NULL, x, y, width, height, GLFW_DONT_CARE);
-    } break;
-    case GfxDisplayMode::Fullscreen: {
-      // TODO - when transitioning from fullscreen to windowed, it will use the old primary display
-      // which is to say, dragging the window to a different monitor won't update the used display
-      // fullscreen
-      const GLFWvidmode* vmode = glfwGetVideoMode(monitor);
-      glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_FALSE);
-      glfwSetWindowFocusCallback(m_window, NULL);
-      glfwSetWindowAttrib(m_window, GLFW_FLOATING, GLFW_FALSE);
-      glfwSetWindowMonitor(m_window, monitor, 0, 0, vmode->width, vmode->height, GLFW_DONT_CARE);
-    } break;
-    case GfxDisplayMode::Borderless: {
-      // TODO - when transitioning from fullscreen to windowed, it will use the old primary display
-      // which is to say, dragging the window to a different monitor won't update the used display
-      // borderless fullscreen
-      int x, y;
-      glfwGetMonitorPos(monitor, &x, &y);
-      const GLFWvidmode* vmode = glfwGetVideoMode(monitor);
-      glfwSetWindowAttrib(m_window, GLFW_DECORATED, GLFW_FALSE);
-      // glfwSetWindowAttrib(m_window, GLFW_FLOATING, GLFW_TRUE);
-      // glfwSetWindowFocusCallback(m_window, FocusCallback);
-#ifdef _WIN32
-      glfwSetWindowMonitor(m_window, NULL, x, y, vmode->width, vmode->height + 1, GLFW_DONT_CARE);
-#else
-      glfwSetWindowMonitor(m_window, NULL, x, y, vmode->width, vmode->height, GLFW_DONT_CARE);
-#endif
-    } break;
-    default: {
-      break;
-    }
-  }
-}
-
-int VkDisplay::get_screen_vmode_count() {
-  std::lock_guard<std::mutex> lk(m_lock);
-  return m_display_state.num_vmodes;
-}
-
-void VkDisplay::get_screen_size(int vmode_idx, s32* w_out, s32* h_out) {
-  std::lock_guard<std::mutex> lk(m_lock);
-  if (vmode_idx >= 0 && vmode_idx < MAX_VMODES) {
-    if (w_out) {
-      *w_out = m_display_state.vmodes[vmode_idx].width;
-    }
-    if (h_out) {
-      *h_out = m_display_state.vmodes[vmode_idx].height;
-    }
-  } else if (fullscreen_mode() == Fullscreen) {
-    if (w_out) {
-      *w_out = m_display_state.largest_vmode_width;
-    }
-    if (h_out) {
-      *h_out = m_display_state.largest_vmode_height;
-    }
-  } else {
-    if (w_out) {
-      *w_out = m_display_state.current_vmode.width;
-    }
-    if (h_out) {
-      *h_out = m_display_state.current_vmode.height;
-    }
-  }
-}
-
-int VkDisplay::get_screen_rate(int vmode_idx) {
-  std::lock_guard<std::mutex> lk(m_lock);
-  if (vmode_idx >= 0 && vmode_idx < MAX_VMODES) {
-    return m_display_state.vmodes[vmode_idx].refresh_rate;
-  } else if (fullscreen_mode() == GfxDisplayMode::Fullscreen) {
-    return m_display_state.largest_vmode_refresh_rate;
-  } else {
-    return m_display_state.current_vmode.refresh_rate;
-  }
-}
-
-GLFWmonitor* VkDisplay::get_monitor(int index) {
-  if (index < 0 || index >= g_glfw_state.monitor_count) {
-    // out of bounds, default to primary monitor
-    index = 0;
-  }
-
-  return g_glfw_state.monitors[index];
-}
-
-std::tuple<double, double> VkDisplay::get_mouse_pos() {
-  return {last_cursor_x_position, last_cursor_y_position};
-}
-
-int VkDisplay::get_monitor_count() {
-  return g_glfw_state.monitor_count;
-}
-
-bool VkDisplay::minimized() {
-  return m_minimized;
-}
-
-void VkDisplay::set_lock(bool lock) {
-  glfwSetWindowAttrib(m_window, GLFW_RESIZABLE, lock ? GLFW_TRUE : GLFW_FALSE);
-}
-
-bool VkDisplay::fullscreen_pending() {
-  GLFWmonitor* monitor;
-  {
-    auto _ = scoped_prof("get_monitor");
-    monitor = get_monitor(fullscreen_screen());
-  }
-
-  const GLFWvidmode* vmode;
-  {
-    auto _ = scoped_prof("get-video-mode");
-    vmode = glfwGetVideoMode(monitor);
-  }
-
-  return GfxDisplay::fullscreen_pending() ||
-         (vmode->width != m_last_video_mode.width || vmode->height != m_last_video_mode.height ||
-          vmode->refreshRate != m_last_video_mode.refreshRate);
-}
-
-void VkDisplay::fullscreen_flush() {
-  GfxDisplay::fullscreen_flush();
-
-  GLFWmonitor* monitor = get_monitor(fullscreen_screen());
-  auto vmode = glfwGetVideoMode(monitor);
-
-  m_last_video_mode = *vmode;
-}
-
-void VkDisplay::VMode::set(const GLFWvidmode* vmode) {
-  width = vmode->width;
-  height = vmode->height;
-  refresh_rate = vmode->refreshRate;
-}
-
-void VkDisplay::update_glfw() {
-  auto p = scoped_prof("update_glfw");
-  glfwPollEvents();
-  auto& mapping_info = Gfx::get_button_mapping();
-  Pad::update_gamepads(mapping_info);
-  glfwGetFramebufferSize(m_window, &m_display_state_copy.window_size_width,
-                         &m_display_state_copy.window_size_height);
-  glfwGetWindowContentScale(m_window, &m_display_state_copy.window_scale_x,
-                            &m_display_state_copy.window_scale_y);
-  glfwGetWindowPos(m_window, &m_display_state_copy.window_pos_x,
-                   &m_display_state_copy.window_pos_y);
-  GLFWmonitor* monitor = get_monitor(fullscreen_screen());
-  auto current_vmode = glfwGetVideoMode(monitor);
-  if (current_vmode) {
-    m_display_state_copy.current_vmode.set(current_vmode);
-  }
-  int count = 0;
-  auto vmodes = glfwGetVideoModes(monitor, &count);
-  if (count > MAX_VMODES) {
-    fmt::print("got too many vmodes: {}\n", count);
-    count = MAX_VMODES;
-  }
-  m_display_state_copy.num_vmodes = count;
-  m_display_state_copy.largest_vmode_width = 1;
-  m_display_state_copy.largest_vmode_refresh_rate = 1;
-  for (int i = 0; i < count; i++) {
-    if (vmodes[i].width > m_display_state_copy.largest_vmode_width) {
-      m_display_state_copy.largest_vmode_height = vmodes[i].height;
-      m_display_state_copy.largest_vmode_width = vmodes[i].width;
-    }
-    if (vmodes[i].refreshRate > m_display_state_copy.largest_vmode_refresh_rate) {
-      m_display_state_copy.largest_vmode_refresh_rate = vmodes[i].refreshRate;
-    }
-    m_display_state_copy.vmodes[i].set(&vmodes[i]);
-  }
-  if (m_pending_size.pending) {
-    glfwSetWindowSize(m_window, m_pending_size.width, m_pending_size.height);
-    m_pending_size.pending = false;
-  }
-  std::lock_guard<std::mutex> lk(m_lock);
-  m_display_state = m_display_state_copy;
-}
-
 /*!
  * Main function called to render graphics frames. This is called in a loop.
  */
 void VkDisplay::render() {
-  update_glfw();
+  // Before we process the current frames SDL events we for keyboard/mouse button inputs.
+  //
+  // This technically means that keyboard/mouse button inputs will be a frame behind but the
+  // event-based code is buggy and frankly not worth stressing over.  Leaving this as a note incase
+  // someone complains. Binding handling is still taken care of by the event code though.
+  {
+    auto p = profiler::scoped_prof("sdl-input-monitor-poll-for-kb-mouse");
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.WantCaptureKeyboard) {
+      m_input_manager->clear_keyboard_actions();
+    } else {
+      m_input_manager->poll_keyboard_data();
+    }
+    if (io.WantCaptureMouse) {
+      m_input_manager->clear_mouse_actions();
+    } else {
+      m_input_manager->poll_mouse_data();
+    }
+    m_input_manager->finish_polling();
+  }
+  // Now process SDL Events
+  process_sdl_events();
+  // Also process any display related events received from the EE (the game)
+  // this is done here so they run from the perspective of the graphics thread
+  {
+    auto p = profiler::scoped_prof("display-manager-ee-events");
+    m_display_manager->process_ee_events();
+  }
+  {
+    auto p = profiler::scoped_prof("input-manager-ee-events");
+    m_input_manager->process_ee_events();
+  }
 
   // imgui start of frame
   {
-    auto p = scoped_prof("imgui-init");
-    m_imgui_helper.InitializeNewFrame();
+    auto p = profiler::scoped_prof("imgui-new-frame");
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplSDL2_NewFrame();
+    ImGui::NewFrame();
   }
 
   // framebuffer size
   int fbuf_w, fbuf_h;
-  glfwGetFramebufferSize(m_window, &fbuf_w, &fbuf_h);
-  bool windows_borderless_hacks = false;
-#ifdef _WIN32
-  if (last_fullscreen_mode() == GfxDisplayMode::Borderless) {
-    windows_borderless_hacks = true;
-  }
-#endif
+  SDL_Vulkan_GetDrawableSize(m_window, &fbuf_w, &fbuf_h);
 
   // render game!
-  if (Gfx::debug_gui.should_advance_frame()) {
-    auto p = scoped_prof("game-render");
+  g_gfx_data->debug_gui.master_enable = is_imgui_visible();
+  if (g_gfx_data->debug_gui.should_advance_frame()) {
+    auto p = profiler::scoped_prof("game-render");
     int game_res_w = Gfx::g_global_settings.game_res_w;
     int game_res_h = Gfx::g_global_settings.game_res_h;
     if (game_res_w <= 0 || game_res_h <= 0) {
@@ -750,64 +486,60 @@ void VkDisplay::render() {
       game_res_w = 640;
       game_res_h = 480;
     }
-    vulkan_render_game_frame(game_res_w, game_res_h, fbuf_w, fbuf_h, Gfx::g_global_settings.lbox_w,
-                             Gfx::g_global_settings.lbox_h, Gfx::g_global_settings.msaa_samples,
-                             windows_borderless_hacks);
+    render_vk_game_frame(
+        game_res_w, game_res_h, fbuf_w, fbuf_h, Gfx::g_global_settings.lbox_w,
+        Gfx::g_global_settings.lbox_h, Gfx::g_global_settings.msaa_samples,
+        m_take_screenshot_next_frame && g_gfx_data->debug_gui.screenshot_hotkey_enabled);
+    // If we took a screenshot, stop taking them now!
+    if (m_take_screenshot_next_frame) {
+      m_take_screenshot_next_frame = false;
+    }
   }
 
   // render debug
   if (is_imgui_visible()) {
-    auto p = scoped_prof("debug-gui");
-    Gfx::debug_gui.draw(g_gfx_data->dma_copier.get_last_result().stats);
+    auto p = profiler::scoped_prof("debug-gui");
+    g_gfx_data->debug_gui.draw(g_gfx_data->dma_copier.get_last_result().stats);
   }
   {
-    auto p = scoped_prof("imgui-render");
+    auto p = profiler::scoped_prof("imgui-render");
     m_imgui_helper.Render(Gfx::g_global_settings.game_res_w, Gfx::g_global_settings.game_res_h,
                           g_gfx_data->vulkan_renderer.GetSwapChain());
   }
 
   // actual vsync
-  Gfx::debug_gui.finish_frame();
-  {
-    //auto p = scoped_prof("swap-buffers");
-    //glfwSwapBuffers(m_window);
-  }
+  g_gfx_data->debug_gui.finish_frame();
   if (Gfx::g_global_settings.framelimiter) {
-    auto p = scoped_prof("frame-limiter");
+    auto p = profiler::scoped_prof("frame-limiter");
     g_gfx_data->frame_limiter.run(
         Gfx::g_global_settings.target_fps, Gfx::g_global_settings.experimental_accurate_lag,
         Gfx::g_global_settings.sleep_in_frame_limiter, g_gfx_data->last_engine_time);
   }
-  // actually wait for vsync
-  if (Gfx::debug_gui.should_gl_finish()) {
-    //glFinish();
-  }
 
   // Start timing for the next frame.
-  Gfx::debug_gui.start_frame();
-  prof().instant_event("ROOT");
-  Gfx::update_global_profiler();
+  g_gfx_data->debug_gui.start_frame();
+  profiler::prof().instant_event("ROOT");
 
   // toggle even odd and wake up engine waiting on vsync.
   // TODO: we could play with moving this earlier, right after the final bucket renderer.
   //       it breaks the VIF-interrupt profiling though.
   {
-    prof().instant_event("engine-notify");
+    profiler::prof().instant_event("engine-notify");
     std::unique_lock<std::mutex> lock(g_gfx_data->sync_mutex);
     g_gfx_data->frame_idx++;
     g_gfx_data->sync_cv.notify_all();
   }
 
   // reboot whole game, if requested
-  if (Gfx::debug_gui.want_reboot_in_debug) {
-    Gfx::debug_gui.want_reboot_in_debug = false;
+  if (g_gfx_data->debug_gui.want_reboot_in_debug) {
+    g_gfx_data->debug_gui.want_reboot_in_debug = false;
     MasterExit = RuntimeExitStatus::RESTART_IN_DEBUG;
   }
 
   {
-    auto p = scoped_prof("check-close-window");
+    auto p = profiler::scoped_prof("check-close-window");
     // exit if display window was closed
-    if (glfwWindowShouldClose(m_window)) {
+    if (m_should_quit) {
       std::unique_lock<std::mutex> lock(g_gfx_data->sync_mutex);
       MasterExit = RuntimeExitStatus::EXIT;
       g_gfx_data->sync_cv.notify_all();
@@ -892,10 +624,6 @@ void vk_texture_relocate(u32 destination, u32 source, u32 format) {
   }
 }
 
-void vk_poll_events() {
-  glfwPollEvents();
-}
-
 void vk_set_levels(const std::vector<std::string>& levels) {
   g_gfx_data->loader->set_want_levels(levels);
 }
@@ -913,7 +641,6 @@ const GfxRendererModule gRendererVulkan = {
     vk_send_chain,          // send_chain
     vk_texture_upload_now,  // texture_upload_now
     vk_texture_relocate,    // texture_relocate
-    vk_poll_events,         // poll_events
     vk_set_levels,          // set_levels
     vk_set_pmode_alp,       // set_pmode_alp
     GfxPipeline::Vulkan,    // pipeline

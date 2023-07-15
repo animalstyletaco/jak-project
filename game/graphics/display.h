@@ -13,6 +13,7 @@
 #include "common/util/Assert.h"
 
 #include "game/system/hid/display_manager.h"
+#include "game/system/hid/input_manager.h"
 
 // a GfxDisplay class is equivalent to a window that displays stuff. This holds an actual internal
 // window pointer used by whichever renderer. It also contains functions for setting and
@@ -48,6 +49,10 @@ namespace Display {
 // a list of displays. the first one is the "main" display, all others are spectator-like extra
 // views.
 extern std::vector<std::shared_ptr<GfxDisplay>> g_displays;
+extern std::shared_ptr<InputManager> g_input_manager;
+extern std::shared_ptr<DisplayManager> g_display_manager;
+
+void SetupPeripheralManagers(SDL_Window* window);
 
 int InitMainDisplay(int width,
                     int height,

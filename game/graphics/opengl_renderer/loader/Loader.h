@@ -10,7 +10,6 @@
 
 #include "game/graphics/opengl_renderer/loader/common.h"
 #include "game/graphics/pipelines/opengl.h"
-#include "game/graphics/texture/TexturePool.h"
 
 class Loader {
  public:

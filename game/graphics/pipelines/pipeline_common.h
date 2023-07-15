@@ -5,8 +5,6 @@
 #ifdef USE_VULKAN
 #include "third-party/glad/include/vulkan/vulkan.h"
 #endif
-#define GLFW_INCLUDE_NONE
-#include "third-party/glad/include/glad/glad.h"
 
 #include "third-party/SDL/include/SDL.h"
 

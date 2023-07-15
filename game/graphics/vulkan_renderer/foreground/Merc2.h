@@ -124,7 +124,7 @@ class MercVulkan2 : public BaseMerc2 {
                                 VkDeviceSize minOffsetAlignment = 1);
   };
 
-  void MercVulkan2::do_mod_draws(
+  void do_mod_draws(
       const tfrag3::MercEffect& effect,
       LevelDrawBucketVulkan* lev_bucket,
       u8* fade_buffer,

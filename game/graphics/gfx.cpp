@@ -16,25 +16,17 @@
 #include "common/symbols.h"
 #include "common/util/FileUtil.h"
 #include "common/util/json_util.h"
-#include "common/global_profiler/GlobalProfiler.h"
 
 #include "game/common/file_paths.h"
 #include "game/kernel/common/kmachine.h"
 #include "game/kernel/common/kscheme.h"
 #include "game/runtime.h"
-
-
-#include "pipelines/vulkan_pipeline.h"
-extern const GfxRendererModule gRendererVulkan;
-
 #include "pipelines/opengl.h"
-extern const GfxRendererModule gRendererOpenGL;
 
 namespace Gfx {
 
 std::function<void()> vsync_callback;
 GfxGlobalSettings g_global_settings;
-
 game_settings::DebugSettings g_debug_settings;
 
 const GfxRendererModule* GetRenderer(GfxPipeline pipeline) {
@@ -44,8 +36,6 @@ const GfxRendererModule* GetRenderer(GfxPipeline pipeline) {
       return NULL;
     case GfxPipeline::OpenGL:
       return &gRendererOpenGL;
-    case GfxPipeline::Vulkan:
-      return &gRendererVulkan;
     default:
       lg::error("Requested unknown renderer {}", fmt::underlying(pipeline));
       return NULL;
@@ -213,27 +203,3 @@ void CollisionRendererSetMode(GfxGlobalSettings::CollisionRendererMode mode) {
 }
 
 }  // namespace Gfx
-
-
-void Gfx::update_global_profiler() {
-  if (debug_gui.dump_events) {
-    profiler::prof().set_enable(false);
-    debug_gui.dump_events = false;
-
-    auto dir_path = file_util::get_jak_project_dir() / "profile_data";
-    fs::create_directories(dir_path);
-
-    if (fs::exists(dir_path / "prof.json")) {
-      int file_index = 1;
-      auto file_path = dir_path / fmt::format("prof{}.json", file_index);
-      while (!fs::exists(file_path)) {
-        file_path = dir_path / fmt::format("prof{}.json", ++file_index);
-      }
-      profiler::prof().dump_to_json(file_path.string());
-    } else {
-      profiler::prof().dump_to_json((dir_path / "prof.json").string());
-    }
-  }
-  profiler::prof().set_enable(debug_gui.record_events);
-}
-

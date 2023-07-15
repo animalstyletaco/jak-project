@@ -11,10 +11,15 @@
 #include "game/graphics/gfx.h"
 
 #include "game/graphics/pipelines/pipeline_common.h"
+#include "third-party/glad/include/glad/glad.h"
 
 class GLDisplay : public GfxDisplay {
  public:
-  GLDisplay(SDL_Window* window, SDL_GLContext gl_context, bool is_main);
+  GLDisplay(SDL_Window* window,
+            SDL_GLContext gl_context,
+            std::shared_ptr<DisplayManager> display_manager,
+            std::shared_ptr<InputManager> input_manager,
+            bool is_main);
   virtual ~GLDisplay();
 
   // Overrides

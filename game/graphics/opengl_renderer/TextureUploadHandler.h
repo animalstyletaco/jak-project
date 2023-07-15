@@ -1,7 +1,7 @@
 #pragma once
 
 #include "game/graphics/opengl_renderer/BucketRenderer.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/texture/TexturePoolOpenGL.h"
 
 /*!
  * The TextureUploadHandler receives textures uploads in the DMA chain and updates the TexturePool.

@@ -370,11 +370,6 @@ RuntimeExitStatus exec_runtime(GameLaunchOptions game_options, int argc, const c
   g_argv = argv;
   g_main_thread_id = std::this_thread::get_id();
 
-  // parse opengoal arguments
-  g_game_version = GameVersion::Jak1;
-  //Gfx::SetRenderer(GfxPipeline::OpenGL);
-  Gfx::SetRenderer(GfxPipeline::Vulkan); //Temp
-
   bool enable_display = !game_options.disable_display;
   VM::use = !game_options.disable_debug_vm;
   g_game_version = game_options.game_version;

@@ -12,7 +12,7 @@
 #include "common/util/SmallVector.h"
 #include "common/versions/versions.h"
 
-#include "game/graphics/pipelines/pipeline_common.h"
+#include "game/graphics/pipelines/opengl.h"
 #include "game/graphics/texture/TextureConverter.h"
 #include "game/graphics/texture/TexturePoolDataTypes.h"
 

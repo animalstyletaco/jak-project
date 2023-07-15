@@ -14,7 +14,6 @@
 #include "common/versions/versions.h"
 
 #include "game/kernel/common/kboot.h"
-#include "game/graphics/general_renderer/debug_gui.h"
 #include "game/settings/settings.h"
 #include "game/system/hid/display_manager.h"
 #include "game/system/hid/input_manager.h"
@@ -23,8 +22,8 @@
 struct GfxGlobalSettings;
 class GfxDisplay;
 
-// enum for rendering pipeline, Count must always be last index to represent total number of supported renderers
-enum class GfxPipeline { Invalid = 0, OpenGL, Vulkan, Count };
+// enum for rendering pipeline
+enum class GfxPipeline { Invalid = 0, OpenGL, Vulkan };
 
 // module for the different rendering pipelines
 struct GfxRendererModule {
@@ -108,11 +107,7 @@ extern game_settings::DebugSettings g_debug_settings;
 
 const GfxRendererModule* GetCurrentRenderer();
 
-extern GraphicsDebugGui debug_gui;
-void update_global_profiler();
-
 u32 Init(GameVersion version);
-void SetRenderer(GfxPipeline pipeline);
 void Loop(std::function<bool()> f);
 u32 Exit();
 

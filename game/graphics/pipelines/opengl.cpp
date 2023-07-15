@@ -23,7 +23,7 @@
 #include "game/graphics/gfx.h"
 #include "game/graphics/opengl_renderer/OpenGLRenderer.h"
 #include "game/graphics/general_renderer/debug_gui.h"
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/texture/TexturePoolOpenGL.h"
 #include "game/runtime.h"
 #include "game/sce/libscf.h"
 #include "game/system/hid/input_manager.h"
@@ -40,6 +40,10 @@
 #include "common/util/string_util.h"
 
 #include "third-party/stb_image/stb_image.h"
+
+constexpr bool run_dma_copy = false;
+
+constexpr PerGameVersion<int> fr3_level_count(jak1::LEVEL_TOTAL, jak2::LEVEL_TOTAL);
 
 struct GraphicsData {
   // vsync
@@ -77,7 +81,7 @@ struct GraphicsData {
         texture_pool(std::make_shared<TexturePool>(version)),
         loader(std::make_shared<Loader>(
             file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
-            pipeline_common::fr3_level_count[version])),
+            fr3_level_count[version])),
         ogl_renderer(texture_pool, loader, version),
         debug_gui(version),
         version(version) {}
@@ -297,7 +301,7 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   }
 
   prof().begin_event("startup::sdl::create_GLDisplay");
-  auto display = std::make_shared<GLDisplay>(window, gl_context, is_main);
+  auto display = std::make_shared<GLDisplay>(window, gl_context, Display::g_display_manager, Display::g_input_manager, is_main);
   display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
   prof().end_event();
 
@@ -314,11 +318,15 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   return std::static_pointer_cast<GfxDisplay>(display);
 }
 
-GLDisplay::GLDisplay(SDL_Window* window, SDL_GLContext gl_context, bool is_main)
+GLDisplay::GLDisplay(SDL_Window* window,
+                     SDL_GLContext gl_context,
+                     std::shared_ptr<DisplayManager> display_manager,
+                     std::shared_ptr<InputManager> input_manager,
+                     bool is_main)
     : m_window(window),
       m_gl_context(gl_context),
-      m_display_manager(std::make_shared<DisplayManager>(window)),
-      m_input_manager(std::make_shared<InputManager>()) {
+      m_display_manager(display_manager),
+      m_input_manager(input_manager) {
   m_main = is_main;
   m_display_manager->set_input_manager(m_input_manager);
   // Register commands
@@ -415,7 +423,7 @@ void render_game_frame(int game_width,
       options.msaa_samples = msaa_max;
     }
 
-    if constexpr (pipeline_common::run_dma_copy) {
+    if constexpr (run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
       g_gfx_data->ogl_renderer.render(DmaFollower(chain.data.data(), chain.start_offset), options);
     } else {
@@ -589,7 +597,7 @@ void GLDisplay::render() {
   // Start timing for the next frame.
   g_gfx_data->debug_gui.start_frame();
   prof().instant_event("ROOT");
-  Gfx::update_global_profiler();
+  update_global_profiler();
 
   // toggle even odd and wake up engine waiting on vsync.
   // TODO: we could play with moving this earlier, right after the final bucket renderer.
@@ -674,7 +682,7 @@ void gl_send_chain(const void* data, u32 offset) {
     // The renderers should just operate on DMA chains, so eliminating this step in the future
     // may be easy.
 
-    g_gfx_data->dma_copier.set_input_data(data, offset, pipeline_common::run_dma_copy);
+    g_gfx_data->dma_copier.set_input_data(data, offset, run_dma_copy);
 
     g_gfx_data->has_data_to_render = true;
     g_gfx_data->dma_cv.notify_all();

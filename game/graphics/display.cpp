@@ -43,11 +43,19 @@ void set_main_display(std::shared_ptr<GfxDisplay> display) {
 
 namespace Display {
 
+std::shared_ptr<InputManager> g_input_manager;
+std::shared_ptr<DisplayManager> g_display_manager;
+
 std::vector<std::shared_ptr<GfxDisplay>> g_displays;
 std::shared_ptr<GfxDisplay> GetMainDisplay() {
   if (g_displays.size() == 0)
     return NULL;
   return g_displays.front()->get_display_manager()->is_window_active() ? g_displays.front() : NULL;
+}
+
+void SetupPeripheralManagers(SDL_Window* window) {
+  g_input_manager = std::make_shared<InputManager>();
+  g_display_manager = std::make_shared<DisplayManager>(window);
 }
 
 int InitMainDisplay(int width,

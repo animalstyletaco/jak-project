@@ -1,4 +1,4 @@
-#include "TexturePool.h"
+#include "TexturePoolOpenGL.h"
 
 #include <algorithm>
 #include <regex>
@@ -7,7 +7,6 @@
 #include "common/util/Assert.h"
 #include "common/util/Timer.h"
 
-#include "game/graphics/pipelines/opengl.h"
 #include "game/graphics/texture/jak1_tpage_dir.h"
 #include "game/graphics/texture/jak2_tpage_dir.h"
 

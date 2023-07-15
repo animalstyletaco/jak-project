@@ -156,7 +156,7 @@ void GraphicsDebugGui::draw(const DmaStats& dma_stats) {
 
     if (ImGui::BeginMenu("Event Profiler")) {
       if (ImGui::Checkbox("Record", &record_events)) {
-        prof().set_enable(record_events);
+        profiler::prof().set_enable(record_events);
       }
       ImGui::MenuItem("Dump to file", nullptr, &dump_events);
       ImGui::EndMenu();

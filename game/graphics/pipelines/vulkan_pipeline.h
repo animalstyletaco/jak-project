@@ -12,6 +12,9 @@
 #include "game/graphics/pipelines/pipeline_common.h"
 
 #include "game/graphics/vulkan_renderer/vulkan_utils/ImguiVulkanHelper.h"
+#include "game/system/hid/input_manager.h"
+#include "game/system/hid/sdl_util.h"
+
 
 class VkDisplay : public GfxDisplay {
  public:

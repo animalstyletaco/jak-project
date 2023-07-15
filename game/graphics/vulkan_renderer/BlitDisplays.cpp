@@ -4,7 +4,7 @@
 
 #include "game/graphics/vulkan_renderer/VulkanRenderer.h"
 
-BlitDisplaysVulkan::BlitDisplaysVulkan(const std::string& name, int my_id, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) : BucketVulkanRenderer(device, vulkan_info), m_texture(device), m_sampler_helper(device) {
+BlitDisplaysVulkan::BlitDisplaysVulkan(const std::string& name, int my_id, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) : BaseBucketRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info), m_texture(device), m_sampler_helper(device) {
   // set up target texture
   u32 tbp = 0;
   switch (m_vulkan_info.m_version) {
@@ -93,3 +93,5 @@ void BlitDisplaysVulkan::render(DmaFollower& dma,
     }
   }
 }
+
+void BlitDisplaysVulkan::draw_debug_window() {}

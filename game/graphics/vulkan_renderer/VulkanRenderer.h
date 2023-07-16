@@ -14,7 +14,7 @@
 #include "game/graphics/vulkan_renderer/Shader.h"
 #include "game/graphics/vulkan_renderer/FullScreenDraw.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
-#include "game/tools/subtitles/subtitle_editor.h"
+#include "game/tools/subtitle_editor/subtitle_editor.h"
 
 
 /*!

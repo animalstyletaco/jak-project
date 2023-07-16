@@ -14,6 +14,7 @@
 
 #include "game/graphics/pipelines/opengl.h"
 #include "game/graphics/texture/TextureConverter.h"
+#include "game/graphics/texture/TextureID.h"
 #include "game/graphics/texture/TexturePoolDataTypes.h"
 
 /*!
@@ -22,16 +23,6 @@
 struct TextureData {
   GLuint gl = -1;            // the OpenGL texture ID
   const u8* data = nullptr;  // pointer to texture data (owned by the loader)
-};
-
-/*!
- * A texture provided by the loader.
- */
-struct TextureInput : BaseTextureInput {
-  GLuint gpu_texture = -1;
-
-  const u8* src_data;
-  u16 w, h;
 };
 
 /*!
@@ -91,6 +82,21 @@ struct TextureVRAMReference {
 };
 
 /*!
+ * A texture provided by the loader.
+ */
+struct TextureInput {
+  std::string debug_page_name;
+  std::string debug_name;
+
+  PcTextureId id;
+
+  GLuint gpu_texture = -1;
+  bool common = false;
+  const u8* src_data;
+  u16 w, h;
+};
+
+/*!
  * The main texture pool.
  * Moving textures around should be done with locking. (the game EE thread and the loader run
  * simultaneously)
@@ -109,10 +115,11 @@ struct TextureVRAMReference {
 class TexturePool {
  public:
   TexturePool(GameVersion version);
-  void handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr);
+  void handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr, bool debug);
   GpuTexture* give_texture(const TextureInput& in);
   GpuTexture* give_texture_and_load_to_vram(const TextureInput& in, u32 vram_slot);
   void unload_texture(PcTextureId tex_id, u64 gpu_id);
+  void update_gl_texture(GpuTexture* texture, u32 new_w, u32 new_h, GLuint new_gl_texture);
 
   /*!
    * Look up an OpenGL texture by vram address. Return std::nullopt if the game hasn't loaded

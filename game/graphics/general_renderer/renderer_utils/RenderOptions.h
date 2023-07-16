@@ -8,7 +8,6 @@ struct RenderOptions {
   bool draw_loader_window = false;
   bool draw_small_profiler_window = false;
   bool draw_subtitle_editor_window = false;
-  bool draw_subtitle2_editor_window = false;
   bool draw_filters_window = false;
 
   // internal rendering settings - The OpenGLRenderer will internally use this resolution/format.

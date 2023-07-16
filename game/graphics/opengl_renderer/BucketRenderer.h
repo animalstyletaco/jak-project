@@ -8,8 +8,9 @@
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/Profiler.h"
 #include "game/graphics/opengl_renderer/Shader.h"
+
 #include "game/graphics/general_renderer/buckets.h"
-#include "game/graphics/opengl_renderer/TextureAnimator.h"
+
 #include "game/graphics/opengl_renderer/loader/Loader.h"
 #include "game/graphics/texture/TexturePoolOpenGL.h"
 
@@ -28,7 +29,6 @@ struct SharedRenderState : BaseSharedRenderState {
   ShaderLibrary shaders;
   std::shared_ptr<TexturePool> texture_pool;
   std::shared_ptr<Loader> loader;
-  std::shared_ptr<TextureAnimator> texture_animator;
 
   void reset() override;
 

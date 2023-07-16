@@ -275,6 +275,7 @@ if(WIN32)
         graphics/vulkan_renderer/sprite/GlowRenderer.cpp
         graphics/vulkan_renderer/sprite/Sprite3_Distort.cpp
         graphics/vulkan_renderer/sprite/Sprite3.cpp
+        graphics/vulkan_renderer/TextureAnimator.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
         graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.cpp
         graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.cpp
@@ -331,6 +332,7 @@ endif()
         graphics/opengl_renderer/sprite/Sprite3_Distort.cpp
         graphics/opengl_renderer/sprite/Sprite3_Glow.cpp
         graphics/opengl_renderer/sprite/Sprite3.cpp
+        graphics/opengl_renderer/TextureAnimator.cpp
         graphics/opengl_renderer/TextureUploadHandler.cpp
         graphics/opengl_renderer/VisDataHandler.cpp
         graphics/opengl_renderer/Warp.cpp

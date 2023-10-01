@@ -4,29 +4,50 @@
 
 OceanVulkanMidAndFar::OceanVulkanMidAndFar(const std::string& name,
                                int my_id,
-                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+                               std::shared_ptr<GraphicsDeviceVulkan> device,
                                VulkanInitializationInfo& vulkan_info)
     : BaseOceanMidAndFar(name, my_id), BucketVulkanRenderer(device, vulkan_info),
-      m_direct(name, my_id, device, vulkan_info, 4096),
-      m_texture_renderer(true, device, vulkan_info), m_mid_renderer(device, vulkan_info) {
+      m_direct(name, my_id, device, vulkan_info, 4096) {
 }
 
-void OceanVulkanMidAndFar::draw_debug_window() {
+void OceanVulkanMidAndFarJak1::draw_debug_window() {
   m_texture_renderer.draw_debug_window();
   m_direct.draw_debug_window();
 }
 
-void OceanVulkanMidAndFar::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
-  m_direct_renderer_call_count = 0;
-  m_direct.set_current_index(m_direct_renderer_call_count);
-  BaseOceanMidAndFar::render(dma, render_state, prof);
+void OceanVulkanMidAndFarJak2::draw_debug_window() {
+  m_texture_renderer.draw_debug_window();
+  m_direct.draw_debug_window();
 }
 
-void OceanVulkanMidAndFar::init_textures(VulkanTexturePool& pool) {
+void OceanVulkanMidAndFarJak1::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+  m_direct_renderer_call_count = 0;
+  m_direct.set_current_index(m_direct_renderer_call_count);
+  BaseOceanMidAndFarJak1::render(dma, render_state, prof);
+}
+
+void OceanVulkanMidAndFarJak2::render(DmaFollower& dma,
+                                      SharedVulkanRenderState* render_state,
+                                      ScopedProfilerNode& prof) {
+  m_direct_renderer_call_count = 0;
+  m_direct.set_current_index(m_direct_renderer_call_count);
+  BaseOceanMidAndFarJak2::render(dma, render_state, prof);
+}
+
+void OceanVulkanMidAndFarJak1::init_textures(VulkanTexturePool& pool) {
   m_texture_renderer.init_textures(pool);
 }
 
-void OceanVulkanMidAndFar::ocean_mid_renderer_run(DmaFollower& dma,
+void OceanVulkanMidAndFarJak2::init_textures(VulkanTexturePool& pool) {
+  m_texture_renderer.init_textures(pool);
+}
+
+void OceanVulkanMidAndFarJak1::ocean_mid_renderer_run(DmaFollower& dma,
+                                                  BaseSharedRenderState* render_state,
+                                                  ScopedProfilerNode& prof) {
+  m_mid_renderer.run(dma, render_state, prof);
+}
+void OceanVulkanMidAndFarJak2::ocean_mid_renderer_run(DmaFollower& dma,
                                                   BaseSharedRenderState* render_state,
                                                   ScopedProfilerNode& prof) {
   m_mid_renderer.run(dma, render_state, prof);
@@ -51,15 +72,15 @@ void OceanVulkanMidAndFar::direct_renderer_reset_state() {
   m_direct.reset_state();
 }
 
-void OceanVulkanMidAndFar::texture_renderer_handle_ocean_texture_jak1(DmaFollower& dma,
+void OceanVulkanMidAndFarJak1::texture_renderer_handle_ocean_texture(DmaFollower& dma,
                                                                  BaseSharedRenderState* render_state,
                                                                  ScopedProfilerNode& prof) {
-  m_texture_renderer.handle_ocean_texture_jak1(dma, render_state, prof);
+  m_texture_renderer.handle_ocean_texture(dma, render_state, prof);
 }
 
-void OceanVulkanMidAndFar::texture_renderer_handle_ocean_texture_jak2(
+void OceanVulkanMidAndFarJak2::texture_renderer_handle_ocean_texture(
     DmaFollower& dma,
     BaseSharedRenderState* render_state,
     ScopedProfilerNode& prof) {
-  m_texture_renderer.handle_ocean_texture_jak2(dma, render_state, prof);
+  m_texture_renderer.handle_ocean_texture(dma, render_state, prof);
 }

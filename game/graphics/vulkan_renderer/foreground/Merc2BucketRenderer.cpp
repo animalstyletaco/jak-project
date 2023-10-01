@@ -2,7 +2,7 @@
 
 MercVulkan2BucketRenderer::MercVulkan2BucketRenderer(const std::string& name,
                                                    int my_id,
-                                                   std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                   std::shared_ptr<GraphicsDeviceVulkan> device,
                                                    VulkanInitializationInfo& vulkan_info,
                                                    std::shared_ptr<MercVulkan2> merc2) : BaseMerc2BucketRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info), m_merc2(merc2) {
 }

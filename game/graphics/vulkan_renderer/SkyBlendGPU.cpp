@@ -4,7 +4,7 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) :
   m_device(device), m_vulkan_info(vulkan_info) {
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -40,7 +40,6 @@ SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::unique_ptr<GraphicsDeviceVulkan>& devi
 
   // setup the framebuffers
   for (int i = 0; i < 2; i++) {
-    m_graphics_pipeline_layouts[i] = std::make_unique<GraphicsPipelineLayout>(m_device);
     m_sampler_helpers[i] = std::make_unique<VulkanSamplerHelper>(m_device);
     m_framebuffers[i] = std::make_unique<FramebufferVulkanHelper>(
         m_sizes[i], m_sizes[i], VK_FORMAT_R8G8B8A8_UNORM, m_device);
@@ -232,8 +231,8 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
 
     m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[buffer_idx]);
 
-    m_graphics_pipeline_layouts[buffer_idx]->createGraphicsPipeline(m_pipeline_config_info);
-    m_graphics_pipeline_layouts[buffer_idx]->bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, 1,

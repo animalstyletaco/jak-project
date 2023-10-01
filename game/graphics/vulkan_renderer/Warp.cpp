@@ -1,6 +1,6 @@
 #include "Warp.h"
 
-WarpVulkan::WarpVulkan(const std::string& name, int id, std::shared_ptr<GenericVulkan2> generic2_renderer, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+WarpVulkan::WarpVulkan(const std::string& name, int id, std::shared_ptr<GenericVulkan2> generic2_renderer, std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) :
   BaseWarp(name, id), BucketVulkanRenderer(device, vulkan_info), m_generic(generic2_renderer), m_fb_copier(device, vulkan_info.swap_chain) {
 
   VulkanTextureInput in;

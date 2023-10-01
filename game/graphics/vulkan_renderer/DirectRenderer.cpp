@@ -9,7 +9,7 @@
 
 DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
                                int my_id,
-                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+                               std::shared_ptr<GraphicsDeviceVulkan> device,
                                VulkanInitializationInfo& vulkan_info,
                                int batch_size)
     : BaseDirectRenderer(name, my_id, batch_size), BucketVulkanRenderer(device, vulkan_info) {
@@ -53,8 +53,6 @@ void DirectVulkanRenderer::allocate_new_descriptor_set() {
   auto& graphics_helper = m_graphics_helper_map[totalImageCount - 1];
 
   graphics_helper.sampler = std::make_unique<VulkanSamplerHelper>(m_device);
-  graphics_helper.graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
-  graphics_helper.debug_graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
 
   m_descriptor_sets.emplace_back();
   m_vulkan_info.descriptor_pool->allocateDescriptor(
@@ -596,7 +594,7 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
 
   int draw_count = 0;
 
-  m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->createGraphicsPipeline(
+  m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->updateGraphicsPipeline(
       m_pipeline_config_info);
   m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->bind(
       m_vulkan_info.render_command_buffer);
@@ -625,8 +623,8 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 
-    m_graphics_helper_map[currentImageIndex].debug_graphics_pipeline_layout->createGraphicsPipeline(m_pipeline_config_info);
-    m_graphics_helper_map[currentImageIndex].debug_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
+    m_debug_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_debug_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, 1,

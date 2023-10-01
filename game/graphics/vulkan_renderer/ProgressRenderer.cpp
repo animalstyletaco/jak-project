@@ -2,7 +2,7 @@
 
 ProgressVulkanRenderer::ProgressVulkanRenderer(const std::string& name,
                                                int my_id,
-                                               std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                               std::shared_ptr<GraphicsDeviceVulkan> device,
                                                VulkanInitializationInfo& vulkan_info,
                                                int batch_size)
     : DirectVulkanRenderer(name, my_id, device, vulkan_info, batch_size),

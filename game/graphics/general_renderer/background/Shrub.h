@@ -51,4 +51,5 @@ class BaseShrub : public BaseBucketRenderer {
   std::vector<math::Vector<u8, 4>> m_color_result;
 
   bool m_has_level = false;
+  bool m_use_fast_time_of_day = true;
 };

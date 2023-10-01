@@ -19,7 +19,7 @@ class ImguiVulkanHelper {
   void recreateGraphicsPipeline(ImGui_ImplVulkan_Data* bd,
                                 VkSampleCountFlagBits msaaCount);
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   std::unique_ptr<DescriptorPool> m_descriptor_pool;
   uint64_t m_current_image_index = 0;
 

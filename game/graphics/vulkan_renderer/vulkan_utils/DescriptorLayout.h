@@ -7,7 +7,7 @@ class DescriptorLayout {
  public:
   class Builder {
    public:
-    Builder(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device{device} {}
+    Builder(std::shared_ptr<GraphicsDeviceVulkan> device) : m_device{device} {}
 
     Builder& addBinding(uint32_t binding,
                         VkDescriptorType descriptorType,
@@ -16,11 +16,11 @@ class DescriptorLayout {
     std::unique_ptr<DescriptorLayout> build() const;
 
    private:
-    std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+    std::shared_ptr<GraphicsDeviceVulkan> m_device;
     std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> m_bindings{};
   };
 
-  DescriptorLayout(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  DescriptorLayout(std::shared_ptr<GraphicsDeviceVulkan> device,
                    std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings,
                    VkDescriptorSetLayoutCreateFlags flags = 0);
   ~DescriptorLayout();
@@ -30,7 +30,7 @@ class DescriptorLayout {
   VkDescriptorSetLayout getDescriptorSetLayout() const { return m_descriptor_set_layout; }
 
  private:
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VkDescriptorSetLayout m_descriptor_set_layout;
   std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> m_bindings;
 
@@ -41,7 +41,7 @@ class DescriptorPool {
  public:
   class Builder {
    public:
-    Builder(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device{device} {}
+    Builder(std::shared_ptr<GraphicsDeviceVulkan> device) : m_device{device} {}
 
     Builder& addPoolSize(VkDescriptorType descriptorType, uint32_t count);
     Builder& setPoolFlags(VkDescriptorPoolCreateFlags flags);
@@ -49,13 +49,13 @@ class DescriptorPool {
     std::unique_ptr<DescriptorPool> build() const;
 
    private:
-    std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+    std::shared_ptr<GraphicsDeviceVulkan> m_device;
     std::vector<VkDescriptorPoolSize> m_pool_sizes{};
     uint32_t maxSets = 1000;
     VkDescriptorPoolCreateFlags poolFlags = 0;
   };
 
-  DescriptorPool(std::unique_ptr<GraphicsDeviceVulkan>& lveDevice,
+  DescriptorPool(std::shared_ptr<GraphicsDeviceVulkan> lveDevice,
                  uint32_t maxSets,
                  VkDescriptorPoolCreateFlags poolFlags,
                  const std::vector<VkDescriptorPoolSize>& poolSizes);
@@ -68,12 +68,12 @@ class DescriptorPool {
 
   void freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const;
   VkDescriptorPool getDescriptorPool() { return m_descriptor_pool; }
-  std::unique_ptr<GraphicsDeviceVulkan>& device(){ return m_device; }
+  std::shared_ptr<GraphicsDeviceVulkan> device(){ return m_device; }
 
   void resetPool();
 
  private:
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VkDescriptorPool m_descriptor_pool;
 
   friend class DescriptorWriter;

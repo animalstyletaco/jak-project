@@ -86,7 +86,7 @@ struct VulkanTextureVRAMReference {
  */
 class VulkanTexturePool {
  public:
-  VulkanTexturePool(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& device);
+  VulkanTexturePool(GameVersion version, std::shared_ptr<GraphicsDeviceVulkan> device);
   ~VulkanTexturePool();
   void handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr);
   VulkanGpuTextureMap* give_texture(const VulkanTextureInput& in);
@@ -141,7 +141,7 @@ class VulkanTexturePool {
   };
   std::vector<Mt4hhTexture> m_mt4hh_textures;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VulkanTexture m_placeholder_texture{m_device};
   VkSampler m_placeholder_sampler = VK_NULL_HANDLE;
 

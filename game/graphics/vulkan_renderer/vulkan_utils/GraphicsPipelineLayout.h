@@ -25,16 +25,20 @@ struct PipelineConfigInfo {
 
 class GraphicsPipelineLayout {
  public:
-  GraphicsPipelineLayout(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  GraphicsPipelineLayout(std::shared_ptr<GraphicsDeviceVulkan> device);
   ~GraphicsPipelineLayout();
 
   void bind(VkCommandBuffer commandBuffer);
-  void createGraphicsPipeline(PipelineConfigInfo& configInfo);
+  void updateGraphicsPipeline(PipelineConfigInfo& configInfo);
+  PipelineConfigInfo GetCurrentConfiguration() { return _currentPipelineConfig; };
   void destroyPipeline();
 
   static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
 
  private:
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
-  VkPipeline m_graphics_pipeline = VK_NULL_HANDLE;
+  void createGraphicsPipeline(PipelineConfigInfo& configInfo);
+
+  std::shared_ptr<GraphicsDeviceVulkan> _device;
+  PipelineConfigInfo _currentPipelineConfig{};
+  VkPipeline _graphicsPipeline = VK_NULL_HANDLE;
 };

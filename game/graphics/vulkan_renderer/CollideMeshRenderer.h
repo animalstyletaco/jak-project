@@ -20,21 +20,21 @@ struct PatColors {
 
 class CollisionMeshVertexUniformBuffer : public UniformVulkanBuffer {
  public:
-  CollisionMeshVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  CollisionMeshVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                    uint32_t instanceCount,
                                    VkDeviceSize minOffsetAlignment = 1);
 };
 
 class CollisionMeshVertexPatternUniformBuffer : public UniformVulkanBuffer {
  public:
-  CollisionMeshVertexPatternUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  CollisionMeshVertexPatternUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                    uint32_t instanceCount,
                                    VkDeviceSize minOffsetAlignment = 1);
 };
 
 class CollideMeshVulkanRenderer {
  public:
-  CollideMeshVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
+  CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
   void render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
   ~CollideMeshVulkanRenderer();
 
@@ -58,7 +58,7 @@ class CollideMeshVulkanRenderer {
 
   PatColors m_colors;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   CollisionMeshVertexUniformBuffer m_collision_mesh_vertex_uniform_buffer;
 
   GraphicsPipelineLayout m_pipeline_layout;

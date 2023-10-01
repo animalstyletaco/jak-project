@@ -5,7 +5,7 @@
 #include "third-party/imgui/imgui.h"
 
 OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
-                           std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           std::shared_ptr<GraphicsDeviceVulkan> device,
                            VulkanInitializationInfo& vulkan_info)
     : BaseOceanTexture(m_generate_mipmaps),
       m_device(device),
@@ -86,16 +86,16 @@ void OceanVulkanTexture::init_textures(VulkanTexturePool& pool) {
   m_tex0_gpu = pool.give_texture_and_load_to_vram(in, id);
 }
 
-void OceanVulkanTexture::handle_ocean_texture(DmaFollower& dma,
+void OceanVulkanTextureJak1::handle_ocean_texture(DmaFollower& dma,
                                         BaseSharedRenderState* render_state,
                                         ScopedProfilerNode& prof) {
-  if (render_state->version == GameVersion::Jak1) {
-    BaseOceanTexture::handle_ocean_texture_jak1(dma, render_state, prof);
-  } else if (render_state->version == GameVersion::Jak2) {
-    BaseOceanTexture::handle_ocean_texture_jak2(dma, render_state, prof);
-  } else {
-    assert(false);
-  }
+    BaseOceanTextureJak1::handle_ocean_texture(dma, render_state, prof);
+}
+
+void OceanVulkanTextureJak2::handle_ocean_texture(DmaFollower& dma,
+                                                  BaseSharedRenderState* render_state,
+                                                  ScopedProfilerNode& prof) {
+  BaseOceanTextureJak2::handle_ocean_texture(dma, render_state, prof);
 }
 
 /*!
@@ -170,7 +170,7 @@ void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfil
 
   SetupShader(ShaderId::OCEAN_TEXTURE);
 
-  m_ocean_texture_graphics_pipeline_layout->createGraphicsPipeline(m_pipeline_info);
+  m_ocean_texture_graphics_pipeline_layout->updateGraphicsPipeline(m_pipeline_info);
   m_ocean_texture_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
 
   GsTex0 tex0(m_envmap_adgif.tex0_data);

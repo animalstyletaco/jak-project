@@ -236,13 +236,13 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
 void vulkan_background_common::first_tfrag_draw_setup(
   const TfragRenderSettings& settings,
   BackgroundCommonVertexUniformShaderData* uniform_vertex_push_constant) {
-    uniform_vertex_push_constant->camera = settings.math_camera;
+    uniform_vertex_push_constant->camera = settings.camera.camera;
     uniform_vertex_push_constant->hvdf_offset =
-        math::Vector4f{settings.hvdf_offset[0], settings.hvdf_offset[1], settings.hvdf_offset[2],
-                       settings.hvdf_offset[3]};
-    uniform_vertex_push_constant->fog_constant = settings.fog.x();
-    uniform_vertex_push_constant->fog_min = settings.fog.y();
-    uniform_vertex_push_constant->fog_max = settings.fog.z();
+        math::Vector4f{settings.camera.hvdf_off[0], settings.camera.hvdf_off[1], settings.camera.hvdf_off[2],
+                       settings.camera.hvdf_off[3]};
+    uniform_vertex_push_constant->fog_constant = settings.camera.fog.x();
+    uniform_vertex_push_constant->fog_min = settings.camera.fog.y();
+    uniform_vertex_push_constant->fog_max = settings.camera.fog.z();
 }
 
 void vulkan_background_common::make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
@@ -563,7 +563,7 @@ VkDescriptorImageInfo vulkan_background_common::create_placeholder_descriptor_im
 }
 
 BackgroundCommonEtieBaseVertexUniformBuffer::BackgroundCommonEtieBaseVertexUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device,
@@ -577,7 +577,7 @@ BackgroundCommonEtieBaseVertexUniformBuffer::BackgroundCommonEtieBaseVertexUnifo
 }
 
 BackgroundCommonEtieVertexUniformBuffer::BackgroundCommonEtieVertexUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device,

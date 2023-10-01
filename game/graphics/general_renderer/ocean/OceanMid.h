@@ -16,26 +16,20 @@ class BaseOceanMid {
   virtual void common_ocean_renderer_flush_mid(BaseSharedRenderState* render_state,
     ScopedProfilerNode& prof) = 0;
 
-  void prepare_for_run_jak1(DmaFollower& dma, BaseSharedRenderState* render_state);
-  void prepare_for_run_jak2(DmaFollower& dma, BaseSharedRenderState* render_state);
+  virtual void prepare_for_run(DmaFollower& dma, BaseSharedRenderState* render_state) = 0;
   void run_call0();
   void run_call0_vu2c();
   void run_call41_vu2c();
   void run_call43_vu2c();
   void run_call46_vu2c();
-  void run_call73_vu2c();
-  void run_call73_vu2c_jak2();
-  void run_call107_vu2c();
-  void run_call107_vu2c_jak2();
-  void run_call275_vu2c();
-  void run_call275_vu2c_jak2();
+  virtual void run_call73_vu2c() = 0;
+  virtual void run_call107_vu2c() = 0;
+  virtual void run_call275_vu2c() = 0;
   void xgkick(u16 addr);
 
   void run_L26_vu2c();
-  void run_L32_vu2c();
-  void run_L32_vu2c_jak2();
-  void run_L38_vu2c();
-  void run_L38_vu2c_jak2();
+  virtual void run_L32_vu2c() = 0;
+  virtual void run_L38_vu2c() = 0;
   void run_L43_vu2c();
   void run_L45_vu2c();
 
@@ -194,4 +188,25 @@ class BaseOceanMid {
     float Q, P;
     Vu() : vf00(0, 0, 0, 1) {}
   } vu;
+};
+
+class BaseOceanMidJak1 : public virtual BaseOceanMid {
+  void prepare_for_run(DmaFollower& dma, BaseSharedRenderState* render_state) override;
+  void run_call73_vu2c() override;
+  void run_call107_vu2c() override;
+  void run_call275_vu2c() override;
+
+  void run_L32_vu2c() override;
+  void run_L38_vu2c() override;
+};
+
+class BaseOceanMidJak2 : public virtual BaseOceanMid {
+ protected:
+  void prepare_for_run(DmaFollower& dma, BaseSharedRenderState* render_state) override;
+  void run_call73_vu2c() override;
+  void run_call107_vu2c() override;
+  void run_call275_vu2c() override;
+
+  void run_L32_vu2c() override;
+  void run_L38_vu2c() override;
 };

@@ -42,8 +42,7 @@ class BaseGeneric2 {
   void draws_to_buckets();
   void reset_buffers();
   void process_matrices();
-  void process_dma_jak1(DmaFollower& dma, u32 next_bucket);
-  void process_dma_jak2(DmaFollower& dma, u32 next_bucket);
+  virtual void process_dma(DmaFollower& dma, u32 next_bucket) = 0;
   void process_dma_lightning(DmaFollower& dma, u32 next_bucket);
   void setup_draws(bool enable_at);
   virtual void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
@@ -187,4 +186,28 @@ class BaseGeneric2 {
 
   static constexpr int ALPHA_MODE_COUNT = 7;
   bool m_alpha_draw_enable[ALPHA_MODE_COUNT] = {true, true, true, true, true, true, true};
+};
+
+class BaseGeneric2Jak1 : public virtual BaseGeneric2 {
+ public:
+  BaseGeneric2Jak1(u32 num_verts,
+                   u32 num_frags,
+                   u32 num_adgif,
+                   u32 num_buckets)
+      : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets) {}
+
+ protected:
+  void process_dma(DmaFollower& dma, u32 next_bucket) override;
+};
+
+class BaseGeneric2Jak2 : public virtual BaseGeneric2 {
+ public:
+  BaseGeneric2Jak2(u32 num_verts,
+                   u32 num_frags,
+                   u32 num_adgif,
+                   u32 num_buckets)
+      : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets) {}
+
+ protected:
+  void process_dma(DmaFollower& dma, u32 next_bucket);
 };

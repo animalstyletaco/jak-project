@@ -1,12 +1,12 @@
 #include "SwapChain.h"
 #include <stdexcept>
 
-SwapChain::SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef, VkExtent2D extent, bool vsyncEnabled)
+SwapChain::SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef, VkExtent2D extent, bool vsyncEnabled)
     : device{deviceRef}, windowExtent{extent}, m_render_pass_sample{deviceRef->getMsaaCount()} {
   init(vsyncEnabled);
 }
 
-SwapChain::SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef,
+SwapChain::SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
                      VkExtent2D extent, bool vsyncEnabled,
                      std::shared_ptr<SwapChain> previous)
     : device{deviceRef},

@@ -5,7 +5,7 @@
 
 EmptyBucketVulkanRenderer::EmptyBucketVulkanRenderer(const std::string& name,
                                                      int m_my_id,
-                                                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                     std::shared_ptr<GraphicsDeviceVulkan> device,
                                                      VulkanInitializationInfo& vulkan_info)
     : BaseEmptyBucketRenderer(name, m_my_id), BucketVulkanRenderer(device, vulkan_info) {
 }
@@ -16,7 +16,7 @@ void EmptyBucketVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState
 
 SkipVulkanRenderer::SkipVulkanRenderer(const std::string& name,
                                        int m_my_id,
-                           std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           std::shared_ptr<GraphicsDeviceVulkan> device,
                            VulkanInitializationInfo& vulkan_info)
     : BaseSkipRenderer(name, m_my_id), BucketVulkanRenderer(device, vulkan_info) {}
 
@@ -28,7 +28,7 @@ void SkipVulkanRenderer::render(DmaFollower& dma,
 
 RenderVulkanMux::RenderVulkanMux(const std::string& name,
                                  int m_my_id,
-                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                     std::shared_ptr<GraphicsDeviceVulkan> device,
                      VulkanInitializationInfo& vulkan_info,
                      std::vector<std::shared_ptr<BucketVulkanRenderer>> renderers,
                      std::vector<std::shared_ptr<BaseBucketRenderer>> bucket_renderers)

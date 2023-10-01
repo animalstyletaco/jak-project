@@ -4,7 +4,7 @@
 
 class VulkanSamplerHelper {
 public:
-  VulkanSamplerHelper(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+  VulkanSamplerHelper(std::shared_ptr<GraphicsDeviceVulkan> device) : m_device(device) {
     m_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     m_create_info.maxAnisotropy = m_device->getMaxSamplerAnisotropy();
     m_create_info.minLod = -1000;
@@ -27,7 +27,7 @@ private:
    }
   }
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
 
   VkSamplerCreateInfo m_create_info{};
   VkSampler m_sampler = VK_NULL_HANDLE;

@@ -14,20 +14,14 @@
  * - ocean-mid (handled by the C++ OceanMid class)
  */
 
-class OceanVulkanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRenderer {
+class OceanVulkanMidAndFar : public virtual BaseOceanMidAndFar, public BucketVulkanRenderer {
  public:
   OceanVulkanMidAndFar(const std::string& name,
                  int my_id,
-                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                 std::shared_ptr<GraphicsDeviceVulkan> device,
                  VulkanInitializationInfo& vulkan_info);
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void init_textures(VulkanTexturePool& pool) override;
-  void draw_debug_window() override;
 
- private:
-  void ocean_mid_renderer_run(DmaFollower& dma,
-                              BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof) override;
+ protected:
   void direct_renderer_render_gif(const u8* data,
                                   u32 size,
                                   BaseSharedRenderState* render_state,
@@ -36,16 +30,66 @@ class OceanVulkanMidAndFar : public BaseOceanMidAndFar, public BucketVulkanRende
                                      ScopedProfilerNode& prof) override;
   void direct_renderer_set_mipmap(bool isMipmapEnabled) override;
   void direct_renderer_reset_state() override;
-  void texture_renderer_handle_ocean_texture_jak1(DmaFollower& dma,
-                                             BaseSharedRenderState* render_state,
-                                             ScopedProfilerNode& prof) override;
-  void texture_renderer_handle_ocean_texture_jak2(DmaFollower& dma,
-                                             BaseSharedRenderState* render_state,
-                                             ScopedProfilerNode& prof) override;
 
   DirectVulkanRenderer m_direct;
-  OceanVulkanTexture m_texture_renderer;
-  OceanMidVulkan m_mid_renderer;
 
   u64 m_direct_renderer_call_count = 0;
+};
+
+class OceanVulkanMidAndFarJak1 : public BaseOceanMidAndFarJak1, public OceanVulkanMidAndFar {
+ public:
+  OceanVulkanMidAndFarJak1(const std::string& name,
+                           int my_id,
+                           std::shared_ptr<GraphicsDeviceVulkan> device,
+                           VulkanInitializationInfo& vulkan_info)
+      : BaseOceanMidAndFar(name, my_id),
+        BaseOceanMidAndFarJak1(name, my_id),
+        OceanVulkanMidAndFar(name, my_id, device, vulkan_info),
+        m_texture_renderer(true, device, vulkan_info),
+        m_mid_renderer(device, vulkan_info){};
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
+  void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) override;
+  void init_textures(VulkanTexturePool& pool) override;
+  void draw_debug_window() override;
+
+ private:
+  void ocean_mid_renderer_run(DmaFollower& dma,
+                              BaseSharedRenderState* render_state,
+                              ScopedProfilerNode& prof) override;
+
+  OceanVulkanTextureJak1 m_texture_renderer;
+  OceanMidVulkanJak1 m_mid_renderer;
+};
+
+class OceanVulkanMidAndFarJak2 : public BaseOceanMidAndFarJak2, public OceanVulkanMidAndFar {
+ public:
+  OceanVulkanMidAndFarJak2(const std::string& name,
+                           int my_id,
+                           std::shared_ptr<GraphicsDeviceVulkan> device,
+                           VulkanInitializationInfo& vulkan_info)
+      : BaseOceanMidAndFar(name, my_id),
+        BaseOceanMidAndFarJak2(name, my_id),
+        OceanVulkanMidAndFar(name, my_id, device, vulkan_info),
+        m_texture_renderer(true, device, vulkan_info),
+        m_mid_renderer(device, vulkan_info){};
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
+  void texture_renderer_handle_ocean_texture(DmaFollower& dma,
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) override;
+  void init_textures(VulkanTexturePool& pool) override;
+  void draw_debug_window() override;
+
+  private:
+  void ocean_mid_renderer_run(DmaFollower& dma,
+                              BaseSharedRenderState* render_state,
+                              ScopedProfilerNode& prof) override;
+
+  OceanVulkanTextureJak2 m_texture_renderer;
+  OceanMidVulkanJak2 m_mid_renderer;
 };

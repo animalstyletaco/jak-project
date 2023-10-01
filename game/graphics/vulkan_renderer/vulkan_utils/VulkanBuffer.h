@@ -8,7 +8,7 @@
 
 class VulkanBuffer {
  public:
-  VulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  VulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                VkDeviceSize instanceSize,
                uint32_t instanceCount,
                VkBufferUsageFlags usageFlags,
@@ -47,12 +47,12 @@ class VulkanBuffer {
   VkBufferUsageFlags getUsageFlags() const { return usageFlags; }
   VkMemoryPropertyFlags getMemoryPropertyFlags() const { return memoryPropertyFlags; }
   VkDeviceSize getBufferSize() const { return bufferSize; }
-  std::unique_ptr<GraphicsDeviceVulkan>& getDevice() const { return m_device; }
+  std::shared_ptr<GraphicsDeviceVulkan> getDevice() const { return m_device; }
 
  protected:
   static VkDeviceSize getAlignment(VkDeviceSize instanceSize, VkDeviceSize minOffsetAlignment);
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   void* mapped = nullptr;
   VkBuffer buffer = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
@@ -68,7 +68,7 @@ class VulkanBuffer {
 
 class VertexBuffer : public VulkanBuffer {
  public:
-  VertexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  VertexBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                VkDeviceSize instanceSize,
                uint32_t instanceCount,
                VkDeviceSize minOffsetAlignment = 1);
@@ -76,7 +76,7 @@ class VertexBuffer : public VulkanBuffer {
 
 class IndexBuffer : public VulkanBuffer {
  public:
-  IndexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  IndexBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
               VkDeviceSize instanceSize,
               uint32_t instanceCount,
               VkDeviceSize minOffsetAlignment = 1);
@@ -84,7 +84,7 @@ class IndexBuffer : public VulkanBuffer {
 
 class StagingBuffer : public VulkanBuffer {
  public:
-  StagingBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  StagingBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                 VkDeviceSize instanceSize,
                 uint32_t instanceCount,
                 VkBufferUsageFlags properties,
@@ -93,7 +93,7 @@ class StagingBuffer : public VulkanBuffer {
 
 class UniformVulkanBuffer : public UniformBuffer, public VulkanBuffer {
  public:
-  UniformVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  UniformVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                       VkDeviceSize instanceSize,
                       uint32_t instanceCount,
                       VkDeviceSize minOffsetAlignment = 1);
@@ -111,7 +111,7 @@ class UniformVulkanBuffer : public UniformBuffer, public VulkanBuffer {
 
 class TexelVulkanBuffer : public VulkanBuffer {
  public:
-  TexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  TexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                     VkDeviceSize instanceSize,
                     uint32_t instanceCount,
                     VkBufferUsageFlagBits bufferUsage,
@@ -130,7 +130,7 @@ class TexelVulkanBuffer : public VulkanBuffer {
 
 class UniformTexelVulkanBuffer : public TexelVulkanBuffer {
  public:
-  UniformTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  UniformTexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                            VkDeviceSize instanceSize,
                            uint32_t instanceCount,
                            VkDeviceSize minOffsetAlignment = 1);
@@ -138,7 +138,7 @@ class UniformTexelVulkanBuffer : public TexelVulkanBuffer {
 
 class StorageTexelVulkanBuffer : public TexelVulkanBuffer {
  public:
-  StorageTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  StorageTexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                            VkDeviceSize instanceSize,
                            uint32_t instanceCount,
                            VkDeviceSize minOffsetAlignment = 1);
@@ -146,7 +146,7 @@ class StorageTexelVulkanBuffer : public TexelVulkanBuffer {
 
 class MultiDrawVulkanBuffer : public UniformBuffer, public VulkanBuffer {
  public:
-  MultiDrawVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  MultiDrawVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                   uint32_t instanceCount,
                   VkDeviceSize minOffsetAlignment = 1);
 

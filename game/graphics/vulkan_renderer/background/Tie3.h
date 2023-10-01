@@ -13,7 +13,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
  public:
   Tie3Vulkan(const std::string& name,
        int my_id,
-       std::unique_ptr<GraphicsDeviceVulkan>& device,
+       std::shared_ptr<GraphicsDeviceVulkan> device,
        VulkanInitializationInfo& vulkan_info,
              int level_id,
              tfrag3::TieCategory category = tfrag3::TieCategory::NORMAL);
@@ -59,10 +59,6 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     std::unique_ptr<IndexBuffer> single_draw_index_buffer;
     std::unique_ptr<VulkanTexture> time_of_day_texture;
     IndexBuffer* wind_index_buffer;
-
-    std::vector<GraphicsPipelineLayout> graphics_pipeline_catergory_layouts;
-    std::vector<GraphicsPipelineLayout> etie_graphics_pipeline_catergory_layouts;
-    std::vector<GraphicsPipelineLayout> instanced_wind_graphics_pipeline_layouts;
 
     std::unique_ptr<VulkanSamplerHelper> time_of_day_sampler_helper;
     std::vector<VulkanSamplerHelper> instanced_wind_sampler_helpers;
@@ -167,7 +163,7 @@ class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkan
  public:
   Tie3VulkanAnotherCategory(const std::string& name,
                             int my_id,
-                            std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            std::shared_ptr<GraphicsDeviceVulkan> device,
                             VulkanInitializationInfo& vulkan_info,
                             Tie3Vulkan* parent,
                             tfrag3::TieCategory category);
@@ -189,7 +185,7 @@ class Tie3VulkanWithEnvmapJak1 : public Tie3Vulkan {
  public:
   Tie3VulkanWithEnvmapJak1(const std::string& name,
                            int my_id,
-                           std::unique_ptr<GraphicsDeviceVulkan>& device,
+                           std::shared_ptr<GraphicsDeviceVulkan> device,
                            VulkanInitializationInfo& vulkan_info,
                            int level_id);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;

@@ -209,7 +209,7 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   m_pipeline_config_info.pipelineLayout = m_sprite_distort_pipeline_layout;
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-  m_distorted_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+  m_distorted_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
   m_distorted_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
@@ -284,7 +284,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
                    VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant),
                    sizeof(float), &m_sprite_distort_push_constant.height_scale);
 
-  m_distorted_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+  m_distorted_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
   m_distorted_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);

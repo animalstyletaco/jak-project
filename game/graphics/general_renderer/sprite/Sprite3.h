@@ -14,7 +14,6 @@
 class BaseSprite3 : public BaseBucketRenderer {
  public:
   BaseSprite3(const std::string& name, int my_id);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  protected:
@@ -43,9 +42,6 @@ class BaseSprite3 : public BaseBucketRenderer {
                                                      u32 totalBytes,
                                                      float* data,
                                                      u32 flags = 0) = 0;
-
-  void render_jak1(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void render_jak2(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
 
   virtual void graphics_setup() = 0;
   virtual void graphics_setup_normal() = 0;
@@ -225,4 +221,20 @@ class BaseSprite3 : public BaseBucketRenderer {
       256 * 12;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
 
   int expect_zbp, expect_th;
+};
+
+class BaseSprite3Jak1 : public virtual BaseSprite3 {
+ public:
+  BaseSprite3Jak1(const std::string& name, int my_id) : BaseSprite3(name, my_id){};
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
+};
+
+class BaseSprite3Jak2 : public virtual BaseSprite3 {
+ public:
+  BaseSprite3Jak2(const std::string& name, int my_id) : BaseSprite3(name, my_id){};
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
 };

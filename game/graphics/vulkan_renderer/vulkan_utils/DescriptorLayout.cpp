@@ -26,7 +26,7 @@ std::unique_ptr<DescriptorLayout> DescriptorLayout::Builder::build() const {
 // *************** Descriptor Set Layout *********************
 
 DescriptorLayout::DescriptorLayout(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings,
     VkDescriptorSetLayoutCreateFlags descriptor_layout_create_flag)
     : m_device{device}, m_bindings{bindings} {
@@ -76,7 +76,7 @@ std::unique_ptr<DescriptorPool> DescriptorPool::Builder::build() const {
 
 // *************** Descriptor Pool *********************
 
-DescriptorPool::DescriptorPool(std::unique_ptr<GraphicsDeviceVulkan>& device,
+DescriptorPool::DescriptorPool(std::shared_ptr<GraphicsDeviceVulkan> device,
                                uint32_t maxSets,
                                VkDescriptorPoolCreateFlags poolFlags,
                                const std::vector<VkDescriptorPoolSize>& poolSizes)

@@ -7,7 +7,7 @@
  */
 class BlitDisplaysVulkan : public BaseBucketRenderer, public BucketVulkanRenderer {
  public:
-  BlitDisplaysVulkan(const std::string& name, int my_id, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
+  BlitDisplaysVulkan(const std::string& name, int my_id, std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void render(DmaFollower& dma,
               BaseSharedRenderState* render_state,

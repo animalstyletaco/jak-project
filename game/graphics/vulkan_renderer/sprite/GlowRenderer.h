@@ -11,7 +11,7 @@
 
 class GlowVulkanRenderer : public BaseGlowRenderer {
  public:
-  GlowVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
+  GlowVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
 
   FramebufferVulkanHelper* render_fb = NULL;
  private:
@@ -48,7 +48,7 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
 
   void SwitchToShader(ShaderId);
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VulkanInitializationInfo& m_vulkan_info;
 
   struct DownsampleFramebufferObject {

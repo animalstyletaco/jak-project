@@ -16,7 +16,7 @@ class ProgressVulkanRenderer : public DirectVulkanRenderer {
   static constexpr int kMinimapFbp = 126;
   ProgressVulkanRenderer(const std::string& name,
                          int my_id,
-                         std::unique_ptr<GraphicsDeviceVulkan>& device,
+                         std::shared_ptr<GraphicsDeviceVulkan> device,
                          VulkanInitializationInfo& vulkan_info,
                          int batch_size);
   void handle_frame(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;

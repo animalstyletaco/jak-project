@@ -4,7 +4,7 @@
 
 Tie3Vulkan::Tie3Vulkan(const std::string& name,
                        int my_id,
-                       std::unique_ptr<GraphicsDeviceVulkan>& device,
+                       std::shared_ptr<GraphicsDeviceVulkan> device,
                        VulkanInitializationInfo& vulkan_info,
                        int level_id,
                        tfrag3::TieCategory category)
@@ -254,15 +254,8 @@ void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
       lod_tree[l_tree].time_of_day_sampler_helper = std::make_unique<VulkanSamplerHelper>(m_device);
       lod_tree[l_tree].time_of_day_sampler_helper->CreateSampler();
 
-      lod_tree[l_tree].graphics_pipeline_catergory_layouts.resize(
-          tree.category_draw_indices[tfrag3::kNumTieCategories], {m_device});
-      lod_tree[l_tree].etie_graphics_pipeline_catergory_layouts.resize(
-          tree.category_draw_indices[tfrag3::kNumTieCategories], {m_device});
       lod_tree[l_tree].sampler_helpers_categories.resize(
           tree.category_draw_indices[tfrag3::kNumTieCategories], m_device);
-
-      lod_tree[l_tree].instanced_wind_graphics_pipeline_layouts.resize(
-          tree.instanced_wind_draws.size(), {m_device});
 
       if (wind_idx_buffer_len > 0) {
         lod_tree[l_tree].wind_matrix_cache.resize(tree.wind_instance_info.size());
@@ -425,7 +418,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
   // note: this isn't the most efficient because we might compute wind matrices for invisible
   // instances. TODO: add vis ids to the instance info to avoid this
   memset(tree.wind_matrix_cache.data(), 0, sizeof(float) * 16 * tree.wind_matrix_cache.size());
-  auto& cam_bad = settings.math_camera;
+  auto& cam_bad = settings.camera;
   std::array<math::Vector4f, 4> cam;
   for (int i = 0; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
@@ -488,8 +481,8 @@ void Tie3Vulkan::render_tree_wind(int idx,
                        sizeof(m_time_of_day_color_push_constant),
                        (void*)&m_time_of_day_color_push_constant);
 
-    tree.instanced_wind_graphics_pipeline_layouts[draw_idx].createGraphicsPipeline(m_pipeline_config_info);
-    tree.instanced_wind_graphics_pipeline_layouts[draw_idx].bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     PrepareVulkanDraw(tree, time_of_day_texture.getImageView(), sampler_helper.GetSampler(),
                       tree.time_of_day_instanced_wind_descriptor_image_infos[draw_idx],
@@ -640,9 +633,8 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
                       tree.fragment_shader_descriptor_sets[draw_idx],
                       vertex_descriptor_writer, m_fragment_descriptor_writer);
 
-    tree.graphics_pipeline_catergory_layouts[draw_idx].createGraphicsPipeline(
-        m_pipeline_config_info);
-    tree.graphics_pipeline_catergory_layouts[draw_idx].bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     prof.add_draw_call();
 
@@ -733,12 +725,17 @@ void Tie3Vulkan::setup_tree(int idx,
     m_color_result.resize(tree.colors->size());
   }
 
+#ifndef __aarch64__
   if (m_use_fast_time_of_day) {
-    background_common::interp_time_of_day_fast(settings.itimes, tree.tod_cache, m_color_result.data());
+    background_common::interp_time_of_day_fast(settings.camera.itimes, tree.tod_cache,
+                                               m_color_result.data());
   } else {
-    background_common::interp_time_of_day_slow(settings.itimes, *tree.colors,
+    background_common::interp_time_of_day_slow(settings.camera.itimes, *tree.colors,
                                                m_color_result.data());
   }
+#else
+  background_common::interp_time_of_day_slow(settings.camera.itimes, *tree.colors, m_color_result.data());
+#endif
 
   tree.time_of_day_texture->writeToImage((tfrag3::TimeOfDayColor*)tree.colors->data(),
                                          tree.colors->size() * sizeof(tfrag3::TimeOfDayColor));
@@ -750,7 +747,7 @@ void Tie3Vulkan::setup_tree(int idx,
 
   if (!m_debug_all_visible) {
     // need culling data
-    background_common::cull_check_all_slow(settings.planes, tree.vis->vis_nodes,
+    background_common::cull_check_all_slow(settings.camera.planes, tree.vis->vis_nodes,
                                            settings.occlusion_culling, tree.vis_temp.data());
   }
 
@@ -841,10 +838,8 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
                             m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                             descriptor_sets.data(), 0, NULL);
 
-    tree.etie_graphics_pipeline_catergory_layouts[draw_idx].createGraphicsPipeline(
-        m_pipeline_config_info);
-    tree.etie_graphics_pipeline_catergory_layouts[draw_idx].bind(
-        m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     prof.add_draw_call();
 
@@ -876,11 +871,11 @@ void Tie3Vulkan::init_etie_cam_uniforms(const BaseSharedRenderState* render_stat
   math::Vector4f perspective[2] = {};
   float inv_fog = 1.f / render_state->camera_fog[0];
   auto& hvdf_off = render_state->camera_hvdf_off;
-  float pxx = render_state->camera_persp[0].x();
-  float pyy = render_state->camera_persp[1].y();
-  float pzz = render_state->camera_persp[2].z();
-  float pzw = render_state->camera_persp[2].w();
-  float pwz = render_state->camera_persp[3].z();
+  float pxx = render_state->camera_planes[0].x();
+  float pyy = render_state->camera_planes[1].y();
+  float pzz = render_state->camera_planes[2].z();
+  float pzw = render_state->camera_planes[2].w();
+  float pwz = render_state->camera_planes[3].z();
   float scale = pzw * inv_fog;
   perspective[0].x() = scale * hvdf_off.x();
   perspective[0].y() = scale * hvdf_off.y();
@@ -1028,7 +1023,7 @@ void Tie3Vulkan::PrepareVulkanDraw(TreeVulkan& tree,
 
 Tie3VulkanAnotherCategory::Tie3VulkanAnotherCategory(const std::string& name,
                             int my_id,
-                            std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            std::shared_ptr<GraphicsDeviceVulkan> device,
                             VulkanInitializationInfo& vulkan_info,
                             Tie3Vulkan* parent,
                             tfrag3::TieCategory category)
@@ -1060,7 +1055,7 @@ void Tie3VulkanAnotherCategory::render(DmaFollower& dma,
 
 Tie3VulkanWithEnvmapJak1::Tie3VulkanWithEnvmapJak1(const std::string& name,
                        int my_id,
-                       std::unique_ptr<GraphicsDeviceVulkan>& device,
+                       std::shared_ptr<GraphicsDeviceVulkan> device,
                        VulkanInitializationInfo& vulkan_info,
                        int level_id) : Tie3Vulkan(name, my_id, device, vulkan_info, level_id, tfrag3::TieCategory::NORMAL) {
 }

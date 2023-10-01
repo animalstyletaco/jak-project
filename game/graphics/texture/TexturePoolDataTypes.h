@@ -6,12 +6,13 @@
 #include "common/common_types.h"
 #include "game/graphics/texture/TextureID.h"
 
+
 // verify all texture lookups.
 // will make texture lookups slower and likely caused dropped frames when loading
-static constexpr bool EXTRA_TEX_DEBUG = false;
+constexpr bool EXTRA_TEX_DEBUG = false;
 
 // sky, cloud textures
-static constexpr int SKY_TEXTURE_VRAM_ADDRS[2] = {8064, 8096};
+constexpr int SKY_TEXTURE_VRAM_ADDRS[2] = {8064, 8096};
 
 /*!
  * PC Port Texture System

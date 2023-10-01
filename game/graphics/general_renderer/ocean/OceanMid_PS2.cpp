@@ -387,7 +387,7 @@ L15:
   return;
 }
 
-void BaseOceanMid::run_call73_vu2c_jak2() {
+void BaseOceanMidJak2::run_call73_vu2c() {
   bool bc;
   // xtop vi02                  |  nop                            73
   vu.vi02 = xtop();
@@ -451,7 +451,7 @@ L14:
   // nop                        |  nop                            96
 
   // if (bc) { goto L32; }
-  run_L32_vu2c_jak2();
+  run_L32_vu2c();
 
   // iaddiu vi01, vi00, 0x318   |  nop                            97
   vu.vi01 = 0x318; /* 792 */
@@ -472,7 +472,7 @@ L14:
   // nop                        |  nop                            102
 
   // if (bc) { goto L38; }
-  run_L38_vu2c_jak2();
+  run_L38_vu2c();
 
 L15:
   // BRANCH!
@@ -904,7 +904,7 @@ L21:
   return;
 }
 
-void BaseOceanMid::run_call107_vu2c_jak2() {
+void BaseOceanMidJak2::run_call107_vu2c() {
   bool bc;
   // xtop vi02                  |  nop                            107
   vu.vi02 = xtop();
@@ -1317,7 +1317,7 @@ L21:
   return;
 }
 
-void BaseOceanMid::run_call275_vu2c() {
+void BaseOceanMidJak1::run_call275_vu2c() {
   bool bc;
   // fmt::print("call 275\n");
   // xtop vi02                  |  nop                            275
@@ -1613,7 +1613,7 @@ L25:
   return;
 }
 
-void BaseOceanMid::run_call275_vu2c_jak2() {
+void BaseOceanMidJak2::run_call275_vu2c() {
   bool bc;
   // fmt::print("call 275\n");
   // xtop vi02                  |  nop                            275
@@ -2126,7 +2126,7 @@ L31:
 /*!
  * packet generation for plain envmapped ocean
  */
-void BaseOceanMid::run_L32_vu2c() {
+void BaseOceanMidJak1::run_L32_vu2c() {
   bool bc = false;
   u32 cf = 0;
   // ilw.x vi05, 757(vi07)      |  nop                            459
@@ -2646,7 +2646,7 @@ L37:
   // nop                        |  nop                            613
 }
 
-void BaseOceanMid::run_L32_vu2c_jak2() {
+void BaseOceanMidJak2::run_L32_vu2c() {
   bool bc = false;
   u32 cf = 0;
   // ilw.x vi05, 757(vi07)      |  nop                            459
@@ -3158,7 +3158,7 @@ L37:
   // nop                        |  nop                            613
 }
 
-void BaseOceanMid::run_L38_vu2c() {
+void BaseOceanMidJak1::run_L38_vu2c() {
   bool bc;
 
   // lq.xyzw vf31, 734(vi00)    |  nop                            614
@@ -3499,7 +3499,7 @@ L42:
   // nop                        |  nop                            748
 }
 
-void BaseOceanMid::run_L38_vu2c_jak2() {
+void BaseOceanMidJak2::run_L38_vu2c() {
   bool bc;
 
   // lq.xyzw vf31, 734(vi00)    |  nop                            614

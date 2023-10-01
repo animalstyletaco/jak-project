@@ -8,7 +8,7 @@ namespace vulkan_texture {
 static unsigned long image_id = 0;
 }
 
-VulkanTexture::VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device) : m_device(device) {
+VulkanTexture::VulkanTexture(std::shared_ptr<GraphicsDeviceVulkan> device) : m_device(device) {
   m_image_id = vulkan_texture::image_id++; 
 }
 

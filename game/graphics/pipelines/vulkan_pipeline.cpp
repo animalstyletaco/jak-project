@@ -66,20 +66,18 @@ struct VulkanGraphicsData {
   std::string imgui_log_filename, imgui_filename;
   GameVersion version;
 
-  VulkanGraphicsData(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& vulkan_device)
+  VulkanGraphicsData(GameVersion version, std::shared_ptr<GraphicsDeviceVulkan> vulkan_device)
       : dma_copier(EE_MAIN_MEM_SIZE),
         texture_pool(std::make_shared<VulkanTexturePool>(version, vulkan_device)),
         loader(std::make_shared<VulkanLoader>(
             vulkan_device,
             file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
             pipeline_common::fr3_level_count[version])),
-        vulkan_renderer(texture_pool, loader, version, vulkan_device), debug_gui(version),
-        version(version) {}
+        vulkan_renderer(texture_pool, loader, version, vulkan_device), version(version) {}
 };
 }  // namespace
 
 std::unique_ptr<VulkanGraphicsData> g_gfx_data;
-std::unique_ptr<GraphicsDeviceVulkan> g_vulkan_device;
 
 static bool vk_inited = false;
 static int vk_init(GfxGlobalSettings& settings) {
@@ -184,8 +182,8 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
 
   if (!vk_inited) {
     auto p = profiler::scoped_prof("startup::sdl::gfx_data_init");
-    g_vulkan_device = std::make_unique<GraphicsDeviceVulkan>(window);
-    g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version, g_vulkan_device);
+    auto vulkan_device = std::make_shared<GraphicsDeviceVulkan>(window);
+    g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version, vulkan_device);
     vk_inited = true;
   }
 

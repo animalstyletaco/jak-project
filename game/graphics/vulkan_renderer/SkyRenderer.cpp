@@ -23,11 +23,12 @@
 
 SkyBlendVulkanHandler::SkyBlendVulkanHandler(const std::string& name,
                                  int my_id,
-                                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                 std::shared_ptr<GraphicsDeviceVulkan> device,
                                  VulkanInitializationInfo& vulkan_info,
                                  int level_id,
                                  std::shared_ptr<SkyBlendVulkanGPU> shared_blender,
-                                 std::shared_ptr<SkyBlendCPU> shared_blender_cpu)
+                                 std::shared_ptr<SkyBlendCPU> shared_blender_cpu,
+                                 std::vector<VulkanTexture*> anim_slots)
     : BaseSkyBlendHandler(name, my_id, level_id), BucketVulkanRenderer(device, vulkan_info),
       m_shared_gpu_blender(shared_blender),
       m_shared_cpu_blender(shared_blender_cpu),
@@ -37,7 +38,7 @@ SkyBlendVulkanHandler::SkyBlendVulkanHandler(const std::string& name,
                        vulkan_info,
                        {tfrag3::TFragmentTreeKind::TRANS, tfrag3::TFragmentTreeKind::LOWRES_TRANS},
                        true,
-                       level_id) {}
+                       level_id, anim_slots) {}
 
 void SkyBlendVulkanHandler::render(DmaFollower& dma,
                                SharedVulkanRenderState* render_state,
@@ -89,7 +90,7 @@ void SkyBlendVulkanHandler::tfrag_renderer_draw_debug_window() {
 SkyVulkanRenderer::SkyVulkanRenderer(
     const std::string& name,
     int my_id,
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     VulkanInitializationInfo& vulkan_info)
     : BaseSkyRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info), m_direct_renderer("sky-direct", my_id, device, vulkan_info, 100) {}
 

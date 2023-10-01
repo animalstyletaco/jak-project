@@ -105,8 +105,7 @@ OpenGLRenderer::OpenGLRenderer(std::shared_ptr<TexturePool> texture_pool,
       ASSERT(false);
   }
 
-  m_merc2 = std::make_shared<Merc2>(m_render_state.shaders,
-                                    m_texture_animator ? m_texture_animator->slots() : nullptr);
+  m_merc2 = std::make_shared<Merc2>(m_render_state.shaders, anim_slot_array());
   m_generic2 = std::make_shared<Generic2>(m_render_state.shaders);
 
   // initialize all renderers
@@ -130,7 +129,8 @@ void OpenGLRenderer::init_bucket_renderers_jak2() {
 
   // 0
   init_bucket_renderer<VisDataHandler>("vis", BucketCategory::OTHER, BucketId::BUCKET_2);
-  init_bucket_renderer<BlitDisplays>("blit", BucketCategory::OTHER, BucketId::BUCKET_3);
+  m_blit_displays =
+      init_bucket_renderer<BlitDisplays>("blit", BucketCategory::OTHER, BucketId::BUCKET_3);
   init_bucket_renderer<TextureUploadHandler>("tex-lcom-sky-pre", BucketCategory::TEX,
                                              BucketId::TEX_LCOM_SKY_PRE, m_texture_animator);
   init_bucket_renderer<DirectRenderer>("sky-draw", BucketCategory::OTHER, BucketId::SKY_DRAW, 1024);
@@ -146,7 +146,7 @@ void OpenGLRenderer::init_bucket_renderers_jak2() {
     init_bucket_renderer<TFragment>(
         fmt::format("tfrag-l{}-tfrag", i), BucketCategory::TFRAG,
         GET_BUCKET_ID_FOR_LIST(BucketId::TFRAG_L0_TFRAG, BucketId::TFRAG_L1_TFRAG, i),
-        std::vector{tfrag3::TFragmentTreeKind::NORMAL}, false, i);
+        std::vector{tfrag3::TFragmentTreeKind::NORMAL}, false, i, anim_slot_array());
     Tie3* tie = init_bucket_renderer<Tie3>(
         fmt::format("tie-l{}-tfrag", i), BucketCategory::TIE,
         GET_BUCKET_ID_FOR_LIST(BucketId::TIE_L0_TFRAG, BucketId::TIE_L1_TFRAG, i), i);
@@ -184,7 +184,7 @@ void OpenGLRenderer::init_bucket_renderers_jak2() {
     init_bucket_renderer<TFragment>(
         fmt::format("tfrag-t-l{}-alpha", i), BucketCategory::TFRAG,
         GET_BUCKET_ID_FOR_LIST(BucketId::TFRAG_T_L0_ALPHA, BucketId::TFRAG_T_L1_ALPHA, i),
-        std::vector{tfrag3::TFragmentTreeKind::TRANS}, false, i);
+        std::vector{tfrag3::TFragmentTreeKind::TRANS}, false, i, anim_slot_array());
     init_bucket_renderer<Tie3AnotherCategory>(
         fmt::format("tie-t-l{}-alpha", i), BucketCategory::TIE,
         GET_BUCKET_ID_FOR_LIST(BucketId::TIE_T_L0_ALPHA, BucketId::TIE_T_L1_ALPHA, i), tie,
@@ -239,7 +239,7 @@ void OpenGLRenderer::init_bucket_renderers_jak2() {
     init_bucket_renderer<TFragment>(
         fmt::format("tfrag-w-l{}-alpha", i), BucketCategory::TFRAG,
         GET_BUCKET_ID_FOR_LIST(BucketId::TFRAG_W_L0_WATER, BucketId::TFRAG_W_L1_WATER, i),
-        std::vector{tfrag3::TFragmentTreeKind::WATER}, false, i);
+        std::vector{tfrag3::TFragmentTreeKind::WATER}, false, i, anim_slot_array());
     init_bucket_renderer<Tie3AnotherCategory>(
         fmt::format("tie-w-l{}-water", i), BucketCategory::TIE,
         GET_BUCKET_ID_FOR_LIST(BucketId::TIE_W_L0_WATER, BucketId::TIE_W_L1_WATER, i), tie,
@@ -286,17 +286,17 @@ void OpenGLRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<TextureUploadHandler>("tex-all-warp", BucketCategory::TEX,
                                              BucketId::TEX_ALL_WARP, m_texture_animator);
   init_bucket_renderer<Warp>("warp", BucketCategory::GENERIC, BucketId::GMERC_WARP, m_generic2);
-  init_bucket_renderer<DirectRenderer>("debug-no-zbuf1", BucketCategory::OTHER,
-                                       BucketId::DEBUG_NO_ZBUF1, 0x8000);
+  init_bucket_renderer<TextureUploadHandler>("debug-no-zbuf1", BucketCategory::OTHER,
+                                             BucketId::DEBUG_NO_ZBUF1, m_texture_animator, true);
   init_bucket_renderer<TextureUploadHandler>("tex-all-map", BucketCategory::TEX,
-                                             BucketId::TEX_ALL_MAP, m_texture_animator);
+                                             BucketId::TEX_ALL_MAP, m_texture_animator, true);
   // 320
   init_bucket_renderer<ProgressRenderer>("progress", BucketCategory::OTHER, BucketId::PROGRESS,
                                          0x1000);
   init_bucket_renderer<DirectRenderer>("screen-filter", BucketCategory::OTHER,
                                        BucketId::SCREEN_FILTER, 256);
-  init_bucket_renderer<DirectRenderer>("subtitle", BucketCategory::OTHER, BucketId::SUBTITLE,
-                                       0x1000);
+  init_bucket_renderer<TextureUploadHandler>("subtitle", BucketCategory::OTHER, BucketId::SUBTITLE,
+                                             m_texture_animator, true);
   init_bucket_renderer<DirectRenderer>("debug2", BucketCategory::OTHER, BucketId::DEBUG2, 0x8000);
   init_bucket_renderer<DirectRenderer>("debug-no-zbuf2", BucketCategory::OTHER,
                                        BucketId::DEBUG_NO_ZBUF2, 0x8000);
@@ -358,7 +358,7 @@ void OpenGLRenderer::init_bucket_renderers_jak1() {
                                              BucketId::TFRAG_TEX_LEVEL0, m_texture_animator);
   // 6 : TFRAG_LEVEL0
   init_bucket_renderer<TFragment>("l0-tfrag-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_LEVEL0,
-                                  normal_tfrags, false, 0);
+                                  normal_tfrags, false, 0, anim_slot_array());
   // 7 : TFRAG_NEAR_LEVEL0
   // 8 : TIE_NEAR_LEVEL0
   // 9 : TIE_LEVEL0
@@ -380,7 +380,7 @@ void OpenGLRenderer::init_bucket_renderers_jak1() {
                                              BucketId::TFRAG_TEX_LEVEL1, m_texture_animator);
   // 13 : TFRAG_LEVEL1
   init_bucket_renderer<TFragment>("l1-tfrag-tfrag", BucketCategory::TFRAG, BucketId::TFRAG_LEVEL1,
-                                  normal_tfrags, false, 1);
+                                  normal_tfrags, false, 1, anim_slot_array());
   // 14 : TFRAG_NEAR_LEVEL1
   // 15 : TIE_NEAR_LEVEL1
   // 16 : TIE_LEVEL1
@@ -433,14 +433,15 @@ void OpenGLRenderer::init_bucket_renderers_jak1() {
                                              BucketId::ALPHA_TEX_LEVEL0, m_texture_animator);  // 31
   init_bucket_renderer<SkyBlendHandler>("l0-alpha-sky-blend-and-tfrag-trans", BucketCategory::OTHER,
                                         BucketId::TFRAG_TRANS0_AND_SKY_BLEND_LEVEL0, 0,
-                                        sky_gpu_blender, sky_cpu_blender);  // 32
+                                        sky_gpu_blender, sky_cpu_blender, anim_slot_array());  // 32
   // 33
   init_bucket_renderer<TFragment>("l0-alpha-tfrag", BucketCategory::TFRAG,
-                                  BucketId::TFRAG_DIRT_LEVEL0, dirt_tfrags, false,
-                                  0);  // 34
+                                  BucketId::TFRAG_DIRT_LEVEL0, dirt_tfrags, false, 0,
+                                  anim_slot_array());  // 34
   // 35
   init_bucket_renderer<TFragment>("l0-alpha-tfrag-ice", BucketCategory::TFRAG,
-                                  BucketId::TFRAG_ICE_LEVEL0, ice_tfrags, false, 0);
+                                  BucketId::TFRAG_ICE_LEVEL0, ice_tfrags, false, 0,
+                                  anim_slot_array());
   // 37
 
   //-----------------------
@@ -450,14 +451,15 @@ void OpenGLRenderer::init_bucket_renderers_jak1() {
                                              BucketId::ALPHA_TEX_LEVEL1, m_texture_animator);  // 38
   init_bucket_renderer<SkyBlendHandler>("l1-alpha-sky-blend-and-tfrag-trans", BucketCategory::OTHER,
                                         BucketId::TFRAG_TRANS1_AND_SKY_BLEND_LEVEL1, 1,
-                                        sky_gpu_blender, sky_cpu_blender);  // 39
+                                        sky_gpu_blender, sky_cpu_blender, anim_slot_array());  // 39
   // 40
   init_bucket_renderer<TFragment>("l1-alpha-tfrag-dirt", BucketCategory::TFRAG,
-                                  BucketId::TFRAG_DIRT_LEVEL1, dirt_tfrags, false,
-                                  1);  // 41
+                                  BucketId::TFRAG_DIRT_LEVEL1, dirt_tfrags, false, 1,
+                                  anim_slot_array());  // 41
   // 42
   init_bucket_renderer<TFragment>("l1-alpha-tfrag-ice", BucketCategory::TFRAG,
-                                  BucketId::TFRAG_ICE_LEVEL1, ice_tfrags, false, 1);
+                                  BucketId::TFRAG_ICE_LEVEL1, ice_tfrags, false, 1,
+                                  anim_slot_array());
   // 44
 
   init_bucket_renderer<Merc2BucketRenderer>("common-alpha-merc", BucketCategory::MERC,
@@ -647,34 +649,9 @@ Fbo make_fbo(int w, int h, int msaa, bool make_zbuf_and_stencil) {
 }  // namespace
 
 void OpenGLRenderer::blit_display() {
-  auto& back = m_fbo_state.resources.back_buffer;
-  if (!back.valid || !back.matches(*m_fbo_state.render_fbo)) {
-    back.clear();
-    back = make_fbo(m_fbo_state.render_fbo->width, m_fbo_state.render_fbo->height, 1, false);
+  if (m_blit_displays) {
+    m_blit_displays->do_copy_back(&m_render_state);
   }
-
-  Fbo* window_blit_src = nullptr;
-  if (m_fbo_state.resources.resolve_buffer.valid) {
-    // since this is called after do_pcrtc_effects, the resolve buffer is already made
-    window_blit_src = &m_fbo_state.resources.resolve_buffer;
-  } else {
-    window_blit_src = m_fbo_state.render_fbo;
-  }
-
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, window_blit_src->fbo_id);
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, back.fbo_id);
-  glBlitFramebuffer(0,                        // srcX0
-                    0,                        // srcY0
-                    window_blit_src->width,   // srcX1
-                    window_blit_src->height,  // srcY1
-                    0,                        // dstX0
-                    0,                        // dstY0
-                    back.width,               // dstX1
-                    back.height,              // dstY1
-                    GL_COLOR_BUFFER_BIT,      // mask
-                    GL_LINEAR                 // filter
-  );
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 /*!
@@ -709,6 +686,17 @@ void OpenGLRenderer::render(DmaFollower dma, const RenderOptions& settings) {
   {
     auto prof = m_profiler.root()->make_scoped_child("buckets");
     dispatch_buckets(dma, prof, settings.gpu_sync);
+    if (m_texture_animator) {
+      // if animation requests weren't made, assume the level is unloaded and the textures should
+      // reset.
+      m_texture_animator->clear_stale_textures(m_render_state.frame_idx);
+    }
+  }
+
+  // blit framebuffer so that it can be used as a texture by the game later
+  {
+    auto prof = m_profiler.root()->make_scoped_child("blit-display");
+    blit_display();
   }
 
   // apply effects done with PCRTC registers
@@ -718,12 +706,6 @@ void OpenGLRenderer::render(DmaFollower dma, const RenderOptions& settings) {
     if (settings.gpu_sync) {
       glFinish();
     }
-  }
-
-  // blit framebuffer so that it can be used as a texture by the game later
-  {
-    auto prof = m_profiler.root()->make_scoped_child("blit-display");
-    blit_display();
   }
 
   m_last_pmode_alp = settings.pmode_alp_register;
@@ -821,6 +803,11 @@ void OpenGLRenderer::draw_renderer_selection_window() {
   ImGui::Checkbox("Occlusion Cull", &m_render_state.use_occlusion_culling);
   ImGui::Checkbox("Blackout Loads", &m_enable_fast_blackout_loads);
 
+  if (m_texture_animator && ImGui::TreeNode("Texture Animator")) {
+    m_texture_animator->draw_debug_window();
+    ImGui::TreePop();
+  }
+
   for (size_t i = 0; i < m_bucket_renderers.size(); i++) {
     auto renderer = m_bucket_renderers[i].get();
     if (renderer && !renderer->empty()) {
@@ -902,24 +889,27 @@ void OpenGLRenderer::setup_frame(const RenderOptions& settings) {
 
   ASSERT_MSG(!m_fbo_state.render_fbo->is_window, "window fbo");
 
-  glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  glViewport(0, 0, m_fbo_state.resources.window.width, m_fbo_state.resources.window.height);
-  glClearColor(0.0, 0.0, 0.0, 0.0);
-  glClearDepth(0.0);
-  glDepthMask(GL_TRUE);
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-  glDisable(GL_BLEND);
+  if (m_version == GameVersion::Jak1) {
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, m_fbo_state.resources.window.width, m_fbo_state.resources.window.height);
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+    glClearDepth(0.0);
+    glDepthMask(GL_TRUE);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glDisable(GL_BLEND);
 
-  glBindFramebuffer(GL_FRAMEBUFFER, m_fbo_state.render_fbo->fbo_id);
-  glClearColor(0.0, 0.0, 0.0, 0.0);
-  glClearDepth(0.0);
-  glClearStencil(0);
-  glDepthMask(GL_TRUE);
-  // Note: could rely on sky renderer to clear depth and color, but this causes problems with
-  // letterboxing
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-  glDisable(GL_BLEND);
-  m_render_state.stencil_dirty = false;
+    glBindFramebuffer(GL_FRAMEBUFFER, m_fbo_state.render_fbo->fbo_id);
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+    glClearDepth(0.0);
+    glClearStencil(0);
+    glDepthMask(GL_TRUE);
+    // Note: could rely on sky renderer to clear depth and color, but this causes problems with
+    // letterboxing
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glDisable(GL_BLEND);
+    m_render_state.stencil_dirty = false;
+  }
+  // jak 2 does the clear in BlitDisplays.cpp
 
   // setup the draw region to letterbox later
   m_render_state.draw_region_w = settings.draw_region_width;
@@ -932,7 +922,6 @@ void OpenGLRenderer::setup_frame(const RenderOptions& settings) {
       (settings.window_framebuffer_height - m_render_state.draw_region_h) / 2;
 
   m_render_state.render_fb = m_fbo_state.render_fbo->fbo_id;
-  m_render_state.back_fbo = &m_fbo_state.resources.back_buffer;
 
   if (m_render_state.draw_region_w <= 0 || m_render_state.draw_region_h <= 0) {
     // trying to draw to 0 size region... opengl doesn't like this.

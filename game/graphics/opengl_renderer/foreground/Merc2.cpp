@@ -1,6 +1,10 @@
 #include "Merc2.h"
 
+#ifdef __aarch64__
+#include "third-party/sse2neon/sse2neon.h"
+#else
 #include <xmmintrin.h>
+#endif
 
 #include "common/global_profiler/GlobalProfiler.h"
 
@@ -282,7 +286,7 @@ void Merc2::model_mod_draws(int num_effects,
       // this lock is not ideal, and can block the rendering thread while blerc_execute runs,
       // which can take up to 2ms on really blerc-heavy scenes
       std::unique_lock<std::mutex> lk(g_merc_data_mutex);
-      int frags_done = 0;
+      [[maybe_unused]] int frags_done = 0;
       auto p = scoped_prof("vert-math");
 
       // loop over fragments
@@ -535,8 +539,9 @@ void Merc2::handle_pc_model(const DmaTransfer& setup,
   u64 current_ignore_alpha_bits = flags->ignore_alpha_mask;  // shader settings
   u64 current_effect_enable_bits = flags->enable_mask;       // mask for game to disable an effect
   bool model_uses_mod = flags->bitflags & 1;  // if we should update vertices from game.
-  bool model_disables_fog = (flags->bitflags & 2);
+  bool model_disables_fog = flags->bitflags & 2;
   bool model_uses_pc_blerc = flags->bitflags & 4;
+  bool model_disables_envmap = flags->bitflags & 8;
   input_data += 32;
 
   float blerc_weights[kMaxBlerc];
@@ -567,7 +572,7 @@ void Merc2::handle_pc_model(const DmaTransfer& setup,
   // stats
   stats->num_models++;
   for (const auto& effect : model_ref->model->effects) {
-    bool envmap = effect.has_envmap;
+    bool envmap = effect.has_envmap && !model_disables_envmap;
     stats->num_effects++;
     stats->num_predicted_draws += effect.all_draws.size();
     if (envmap) {
@@ -620,7 +625,7 @@ void Merc2::handle_pc_model(const DmaTransfer& setup,
     bool ignore_alpha = !!(current_ignore_alpha_bits & (1ull << ei));
     auto& effect = model->effects[ei];
 
-    bool should_envmap = effect.has_envmap;
+    bool should_envmap = effect.has_envmap && !model_disables_envmap;
     bool should_mod = (model_uses_pc_blerc || model_uses_mod) && effect.has_mod_draw;
 
     if (should_mod) {

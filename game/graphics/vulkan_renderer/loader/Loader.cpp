@@ -9,7 +9,7 @@
 
 #include "game/graphics/vulkan_renderer/loader/LoaderStages.h"
 
-VulkanLoader::VulkanLoader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path, int max_levels)
+VulkanLoader::VulkanLoader(std::shared_ptr<GraphicsDeviceVulkan> device, const fs::path& base_path, int max_levels)
     : BaseLoader(base_path, max_levels), m_device(device) {
   m_loader_thread = std::thread(&VulkanLoader::loader_thread, this);
   m_loader_stages = vk_loader_stage::make_loader_stages(m_device);

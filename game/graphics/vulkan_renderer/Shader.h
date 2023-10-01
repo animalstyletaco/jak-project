@@ -40,11 +40,11 @@ class VulkanShader {
 
 class VulkanShaderLibrary {
  public:
-  VulkanShaderLibrary(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  VulkanShaderLibrary(std::shared_ptr<GraphicsDeviceVulkan> device);
   VulkanShader& operator[](ShaderId id) { return m_shaders[(int)id]; }
   VulkanShader& at(ShaderId id) { return m_shaders[(int)id]; }
 
  private:
   VulkanShader m_shaders[(int)ShaderId::MAX_SHADERS];
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
 };

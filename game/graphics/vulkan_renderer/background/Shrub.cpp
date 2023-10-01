@@ -2,7 +2,7 @@
 
 ShrubVulkan::ShrubVulkan(const std::string& name,
              int my_id,
-             std::unique_ptr<GraphicsDeviceVulkan>& device,
+             std::shared_ptr<GraphicsDeviceVulkan> device,
              VulkanInitializationInfo& vulkan_info)
     : BaseShrub(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
   m_vertex_shrub_push_constant.height_scale = m_push_constant.height_scale;
@@ -311,7 +311,16 @@ void ShrubVulkan::render_tree(int idx,
   }
 
   Timer interp_timer;
-  background_common::interp_time_of_day_fast(settings.itimes, tree.tod_cache, m_color_result.data());
+#ifndef __aarch64__
+  if (m_use_fast_time_of_day) {
+    background_common::interp_time_of_day_fast(settings.camera.itimes, tree.tod_cache, m_color_result.data());
+  } else {
+    background_common::interp_time_of_day_slow(settings.camera.itimes, *tree.colors,
+                                               m_color_result.data());
+  }
+#else
+  background_common::interp_time_of_day_slow(settings.itimes, *tree.colors, m_color_result.data());
+#endif
   tree.perf.tod_time.add(interp_timer.getSeconds());
 
   Timer setup_timer;
@@ -423,8 +432,8 @@ void ShrubVulkan::render_tree(int idx,
         m_time_of_day_push_constant.alpha_min = -10.f;
         m_time_of_day_push_constant.alpha_max = double_draw.aref_second;
 
-        tree.double_draw_pipeline_layouts[draw_idx].createGraphicsPipeline(m_pipeline_config_info);
-        tree.double_draw_pipeline_layouts[draw_idx].bind(m_vulkan_info.render_command_buffer);
+        m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+        m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
         if (render_state->no_multidraw) {
           vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,

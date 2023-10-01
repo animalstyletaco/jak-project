@@ -17,11 +17,12 @@ class SkyBlendVulkanHandler : public BaseSkyBlendHandler, public BucketVulkanRen
  public:
   SkyBlendVulkanHandler(const std::string& name,
                   int my_id,
-                  std::unique_ptr<GraphicsDeviceVulkan>& device,
+                  std::shared_ptr<GraphicsDeviceVulkan> device,
                   VulkanInitializationInfo& vulkan_info,
                   int level_id,
                   std::shared_ptr<SkyBlendVulkanGPU> shared_gpu_blender,
-                  std::shared_ptr<SkyBlendCPU> shared_cpu_blender);
+                  std::shared_ptr<SkyBlendCPU> shared_cpu_blender,
+                  std::vector<VulkanTexture*> anim_slot);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
 
  protected:
@@ -57,7 +58,7 @@ class SkyVulkanRenderer : public BaseSkyRenderer, public BucketVulkanRenderer {
  public:
   SkyVulkanRenderer(const std::string& name,
               int my_id,
-              std::unique_ptr<GraphicsDeviceVulkan>& device,
+              std::shared_ptr<GraphicsDeviceVulkan> device,
               VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
 

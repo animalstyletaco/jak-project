@@ -12,7 +12,7 @@ BaseOceanMid::BaseOceanMid() {
   vu.vf25 = Vf(1, 1, 1, 1);
 }
 
-void BaseOceanMid::prepare_for_run_jak1(DmaFollower& dma, BaseSharedRenderState* render_state) {
+void BaseOceanMidJak1::prepare_for_run(DmaFollower& dma, BaseSharedRenderState* render_state) {
   common_ocean_renderer_init_for_mid();
 // first is setting base and offset
 {
@@ -129,8 +129,8 @@ while (!is_end_tag(dma.current_tag(), dma.current_tag_vif0(), dma.current_tag_vi
   }
 }
 }
-void BaseOceanMid::prepare_for_run_jak2(DmaFollower& dma,
-                                        BaseSharedRenderState* render_state) {
+void BaseOceanMidJak2::prepare_for_run(DmaFollower& dma,
+                                       BaseSharedRenderState* render_state) {
   common_ocean_renderer_init_for_mid();
   // first is setting base and offset
   {
@@ -220,13 +220,13 @@ void BaseOceanMid::prepare_for_run_jak2(DmaFollower& dma,
           run_call46_vu2c();
           break;
         case 73:
-          run_call73_vu2c_jak2();
+          run_call73_vu2c();
           break;
         case 107:
-          run_call107_vu2c_jak2();
+          run_call107_vu2c();
           break;
         case 275:
-          run_call275_vu2c_jak2();
+          run_call275_vu2c();
           break;
         default:
           lg::warn("unknown call1: {}", v1.immediate);
@@ -251,11 +251,7 @@ void BaseOceanMid::prepare_for_run_jak2(DmaFollower& dma,
 void BaseOceanMid::run(DmaFollower& dma,
   BaseSharedRenderState* render_state,
   ScopedProfilerNode& prof) {
-  if (render_state->version == GameVersion::Jak1) {
-    prepare_for_run_jak1(dma, render_state);
-  } else if (render_state->version == GameVersion::Jak2) {
-    prepare_for_run_jak2(dma, render_state);
-  }
+  prepare_for_run(dma, render_state);
   common_ocean_renderer_flush_mid(render_state, prof);
 }
 

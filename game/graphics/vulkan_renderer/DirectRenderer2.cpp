@@ -1,12 +1,10 @@
 #include "DirectRenderer2.h"
 
-#include <immintrin.h>
-
 #include "common/log/log.h"
 
 #include "third-party/imgui/imgui.h"
 
-DirectVulkanRenderer2::DirectVulkanRenderer2(std::unique_ptr<GraphicsDeviceVulkan>& device,
+DirectVulkanRenderer2::DirectVulkanRenderer2(std::shared_ptr<GraphicsDeviceVulkan> device,
                                            VulkanInitializationInfo& vulkan_info,
                                  u32 max_verts,
                                  u32 max_inds,

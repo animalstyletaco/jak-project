@@ -11,7 +11,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
  public:
   EyeVulkanRenderer(const std::string& name,
                     int my_id,
-                    std::unique_ptr<GraphicsDeviceVulkan>& device,
+                    std::shared_ptr<GraphicsDeviceVulkan> device,
                     VulkanInitializationInfo& vulkan_info);
   ~EyeVulkanRenderer();
   void init_textures(VulkanTexturePool& texture_pool) override;
@@ -20,23 +20,22 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
               ScopedProfilerNode& prof) override;
 
   struct EyeVulkanGraphics {
-    EyeVulkanGraphics(std::unique_ptr<GraphicsDeviceVulkan>& device,
+    EyeVulkanGraphics(std::shared_ptr<GraphicsDeviceVulkan> device,
                       std::unique_ptr<DescriptorLayout>& setLayout,
                       VulkanInitializationInfo& vulkan_info)
-        : pipeline_layout(device), descriptor_writer(setLayout, vulkan_info.descriptor_pool) {
+        : descriptor_writer(setLayout, vulkan_info.descriptor_pool) {
       descriptor_writer.build(descriptor_set);
       descriptor_writer.writeImage(
           0, vulkan_info.texture_pool->get_placeholder_descriptor_image_info()); 
     }
     VulkanGpuTextureMap* texture = VK_NULL_HANDLE;
     VkDescriptorImageInfo descriptor_image_info;
-    GraphicsPipelineLayout pipeline_layout;
     VkDescriptorSet descriptor_set;
     DescriptorWriter descriptor_writer;
   };
 
   struct SingleEyeDrawsVulkan : SingleEyeDraws {
-    SingleEyeDrawsVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
+    SingleEyeDrawsVulkan(std::shared_ptr<GraphicsDeviceVulkan> device,
                          std::unique_ptr<DescriptorLayout>& layout,
                          VulkanInitializationInfo& vulkan_info)
         : iris_vulkan_graphics(device, layout, vulkan_info),
@@ -62,7 +61,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
     u32 tbp;
     FramebufferVulkanHelper fb;
 
-    GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device);
+    GpuEyeTex(std::shared_ptr<GraphicsDeviceVulkan> device);
   };
   std::unique_ptr<GpuEyeTex> m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
 

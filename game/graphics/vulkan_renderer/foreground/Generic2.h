@@ -19,16 +19,18 @@ struct GenericCommonFragmentPushConstantData {
   math::Vector4f fog_color;
 };
 
-class GenericVulkan2 : public BaseGeneric2 {
+class GenericVulkan2 : public virtual BaseGeneric2 {
  public:
-  GenericVulkan2(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  GenericVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
                  VulkanInitializationInfo& vulkan_info,
-                 u32 num_verts = 200000,
-                 u32 num_frags = 2000,
-                 u32 num_adgif = 6000,
-                 u32 num_buckets = 800);
+                 u32 num_verts,
+                 u32 num_frags,
+                 u32 num_adgif,
+                 u32 num_buckets);
   ~GenericVulkan2();
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
+  virtual void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) = 0;
   void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void do_draws_for_alpha(BaseSharedRenderState* render_state,
@@ -48,7 +50,7 @@ class GenericVulkan2 : public BaseGeneric2 {
   };
   static_assert(sizeof(Vertex) == 32);
 
- private:
+ protected:
   void InitializeInputAttributes();
   void create_pipeline_layout();
   void graphics_setup() override;
@@ -66,11 +68,10 @@ class GenericVulkan2 : public BaseGeneric2 {
                           BaseSharedRenderState* render_state,
                           u32 bucketId);
 
- private:
   void init_shaders();
   void FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIndex);
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VulkanInitializationInfo& m_vulkan_info;
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
@@ -100,4 +101,34 @@ class GenericVulkan2 : public BaseGeneric2 {
   std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
 
   GenericCommonFragmentPushConstantData m_fragment_push_constant;
+};
+
+class GenericVulkan2Jak1 : public BaseGeneric2Jak1, public GenericVulkan2 {
+ public:
+  GenericVulkan2Jak1(std::shared_ptr<GraphicsDeviceVulkan> device,
+                     VulkanInitializationInfo& vulkan_info,
+                     u32 num_verts = 200000,
+                     u32 num_frags = 2000,
+                     u32 num_adgif = 6000,
+                     u32 num_buckets = 800)
+      : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets),
+        BaseGeneric2Jak1(num_verts, num_frags, num_adgif, num_buckets),
+        GenericVulkan2(device, vulkan_info, num_verts, num_frags, num_adgif, num_buckets) {}
+  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+};
+
+class GenericVulkan2Jak2 : public BaseGeneric2Jak2, public GenericVulkan2 {
+ public:
+  GenericVulkan2Jak2(std::shared_ptr<GraphicsDeviceVulkan> device,
+                     VulkanInitializationInfo& vulkan_info,
+                     u32 num_verts = 200000,
+                     u32 num_frags = 2000,
+                     u32 num_adgif = 6000,
+                     u32 num_buckets = 800)
+      : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets),
+        BaseGeneric2Jak2(num_verts, num_frags, num_adgif, num_buckets),
+        GenericVulkan2(device, vulkan_info, num_verts, num_frags, num_adgif, num_buckets) {}
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
 };

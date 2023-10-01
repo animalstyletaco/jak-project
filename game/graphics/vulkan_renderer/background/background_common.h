@@ -27,14 +27,14 @@ struct BackgroundCommonEtieVertexUniformShaderData
 
 class BackgroundCommonEtieBaseVertexUniformBuffer : public UniformVulkanBuffer {
  public:
-  BackgroundCommonEtieBaseVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  BackgroundCommonEtieBaseVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                           uint32_t instanceCount,
                                           VkDeviceSize minOffsetAlignment);
 };
 
 class BackgroundCommonEtieVertexUniformBuffer : public UniformVulkanBuffer {
  public:
-  BackgroundCommonEtieVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  BackgroundCommonEtieVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                           uint32_t instanceCount,
                                           VkDeviceSize minOffsetAlignment);
 };

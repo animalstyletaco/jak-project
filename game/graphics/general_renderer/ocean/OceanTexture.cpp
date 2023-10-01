@@ -22,7 +22,7 @@ BaseOceanTexture::~BaseOceanTexture() {
   destroy_pc();
 }
 
-void BaseOceanTexture::handle_ocean_texture_jak1(DmaFollower& dma,
+void BaseOceanTextureJak1::handle_ocean_texture(DmaFollower& dma,
                                         BaseSharedRenderState* render_state,
                                         ScopedProfilerNode& prof) {
 
@@ -180,9 +180,9 @@ void BaseOceanTexture::handle_ocean_texture_jak1(DmaFollower& dma,
   move_existing_to_vram(ocean_common::OCEAN_TEX_TBP_JAK1);
 }
 
-void BaseOceanTexture::handle_ocean_texture_jak2(DmaFollower& dma,
-                                                 BaseSharedRenderState* render_state,
-                                                 ScopedProfilerNode& prof) {
+void BaseOceanTextureJak2::handle_ocean_texture(DmaFollower& dma,
+                                                BaseSharedRenderState* render_state,
+                                                ScopedProfilerNode& prof) {
   // if we're doing mipmaps, render to temp.
   // otherwise, render directly to target.
   //setup_framebuffer_context();
@@ -259,7 +259,7 @@ void BaseOceanTexture::handle_ocean_texture_jak2(DmaFollower& dma,
     ASSERT(data.vifcode0().kind == VifCode::Kind::MSCALF);
     ASSERT(data.vifcode0().immediate == TexVu1Prog::START);
     ASSERT(data.vifcode1().kind == VifCode::Kind::STMOD);  // not sure why...
-    run_L1_PC_jak2();
+    run_L1_PC();
   }
 
   // loop over vertex groups
@@ -280,7 +280,7 @@ void BaseOceanTexture::handle_ocean_texture_jak2(DmaFollower& dma,
     ASSERT(call.vifcode0().kind == VifCode::Kind::MSCALF);
     ASSERT(call.vifcode0().immediate == TexVu1Prog::REST);
     ASSERT(call.vifcode1().kind == VifCode::Kind::STMOD);  // not sure why...
-    run_L2_PC_jak2();
+    run_L2_PC();
   }
 
   // last upload does something weird...
@@ -316,7 +316,7 @@ void BaseOceanTexture::handle_ocean_texture_jak2(DmaFollower& dma,
     ASSERT(data.vifcode0().kind == VifCode::Kind::MSCALF);
     ASSERT(data.vifcode0().immediate == TexVu1Prog::REST);
     ASSERT(data.vifcode1().kind == VifCode::Kind::STMOD);  // not sure why...
-    run_L2_PC_jak2();
+    run_L2_PC();
   }
 
   // last call

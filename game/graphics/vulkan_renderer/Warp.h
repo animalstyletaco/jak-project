@@ -8,7 +8,7 @@
 
 class WarpVulkan : public BaseWarp, public BucketVulkanRenderer {
  public:
-  WarpVulkan(const std::string& name, int id, std::shared_ptr<GenericVulkan2> generic2_renderer, std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo&);
+  WarpVulkan(const std::string& name, int id, std::shared_ptr<GenericVulkan2> generic2_renderer, std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo&);
   ~WarpVulkan();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void generic_draw_debug_window() override;

@@ -8,26 +8,20 @@
 class BaseOceanTexture {
  public:
   BaseOceanTexture(bool generate_mipmaps);
-  void handle_ocean_texture_jak1(
+  virtual void handle_ocean_texture(
       DmaFollower& dma,
       BaseSharedRenderState* render_state,
-      ScopedProfilerNode& prof);
-  void handle_ocean_texture_jak2(DmaFollower& dma,
-                            BaseSharedRenderState* render_state,
-                            ScopedProfilerNode& prof);
+      ScopedProfilerNode& prof) = 0;
+
   virtual ~BaseOceanTexture();
 
  protected:
   virtual void move_existing_to_vram(u32 slot_addr) = 0;
-  void run_L1_PC();
-  void run_L2_PC();
-  void run_L3_PC();
+  virtual void run_L1_PC() = 0;
+  virtual void run_L2_PC() = 0;
+  virtual void run_L3_PC() = 0;
   void run_L5_PC();
   void xgkick_PC(Vf* src);
-
-  void run_L1_PC_jak2();
-  void run_L2_PC_jak2();
-  void run_L3_PC_jak2();
 
   void setup_renderer();
   virtual void flush(BaseSharedRenderState* render_state,
@@ -154,4 +148,30 @@ class BaseOceanTexture {
   enum TexVu1Prog { START = 0, REST = 2, DONE = 4 };
 
   static constexpr int NUM_FRAG_LOOPS = 9;
+};
+
+class BaseOceanTextureJak1 : public virtual BaseOceanTexture {
+ public:
+  BaseOceanTextureJak1(bool generate_mipmaps) : BaseOceanTexture(generate_mipmaps){};
+  void handle_ocean_texture(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof) override;
+
+ protected:
+  void run_L1_PC() override;
+  void run_L2_PC() override;
+  void run_L3_PC() override;
+};
+
+class BaseOceanTextureJak2 : public virtual BaseOceanTexture {
+ public:
+  BaseOceanTextureJak2(bool generate_mipmaps) : BaseOceanTexture(generate_mipmaps){};
+  void handle_ocean_texture(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof) override;
+
+  protected:
+  void run_L1_PC() override;
+  void run_L2_PC() override;
+  void run_L3_PC() override;
 };

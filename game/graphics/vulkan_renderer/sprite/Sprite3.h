@@ -15,24 +15,22 @@
 
 class Sprite3dVertexUniformBuffer : public UniformVulkanBuffer {
  public:
-  Sprite3dVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  Sprite3dVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                               VkDeviceSize minOffsetAlignment);
 };
 
-class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
+class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
  public:
   SpriteVulkan3(const std::string& name,
           int my_id,
-          std::unique_ptr<GraphicsDeviceVulkan>& device,
+          std::shared_ptr<GraphicsDeviceVulkan> device,
           VulkanInitializationInfo& vulkan_info);
   ~SpriteVulkan3();
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
   void SetupShader(ShaderId shaderId) override;
 
  protected:
   void setup_graphics_for_2d_group_0_render() override;
 
- private:
   void graphics_setup() override;
   void graphics_setup_normal() override;
   void graphics_setup_distort() override;
@@ -124,14 +122,12 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
 
     void Reinitialize(VkDescriptorSetLayout descriptorSetLayout, u32 bucket_size) {
       sampler_helpers.clear();
-      pipeline_layouts.clear();
       descriptor_image_infos.clear();
       if (!fragment_descriptor_sets.empty()) {
         m_descriptor_pool->freeDescriptors(fragment_descriptor_sets);
       }
 
       sampler_helpers.resize(bucket_size, m_descriptor_pool->device());
-      pipeline_layouts.resize(bucket_size, m_descriptor_pool->device());
       descriptor_image_infos.resize(bucket_size);
 
       fragment_descriptor_sets.resize(bucket_size);
@@ -150,7 +146,6 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
     }
 
     std::vector<VulkanSamplerHelper> sampler_helpers;
-    std::vector<GraphicsPipelineLayout> pipeline_layouts;
     std::vector<VkDescriptorImageInfo> descriptor_image_infos;
     std::vector<VkDescriptorSet> fragment_descriptor_sets;
 
@@ -194,4 +189,34 @@ class SpriteVulkan3 : public BaseSprite3, public BucketVulkanRenderer {
   void AllocateNewDescriptorMapElement();
 
   uint32_t m_direct_renderer_call_count = 0;
+};
+
+class SpriteVulkan3Jak1 : public BaseSprite3Jak1, public SpriteVulkan3 {
+ public:
+  SpriteVulkan3Jak1(const std::string& name,
+                    int my_id,
+                    std::shared_ptr<GraphicsDeviceVulkan> device,
+                    VulkanInitializationInfo& vulkan_info)
+      : BaseSprite3(name, my_id),
+        BaseSprite3Jak1(name, my_id),
+        SpriteVulkan3(name, my_id, device, vulkan_info) {}
+
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
+};
+
+class SpriteVulkan3Jak2 : public BaseSprite3Jak2, public SpriteVulkan3 {
+ public:
+  SpriteVulkan3Jak2(const std::string& name,
+                    int my_id,
+                    std::shared_ptr<GraphicsDeviceVulkan> device,
+                    VulkanInitializationInfo& vulkan_info)
+      : BaseSprite3(name, my_id),
+        BaseSprite3Jak2(name, my_id),
+        SpriteVulkan3(name, my_id, device, vulkan_info) {}
+
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
 };

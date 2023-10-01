@@ -26,7 +26,7 @@ class EyeVulkanRenderer;
  */
 struct SharedVulkanRenderState : public BaseSharedRenderState {
   explicit SharedVulkanRenderState(GameVersion version,
-                                   std::unique_ptr<GraphicsDeviceVulkan>& device)
+                                   std::shared_ptr<GraphicsDeviceVulkan> device)
       : BaseSharedRenderState(version) {}
   EyeVulkanRenderer* eye_renderer = nullptr;
   std::unique_ptr<FramebufferVulkanHelper> back_fbo;
@@ -34,7 +34,7 @@ struct SharedVulkanRenderState : public BaseSharedRenderState {
 };
 
 struct VulkanInitializationInfo {
-  VulkanInitializationInfo(std::unique_ptr<GraphicsDeviceVulkan>& device, GameVersion version) : shaders(device), m_version(version){};
+  VulkanInitializationInfo(std::shared_ptr<GraphicsDeviceVulkan> device, GameVersion version) : shaders(device), m_version(version){};
 
   std::unique_ptr<DescriptorPool> descriptor_pool;
   std::unique_ptr<SwapChain> swap_chain;
@@ -51,7 +51,7 @@ struct VulkanInitializationInfo {
  */
 class BucketVulkanRenderer {
  public:
-  BucketVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  BucketVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device,
                        VulkanInitializationInfo& vulkan_info)
       : m_device(device),
         m_vulkan_info(vulkan_info) {
@@ -60,7 +60,6 @@ class BucketVulkanRenderer {
 
     m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
     m_push_constant.scissor_adjust = (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512.0 / 448.0) : (-512.0 / 416.0);
-    m_graphics_pipeline_layouts.resize(1, m_device);
   }
 
   virtual void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) = 0;
@@ -69,7 +68,7 @@ class BucketVulkanRenderer {
   virtual void create_pipeline_layout(){};
 
  protected:
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
 
   VulkanInitializationInfo& m_vulkan_info;
 
@@ -79,7 +78,7 @@ class BucketVulkanRenderer {
   };
 
   PushConstant m_push_constant;
-  std::vector<GraphicsPipelineLayout> m_graphics_pipeline_layouts;
+  GraphicsPipelineLayout m_graphics_pipeline_layout{m_device};
   PipelineConfigInfo m_pipeline_config_info;
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
@@ -93,7 +92,7 @@ class RenderVulkanMux : public BucketVulkanRenderer, public BaseRenderMux {
  public:
   RenderVulkanMux(const std::string& name,
                   int my_id,
-                  std::unique_ptr<GraphicsDeviceVulkan>& device,
+                  std::shared_ptr<GraphicsDeviceVulkan> device,
                   VulkanInitializationInfo& vulkan_info,
                   std::vector<std::shared_ptr<BucketVulkanRenderer>> renderers,
                   std::vector<std::shared_ptr<BaseBucketRenderer>> bucket_renderers);
@@ -112,7 +111,7 @@ class EmptyBucketVulkanRenderer : public BucketVulkanRenderer, public BaseEmptyB
  public:
   EmptyBucketVulkanRenderer(const std::string& name,
                             int my_id,
-                            std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            std::shared_ptr<GraphicsDeviceVulkan> device,
                             VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
 };
@@ -121,7 +120,7 @@ class SkipVulkanRenderer : public BucketVulkanRenderer, public BaseSkipRenderer 
  public:
   SkipVulkanRenderer(const std::string& name,
                      int my_id,
-                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                     std::shared_ptr<GraphicsDeviceVulkan> device,
                      VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,

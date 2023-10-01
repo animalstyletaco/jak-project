@@ -17,7 +17,7 @@
 //TODO: Come up with better framebuffer name
 class FramebufferVulkan {
  public:
-  FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VkFormat format);
+  FramebufferVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, VkFormat format);
   ~FramebufferVulkan();
 
   VkFramebuffer framebuffer = VK_NULL_HANDLE;
@@ -39,7 +39,7 @@ class FramebufferVulkan {
   VkSampleCountFlagBits m_current_msaa = VK_SAMPLE_COUNT_1_BIT;
 
  private:
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VkFormat m_format;
 };
 
@@ -48,7 +48,7 @@ class FramebufferVulkanHelper {
   FramebufferVulkanHelper(unsigned w,
                           unsigned h,
                           VkFormat format,
-                          std::unique_ptr<GraphicsDeviceVulkan>& device,
+                          std::shared_ptr<GraphicsDeviceVulkan> device,
                           VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT,
                           int num_levels = 1);
 
@@ -79,7 +79,7 @@ class FramebufferVulkanHelper {
   VkExtent2D extents = {640, 480};
   VkOffset2D offsetExtents;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   FramebufferVulkan m_framebuffer;
 
   uint32_t currentImageIndex = 0;
@@ -91,7 +91,7 @@ class FramebufferVulkanHelper {
 
 class FramebufferVulkanCopier {
  public:
-  FramebufferVulkanCopier(std::unique_ptr<GraphicsDeviceVulkan>& device, std::unique_ptr<SwapChain>& swapChain);
+  FramebufferVulkanCopier(std::shared_ptr<GraphicsDeviceVulkan> device, std::unique_ptr<SwapChain>& swapChain);
   ~FramebufferVulkanCopier();
   void copy_now(int render_fb_w,
                 int render_fb_h,
@@ -105,7 +105,7 @@ class FramebufferVulkanCopier {
   void createFramebufferImage();
 
   int m_fbo_width = 640, m_fbo_height = 480;
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VulkanTexture m_framebuffer_image;
   VulkanSamplerHelper m_sampler_helper;
   std::unique_ptr<SwapChain>& m_swap_chain;

@@ -6,7 +6,7 @@
 
 class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
  public:
-  CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
+  CommonOceanVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
   ~CommonOceanVulkanRenderer();
 
   void flush_near(BaseSharedRenderState* render_state,
@@ -31,7 +31,7 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
   void InitializeShaders();
 
   struct OceanVulkanGraphicsHelper {
-    OceanVulkanGraphicsHelper(std::unique_ptr<GraphicsDeviceVulkan>& device,
+    OceanVulkanGraphicsHelper(std::shared_ptr<GraphicsDeviceVulkan> device,
                               u32 index_count,
                               std::unique_ptr<DescriptorLayout>& setLayout,
                               std::unique_ptr<DescriptorPool>& descriptor_pool,
@@ -43,7 +43,6 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
     VkDescriptorImageInfo descriptor_image_infos[NUM_BUCKETS];
     VkDescriptorSet descriptor_sets[NUM_BUCKETS];
 
-    std::unique_ptr<GraphicsPipelineLayout> pipeline_layouts[NUM_BUCKETS];
     std::unique_ptr<VulkanSamplerHelper> ocean_samplers[NUM_BUCKETS];
 
     ~OceanVulkanGraphicsHelper();
@@ -72,11 +71,12 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
     float alpha_mult;
   } m_fragment_push_constant;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   std::unique_ptr<VertexBuffer> vertex_buffer;
 
   PipelineConfigInfo m_pipeline_config_info;
   VulkanInitializationInfo& m_vulkan_info;
 
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
+  GraphicsPipelineLayout m_graphics_pipeline_layout{m_device};
 };

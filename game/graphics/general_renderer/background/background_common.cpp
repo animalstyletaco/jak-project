@@ -1,4 +1,8 @@
+#ifdef __aarch64__
+#include "third-party/sse2neon/sse2neon.h"
+#else
 #include <immintrin.h>
+#endif
 
 #include "background_common.h"
 
@@ -270,14 +274,12 @@ void background_common::cull_check_all_slow(const math::Vector4f* planes,
 void background_common::update_render_state_from_pc_settings(BaseSharedRenderState* state, const TfragPcPortData& data) {
   if (!state->has_pc_data) {
     for (int i = 0; i < 4; i++) {
-      state->camera_planes[i] = data.planes[i];
-      state->camera_matrix[i] = data.camera[i];
-      state->camera_no_persp[i] = data.camera_rot[i];
-      state->camera_persp[i] = data.camera_perspective[i];
+      state->camera_planes[i] = data.camera.planes[i];
+      state->camera_matrix[i] = data.camera.camera[i];
     }
-    state->camera_pos = data.cam_trans;
-    state->camera_hvdf_off = data.hvdf_off;
-    state->camera_fog = data.fog;
+    state->camera_pos = data.camera.trans;
+    state->camera_hvdf_off = data.camera.hvdf_off;
+    state->camera_fog = data.camera.fog;
     state->has_pc_data = true;
   }
 }

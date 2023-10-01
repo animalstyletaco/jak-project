@@ -252,22 +252,9 @@ void BaseSprite3::render_2d_group1(DmaFollower& dma,
   }
 }
 
-void BaseSprite3::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
-  switch (render_state->version) {
-    case GameVersion::Jak1:
-      render_jak1(dma, render_state, prof);
-      break;
-    case GameVersion::Jak2:
-      render_jak2(dma, render_state, prof);
-      break;
-    default:
-      ASSERT_NOT_REACHED();
-  }
-}
-
-void BaseSprite3::render_jak2(DmaFollower& dma,
-                          BaseSharedRenderState* render_state,
-                          ScopedProfilerNode& prof) {
+void BaseSprite3Jak2::render(DmaFollower& dma,
+                             BaseSharedRenderState* render_state,
+                             ScopedProfilerNode& prof) {
   m_debug_stats = {};
   auto data0 = dma.read_and_advance();
   ASSERT(data0.vif1() == 0 || data0.vifcode1().kind == VifCode::Kind::NOP);
@@ -331,7 +318,7 @@ void BaseSprite3::render_jak2(DmaFollower& dma,
   }
 }
 
-void BaseSprite3::render_jak1(DmaFollower& dma,
+void BaseSprite3Jak1::render(DmaFollower& dma,
                           BaseSharedRenderState* render_state,
                           ScopedProfilerNode& prof) {
   m_debug_stats = {};

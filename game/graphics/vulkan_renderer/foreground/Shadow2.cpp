@@ -2,7 +2,7 @@
 
 ShadowVulkan2::ShadowVulkan2(const std::string& name,
                  int my_id,
-                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                 std::shared_ptr<GraphicsDeviceVulkan> device,
                  VulkanInitializationInfo& vulkan_info)
     : BucketVulkanRenderer(device, vulkan_info), BaseShadow2(name, my_id) {
   for (int i = 0; i < 2; i++) {
@@ -298,7 +298,7 @@ void ShadowVulkan2::InitializeInputAttributes() {
 }
 
 void ShadowVulkan2::PrepareVulkanDraw(std::unique_ptr<GraphicsPipelineLayout>& graphics_pipeline_layout){
-  graphics_pipeline_layout->createGraphicsPipeline(m_pipeline_config_info);
+  graphics_pipeline_layout->updateGraphicsPipeline(m_pipeline_config_info);
   graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,

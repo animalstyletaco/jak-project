@@ -23,20 +23,20 @@ struct EmercUniformBufferVertexData : MercUniformBufferVertexData {
 
 class MercLightControlVertexUniformBuffer : public UniformVulkanBuffer {
  public:
-  MercLightControlVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  MercLightControlVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                           uint32_t instanceCount,
                           VkDeviceSize minOffsetAlignment = 1);
 };
 
 class MercVertexBoneUniformBuffer : public UniformVulkanBuffer {
-  MercVertexBoneUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  MercVertexBoneUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                               uint32_t instanceCount,
                               VkDeviceSize minOffsetAlignment = 1);
 };
 
 class MercVulkan2 : public BaseMerc2 {
  public:
-  MercVulkan2(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
         VulkanInitializationInfo& vulkan_info);
   ~MercVulkan2();
   void init_shaders();
@@ -120,7 +120,7 @@ class MercVulkan2 : public BaseMerc2 {
 
   class MercBoneVertexUniformBuffer : public UniformVulkanBuffer {
    public:
-    MercBoneVertexUniformBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+    MercBoneVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                 VkDeviceSize minOffsetAlignment = 1);
   };
 
@@ -136,7 +136,7 @@ class MercVulkan2 : public BaseMerc2 {
                           LevelDrawBucketVulkan& lev_bucket,
                           VulkanTexture* texture);
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VulkanInitializationInfo& m_vulkan_info;
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;

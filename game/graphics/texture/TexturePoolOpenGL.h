@@ -12,10 +12,12 @@
 #include "common/util/SmallVector.h"
 #include "common/versions/versions.h"
 
-#include "game/graphics/pipelines/opengl.h"
 #include "game/graphics/texture/TextureConverter.h"
 #include "game/graphics/texture/TextureID.h"
+
 #include "game/graphics/texture/TexturePoolDataTypes.h"
+
+#include "game/graphics/pipelines/opengl.h"
 
 /*!
  * The lowest level reference to texture data.

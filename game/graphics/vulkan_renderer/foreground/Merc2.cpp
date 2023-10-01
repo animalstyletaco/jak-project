@@ -39,7 +39,7 @@
  */
 
 MercVulkan2::MercVulkan2(
-             std::unique_ptr<GraphicsDeviceVulkan>& device,
+             std::shared_ptr<GraphicsDeviceVulkan> device,
              VulkanInitializationInfo& vulkan_info) :
   m_device(device), m_vulkan_info(vulkan_info) {
   m_vertex_push_constant.height_scale = (vulkan_info.m_version == GameVersion::Jak2) ? 0.5 : 1;
@@ -304,7 +304,7 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex, LevelDrawBucketVulkan& 
                                                  sizeof(math::Vector4f) * draw.first_bone);
   m_bone_vertex_uniform_buffer->unmap();
 
-  lev_bucket.pipeline_layouts[drawIndex].createGraphicsPipeline(m_pipeline_config_info);
+  lev_bucket.pipeline_layouts[drawIndex].updateGraphicsPipeline(m_pipeline_config_info);
   lev_bucket.pipeline_layouts[drawIndex].bind(m_vulkan_info.render_command_buffer);
 
   lev_bucket.descriptor_image_infos[drawIndex] = {sampler.GetSampler(), texture->getImageView(),
@@ -802,7 +802,7 @@ void MercVulkan2::InitializeInputAttributes() {
 }
 
 MercLightControlVertexUniformBuffer::MercLightControlVertexUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device,
@@ -820,7 +820,7 @@ MercLightControlVertexUniformBuffer::MercLightControlVertexUniformBuffer(
 }
 
 MercVulkan2::MercBoneVertexUniformBuffer::MercBoneVertexUniformBuffer(
-                                                     std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                     std::shared_ptr<GraphicsDeviceVulkan> device,
                                                      VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device,
                           sizeof(BaseMerc2::ShaderMercMat),

@@ -1,7 +1,7 @@
 #include "Generic2.h"
 #include "game/graphics/gfx.h"
 
-GenericVulkan2::GenericVulkan2(std::unique_ptr<GraphicsDeviceVulkan>& device,
+GenericVulkan2::GenericVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
                                VulkanInitializationInfo& vulkan_info,
                                u32 num_verts,
                                u32 num_frags,
@@ -25,12 +25,20 @@ GenericVulkan2::~GenericVulkan2() {
  * generic renderer. This renderer is expected to follow the chain until it reaches "next_bucket"
  * and then return.
  */
-void GenericVulkan2::render(DmaFollower& dma,
+void GenericVulkan2Jak1::render(DmaFollower& dma,
                             SharedVulkanRenderState* render_state,
                             ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
-  BaseGeneric2::render(dma, render_state, prof);
+  BaseGeneric2Jak1::render(dma, render_state, prof);
+}
+
+void GenericVulkan2Jak2::render(DmaFollower& dma,
+                            SharedVulkanRenderState* render_state,
+                            ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  BaseGeneric2Jak2::render(dma, render_state, prof);
 }
 
 void GenericVulkan2::graphics_setup() {
@@ -490,7 +498,7 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
 
   m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[bucket]);
   
-  m_graphics_pipeline_layouts[bucket].createGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layouts[bucket].updateGraphicsPipeline(m_pipeline_config_info);
   m_graphics_pipeline_layouts[bucket].bind(m_vulkan_info.render_command_buffer);
 
   std::vector<VkDescriptorSet> descriptor_sets = {m_fragment_descriptor_sets[bucket]};

@@ -17,7 +17,7 @@ VkDeviceSize VulkanBuffer::getAlignment(VkDeviceSize instanceSize, VkDeviceSize 
   return instanceSize;
 }
 
-VulkanBuffer::VulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+VulkanBuffer::VulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                            VkDeviceSize instanceSize,
                            uint32_t instanceCount,
                            VkBufferUsageFlags usageFlags,
@@ -274,7 +274,7 @@ void VulkanBuffer::writeToGpuBuffer(void* data, VkDeviceSize size, VkDeviceSize 
   stagingBuffer.unmap();
 }
 
-StagingBuffer::StagingBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+StagingBuffer::StagingBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                            VkDeviceSize instanceSize,
                            uint32_t instanceCount,
                            VkBufferUsageFlags properties,
@@ -286,7 +286,7 @@ StagingBuffer::StagingBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                    minOffsetAlignment) {}
 
-VertexBuffer::VertexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+VertexBuffer::VertexBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                            VkDeviceSize instanceSize,
                            uint32_t instanceCount,
                            VkDeviceSize minOffsetAlignment)
@@ -298,7 +298,7 @@ VertexBuffer::VertexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                    minOffsetAlignment) {
 }
 
-IndexBuffer::IndexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+IndexBuffer::IndexBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                          VkDeviceSize instanceSize,
                          uint32_t instanceCount,
                          VkDeviceSize minOffsetAlignment)
@@ -310,7 +310,7 @@ IndexBuffer::IndexBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
                    minOffsetAlignment) {
 }
 
-UniformVulkanBuffer::UniformVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+UniformVulkanBuffer::UniformVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                          VkDeviceSize instanceSize,
                                          uint32_t instanceCount,
                                          VkDeviceSize minOffsetAlignment)
@@ -338,7 +338,7 @@ uint32_t UniformVulkanBuffer::GetDeviceMemoryOffset(const char* name) {
   return 0;
 }
 
-TexelVulkanBuffer::TexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+TexelVulkanBuffer::TexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                      VkDeviceSize instanceSize,
                                      uint32_t instanceCount,
                                      VkBufferUsageFlagBits bufferUsage,
@@ -366,7 +366,7 @@ TexelVulkanBuffer::~TexelVulkanBuffer() {
   }
 }
 
-UniformTexelVulkanBuffer::UniformTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+UniformTexelVulkanBuffer::UniformTexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                                    VkDeviceSize instanceSize,
                                                    uint32_t instanceCount,
                                                    VkDeviceSize minOffsetAlignment)
@@ -376,7 +376,7 @@ UniformTexelVulkanBuffer::UniformTexelVulkanBuffer(std::unique_ptr<GraphicsDevic
                    VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT,
                    device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
 
-StorageTexelVulkanBuffer::StorageTexelVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+StorageTexelVulkanBuffer::StorageTexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                                    VkDeviceSize instanceSize,
                                                    uint32_t instanceCount,
                                                    VkDeviceSize minOffsetAlignment)
@@ -386,7 +386,7 @@ StorageTexelVulkanBuffer::StorageTexelVulkanBuffer(std::unique_ptr<GraphicsDevic
                         VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT,
                         device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
 
-MultiDrawVulkanBuffer::MultiDrawVulkanBuffer(std::unique_ptr<GraphicsDeviceVulkan>& device,
+MultiDrawVulkanBuffer::MultiDrawVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                          uint32_t instanceCount,
                                          VkDeviceSize minOffsetAlignment)
     : VulkanBuffer(device,

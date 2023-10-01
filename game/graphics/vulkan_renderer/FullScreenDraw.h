@@ -15,7 +15,7 @@ struct VulkanInitializationInfo;
 // you must set alpha/ztest/etc.
 class FullScreenDrawVulkan {
  public:
-  FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  FullScreenDrawVulkan(std::shared_ptr<GraphicsDeviceVulkan> device,
                        VulkanInitializationInfo& vulkan_info);
   ~FullScreenDrawVulkan();
   FullScreenDrawVulkan(const FullScreenDrawVulkan&) = delete;
@@ -37,7 +37,7 @@ class FullScreenDrawVulkan {
   uint32_t currentImageIndex = 0;
 
   std::vector<VkCommandBuffer> commandBuffers;
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   std::unique_ptr<VertexBuffer> m_vertex_buffer;
 
   VulkanInitializationInfo& m_vulkan_info;

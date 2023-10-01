@@ -1,6 +1,6 @@
 #include "OceanTexture.h"
 
-void BaseOceanTexture::run_L1_PC() {
+void BaseOceanTextureJak1::run_L1_PC() {
   //  L1:
   //  lq.xyzw vf14_startx, 988(vi00)    |  maxw.xyzw vf01_ones, vf00, vf00
   vu.startx = Vf(m_texture_constants.start);
@@ -59,7 +59,7 @@ void BaseOceanTexture::run_L1_PC() {
   //  nop
 }
 
-void BaseOceanTexture::run_L2_PC() {
+void BaseOceanTextureJak1::run_L2_PC() {
   //  L2:
   //  xtop vi05_in_ptr
   vu.in_ptr = swap_vu_upload_buffers();
@@ -131,7 +131,7 @@ void sq_buffer_giftag(const u8* src, Vf* dest) {
 }
 }  // namespace
 
-void BaseOceanTexture::run_L3_PC() {
+void BaseOceanTextureJak1::run_L3_PC() {
   Vf base_pos;  // vf15
   u16 loop_idx;
 
@@ -394,7 +394,7 @@ void BaseOceanTexture::xgkick_PC(Vf* src) {
   }
 }
 
-void BaseOceanTexture::run_L1_PC_jak2() {
+void BaseOceanTextureJak2::run_L1_PC() {
   //  L1:
   //  lq.xyzw vf14_startx, 988(vi00)    |  maxw.xyzw vf01_ones, vf00, vf00
   vu.startx = Vf(m_texture_constants.start);
@@ -419,14 +419,14 @@ void BaseOceanTexture::run_L1_PC_jak2() {
   //  bal vi12_ra, L3
   //  mr32.xyzw vf04_dbuf, vf04_dbuf
   swap_dbuf();
-  run_L3_PC_jak2();
+  run_L3_PC();
 
   //  mtir vi06_dbuf_write, vf04_dbuf.x
   vu.dbuf_write = get_dbuf();
   //  bal vi12_ra, L3
   //  mr32.xyzw vf04_dbuf, vf04_dbuf
   swap_dbuf();
-  run_L3_PC_jak2();
+  run_L3_PC();
 
   //  mtir vi03_dbuf_read_a, vf04_dbuf.x
   vu.dbuf_read_a = get_dbuf();
@@ -440,7 +440,7 @@ void BaseOceanTexture::run_L1_PC_jak2() {
   //  bal vi12_ra, L3
   //  mr32.xyzw vf04_dbuf, vf04_dbuf
   swap_dbuf();
-  run_L3_PC_jak2();
+  run_L3_PC();
 
   //  mtir vi03_dbuf_read_a, vf04_dbuf.x
   vu.dbuf_read_a = get_dbuf();
@@ -453,7 +453,7 @@ void BaseOceanTexture::run_L1_PC_jak2() {
   //  nop
 }
 
-void BaseOceanTexture::run_L2_PC_jak2() {
+void BaseOceanTextureJak2::run_L2_PC() {
   //  L2:
   //  xtop vi05_in_ptr
   vu.in_ptr = swap_vu_upload_buffers();
@@ -462,7 +462,7 @@ void BaseOceanTexture::run_L2_PC_jak2() {
   //  bal vi12_ra, L3
   //  mr32.xyzw vf04_dbuf, vf04_dbuf
   swap_dbuf();
-  run_L3_PC_jak2();
+  run_L3_PC();
 
   //  mtir vi03_dbuf_read_a, vf04_dbuf.x
   vu.dbuf_read_a = get_dbuf();
@@ -476,7 +476,7 @@ void BaseOceanTexture::run_L2_PC_jak2() {
   //  bal vi12_ra, L3
   //  mr32.xyzw vf04_dbuf, vf04_dbuf
   swap_dbuf();
-  run_L3_PC_jak2();
+  run_L3_PC();
 
   //  mtir vi03_dbuf_read_a, vf04_dbuf.x
   vu.dbuf_read_a = get_dbuf();
@@ -490,7 +490,7 @@ void BaseOceanTexture::run_L2_PC_jak2() {
   //  bal vi12_ra, L3
   //  mr32.xyzw vf04_dbuf, vf04_dbuf
   swap_dbuf();
-  run_L3_PC_jak2();
+  run_L3_PC();
 
   //  mtir vi03_dbuf_read_a, vf04_dbuf.x
   vu.dbuf_read_a = get_dbuf();
@@ -503,7 +503,7 @@ void BaseOceanTexture::run_L2_PC_jak2() {
   //  nop
 }
 
-void BaseOceanTexture::run_L3_PC_jak2() {
+void BaseOceanTextureJak2::run_L3_PC() {
   Vf base_pos;  // vf15
   u16 loop_idx;
 

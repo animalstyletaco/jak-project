@@ -8,7 +8,7 @@
 
 class SkyBlendCPU : public BaseSkyBlendCPU {
  public:
-  SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info);
+  SkyBlendCPU(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
   ~SkyBlendCPU();
 
   void init_textures(VulkanTexturePool& tex_pool);
@@ -23,6 +23,6 @@ class SkyBlendCPU : public BaseSkyBlendCPU {
     VulkanGpuTextureMap* tex;
   } m_textures[2];
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VulkanInitializationInfo& m_vulkan_info;
 };

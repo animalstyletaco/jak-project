@@ -19,19 +19,14 @@ class BaseOceanNear : public BaseBucketRenderer {
                                                       BaseSharedRenderState* render_state,
                                                       ScopedProfilerNode& prof) = 0;
 
-  void run_call0_vu2c();
-  void run_call0_vu2c_jak2();
-  void run_call39_vu2c();
-  void run_call39_vu2c_jak2();
-  void run_L15_vu2c();
-  void run_L15_vu2c_jak2();
-  void run_L21_vu2c();
-  void run_L21_vu2c_jak2();
+  virtual void run_call0_vu2c() = 0;
+  virtual void run_L15_vu2c() = 0;
+  virtual void run_L21_vu2c() = 0;
   void run_L23_vu2c();
-  void run_L25_vu2c();
-  void run_L25_vu2c_jak2();
+  virtual void run_L25_vu2c() = 0;
   void run_L30_vu2c();
   void run_L32_vu2c();
+  virtual void run_call39_vu2c() = 0;
 
   bool m_buffer_toggle = false;
   static constexpr int VU1_INPUT_BUFFER_BASE = 0;
@@ -136,3 +131,26 @@ class BaseOceanNear : public BaseBucketRenderer {
   } vu;
 };
 
+class BaseOceanNearJak1 : public virtual BaseOceanNear {
+ public:
+  BaseOceanNearJak1(const std::string& name, int my_id) : BaseOceanNear(name, my_id){};
+
+ protected:
+  void run_call0_vu2c() override;
+  void run_call39_vu2c() override;
+  void run_L15_vu2c() override;
+  void run_L21_vu2c() override;
+  void run_L25_vu2c() override;
+};
+
+class BaseOceanNearJak2 : public virtual BaseOceanNear {
+ public:
+  BaseOceanNearJak2(const std::string& name, int my_id) : BaseOceanNear(name, my_id){};
+
+ protected:
+  void run_call0_vu2c() override;
+  void run_call39_vu2c() override;
+  void run_L15_vu2c() override;
+  void run_L21_vu2c() override;
+  void run_L25_vu2c() override;
+};

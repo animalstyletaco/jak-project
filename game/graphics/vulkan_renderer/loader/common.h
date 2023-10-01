@@ -54,10 +54,10 @@ struct LoaderInputVulkan {
 
 class LoaderStageVulkan : public BaseLoaderStage {
  public:
-  LoaderStageVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, const std::string& name) : BaseLoaderStage(name), m_device(device) {}
+  LoaderStageVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, const std::string& name) : BaseLoaderStage(name), m_device(device) {}
   virtual bool run(Timer& timer, LoaderInputVulkan& data) = 0;
   virtual ~LoaderStageVulkan() = default;
 
  protected:
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
 };

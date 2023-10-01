@@ -7,10 +7,9 @@
 ShadowVulkanRenderer::ShadowVulkanRenderer(
     const std::string& name,
     int my_id,
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     VulkanInitializationInfo& vulkan_info)
     : BaseShadowRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
-  m_graphics_pipeline_layouts.resize(5, m_device);
 
   // set up the vertex array
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
@@ -275,8 +274,8 @@ void ShadowVulkanRenderer::PrepareVulkanDraw(uint32_t& pipeline_layout_id, uint3
 
   auto& index_buffer = m_ogl.index_buffers[indexBufferId % 2];
 
-  m_graphics_pipeline_layouts[pipeline_layout_id].createGraphicsPipeline(m_pipeline_config_info);
-  m_graphics_pipeline_layouts[pipeline_layout_id].bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 

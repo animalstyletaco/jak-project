@@ -10,14 +10,14 @@
 
 
 namespace framebuffer_vulkan {
-  VkFormat GetSupportedDepthFormat(std::unique_ptr<GraphicsDeviceVulkan>& device) {
+  VkFormat GetSupportedDepthFormat(std::shared_ptr<GraphicsDeviceVulkan> device) {
     return device->findSupportedFormat(
         {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
         VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
   }
 }  // namespace framebuffer_vulkan
 
-FramebufferVulkan::FramebufferVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VkFormat format)
+FramebufferVulkan::FramebufferVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, VkFormat format)
     : m_device(device),
       m_format(format),
       m_sampler_helper(device),
@@ -76,7 +76,7 @@ FramebufferVulkan::~FramebufferVulkan() {
 FramebufferVulkanHelper::FramebufferVulkanHelper(unsigned w,
                                                  unsigned h,
                                                  VkFormat format,
-                                                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                                                 std::shared_ptr<GraphicsDeviceVulkan> device,
                                                  VkSampleCountFlagBits samples, int mipmapLevel)
     : m_device(device), m_format(format), m_framebuffer(device, format), m_mipmap_level(mipmapLevel) {
   m_framebuffer.extents = extents = {w, h};
@@ -283,7 +283,7 @@ void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer,
   m_framebuffer.beginRenderPass(commandBuffer, clearValues);
 }
 
-FramebufferVulkanCopier::FramebufferVulkanCopier(std::unique_ptr<GraphicsDeviceVulkan>& device, std::unique_ptr<SwapChain>& swapChain)
+FramebufferVulkanCopier::FramebufferVulkanCopier(std::shared_ptr<GraphicsDeviceVulkan> device, std::unique_ptr<SwapChain>& swapChain)
     : m_device(device), m_framebuffer_image(device), m_sampler_helper(device), m_swap_chain(swapChain) {
   createFramebufferImage();
 

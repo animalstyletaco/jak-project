@@ -1,9 +1,10 @@
 #include "GraphicsPipelineLayout.h"
 #include <cassert>
 #include <stdexcept>
+#include <algorithm>
 
-GraphicsPipelineLayout::GraphicsPipelineLayout(std::unique_ptr<GraphicsDeviceVulkan>& device)
-    : m_device{device} {
+GraphicsPipelineLayout::GraphicsPipelineLayout(std::shared_ptr<GraphicsDeviceVulkan> device)
+    : _device{device} {
 }
 
 GraphicsPipelineLayout::~GraphicsPipelineLayout() {
@@ -15,6 +16,102 @@ void GraphicsPipelineLayout::destroyPipeline() {
     vkDestroyPipeline(m_device->getLogicalDevice(), m_graphics_pipeline, nullptr);
     m_graphics_pipeline = nullptr;
   }
+}
+
+bool GraphicsPipelineLayout::IsDynamicStateFeatureEnabled(VkDynamicState dynamicState) {
+  auto iter = std::find_first_of(m_current_pipeline_config.dynamicStateEnables.begin(),
+                                 m_current_pipeline_config.dynamicStateEnables.end(), dynamicState);
+  return (iter != m_current_pipeline_config.dynamicStateEnabled.end());
+}
+
+void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer, PipelineConfigInfo& pipelineConfig) {
+  if (m_graphics_pipeline) {
+    createGraphicsPipeline(pipelineConfig);
+    return;
+  }
+
+  if (pipelineConfig == m_current_pipeline_config) {
+    return;
+  }
+
+  const float floatEplision = std::numeric_limits<float>::eplision();
+
+  //TODO: Check to see if extensions are enabled or if Vulkan 1.3 is enabled
+  //Viewport and scissor are handled outside of this class
+  bool areBlendConstantsEqual = true;
+  const unsigned blendConstantCount = sizeof(m_current_pipeline_info.colorBlendAttachment.blendConstants);
+  for (unsigned i = 0; i < blendConstantCount; i++){
+    areBlendConstantEqual &= (std::abs(m_current_pipeline_info.colorBlendAttachment.blendConstants[i] -
+                              pipelineConfig.colorBlendAttachment.blendConstants[i]) < floatEplision);
+  }
+
+  if (IsDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_BLEND_CONSTANTS) && !areBlendConstantsEqual) {
+    vkCmdSetBlendConstants(commandBuffer, pipelineConfig.colorBlendAttachment.blendConstant);
+  }
+
+
+  bool areMinDepthBoundEqual = std::abs(currentPipelineConfig.depthStencilInfo.minDepthInfo -
+               pipelineConfig.depthStencilInfo.minDepthInfo) < floatEplision;
+  bool areMaxDepthBoundEqual =
+      std::abs(currentPipelineConfig.depthStencilInfo.maxDepthInfo -
+               pipelineConfig.depthStencilInfo.maxDepthInfo) < floatEplision;
+  if (IsDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_DEPTH_BOUNDS) &&
+      (areMinDepthBoundEqual && areMaxDepthBoundEqual)) {
+    vkCmdSetDepthBounds(commandBuffer, pipelineConfig.depthStencilInfo.minDepthBound,
+                        pipelineConfig.depthStencilInfo.maxDepthBound);
+  }
+
+  if (IsDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK)){
+    if ((pipelineConfig.depthStencil.front.compareOp ==
+         pipelineConfig.depthStencil.front.compareOp) &&
+        (pipelineConfig.depthStencil.front.compareMask ==
+         pipelineConfig.depthStencil.front.compareMask)) {
+      vkCmdSetCompareMask(commandBuffer, pipelineConfig.depthStencil.front.compareOp,
+                          pipelineConfig.depthStencil.front.compareMask);
+    }
+    if ((pipelineConfig.depthStencil.back.compareOp ==
+        pipelineConfig.depthStencil.back.compareOp) &&
+        (pipelineConfig.depthStencil.back.compareMask ==
+         pipelineConfig.depthStencil.back.compareMask)) {
+        vkCmdSetCompareMask(commandBuffer, pipelineConfig.depthStencil.back.compareOp,
+                            pipelineConfig.depthStencil.back.compareMask);
+      }
+  }
+
+  if (IsDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_STENCIL_WRITE_MASK)) {
+    if ((pipelineConfig.depthStencil.front.compareOp ==
+         pipelineConfig.depthStencil.front.compareOp) &&
+        (pipelineConfig.depthStencil.front.compareMask ==
+         pipelineConfig.depthStencil.front.compareMask)) {
+      vkCmdSetStencilWriteMask(commandBuffer, pipelineConfig.depthStencil.front.compareOp,
+                               pipelineConfig.depthStencil.front.stencilMask);
+    }
+    if ((pipelineConfig.depthStencil.back.compareOp ==
+         pipelineConfig.depthStencil.back.compareOp) &&
+        (pipelineConfig.depthStencil.back.compareMask ==
+         pipelineConfig.depthStencil.back.compareMask)) {
+      vkCmdSetStencilWriteMask(commandBuffer, pipelineConfig.depthStencil.back.compareOp,
+                               pipelineConfig.depthStencil.back.stencilMask);
+    }
+  }
+
+  if (IsDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_STENCIL_REFERENCE)) {
+    if ((pipelineConfig.depthStencil.front.compareOp ==
+         pipelineConfig.depthStencil.front.compareOp) &&
+        (pipelineConfig.depthStencil.front.compareMask ==
+         pipelineConfig.depthStencil.front.compareMask)) {
+      vkCmdSetStencilReference(commandBuffer, pipelineConfig.depthStencil.front.compareOp,
+                               pipelineConfig.depthStencil.front.stencilMask);
+    }
+    if ((pipelineConfig.depthStencil.back.compareOp ==
+         pipelineConfig.depthStencil.back.compareOp) &&
+        (pipelineConfig.depthStencil.back.compareMask ==
+         pipelineConfig.depthStencil.back.compareMask)) {
+      vkCmdSetStencilReference(commandBuffer, pipelineConfig.depthStencil.back.compareOp,
+                               pipelineConfig.depthStencil.back.stencilMask);
+    }
+  }
+  m_current_pipeline_config = pipelineConfig;
 }
 
 void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configInfo) {
@@ -60,14 +157,15 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
   pipelineInfo.basePipelineIndex = -1;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-  if (vkCreateGraphicsPipelines(m_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-                                &m_graphics_pipeline) != VK_SUCCESS) {
+  if (vkCreateGraphicsPipelines(_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
+                                &_graphicsPipeline) != VK_SUCCESS) {
     throw std::runtime_error("failed to create graphics pipeline");
   }
+  m_current_pipeline_config = configInfo;
 }
 
 void GraphicsPipelineLayout::bind(VkCommandBuffer commandBuffer) {
-  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline);
+  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphicsPipeline);
 }
 
 void GraphicsPipelineLayout::defaultPipelineConfigInfo(PipelineConfigInfo& configInfo) {

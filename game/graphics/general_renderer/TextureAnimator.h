@@ -90,6 +90,157 @@ struct ShaderContext {
   bool source_texture_set = false;
 };
 
+
+struct Psm32ToPsm8Scrambler {
+  Psm32ToPsm8Scrambler(int w, int h, int write_tex_width, int read_tex_width);
+  std::vector<int> destinations_per_byte;
+};
+
+struct ClutReader {
+  std::array<int, 256> addrs;
+  ClutReader() {
+    for (int i = 0; i < 256; i++) {
+      u32 clut_chunk = i / 16;
+      u32 off_in_chunk = i % 16;
+      u8 clx = 0, cly = 0;
+      if (clut_chunk & 1) {
+        clx = 8;
+      }
+      cly = (clut_chunk >> 1) * 2;
+      if (off_in_chunk >= 8) {
+        off_in_chunk -= 8;
+        cly++;
+      }
+      clx += off_in_chunk;
+
+      // the x, y CLUT value is looked up in PSMCT32 mode
+      u32 clut_addr = clx + cly * 16;
+      ASSERT(clut_addr < 256);
+      addrs[i] = clut_addr;
+    }
+  }
+};
+
+struct LayerVals {
+  math::Vector4f color = math::Vector4f::zero();
+  math::Vector2f scale = math::Vector2f::zero();
+  math::Vector2f offset = math::Vector2f::zero();
+  math::Vector2f st_scale = math::Vector2f::zero();
+  math::Vector2f st_offset = math::Vector2f::zero();
+  math::Vector4f qs = math::Vector4f(1, 1, 1, 1);
+  float rot = 0;
+  float st_rot = 0;
+  u8 pad[8];
+};
+static_assert(sizeof(LayerVals) == 80);
+
+/*!
+ * A single layer in a FixedAnimationDef.
+ */
+struct FixedLayerDef {
+  enum class Kind {
+    DEFAULT_ANIM_LAYER,
+  } kind = Kind::DEFAULT_ANIM_LAYER;
+  float start_time = 0;
+  float end_time = 0;
+  std::string tex_name;
+  bool z_writes = false;
+  bool z_test = false;
+  bool clamp_u = false;
+  bool clamp_v = false;
+  bool blend_enable = true;
+  bool channel_masks[4] = {true, true, true, true};
+  GsAlpha::BlendMode blend_modes[4];  // abcd
+  u8 blend_fix = 0;
+
+  void set_blend_b2_d1() {
+    blend_modes[0] = GsAlpha::BlendMode::SOURCE;
+    blend_modes[1] = GsAlpha::BlendMode::ZERO_OR_FIXED;
+    blend_modes[2] = GsAlpha::BlendMode::SOURCE;
+    blend_modes[3] = GsAlpha::BlendMode::DEST;
+    blend_fix = 0;
+  }
+
+  void set_blend_b1_d1() {
+    blend_modes[0] = GsAlpha::BlendMode::SOURCE;
+    blend_modes[1] = GsAlpha::BlendMode::DEST;
+    blend_modes[2] = GsAlpha::BlendMode::SOURCE;
+    blend_modes[3] = GsAlpha::BlendMode::DEST;
+    blend_fix = 0;
+  }
+  void set_no_z_write_no_z_test() {
+    z_writes = false;
+    z_test = false;
+  }
+  void set_clamp() {
+    clamp_v = true;
+    clamp_u = true;
+  }
+};
+
+struct FixedAnimDef {
+  math::Vector4<u8> color;  // clear color
+  std::string tex_name;
+  std::optional<math::Vector2<int>> override_size;
+  // assuming (new 'static 'gs-test :ate #x1 :afail #x1 :zte #x1 :ztst (gs-ztest always))
+  // alpha blend off, so alpha doesn't matter i think.
+  std::vector<FixedLayerDef> layers;
+  bool move_to_pool = false;
+};
+
+struct DynamicLayerData {
+  LayerVals start_vals, end_vals;
+};
+
+struct FixedAnim {
+  FixedAnimDef def;
+  std::vector<DynamicLayerData> dynamic_data;
+  int dest_slot;
+
+  GpuTexture* pool_gpu_tex = nullptr;
+};
+
+struct FixedAnimArray {
+  std::vector<FixedAnim> anims;
+};
+
+/*
+ (deftype sky-input (structure)
+  ((fog-height float)
+   (cloud-min  float)
+   (cloud-max  float)
+   (times      float 9)
+   (cloud-dest int32)
+   )
+  )
+ */
+
+struct SkyInput {
+  float fog_height;
+  float cloud_min;
+  float cloud_max;
+  float times[9];
+  int32_t cloud_dest;
+};
+
+struct SlimeInput {
+  // float alphas[4];
+  float times[9];
+  int32_t dest;
+  int32_t scroll_dest;
+};
+
+using Vector16ub = math::Vector<u8, 16>;
+
+struct BaseNoiseTexturePair {
+  std::vector<u8> temp_data;
+  int dim = 0;
+  float scale = 0;
+  float last_time = 0;
+  float max_time = 0;
+};
+
+
 class BaseClutBlender {
  public:
   BaseClutBlender(const std::string& dest,
@@ -208,16 +359,4 @@ class BaseTextureAnimator {
                                          const std::string& suffix1,
                                          const std::optional<std::string>& dgo) = 0;
   void run_clut_blender_group(DmaTransfer& tf, int idx);
-
-  //  std::vector<ClutBlender> m_darkjak_blenders;
-  //  std::vector<int> m_darkjak_output_slots;
-  //
-  //  std::vector<ClutBlender> m_jakb_prison_blenders;
-  //  std::vector<int> m_jakb_prison_output_slots;
-  //
-  //  std::vector<ClutBlender> m_jakb_oracle_blenders;
-  //  std::vector<int> m_jakb_oracle_slots;
-  //
-  //  std::vector<ClutBlender> m_jakb_nest_blenders;
-  //  std::vector<int> m_jakb_nest_slots;
 };

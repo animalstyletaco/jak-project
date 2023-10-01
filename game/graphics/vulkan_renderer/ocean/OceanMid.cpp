@@ -1,12 +1,18 @@
 #include "OceanMid.h"
 
-OceanMidVulkan::OceanMidVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) : m_device(device), m_common_ocean_renderer(device, vulkan_info) {
+OceanMidVulkan::OceanMidVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) : m_common_ocean_renderer(device, vulkan_info) {
 }
 
-void OceanMidVulkan::run(DmaFollower& dma,
+void OceanMidVulkanJak1::run(DmaFollower& dma,
                          BaseSharedRenderState* render_state,
                          ScopedProfilerNode& prof) {
-  BaseOceanMid::run(dma, render_state, prof);
+  BaseOceanMidJak1::run(dma, render_state, prof);
+}
+
+void OceanMidVulkanJak2::run(DmaFollower& dma,
+                         BaseSharedRenderState* render_state,
+                         ScopedProfilerNode& prof) {
+  BaseOceanMidJak2::run(dma, render_state, prof);
 }
 
 void OceanMidVulkan::common_ocean_renderer_init_for_mid() {

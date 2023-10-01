@@ -6,7 +6,7 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendCPU::SkyBlendCPU(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) : m_device(device), m_vulkan_info(vulkan_info) {
+SkyBlendCPU::SkyBlendCPU(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) : m_device(device), m_vulkan_info(vulkan_info) {
   for (int i = 0; i < 2; i++) {
     m_textures[i].texture = std::make_unique<VulkanTexture>(m_device);
     VkDeviceSize texture_data = sizeof(u32) * m_sizes[i] * m_sizes[i];

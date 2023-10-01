@@ -40,7 +40,7 @@ class VulkanTextureUploadHandler : public BaseTextureUploadHandler, public Bucke
  public:
   VulkanTextureUploadHandler(const std::string& name,
                             int my_id,
-                            std::unique_ptr<GraphicsDeviceVulkan>& device,
+                            std::shared_ptr<GraphicsDeviceVulkan> device,
                             VulkanInitializationInfo& vulkan_info)
       : BaseTextureUploadHandler(name, my_id), BucketVulkanRenderer(device, vulkan_info){};
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override {
@@ -68,7 +68,7 @@ class VisDataVulkanHandler : public BaseVisDataHandler, public BucketVulkanRende
  public:
   VisDataVulkanHandler(const std::string& name,
                        int my_id,
-                       std::unique_ptr<GraphicsDeviceVulkan>& device,
+                       std::shared_ptr<GraphicsDeviceVulkan> device,
                        VulkanInitializationInfo& vulkan_info)
       : BaseVisDataHandler(name, my_id), BucketVulkanRenderer(device, vulkan_info){};
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override {
@@ -86,7 +86,7 @@ VulkanRenderer::~VulkanRenderer() {
 VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
                                std::shared_ptr<VulkanLoader> loader,
                                GameVersion version,
-                               std::unique_ptr<GraphicsDeviceVulkan>& device)
+                               std::shared_ptr<GraphicsDeviceVulkan> device)
     : m_version(version), m_render_state(version, device), m_device(device), m_vulkan_info(device, version) {
   m_vulkan_info.texture_pool = texture_pool;
   m_vulkan_info.loader = loader;
@@ -119,7 +119,7 @@ VulkanRenderer::VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
   m_blackout_renderer = std::make_unique<FullScreenDrawVulkan>(m_device, m_vulkan_info);
 
   m_merc2 = std::make_shared<MercVulkan2>(device, m_vulkan_info);
-  m_generic2 = std::make_shared<GenericVulkan2>(device, m_vulkan_info);
+  m_generic2 = std::make_shared<GenericVulkan2Jak1>(device, m_vulkan_info);
 
   // initialize all renderers
   // initialize all renderers
@@ -160,7 +160,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   // 3 : SKY_DRAW
   init_bucket_renderer<SkyVulkanRenderer>("sky", BucketCategory::OTHER, BucketId::SKY_DRAW, m_device, m_vulkan_info);
   // 4 : OCEAN_MID_AND_FAR
-  init_bucket_renderer<OceanVulkanMidAndFar>("ocean-mid-far", BucketCategory::OCEAN,
+  init_bucket_renderer<OceanVulkanMidAndFarJak1>("ocean-mid-far", BucketCategory::OCEAN,
                                        BucketId::OCEAN_MID_AND_FAR, m_device, m_vulkan_info);
 
   //-----------------------
@@ -181,7 +181,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   init_bucket_renderer<MercVulkan2BucketRenderer>("l0-tfrag-merc", BucketCategory::MERC,
                               BucketId::MERC_TFRAG_TEX_LEVEL0, m_device, m_vulkan_info, m_merc2);
   // 11 : GMERC_TFRAG_TEX_LEVEL0
-  init_bucket_renderer<GenericVulkan2BucketRenderer>(
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>(
       "l0-tfrag-generic", BucketCategory::GENERIC, BucketId::GENERIC_TFRAG_TEX_LEVEL0, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);
 
@@ -203,7 +203,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   init_bucket_renderer<MercVulkan2BucketRenderer>("l1-tfrag-merc", BucketCategory::MERC,
                               BucketId::MERC_TFRAG_TEX_LEVEL1, m_device, m_vulkan_info, m_merc2);
   // 18 : GMERC_TFRAG_TEX_LEVEL1
-  init_bucket_renderer<GenericVulkan2BucketRenderer>(
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>(
       "l1-tfrag-generic", BucketCategory::GENERIC, BucketId::GENERIC_TFRAG_TEX_LEVEL1, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);
 
@@ -232,7 +232,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   // 28 : SHRUB_BILLBOARD_LEVEL1
   // 29 : SHRUB_TRANS_LEVEL1
   // 30 : SHRUB_GENERIC_LEVEL1
-  init_bucket_renderer<GenericVulkan2BucketRenderer>(
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>(
       "mystery-generic", BucketCategory::GENERIC, BucketId::SHRUB_GENERIC_LEVEL1, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);
 
@@ -273,7 +273,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   init_bucket_renderer<MercVulkan2BucketRenderer>("common-alpha-merc", BucketCategory::MERC,
                               BucketId::MERC_AFTER_ALPHA, m_device, m_vulkan_info, m_merc2);
 
-  init_bucket_renderer<GenericVulkan2BucketRenderer>(
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>(
       "common-alpha-generic", BucketCategory::GENERIC, BucketId::GENERIC_ALPHA, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);  // 46
   init_bucket_renderer<ShadowVulkanRenderer>("shadow", BucketCategory::OTHER, BucketId::SHADOW, m_device, m_vulkan_info);  // 47
@@ -285,7 +285,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
                                              BucketId::PRIS_TEX_LEVEL0, m_device, m_vulkan_info);  // 48
   init_bucket_renderer<MercVulkan2BucketRenderer>("l0-pris-merc", BucketCategory::MERC,
                               BucketId::MERC_PRIS_LEVEL0, m_device, m_vulkan_info, m_merc2);  // 49
-  init_bucket_renderer<GenericVulkan2BucketRenderer>(
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>(
       "l0-pris-generic", BucketCategory::GENERIC, BucketId::GENERIC_PRIS_LEVEL0, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);  // 50
 
@@ -296,7 +296,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
                                              BucketId::PRIS_TEX_LEVEL1, m_device, m_vulkan_info);  // 51
   init_bucket_renderer<MercVulkan2BucketRenderer>("l1-pris-merc", BucketCategory::MERC,
                               BucketId::MERC_PRIS_LEVEL1, m_device, m_vulkan_info, m_merc2);  // 52
-  init_bucket_renderer<GenericVulkan2BucketRenderer>(
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>(
       "l1-pris-generic", BucketCategory::GENERIC, BucketId::GENERIC_PRIS_LEVEL1, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);  // 53
 
@@ -307,7 +307,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
   // hack: set to merc2 for debugging
   init_bucket_renderer<MercVulkan2BucketRenderer>("common-pris-merc", BucketCategory::MERC,
                               BucketId::MERC_AFTER_PRIS, m_device, m_vulkan_info, m_merc2);  // 55
-  init_bucket_renderer<GenericVulkan2BucketRenderer>(
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>(
       "common-pris-generic", BucketCategory::GENERIC, BucketId::GENERIC_PRIS, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);  // 56
 
@@ -318,7 +318,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
                                              BucketId::WATER_TEX_LEVEL0, m_device, m_vulkan_info);  // 57
   init_bucket_renderer<MercVulkan2BucketRenderer>("l0-water-merc", BucketCategory::MERC,
                               BucketId::MERC_WATER_LEVEL0, m_device, m_vulkan_info, m_merc2);  // 58
-  init_bucket_renderer<GenericVulkan2BucketRenderer>("l0-water-generic", BucketCategory::GENERIC, BucketId::GENERIC_WATER_LEVEL0, m_device,
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>("l0-water-generic", BucketCategory::GENERIC, BucketId::GENERIC_WATER_LEVEL0, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);  // 59
 
   //-----------------------
@@ -328,10 +328,10 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
                                              BucketId::WATER_TEX_LEVEL1, m_device, m_vulkan_info);  // 60
   init_bucket_renderer<MercVulkan2BucketRenderer>("l1-water-merc", BucketCategory::MERC,
                               BucketId::MERC_WATER_LEVEL1, m_device, m_vulkan_info, m_merc2);  // 61
-  init_bucket_renderer<GenericVulkan2BucketRenderer>("l1-water-generic", BucketCategory::GENERIC, BucketId::GENERIC_WATER_LEVEL1, m_device,
+  init_bucket_renderer<GenericVulkan2BucketRendererJak1>("l1-water-generic", BucketCategory::GENERIC, BucketId::GENERIC_WATER_LEVEL1, m_device,
       m_vulkan_info, BaseGeneric2::Mode::NORMAL, m_generic2);  // 62
 
-  init_bucket_renderer<OceanNearVulkan>("ocean-near", BucketCategory::OCEAN, BucketId::OCEAN_NEAR, m_device, m_vulkan_info);  // 63
+  init_bucket_renderer<OceanNearVulkanJak1>("ocean-near", BucketCategory::OCEAN, BucketId::OCEAN_NEAR, m_device, m_vulkan_info);  // 63
 
   //-----------------------
   // DEPTH CUE
@@ -345,7 +345,7 @@ void VulkanRenderer::init_bucket_renderers_jak1() {
                                              BucketId::PRE_SPRITE_TEX, m_device, m_vulkan_info);  // 65
 
   // the first renderer added will be the default for sprite.
-  init_bucket_renderer<SpriteVulkan3>("sprite-3", BucketCategory::SPRITE, BucketId::SPRITE, m_device,
+  init_bucket_renderer<SpriteVulkan3Jak1>("sprite-3", BucketCategory::SPRITE, BucketId::SPRITE, m_device,
                                       m_vulkan_info);
 
   init_bucket_renderer<DirectVulkanRenderer>("debug", BucketCategory::OTHER, BucketId::DEBUG, m_device, m_vulkan_info, 0x20000);
@@ -381,7 +381,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-lcom-sky-pre", BucketCategory::TEX, BucketId::TEX_LCOM_SKY_PRE, m_device, m_vulkan_info);
   init_bucket_renderer<DirectVulkanRenderer>("sky-draw", BucketCategory::OTHER, BucketId::SKY_DRAW,
                                              m_device, m_vulkan_info, 1024);
-  init_bucket_renderer<OceanVulkanMidAndFar>("ocean-mid-far", BucketCategory::OCEAN,
+  init_bucket_renderer<OceanVulkanMidAndFarJak2>("ocean-mid-far", BucketCategory::OCEAN,
                                              BucketId::OCEAN_MID_FAR, m_device, m_vulkan_info);
 
   for (int i = 0; i < 6; ++i) {
@@ -406,7 +406,7 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
         fmt::format("merc-l{}-tfrag", i), BucketCategory::MERC,
         GET_BUCKET_ID_FOR_LIST(BucketId::MERC_L0_TFRAG, BucketId::MERC_L1_TFRAG, i), m_device,
         m_vulkan_info, m_merc2);
-    init_bucket_renderer<GenericVulkan2BucketRenderer>(
+    init_bucket_renderer<GenericVulkan2BucketRendererJak2>(
         fmt::format("gmerc-l{}-tfrag", i), BucketCategory::MERC,
         GET_BUCKET_ID_FOR_LIST(BucketId::GMERC_L0_TFRAG, BucketId::GMERC_L1_TFRAG, i), m_device, m_vulkan_info, 
         BaseGeneric2::Mode::NORMAL, m_generic2);
@@ -579,9 +579,9 @@ void VulkanRenderer::init_bucket_renderers_jak2() {
                                                    BucketId::TEX_LCOM_SKY_POST, m_device,
                                                    m_vulkan_info);
   // 310
-  init_bucket_renderer<OceanNearVulkan>("ocean-near", BucketCategory::OCEAN, BucketId::OCEAN_NEAR, m_device, m_vulkan_info);
+  init_bucket_renderer<OceanNearVulkanJak2>("ocean-near", BucketCategory::OCEAN, BucketId::OCEAN_NEAR, m_device, m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-sprite", BucketCategory::TEX, BucketId::TEX_ALL_SPRITE, m_device, m_vulkan_info);
-  init_bucket_renderer<SpriteVulkan3>("particles", BucketCategory::SPRITE, BucketId::PARTICLES, m_device,
+  init_bucket_renderer<SpriteVulkan3Jak2>("particles", BucketCategory::SPRITE, BucketId::PARTICLES, m_device,
                                 m_vulkan_info);
   init_bucket_renderer<VulkanTextureUploadHandler>("tex-all-warp", BucketCategory::TEX,
                                                    BucketId::TEX_ALL_WARP, m_device, m_vulkan_info);

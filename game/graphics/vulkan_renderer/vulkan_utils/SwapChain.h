@@ -8,8 +8,8 @@ class SwapChain {
  public:
   static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
-  SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef, VkExtent2D windowExtent, bool vsyncEnabled);
-  SwapChain(std::unique_ptr<GraphicsDeviceVulkan>& deviceRef,
+  SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef, VkExtent2D windowExtent, bool vsyncEnabled);
+  SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
                VkExtent2D windowExtent, bool vsyncEnabled,
                std::shared_ptr<SwapChain> previous);
 
@@ -32,7 +32,7 @@ class SwapChain {
   VkOffset2D getOffsetSwapChainExtent() { return offsetSwapChainExtent; }
   uint32_t width() { return swapChainExtent.width; }
   uint32_t height() { return swapChainExtent.height; }
-  std::unique_ptr<GraphicsDeviceVulkan>& getLogicalDevice() { return device; };
+  std::shared_ptr<GraphicsDeviceVulkan> getLogicalDevice() { return device; };
 
   void drawCommandBuffer(VkCommandBuffer commandBuffer,
                        std::unique_ptr<VertexBuffer>& vertex_buffer,
@@ -131,7 +131,7 @@ class SwapChain {
   std::vector<VulkanTexture> colorImages;
   std::vector<VulkanTexture> depthImages;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& device;
+  std::shared_ptr<GraphicsDeviceVulkan> device;
   VkExtent2D windowExtent;
 
   VkSwapchainKHR swapChain = VK_NULL_HANDLE;

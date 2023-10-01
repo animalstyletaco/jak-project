@@ -10,7 +10,7 @@
 
 class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
  public:
-  DirectVulkanRenderer2(std::unique_ptr<GraphicsDeviceVulkan>& device,
+  DirectVulkanRenderer2(std::shared_ptr<GraphicsDeviceVulkan> device,
                         VulkanInitializationInfo& vulkan_info,
                         u32 max_verts,
                         u32 max_inds,
@@ -60,7 +60,7 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
                                SharedVulkanRenderState* render_state,
                                ScopedProfilerNode& prof);
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
   PipelineConfigInfo m_pipeline_config_info;
   VulkanInitializationInfo& m_vulkan_info;

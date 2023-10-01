@@ -1,6 +1,6 @@
 #include "CommonOceanRenderer.h"
 
-CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info)
+CommonOceanVulkanRenderer::CommonOceanVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info)
     : m_device(device),
       m_vulkan_info{vulkan_info} {
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
@@ -331,7 +331,7 @@ void CommonOceanVulkanRenderer::flush_mid(
 }
 
 CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::OceanVulkanGraphicsHelper(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     u32 index_count,
     std::unique_ptr<DescriptorLayout>& setLayout,
     std::unique_ptr<DescriptorPool>& descriptor_pool,
@@ -340,8 +340,6 @@ CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::OceanVulkanGraphicsHelper(
     ocean_samplers[i] = std::make_unique<VulkanSamplerHelper>(device);
     index_buffers[i] =
         std::make_unique<IndexBuffer>(device, sizeof(u32), index_count, 1);
-
-    pipeline_layouts[i] = std::make_unique<GraphicsPipelineLayout>(device);
 
     fragment_descriptor_writers[i] = std::make_unique<DescriptorWriter>(
         setLayout, descriptor_pool);
@@ -379,8 +377,8 @@ void CommonOceanVulkanRenderer::FinalizeVulkanDraw(std::unique_ptr<OceanVulkanGr
         ocean_graphics->descriptor_sets[bucket]);
   }
 
-  ocean_graphics->pipeline_layouts[bucket]->createGraphicsPipeline(m_pipeline_config_info);
-  ocean_graphics->pipeline_layouts[bucket]->bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vertex_push_constant.bucket = bucket;
   m_fragment_push_constant.bucket = bucket;

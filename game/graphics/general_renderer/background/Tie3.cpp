@@ -219,10 +219,10 @@ bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
     dma.read_and_advance();
   }
 
-  m_common_data.settings.hvdf_offset = m_pc_port_data.hvdf_off;
-  m_common_data.settings.fog = m_pc_port_data.fog;
+  m_common_data.settings.camera.hvdf_off = m_pc_port_data.camera.hvdf_off;
+  m_common_data.settings.camera.fog = m_pc_port_data.camera.fog;
 
-  memcpy(m_common_data.settings.math_camera.data(), m_pc_port_data.camera[0].data(), 64);
+  m_common_data.settings.camera = m_pc_port_data.camera;
   m_common_data.settings.tree_idx = 0;
 
   if (render_state->occlusion_vis[m_level_id].valid) {
@@ -234,8 +234,8 @@ bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
   background_common::update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
   for (int i = 0; i < 4; i++) {
-    m_common_data.settings.planes[i] = m_pc_port_data.planes[i];
-    m_common_data.settings.itimes[i] = m_pc_port_data.itimes[i];
+    m_common_data.settings.camera.planes[i] = m_pc_port_data.camera.planes[i];
+    m_common_data.settings.camera.itimes[i] = m_pc_port_data.camera.itimes[i];
   }
 
   m_has_level = try_loading_level(m_pc_port_data.level_name, render_state);

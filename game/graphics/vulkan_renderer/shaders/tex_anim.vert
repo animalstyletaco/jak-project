@@ -3,8 +3,9 @@
 layout (location = 0) in int vertex_index;
 
 layout (push_constant) uniform PushConstant {
- layout(offset = 0) vec2 uvs[4];
- layout(offset = 32) vec3 positions[4];
+ layout(offset = 0) vec4 rgba;
+ layout(offset = 16) vec2 uvs[4];
+ layout(offset = 48) vec3 positions[4];
 } pc;
 // TODO flags and stuff
 

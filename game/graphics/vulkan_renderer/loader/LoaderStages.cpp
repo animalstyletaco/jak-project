@@ -37,7 +37,7 @@ void vk_loader_stage::update_texture(VulkanTexturePool& pool,
 
 class TextureVulkanLoaderStage : public LoaderStageVulkan {
  public:
-  TextureVulkanLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStageVulkan(device, "texture") {}
+  TextureVulkanLoaderStage(std::shared_ptr<GraphicsDeviceVulkan> device) : LoaderStageVulkan(device, "texture") {}
   bool run(Timer& timer, LoaderInputVulkan& data) override {
     constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 512;
 
@@ -71,7 +71,7 @@ class TextureVulkanLoaderStage : public LoaderStageVulkan {
 
 class TfragVulkanLoadStage : public LoaderStageVulkan {
  public:
-  TfragVulkanLoadStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStageVulkan(device, "tfrag") {}
+  TfragVulkanLoadStage(std::shared_ptr<GraphicsDeviceVulkan> device) : LoaderStageVulkan(device, "tfrag") {}
   bool run(Timer& timer, LoaderInputVulkan& data) override {
     if (m_done) {
       return true;
@@ -186,7 +186,7 @@ class TfragVulkanLoadStage : public LoaderStageVulkan {
 
 class ShrubVulkanLoadStage : public LoaderStageVulkan {
  public:
-  ShrubVulkanLoadStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStageVulkan(device, "shrub") {}
+  ShrubVulkanLoadStage(std::shared_ptr<GraphicsDeviceVulkan> device) : LoaderStageVulkan(device, "shrub") {}
   bool run(Timer& timer, LoaderInputVulkan& data) override {
     if (m_done) {
       return true;
@@ -275,7 +275,7 @@ class ShrubVulkanLoadStage : public LoaderStageVulkan {
 
 class TieVulkanLoadStage : public LoaderStageVulkan {
  public:
-  TieVulkanLoadStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStageVulkan(device, "tie") {}
+  TieVulkanLoadStage(std::shared_ptr<GraphicsDeviceVulkan> device) : LoaderStageVulkan(device, "tie") {}
   bool run(Timer& timer, LoaderInputVulkan& data) override {
     if (m_done) {
       return true;
@@ -431,7 +431,7 @@ class TieVulkanLoadStage : public LoaderStageVulkan {
 
 class CollideVulkanLoaderStage : public LoaderStageVulkan {
  public:
-  CollideVulkanLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStageVulkan(device, "collide") {}
+  CollideVulkanLoaderStage(std::shared_ptr<GraphicsDeviceVulkan> device) : LoaderStageVulkan(device, "collide") {}
   bool run(Timer& /*timer*/, LoaderInputVulkan& data) override {
     if (m_done) {
       return true;
@@ -469,7 +469,7 @@ class CollideVulkanLoaderStage : public LoaderStageVulkan {
 
 class StallVulkanLoaderStage : public LoaderStageVulkan {
  public:
-  StallVulkanLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device) : LoaderStageVulkan(device, "stall") {}
+  StallVulkanLoaderStage(std::shared_ptr<GraphicsDeviceVulkan> device) : LoaderStageVulkan(device, "stall") {}
   bool run(Timer&, LoaderInputVulkan& /*data*/) override {
     return m_count++ > 10;
   }
@@ -480,7 +480,7 @@ class StallVulkanLoaderStage : public LoaderStageVulkan {
   int m_count = 0;
 };
 
-MercVulkanLoaderStage::MercVulkanLoaderStage(std::unique_ptr<GraphicsDeviceVulkan>& device)
+MercVulkanLoaderStage::MercVulkanLoaderStage(std::shared_ptr<GraphicsDeviceVulkan> device)
     : LoaderStageVulkan(device, "merc") {}
 void MercVulkanLoaderStage::reset() {
   m_done = false;
@@ -536,7 +536,7 @@ bool MercVulkanLoaderStage::run(Timer& /*timer*/, LoaderInputVulkan& data) {
   return true;
 }
 
-std::vector<std::unique_ptr<LoaderStageVulkan>> vk_loader_stage::make_loader_stages(std::unique_ptr<GraphicsDeviceVulkan>& device) {
+std::vector<std::unique_ptr<LoaderStageVulkan>> vk_loader_stage::make_loader_stages(std::shared_ptr<GraphicsDeviceVulkan> device) {
   std::vector<std::unique_ptr<LoaderStageVulkan>> ret;
   ret.push_back(std::make_unique<TieVulkanLoadStage>(device));
   ret.push_back(std::make_unique<TextureVulkanLoaderStage>(device));

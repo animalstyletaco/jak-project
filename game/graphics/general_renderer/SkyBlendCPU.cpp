@@ -16,6 +16,7 @@ BaseSkyBlendCPU::~BaseSkyBlendCPU() {
 }
 
 void BaseSkyBlendCPU::blend_sky_initial_fast(u8 intensity, u8* out, const u8* in, u32 size) {
+#ifndef __arm64__
   if (get_cpu_info().has_avx2) {
 #ifdef __AVX2__
     __m256i intensity_vec = _mm256_set1_epi16(intensity);
@@ -42,9 +43,11 @@ void BaseSkyBlendCPU::blend_sky_initial_fast(u8 intensity, u8* out, const u8* in
       _mm_storel_epi64((__m128i*)(out + (i * 8)), result);
     }
   }
+#endif
 }
 
 void BaseSkyBlendCPU::blend_sky_fast(u8 intensity, u8* out, const u8* in, u32 size) {
+#ifndef __arm64__
   if (get_cpu_info().has_avx2) {
 #ifdef __AVX2__
     __m256i intensity_vec = _mm256_set1_epi16(intensity);
@@ -79,9 +82,7 @@ void BaseSkyBlendCPU::blend_sky_fast(u8 intensity, u8* out, const u8* in, u32 si
       _mm_storel_epi64((__m128i*)(out + (i * 8)), out_val);
     }
   }
-  /*
-
-   */
+#endif
 }
 
 SkyBlendStats BaseSkyBlendCPU::do_sky_blends(DmaFollower& dma,

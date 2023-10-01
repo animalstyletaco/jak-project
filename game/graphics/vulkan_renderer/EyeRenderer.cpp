@@ -10,7 +10,7 @@
 // Bucket Renderer
 /////////////////////////
 // note: eye texture increased to 128x128 (originally 32x32) here.
-EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& device) : fb(128, 128, VK_FORMAT_R8G8B8A8_UNORM, device) {
+EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::shared_ptr<GraphicsDeviceVulkan> device) : fb(128, 128, VK_FORMAT_R8G8B8A8_UNORM, device) {
   VkSamplerCreateInfo& samplerInfo = fb.GetSamplerHelper().GetSamplerCreateInfo();
   samplerInfo.anisotropyEnable = VK_TRUE;
   samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -31,7 +31,7 @@ EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::unique_ptr<GraphicsDeviceVulkan>& d
 
 EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
                          int id,
-                         std::unique_ptr<GraphicsDeviceVulkan>& device,
+                         std::shared_ptr<GraphicsDeviceVulkan> device,
                          VulkanInitializationInfo& vulkan_info)
     : BaseEyeRenderer(name, id), BucketVulkanRenderer(device, vulkan_info) {
   m_eye_renderer_extents = VkExtent2D{128, 128};
@@ -447,8 +447,8 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
 
   eye.descriptor_writer.overwrite(eye.descriptor_set);
 
-  eye.pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
-  eye.pipeline_layout.bind(commandBuffer);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(commandBuffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = m_gpu_vertex_buffer->getBuffer();

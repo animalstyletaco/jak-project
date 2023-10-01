@@ -4,7 +4,7 @@
 
 class VulkanTexture {
  public:
-  VulkanTexture(std::unique_ptr<GraphicsDeviceVulkan>& device);
+  VulkanTexture(std::shared_ptr<GraphicsDeviceVulkan> device);
   VulkanTexture(const VulkanTexture& image);
   void createImage(VkExtent3D extents,
                    uint32_t mipLevels,
@@ -63,7 +63,7 @@ class VulkanTexture {
  private:
   void AllocateVulkanImageMemory();
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   VkImage m_image = VK_NULL_HANDLE;
   VkImageView m_image_view = VK_NULL_HANDLE;
   VkDeviceMemory m_device_memory = VK_NULL_HANDLE;

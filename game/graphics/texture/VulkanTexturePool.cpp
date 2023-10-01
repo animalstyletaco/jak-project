@@ -314,7 +314,7 @@ const std::vector<u32>& get_tpage_dir(GameVersion version) {
 }
 }  // namespace
 
-VulkanTexturePool::VulkanTexturePool(GameVersion version, std::unique_ptr<GraphicsDeviceVulkan>& device)
+VulkanTexturePool::VulkanTexturePool(GameVersion version, std::shared_ptr<GraphicsDeviceVulkan> device)
     : m_device(device), m_loaded_textures(get_tpage_dir(version)),
       m_id_to_name(get_tpage_dir(version)),
       m_tpage_dir_size(get_tpage_dir(version).size()) {

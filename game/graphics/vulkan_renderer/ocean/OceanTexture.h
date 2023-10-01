@@ -7,15 +7,14 @@
 #include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/vulkan_renderer/ocean/CommonOceanRenderer.h"
 
-class OceanVulkanTexture : public BaseOceanTexture {
+class OceanVulkanTexture : public virtual BaseOceanTexture {
  public:
   OceanVulkanTexture(bool generate_mipmaps,
-               std::unique_ptr<GraphicsDeviceVulkan>& device,
+               std::shared_ptr<GraphicsDeviceVulkan> device,
                VulkanInitializationInfo& vulkan_info);
-  void handle_ocean_texture(
-      DmaFollower& dma,
-      BaseSharedRenderState* render_state,
-      ScopedProfilerNode& prof);
+  virtual void handle_ocean_texture(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof) = 0;
   void init_textures(VulkanTexturePool& pool);
   void draw_debug_window();
   ~OceanVulkanTexture();
@@ -43,7 +42,7 @@ class OceanVulkanTexture : public BaseOceanTexture {
     std::unique_ptr<IndexBuffer> graphics_index_buffer;
   } m_vulkan_pc;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
 
   VkDescriptorImageInfo m_descriptor_image_info;
   std::array<VkDescriptorImageInfo, NUM_MIPS> m_mipmap_descriptor_image_infos;
@@ -74,4 +73,26 @@ class OceanVulkanTexture : public BaseOceanTexture {
   VkDescriptorSet m_ocean_texture_descriptor_set;
   std::array<VkDescriptorSet, NUM_MIPS> m_ocean_mipmap_texture_descriptor_sets;
   VulkanSamplerHelper m_sampler_helper{m_device};
+};
+
+class OceanVulkanTextureJak1 : public BaseOceanTextureJak1, public OceanVulkanTexture {
+ public:
+  OceanVulkanTextureJak1(bool generate_mipmaps,
+                         std::shared_ptr<GraphicsDeviceVulkan> device,
+                         VulkanInitializationInfo& vulkan_info)
+      : BaseOceanTexture(generate_mipmaps), BaseOceanTextureJak1(generate_mipmaps), OceanVulkanTexture(generate_mipmaps, device, vulkan_info) {}
+  void handle_ocean_texture(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof) override;
+};
+
+class OceanVulkanTextureJak2 : public BaseOceanTextureJak2, public OceanVulkanTexture {
+ public:
+  OceanVulkanTextureJak2(bool generate_mipmaps,
+                         std::shared_ptr<GraphicsDeviceVulkan> device,
+                         VulkanInitializationInfo& vulkan_info)
+      : BaseOceanTexture(generate_mipmaps), BaseOceanTextureJak2(generate_mipmaps), OceanVulkanTexture(generate_mipmaps, device, vulkan_info) {}
+  void handle_ocean_texture(DmaFollower& dma,
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& prof) override;
 };

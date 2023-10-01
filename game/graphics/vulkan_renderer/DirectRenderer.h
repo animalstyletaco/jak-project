@@ -34,7 +34,7 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
  public:
   DirectVulkanRenderer(const std::string& name,
                  int my_id,
-                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                 std::shared_ptr<GraphicsDeviceVulkan> device,
                  VulkanInitializationInfo& vulkan_info,
                  int batch_size);
   ~DirectVulkanRenderer();
@@ -79,7 +79,7 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   struct RendererGraphicsHelper {
     std::unique_ptr<VulkanSamplerHelper> sampler;
     std::unique_ptr<GraphicsPipelineLayout> graphics_pipeline_layout;
-    std::unique_ptr<GraphicsPipelineLayout> debug_graphics_pipeline_layout;
+
   };
 
   std::array<VkVertexInputAttributeDescription, 1> debugRedAttributeDescriptions{};
@@ -93,6 +93,8 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
 
   std::vector<VkDescriptorSet> m_descriptor_sets;
   std::unordered_map<u32, RendererGraphicsHelper> m_graphics_helper_map;
+
+  GraphicsPipelineLayout m_debug_graphics_pipeline_layout{m_device};
 
   VkPipelineLayout m_pipeline_layout = VK_NULL_HANDLE;
   VkPipelineLayout m_textured_pipeline_layout = VK_NULL_HANDLE;

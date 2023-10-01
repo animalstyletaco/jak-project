@@ -13,7 +13,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
  public:
   ShrubVulkan(const std::string& name,
         int my_id,
-        std::unique_ptr<GraphicsDeviceVulkan>& device,
+        std::shared_ptr<GraphicsDeviceVulkan> device,
         VulkanInitializationInfo& vulkan_info);
   ~ShrubVulkan();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
@@ -43,9 +43,6 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
     VertexBuffer* vertex_buffer;
     IndexBuffer* index_buffer;
     IndexBuffer* single_draw_index_buffer;
-
-    std::vector<GraphicsPipelineLayout> pipeline_layouts;
-    std::vector<GraphicsPipelineLayout> double_draw_pipeline_layouts;
 
     std::unique_ptr<VulkanSamplerHelper> time_of_day_sampler_helper;
     std::vector<VulkanSamplerHelper> sampler_helpers;

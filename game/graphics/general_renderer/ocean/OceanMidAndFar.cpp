@@ -1,6 +1,6 @@
 #include "OceanMidAndFar.h"
 
-#include "third-party/imgui/imgui.h"
+//#include "third-party/imgui/imgui.h"
 
 BaseOceanMidAndFar::BaseOceanMidAndFar(const std::string& name, int my_id)
     : BaseBucketRenderer(name, my_id) {
@@ -22,19 +22,7 @@ bool is_end_tag(const DmaTag& tag, const VifCode& v0, const VifCode& v1) {
 }
 }  // namespace ocean_mid_and_far
 
-void BaseOceanMidAndFar::render(DmaFollower& dma,
-                                BaseSharedRenderState* render_state,
-                                ScopedProfilerNode& prof) {
-  if (render_state->version == GameVersion::Jak1) {
-    render_jak1(dma, render_state, prof);
-  } else if (render_state->version == GameVersion::Jak2) {
-    render_jak2(dma, render_state, prof);
-  } else {
-    assert(false);
-  }
-}
-
-void BaseOceanMidAndFar::render_jak1(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof){
+void BaseOceanMidAndFarJak1::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof){
   // skip if disabled
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -62,7 +50,7 @@ void BaseOceanMidAndFar::render_jak1(DmaFollower& dma, BaseSharedRenderState* re
 
   {
     auto p = prof.make_scoped_child("texture");
-    texture_renderer_handle_ocean_texture_jak1(dma, render_state, p);
+    texture_renderer_handle_ocean_texture(dma, render_state, p);
   }
 
   handle_ocean_far(dma, render_state, prof);
@@ -83,9 +71,9 @@ void BaseOceanMidAndFar::render_jak1(DmaFollower& dma, BaseSharedRenderState* re
   direct_renderer_set_mipmap(false);
 }
 
-void BaseOceanMidAndFar::render_jak2(DmaFollower& dma,
-                                     BaseSharedRenderState* render_state,
-                                     ScopedProfilerNode& prof) {  // jump to bucket
+void BaseOceanMidAndFarJak2::render(DmaFollower& dma,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) {  // jump to bucket
   auto data0 = dma.read_and_advance();
   ASSERT(data0.vif1() == 0 || data0.vifcode1().kind == VifCode::Kind::NOP);
   ASSERT(data0.vif0() == 0 || data0.vifcode0().kind == VifCode::Kind::MARK);
@@ -103,7 +91,7 @@ void BaseOceanMidAndFar::render_jak2(DmaFollower& dma,
 
   {
     auto p = prof.make_scoped_child("texture");
-    texture_renderer_handle_ocean_texture_jak2(dma, render_state, p);
+    texture_renderer_handle_ocean_texture(dma, render_state, p);
   }
 
   // handle_ocean_79_jak2(dma, render_state, prof);
@@ -180,9 +168,9 @@ void BaseOceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
   }
 }
 
-void BaseOceanMidAndFar::handle_ocean_89_jak2(DmaFollower& dma,
+void BaseOceanMidAndFarJak2::handle_ocean_89(DmaFollower& dma,
                                               BaseSharedRenderState* render_state,
                                               ScopedProfilerNode& prof) {}
-void BaseOceanMidAndFar::handle_ocean_79_jak2(DmaFollower& dma,
+void BaseOceanMidAndFarJak2::handle_ocean_79(DmaFollower& dma,
                                               BaseSharedRenderState* render_state,
                                               ScopedProfilerNode& prof) {}

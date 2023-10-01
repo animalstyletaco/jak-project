@@ -1,7 +1,7 @@
 #include "FullScreenDraw.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
-FullScreenDrawVulkan::FullScreenDrawVulkan(std::unique_ptr<GraphicsDeviceVulkan>& device,
+FullScreenDrawVulkan::FullScreenDrawVulkan(std::shared_ptr<GraphicsDeviceVulkan> device,
                                            VulkanInitializationInfo& vulkan_info)
     : m_device(device), m_vulkan_info(vulkan_info), m_pipeline_layout(device) {
 
@@ -102,7 +102,7 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   prof.add_draw_call();
 
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
 
   // TODO: Check for swap chain error
   auto result = m_vulkan_info.swap_chain->acquireNextImage(&currentImageIndex);

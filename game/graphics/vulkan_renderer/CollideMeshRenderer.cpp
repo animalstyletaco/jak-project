@@ -3,7 +3,7 @@
 #include "game/graphics/display.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::unique_ptr<GraphicsDeviceVulkan>& device, VulkanInitializationInfo& vulkan_info) :
+CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) :
       m_device(device),
       m_collision_mesh_vertex_uniform_buffer(device, 1, 1),
       m_pipeline_layout{device},
@@ -122,27 +122,19 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
     return;
   }
 
-  TfragRenderSettings settings;
-  memcpy(settings.math_camera.data(), render_state->camera_matrix[0].data(), 64);
-  settings.hvdf_offset = render_state->camera_hvdf_off;
-  settings.fog = render_state->camera_fog;
-  settings.tree_idx = 0;
-  for (int i = 0; i < 4; i++) {
-    settings.planes[i] = render_state->camera_planes[i];
-  }
-
   m_collision_mesh_vertex_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
       "camera", 1, VK_FALSE,
-                     settings.math_camera.data());
+                     render_state->camera_matrix[0].data());
   m_collision_mesh_vertex_uniform_buffer.SetUniform4f(
-      "hvdf_offset", settings.hvdf_offset[0],
-              settings.hvdf_offset[1], settings.hvdf_offset[2], settings.hvdf_offset[3]);
+      "hvdf_offset", render_state->camera_hvdf_off[0], render_state->camera_hvdf_off[1],
+      render_state->camera_hvdf_off[2], render_state->camera_hvdf_off[3]);
   const auto& trans = render_state->camera_pos;
   m_collision_mesh_vertex_uniform_buffer.SetUniform4f("camera_position", trans[0], trans[1],
                                                       trans[2], trans[3]);
-  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_constant", settings.fog.x());
-  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_min", settings.fog.y());
-  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_max", settings.fog.z());
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_constant", render_state->camera_fog.x());
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_min", render_state->camera_fog.y());
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_max", render_state->camera_fog.z());
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1ui("version", static_cast<u32>(render_state->version));
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
@@ -175,7 +167,7 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
                        &m_push_constant);
 
-    m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+    m_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
     m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkDeviceSize offsets[] = {0};
@@ -211,7 +203,7 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
       m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //TODO: Verify that this is correct
       m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-      m_pipeline_layout.createGraphicsPipeline(m_pipeline_config_info);
+      m_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
       m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
       vkCmdDraw(m_vulkan_info.render_command_buffer, level->collide_vertices->getBufferSize(), 0, 0,
@@ -260,7 +252,7 @@ void CollideMeshVulkanRenderer::InitializeInputVertexAttribute() {
 }
 
 CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device,
@@ -278,7 +270,7 @@ CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(
 }
 
 CollisionMeshVertexPatternUniformBuffer::CollisionMeshVertexPatternUniformBuffer(
-    std::unique_ptr<GraphicsDeviceVulkan>& device,
+    std::shared_ptr<GraphicsDeviceVulkan> device,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device, sizeof(PatColors),

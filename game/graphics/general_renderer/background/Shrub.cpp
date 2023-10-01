@@ -45,20 +45,20 @@ void BaseShrub::render(DmaFollower& dma, BaseSharedRenderState* render_state, Sc
   }
 
   TfragRenderSettings settings;
-  settings.hvdf_offset = m_pc_port_data.hvdf_off;
-  settings.fog = m_pc_port_data.fog;
+  settings.camera.hvdf_off = m_pc_port_data.camera.hvdf_off;
+  settings.camera.fog = m_pc_port_data.camera.fog;
 
-  memcpy(settings.math_camera.data(), m_pc_port_data.camera[0].data(), 64);
+  settings.camera = m_pc_port_data.camera;
   settings.tree_idx = 0;
 
   for (int i = 0; i < 4; i++) {
-    settings.itimes[i] = m_pc_port_data.itimes[i];
+    settings.camera.itimes[i] = m_pc_port_data.camera.itimes[i];
   }
 
   background_common::update_render_state_from_pc_settings(render_state, m_pc_port_data);
 
   for (int i = 0; i < 4; i++) {
-    settings.planes[i] = m_pc_port_data.planes[i];
+    settings.camera.planes[i] = m_pc_port_data.camera.planes[i];
   }
 
   m_has_level = setup_for_level(m_pc_port_data.level_name, render_state);

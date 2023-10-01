@@ -14,7 +14,7 @@
 
 class VulkanLoader : public BaseLoader {
  public:
-  VulkanLoader(std::unique_ptr<GraphicsDeviceVulkan>& device, const fs::path& base_path, int max_levels);
+  VulkanLoader(std::shared_ptr<GraphicsDeviceVulkan> device, const fs::path& base_path, int max_levels);
   ~VulkanLoader();
   void update(VulkanTexturePool& tex_pool);
   void update_blocking(VulkanTexturePool& tex_pool);
@@ -39,6 +39,6 @@ class VulkanLoader : public BaseLoader {
   std::unordered_map<std::string, std::vector<MercRefVulkan>> m_all_merc_models;
   std::vector<std::unique_ptr<LoaderStageVulkan>> m_loader_stages;
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   LevelDataVulkan m_common_level;
 };

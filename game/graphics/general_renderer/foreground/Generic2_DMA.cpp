@@ -199,7 +199,7 @@ void unpack_vertex(BaseGeneric2::Vertex* out, const u8* in, int count) {
 }
 }  // namespace generic_dma
 
-void BaseGeneric2::process_dma_jak2(DmaFollower& dma, u32 next_bucket) {
+void BaseGeneric2Jak2::process_dma(DmaFollower& dma, u32 next_bucket) {
   reset_buffers();
   auto first_data = dma.read_and_advance();
 
@@ -480,7 +480,7 @@ u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
   return off;
 }
 
-void BaseGeneric2::process_dma_jak1(DmaFollower& dma, u32 next_bucket) {
+void BaseGeneric2Jak1::process_dma(DmaFollower& dma, u32 next_bucket) {
   reset_buffers();
 
   // handle the stuff at the beginning.

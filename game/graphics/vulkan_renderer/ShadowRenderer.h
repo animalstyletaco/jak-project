@@ -8,7 +8,7 @@ class ShadowVulkanRenderer : public BaseShadowRenderer, public BucketVulkanRende
  public:
   ShadowVulkanRenderer(const std::string& name,
                  int my_id,
-                 std::unique_ptr<GraphicsDeviceVulkan>& device,
+                 std::shared_ptr<GraphicsDeviceVulkan> device,
                  VulkanInitializationInfo& vulkan_info);
   ~ShadowVulkanRenderer();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;

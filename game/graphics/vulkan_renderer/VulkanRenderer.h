@@ -29,7 +29,7 @@ class VulkanRenderer {
   VulkanRenderer(std::shared_ptr<VulkanTexturePool> texture_pool,
                  std::shared_ptr<VulkanLoader> loader,
                  GameVersion version,
-                 std::unique_ptr<GraphicsDeviceVulkan>& device);
+                 std::shared_ptr<GraphicsDeviceVulkan> device);
   ~VulkanRenderer();
 
   // rendering interface: takes the dma chain from the game, and some size/debug settings from
@@ -70,7 +70,7 @@ class VulkanRenderer {
   T* init_bucket_renderer(const std::string& name,
                           BucketCategory cat,
                           U id,
-                          std::unique_ptr<GraphicsDeviceVulkan>& device,
+                          std::shared_ptr<GraphicsDeviceVulkan> device,
                           VulkanInitializationInfo& vulkan_info,
                           Args&&... args) {
     auto renderer = std::make_shared<T>(name, (int)id, device, vulkan_info, std::forward<Args>(args)...);
@@ -103,7 +103,7 @@ class VulkanRenderer {
   void freeCommandBuffers();
   void recreateSwapChain(bool vsyncEnabled);
 
-  std::unique_ptr<GraphicsDeviceVulkan>& m_device;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
   std::vector<VkCommandBuffer> commandBuffers;
 
   VulkanInitializationInfo m_vulkan_info;

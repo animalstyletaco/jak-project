@@ -22,7 +22,7 @@ constexpr int TOTAL_DRAW_SLICES = 16;
 
 DepthCueVulkan::DepthCueVulkan(const std::string& name,
                    int my_id,
-                   std::unique_ptr<GraphicsDeviceVulkan>& device,
+                   std::shared_ptr<GraphicsDeviceVulkan> device,
                    VulkanInitializationInfo& vulkan_info)
     : BaseDepthCue(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
   graphics_setup();
@@ -450,8 +450,8 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
     
-    m_graphics_pipeline_layouts[0].createGraphicsPipeline(m_pipeline_config_info);
-    m_graphics_pipeline_layouts[0].bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkViewport viewport;
     viewport.x = 0;
@@ -510,8 +510,8 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
 
-    m_graphics_pipeline_layouts[1].createGraphicsPipeline(m_pipeline_config_info);
-    m_graphics_pipeline_layouts[1].bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkViewport viewport;
     viewport.x = render_state->draw_offset_x;

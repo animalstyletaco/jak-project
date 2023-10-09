@@ -5,7 +5,7 @@
 #include "common/util/FileUtil.h"
 #include "common/util/Timer.h"
 
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/texture/VulkanTexturePool.h"
 
 #include "third-party/imgui/imgui.h"
 

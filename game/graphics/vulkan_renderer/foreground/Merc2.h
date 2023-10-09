@@ -89,7 +89,6 @@ class MercVulkan2 : public BaseMerc2 {
       std::vector<VulkanDraw> envmap_draws;
       std::vector<VulkanSamplerHelper> samplers;
       std::vector<VkDescriptorImageInfo> descriptor_image_infos;
-      std::vector<GraphicsPipelineLayout> pipeline_layouts;
       u32 next_free_draw = 0;
       u32 next_free_envmap_draw = 0;
 
@@ -146,7 +145,7 @@ class MercVulkan2 : public BaseMerc2 {
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
 
   PipelineConfigInfo m_pipeline_config_info{};
-  std::vector<GraphicsPipelineLayout> m_graphics_pipeline_layouts;
+  GraphicsPipelineLayout m_graphics_pipeline_layout;
 
   MercUniformBufferFragmentData m_fragment_push_constant;
   std::vector<LevelDrawBucketVulkan> m_level_draw_buckets;
@@ -164,7 +163,7 @@ class MercVulkan2 : public BaseMerc2 {
   std::unique_ptr<DescriptorWriter> m_emerc_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_emerc_fragment_descriptor_writer;
 
-  std::vector<GraphicsPipelineLayout> m_emerc_pipeline_layouts;
+  GraphicsPipelineLayout m_emerc_pipeline_layout;
   PipelineConfigInfo m_emerc_pipeline_config_info;
 
   std::vector<VkDescriptorSet> m_descriptor_sets;

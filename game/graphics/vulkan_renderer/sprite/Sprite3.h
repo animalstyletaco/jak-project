@@ -153,8 +153,9 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
     std::unique_ptr<DescriptorPool>& m_descriptor_pool;
   };
 
-  GraphicsPipelineLayout m_distorted_pipeline_layout;
-  GraphicsPipelineLayout m_distorted_instance_pipeline_layout;
+  GraphicsPipelineLayout m_graphics_pipeline_layout{m_device};
+  GraphicsPipelineLayout m_distorted_pipeline_layout{m_device};
+  GraphicsPipelineLayout m_distorted_instance_pipeline_layout{m_device};
 
   VkDescriptorBufferInfo m_vertex_buffer_descriptor_info{};
   std::unique_ptr<Sprite3dVertexUniformBuffer> m_sprite_3d_vertex_uniform_buffer;

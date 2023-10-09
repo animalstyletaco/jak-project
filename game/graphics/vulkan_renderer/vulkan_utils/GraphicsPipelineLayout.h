@@ -29,7 +29,7 @@ class GraphicsPipelineLayout {
   ~GraphicsPipelineLayout();
 
   void bind(VkCommandBuffer commandBuffer);
-  void updateGraphicsPipeline(PipelineConfigInfo& configInfo);
+  void updateGraphicsPipeline(VkCommandBuffer, PipelineConfigInfo& configInfo);
   PipelineConfigInfo GetCurrentConfiguration() { return _currentPipelineConfig; };
   void destroyPipeline();
 

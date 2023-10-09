@@ -167,7 +167,8 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
                        &m_push_constant);
 
-    m_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_pipeline_layout.updateGraphicsPipeline(
+        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
     m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkDeviceSize offsets[] = {0};
@@ -203,7 +204,8 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
       m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //TODO: Verify that this is correct
       m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-      m_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+      m_pipeline_layout.updateGraphicsPipeline(
+          m_vulkan_info.render_command_buffer, m_pipeline_config_info);
       m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
       vkCmdDraw(m_vulkan_info.render_command_buffer, level->collide_vertices->getBufferSize(), 0, 0,

@@ -298,7 +298,8 @@ void ShadowVulkan2::InitializeInputAttributes() {
 }
 
 void ShadowVulkan2::PrepareVulkanDraw(std::unique_ptr<GraphicsPipelineLayout>& graphics_pipeline_layout){
-  graphics_pipeline_layout->updateGraphicsPipeline(m_pipeline_config_info);
+  graphics_pipeline_layout->updateGraphicsPipeline(
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
   graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,

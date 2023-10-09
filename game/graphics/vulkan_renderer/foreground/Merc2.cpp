@@ -41,7 +41,7 @@
 MercVulkan2::MercVulkan2(
              std::shared_ptr<GraphicsDeviceVulkan> device,
              VulkanInitializationInfo& vulkan_info) :
-  m_device(device), m_vulkan_info(vulkan_info) {
+  m_device(device), m_vulkan_info(vulkan_info), m_graphics_pipeline_layout(device), m_emerc_pipeline_layout(device) {
   m_vertex_push_constant.height_scale = (vulkan_info.m_version == GameVersion::Jak2) ? 0.5 : 1;
   m_vertex_push_constant.scissor_adjust = (vulkan_info.m_version == GameVersion::Jak2) ? (-512 / 416.f) : (-512/448.f);
 
@@ -122,7 +122,6 @@ MercVulkan2::MercVulkan2(
     bucket.envmap_draws.resize(MAX_ENVMAP_DRAWS_PER_LEVEL);
     bucket.samplers.resize(MAX_DRAWS_PER_LEVEL, m_device);
     bucket.descriptor_image_infos.resize(MAX_DRAWS_PER_LEVEL);
-    bucket.pipeline_layouts.resize(MAX_DRAWS_PER_LEVEL, m_device);
   }
 
   init_shaders();
@@ -304,8 +303,9 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex, LevelDrawBucketVulkan& 
                                                  sizeof(math::Vector4f) * draw.first_bone);
   m_bone_vertex_uniform_buffer->unmap();
 
-  lev_bucket.pipeline_layouts[drawIndex].updateGraphicsPipeline(m_pipeline_config_info);
-  lev_bucket.pipeline_layouts[drawIndex].bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   lev_bucket.descriptor_image_infos[drawIndex] = {sampler.GetSampler(), texture->getImageView(),
                                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};

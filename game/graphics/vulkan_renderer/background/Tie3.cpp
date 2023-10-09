@@ -481,7 +481,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
                        sizeof(m_time_of_day_color_push_constant),
                        (void*)&m_time_of_day_color_push_constant);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer, m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     PrepareVulkanDraw(tree, time_of_day_texture.getImageView(), sampler_helper.GetSampler(),
@@ -633,7 +633,8 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
                       tree.fragment_shader_descriptor_sets[draw_idx],
                       vertex_descriptor_writer, m_fragment_descriptor_writer);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(
+        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     prof.add_draw_call();
@@ -838,7 +839,8 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
                             m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                             descriptor_sets.data(), 0, NULL);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(
+        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     prof.add_draw_call();

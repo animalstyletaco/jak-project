@@ -475,7 +475,8 @@ void GlowVulkanRenderer::draw_probes(BaseSharedRenderState* render_state,
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
-  m_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layout.updateGraphicsPipeline(
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
   m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   //glDrawElements(GL_TRIANGLE_STRIP, idx_end - idx_start, GL_UNSIGNED_INT,

@@ -43,8 +43,6 @@ void GenericVulkan2Jak2::render(DmaFollower& dma,
 
 void GenericVulkan2::graphics_setup() {
   m_descriptor_image_infos.resize(m_buckets.size(), *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
-
-  m_graphics_pipeline_layouts.resize(m_buckets.size(), m_device);
   m_samplers.resize(m_buckets.size(), m_device);
 
   m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
@@ -498,8 +496,9 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
 
   m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[bucket]);
   
-  m_graphics_pipeline_layouts[bucket].updateGraphicsPipeline(m_pipeline_config_info);
-  m_graphics_pipeline_layouts[bucket].bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   std::vector<VkDescriptorSet> descriptor_sets = {m_fragment_descriptor_sets[bucket]};
 

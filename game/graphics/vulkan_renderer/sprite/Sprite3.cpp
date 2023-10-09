@@ -14,8 +14,6 @@ SpriteVulkan3::SpriteVulkan3(const std::string& name,
                  VulkanInitializationInfo& graphics_info)
     : BaseSprite3(name, my_id), BucketVulkanRenderer(device, graphics_info), m_direct(name, my_id, device, graphics_info, 1024),
       m_glow_renderer(device, graphics_info),
-      m_distorted_pipeline_layout(device),
-      m_distorted_instance_pipeline_layout(device),
       m_distort_sampler_helper(device) {
   m_sprite_3d_vertex_uniform_buffer = std::make_unique<Sprite3dVertexUniformBuffer>(
       m_device, 1);
@@ -324,8 +322,9 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
     prof.add_draw_call();
     prof.add_tri(2 * (bucket->ids.size() / 5));
 
-    graphics_layout.updateGraphicsPipeline(m_pipeline_config_info);
-    graphics_layout.bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(
+        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     sprite_graphics_settings.descriptor_image_infos[index] =
         VkDescriptorImageInfo{sampler_helper.GetSampler(), tex->getImageView(),

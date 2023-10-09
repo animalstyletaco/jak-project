@@ -101,13 +101,13 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   prof.add_tri(2);
   prof.add_draw_call();
 
+  VkCommandBuffer commandBuffer = commandBuffers[currentImageIndex];
+
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+  m_pipeline_layout.updateGraphicsPipeline(commandBuffer, m_pipeline_config_info);
 
   // TODO: Check for swap chain error
   auto result = m_vulkan_info.swap_chain->acquireNextImage(&currentImageIndex);
-
-  VkCommandBuffer commandBuffer = commandBuffers[currentImageIndex];
 
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

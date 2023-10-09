@@ -73,7 +73,7 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   void handle_slime(const DmaTransfer& tf, BaseTexturePool* texture_pool);
   void handle_erase_dest(DmaFollower& dma);
   void handle_set_shader(DmaFollower& dma);
-  void handle_draw(DmaFollower& dma, TexturePool& texture_pool);
+  void handle_draw(DmaFollower& dma, BaseTexturePool& texture_pool);
 
   BaseVramEntry* setup_vram_entry_for_gpu_texture(int w, int h, int tbp);
   void set_up_opengl_for_fixed(const FixedLayerDef& def, std::optional<VulkanTexture*> texture);
@@ -94,7 +94,7 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   void set_uniforms_from_draw_data(const DrawData& dd, int dest_w, int dest_h);
   void set_draw_data_from_interpolated(DrawData* result, const LayerVals& vals, int w, int h);
 
-  PcTextureId get_id_for_tbp(TexturePool* pool, u64 tbp, u64 other_id);
+  PcTextureId get_id_for_tbp(VulkanTexturePool* pool, u64 tbp, u64 other_id);
 
   BaseVramEntry* m_tex_looking_for_clut = nullptr;
   const tfrag3::Level* m_common_level = nullptr;
@@ -125,12 +125,12 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   };
   std::vector<Bool> m_output_debug_flags;
 
-  struct ClutBlenderGroup {
-    std::vector<ClutBlender> blenders;
+  struct ClutVulkanBlenderGroup {
+    std::vector<ClutVulkanBlender> blenders;
     std::vector<int> outputs;
     u64 last_updated_frame = 0;
   };
-  std::vector<ClutBlenderGroup> m_clut_blender_groups;
+  std::vector<ClutVulkanBlenderGroup> m_clut_blender_groups;
 
   int m_darkjak_clut_blender_idx = -1;
   int m_jakb_prison_clut_blender_idx = -1;
@@ -199,11 +199,11 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   GpuTexture* m_sky_pool_gpu_tex = nullptr;
 
   SlimeInput m_debug_slime_input;
-  NoiseTexturePair m_slime_noise_textures[kNumSkyNoiseLayers];
+  BaseNoiseTexturePair m_slime_noise_textures[kNumSkyNoiseLayers];
   FramebufferVulkanTexture m_slime_blend_texture;
   FramebufferVulkanTexture m_slime_final_texture, m_slime_final_scroll_texture;
-  GpuTexture* m_slime_pool_gpu_tex = nullptr;
-  GpuTexture* m_slime_scroll_pool_gpu_tex = nullptr;
+  GpuVulkanTexture* m_slime_pool_gpu_tex = nullptr;
+  GpuVulkanTexture* m_slime_scroll_pool_gpu_tex = nullptr;
   int m_slime_output_slot = -1;
   int m_slime_scroll_output_slot = -1;
 };

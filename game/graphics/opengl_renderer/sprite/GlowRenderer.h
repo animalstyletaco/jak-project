@@ -1,7 +1,12 @@
 #pragma once
 
+<<<<<<< HEAD
 #include "game/graphics/general_renderer/sprite/sprite_common.h"
 #include "game/graphics/opengl_renderer/BucketRenderer.h"
+=======
+#include "game/graphics/gfx.h"
+#include "game/graphics/opengl_renderer/sprite/sprite_common.h"
+>>>>>>> master
 
 class GlowRenderer {
  public:
@@ -28,6 +33,7 @@ class GlowRenderer {
   struct {
     bool show_probes = false;
     bool show_probe_copies = false;
+    bool enable_glow_boost = false;
     int num_sprites = 0;
     float glow_boost = 1.f;
   } m_debug;

@@ -231,7 +231,8 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
 
     m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[buffer_idx]);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(
+        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,

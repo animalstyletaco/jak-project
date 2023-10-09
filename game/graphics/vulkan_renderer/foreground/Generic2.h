@@ -81,7 +81,7 @@ class GenericVulkan2 : public virtual BaseGeneric2 {
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
 
   PipelineConfigInfo m_pipeline_config_info{};
-  std::vector<GraphicsPipelineLayout> m_graphics_pipeline_layouts;
+  GraphicsPipelineLayout m_graphics_pipeline_layout{m_device};
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;

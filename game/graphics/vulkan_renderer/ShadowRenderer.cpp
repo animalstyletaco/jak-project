@@ -274,7 +274,8 @@ void ShadowVulkanRenderer::PrepareVulkanDraw(uint32_t& pipeline_layout_id, uint3
 
   auto& index_buffer = m_ogl.index_buffers[indexBufferId % 2];
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);

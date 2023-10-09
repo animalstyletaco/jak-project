@@ -35,7 +35,6 @@ Interpreter::Interpreter(const std::string& username) {
   // set user profile name
   auto user = SymbolObject::make_new(reader.symbolTable, username);
   define_var_in_env(global_environment, user, "*user*");
-  define_var_in_env(goal_env, user, "*user*");
 
   // setup maps
   special_forms = {
@@ -238,6 +237,10 @@ void Interpreter::set_global_variable_by_name(const std::string& name, const Obj
 void Interpreter::set_global_variable_to_symbol(const std::string& name, const std::string& value) {
   auto sym = SymbolObject::make_new(reader.symbolTable, value);
   set_global_variable_by_name(name, sym);
+}
+
+void Interpreter::set_global_variable_to_int(const std::string& name, int value) {
+  set_global_variable_by_name(name, Object::make_integer(value));
 }
 
 /*!

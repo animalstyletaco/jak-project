@@ -432,7 +432,8 @@ void ShrubVulkan::render_tree(int idx,
         m_time_of_day_push_constant.alpha_min = -10.f;
         m_time_of_day_push_constant.alpha_max = double_draw.aref_second;
 
-        m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+        m_graphics_pipeline_layout.updateGraphicsPipeline(
+            m_vulkan_info.render_command_buffer, m_pipeline_config_info);
         m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
         if (render_state->no_multidraw) {

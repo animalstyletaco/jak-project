@@ -207,11 +207,14 @@ const std::unordered_map<
         {"car", {"", &Compiler::compile_car}},
         {"cdr", {"", &Compiler::compile_cdr}},
         {"method-of-type", {"", &Compiler::compile_method_of_type}},
+        {"method-id-of-type", {"", &Compiler::compile_method_id_of_type}},
         {"method-of-object", {"", &Compiler::compile_method_of_object}},
         {"declare-type", {"", &Compiler::compile_declare_type}},
         {"none", {"", &Compiler::compile_none}},
         {"size-of", {"", &Compiler::compile_size_of}},
         {"psize-of", {"", &Compiler::compile_psize_of}},
+        {"current-method-id", {"", &Compiler::compile_current_method_id}},
+        {"cast-to-method-type", {"", &Compiler::compile_cast_to_method_type}},
 
         // LAMBDA
         {"lambda", {"", &Compiler::compile_lambda}},
@@ -226,9 +229,12 @@ const std::unordered_map<
         {"quote", {"", &Compiler::compile_quote}},
         {"mlet", {"", &Compiler::compile_mlet}},
         {"defconstant", {"", &Compiler::compile_defconstant}},
+        {"macro-expand",
+         {"Displays the expanded form of a macro without evaluating it.",
+          &Compiler::compile_macro_expand}},
 
         // OBJECT
-        //        {"current-method-type", {"", &Compiler::compile_current_method_type}},
+        {"current-method-type", {"", &Compiler::compile_current_method_type}},
 
         // MATH
         {"+", {"", &Compiler::compile_add}},

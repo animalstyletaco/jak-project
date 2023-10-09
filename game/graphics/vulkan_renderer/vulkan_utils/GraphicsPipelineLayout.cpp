@@ -12,20 +12,20 @@ GraphicsPipelineLayout::~GraphicsPipelineLayout() {
 }
 
 void GraphicsPipelineLayout::destroyPipeline() {
-  if (m_graphics_pipeline) {
-    vkDestroyPipeline(m_device->getLogicalDevice(), m_graphics_pipeline, nullptr);
-    m_graphics_pipeline = nullptr;
+  if (_graphicsPipeline) {
+    vkDestroyPipeline(_device->getLogicalDevice(), _graphicsPipeline, nullptr);
+    _graphicsPipeline = nullptr;
   }
 }
 
 bool GraphicsPipelineLayout::IsDynamicStateFeatureEnabled(VkDynamicState dynamicState) {
-  auto iter = std::find_first_of(m_current_pipeline_config.dynamicStateEnables.begin(),
-                                 m_current_pipeline_config.dynamicStateEnables.end(), dynamicState);
-  return (iter != m_current_pipeline_config.dynamicStateEnabled.end());
+  auto iter = std::find_first_of(_currentPipelineConfig.dynamicStateEnables.begin(),
+                                 _currentPipelineConfig.dynamicStateEnables.end(), dynamicState);
+  return (iter != _currentPipelineConfig.dynamicStateEnabled.end());
 }
 
 void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer, PipelineConfigInfo& pipelineConfig) {
-  if (m_graphics_pipeline) {
+  if (_graphicsPipeline) {
     createGraphicsPipeline(pipelineConfig);
     return;
   }
@@ -34,26 +34,26 @@ void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffe
     return;
   }
 
-  const float floatEplision = std::numeric_limits<float>::eplision();
+  const float floatEplision = std::numeric_limits<float>::epsilon();
 
   //TODO: Check to see if extensions are enabled or if Vulkan 1.3 is enabled
   //Viewport and scissor are handled outside of this class
   bool areBlendConstantsEqual = true;
-  const unsigned blendConstantCount = sizeof(m_current_pipeline_info.colorBlendAttachment.blendConstants);
+  const unsigned blendConstantCount = sizeof(_currentPipelineConfig.colorBlendAttachment.blendConstants);
   for (unsigned i = 0; i < blendConstantCount; i++){
-    areBlendConstantEqual &= (std::abs(m_current_pipeline_info.colorBlendAttachment.blendConstants[i] -
-                              pipelineConfig.colorBlendAttachment.blendConstants[i]) < floatEplision);
+    areBlendConstantsEqual &= (std::abs(_currentPipelineConfig.colorBlendInfo.blendConstants[i] -
+                              pipelineConfig.colorBlendInfo.blendConstants[i]) < floatEplision);
   }
 
   if (IsDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_BLEND_CONSTANTS) && !areBlendConstantsEqual) {
-    vkCmdSetBlendConstants(commandBuffer, pipelineConfig.colorBlendAttachment.blendConstant);
+    vkCmdSetBlendConstants(commandBuffer, pipelineConfig.colorBlendInfo.blendConstants);
   }
 
 
-  bool areMinDepthBoundEqual = std::abs(currentPipelineConfig.depthStencilInfo.minDepthInfo -
+  bool areMinDepthBoundEqual = std::abs(_currentPipelineConfig.depthStencilInfo.minDepthInfo -
                pipelineConfig.depthStencilInfo.minDepthInfo) < floatEplision;
   bool areMaxDepthBoundEqual =
-      std::abs(currentPipelineConfig.depthStencilInfo.maxDepthInfo -
+      std::abs(_currentPipelineConfig.depthStencilInfo.maxDepthInfo -
                pipelineConfig.depthStencilInfo.maxDepthInfo) < floatEplision;
   if (IsDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_DEPTH_BOUNDS) &&
       (areMinDepthBoundEqual && areMaxDepthBoundEqual)) {

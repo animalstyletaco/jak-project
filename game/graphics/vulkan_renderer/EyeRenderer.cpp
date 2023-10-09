@@ -447,7 +447,8 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
 
   eye.descriptor_writer.overwrite(eye.descriptor_set);
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(commandBuffer);
 
   VkDeviceSize offsets[] = {0};

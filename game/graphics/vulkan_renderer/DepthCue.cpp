@@ -450,7 +450,8 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
     
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(
+        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkViewport viewport;
@@ -510,7 +511,8 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(
+        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkViewport viewport;

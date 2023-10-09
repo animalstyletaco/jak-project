@@ -377,8 +377,8 @@ void CommonOceanVulkanRenderer::FinalizeVulkanDraw(std::unique_ptr<OceanVulkanGr
         ocean_graphics->descriptor_sets[bucket]);
   }
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
-  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
 
   m_vertex_push_constant.bucket = bucket;
   m_fragment_push_constant.bucket = bucket;

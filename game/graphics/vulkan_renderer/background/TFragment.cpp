@@ -385,7 +385,8 @@ void TFragmentVulkan::render_tree(int geom,
           render_state, draw.mode, tree.sampler_helpers[draw_idx], m_pipeline_config_info,
           m_time_of_day_color_push_constant);
 
-      m_graphics_pipeline_layout.updateGraphicsPipeline(m_pipeline_config_info);
+      m_graphics_pipeline_layout.updateGraphicsPipeline(
+          m_vulkan_info.render_command_buffer, m_pipeline_config_info);
       m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
       m_vertex_push_constant.decal_mode = (draw.mode.get_decal()) ? 1 : 0;

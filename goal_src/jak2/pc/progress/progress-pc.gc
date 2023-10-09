@@ -12,11 +12,13 @@
 
 (deftype progress-global-state-pc (basic)
   ((decoration-draw-time  uint64)
-   
+
    (display-mode-choice-index   int8)
-   
+
    (aspect-ratio-choice-index   int8)
    (aspect-ratio-ratio-index    int8)
+
+   (frame-rate-choice-index     int8)
 
    (music-player-track      music-player-track-info)
    (music-player-flava      int8)
@@ -60,6 +62,21 @@
     (('borderless) (set! (-> *progress-state-pc* display-mode-choice-index) 2))
     ))
 
+(defun set-progress-frame-rate-index ()
+  "Set the frame rate option index accordingly."
+  (case (-> *pc-settings* target-fps)
+    ((30) (set! (-> *progress-state-pc* frame-rate-choice-index) 0))
+    ((50) (set! (-> *progress-state-pc* frame-rate-choice-index) 1))
+    ((60) (set! (-> *progress-state-pc* frame-rate-choice-index) 2))
+    ((75) (set! (-> *progress-state-pc* frame-rate-choice-index) 3))
+    ((120) (set! (-> *progress-state-pc* frame-rate-choice-index) 4))
+    ((144) (set! (-> *progress-state-pc* frame-rate-choice-index) 5))
+    ((165) (set! (-> *progress-state-pc* frame-rate-choice-index) 6))
+    ((240) (set! (-> *progress-state-pc* frame-rate-choice-index) 7))
+    ;; default to 60 fps
+    (else (set! (-> *progress-state-pc* frame-rate-choice-index) 2))
+    )
+  )
 
 
 (defmethod init-defaults progress ((obj progress))
@@ -132,11 +149,13 @@
 
   ;; PC STATE BEGIN
   ;; --------------
+  (init! *progress-pc-generic-store*)
 
   ;; set aspect ratio options
   (set-progress-aspect-ratio-pc-index)
   (set-progress-display-mode-index)
-  (set! (-> (the menu-on-off-option (-> *graphic-options-pc* options 2)) value-to-modify) (&-> *pc-settings* vsync?))
+  (set-progress-frame-rate-index)
+  (set! (-> (the menu-on-off-option (-> *graphic-options-pc* options 3)) value-to-modify) (&-> *pc-settings* vsync?))
   (set! (-> *progress-state-pc* music-player-track) #f)
   )
 
@@ -167,21 +186,7 @@
      )
     (('game-options)
      (set! (-> obj current-options)
-           (cond
-             ((demo?)
-              (if (= (scf-get-territory) GAME_TERRITORY_SCEE)
-                  *game-options*
-                  *game-options-demo*
-                  )
-              )
-             ((and (= (scf-get-territory) GAME_TERRITORY_SCEI) (not (and (= *progress-cheat* 'language) (cpad-hold? 0 l2) (cpad-hold? 0 r2))))
-              *game-options*
-              )
-             (else
-               *game-options*
-               )
-             )
-           )
+           (if (demo?) *game-options-demo* *game-options-pc*))
      )
     (('graphic-options)
      (set! (-> obj current-options) *graphic-options-pc*)
@@ -344,6 +349,21 @@
      (set! (-> (the-as menu-music-player-option (-> *music-player-options* options 0)) excitement) 0)
      (set! (-> obj current-options) *music-player-options*)
      )
+    (('generic-menu)
+     ;; a single condition to handle all generic menu links
+     (let ((curr-history-entry (-> *progress-pc-generic-store* history-stack
+                                  (-> *progress-pc-generic-store* history-stack-index))))
+       ;; call the on-load function is appropriate, this can be used to perform some kind of generic setup
+       ;; for the particular route
+       (call-on-load curr-history-entry)
+       ;; restore state from the history entry
+       (set! (-> *progress-pc-generic-store* clear-screen?) #f)
+       (set! (-> *progress-pc-generic-store* current-menu-hover-index) (-> curr-history-entry hover-index))
+       (if (!= (-> curr-history-entry progress-id) 'generic-menu)
+        ;; do a recursive call to hit the relevant case in this switch
+        (set-menu-options obj (-> curr-history-entry progress-id))
+        ;; otherwise, set the options
+        (set! (-> obj current-options) (-> curr-history-entry ref)))))
     )
   (when (= (-> obj current-options) #f)
     (format #t "Didn't find new menu settings!!~%")
@@ -351,7 +371,6 @@
     )
   0
   )
-
 
 
 
@@ -408,7 +427,7 @@
         (when (cpad-pressed? 0 right l-analog-right)
           (true! sound-beep?)
           (min-max-wrap-around+! (-> *progress-state-pc* aspect-ratio-choice-index) 1 0 3))
-        
+
         (if sound-beep?
             (sound-play "generic-beep")))
         )
@@ -441,7 +460,7 @@
         (when (cpad-pressed? 0 right l-analog-right)
           (true! sound-beep?)
           (min-max-wrap-around+! (-> *progress-state-pc* display-mode-choice-index) 1 0 2))
-        
+
         (if sound-beep?
             (sound-play "generic-beep")))
         )
@@ -505,6 +524,38 @@
   0
   )
 
+(defmethod respond-progress menu-frame-rate-option ((obj menu-frame-rate-option) (arg0 progress) (arg1 symbol))
+  "Handle progress menu navigation logic."
+
+  (when arg1
+    (cond
+      ((cpad-pressed? 0 triangle)
+        (set-progress-frame-rate-index))
+      ((cpad-pressed? 0 confirm)
+        (sound-play "generic-beep")
+        (set-frame-rate! *pc-settings* (-> *frame-rate-options* (-> *progress-state-pc* frame-rate-choice-index)) #t)
+        )
+      (else
+        (let ((sound-beep? #f))
+          (when (cpad-pressed? 0 left l-analog-left)
+            (true! sound-beep?)
+            (min-max-wrap-around+! (-> *progress-state-pc* frame-rate-choice-index) -1 0 (1- (-> *frame-rate-options* length)))
+            (set-frame-rate! *pc-settings* (-> *frame-rate-options* (-> *progress-state-pc* frame-rate-choice-index)) #t)
+            )
+          (when (cpad-pressed? 0 right l-analog-right)
+            (true! sound-beep?)
+            (min-max-wrap-around+! (-> *progress-state-pc* frame-rate-choice-index) 1 0 (1- (-> *frame-rate-options* length)))
+            (set-frame-rate! *pc-settings* (-> *frame-rate-options* (-> *progress-state-pc* frame-rate-choice-index)) #t)
+            )
+          (if sound-beep?
+            (sound-play "generic-beep")
+            )
+          )
+        )
+      )
+    )
+  0
+  )
 
 (defbehavior play-music-player progress ((info music-player-track-info) (flava int))
   "play a music track using music player track info."
@@ -512,21 +563,7 @@
   (set! (-> *progress-state-pc* music-player-track) info)
   (set-setting! 'music (-> info name) 0.0 0)
   (set-setting! 'sound-flava #f 999999.0 flava)
-  (sound-set-midi-reg 3 (-> info mode))
-  (cond
-    ((= (-> info mode) 1)
-      (case (-> info name)
-        (('sewer)
-          (set-setting! 'music-volume 'rel 1.2 0)
-          )
-        (else
-          (set-setting! 'music-volume 'rel 1.111111 0)
-          )
-        )
-      )
-    (else
-      (remove-setting! 'music-volume))
-    )
+  (set-setting! 'sound-mode #f 0.0 (-> info mode))
   (apply-settings *setting-control*)
   (sound-group-continue (sound-group music))
   0)
@@ -536,8 +573,8 @@
   "play a music track using music player track info."
 
   (remove-setting! 'music)
-  (remove-setting! 'music-volume)
   (remove-setting! 'sound-flava)
+  (remove-setting! 'sound-mode)
   (sound-set-midi-reg 0 0)
   (sound-set-midi-reg 2 0)
   (sound-set-midi-reg 16 0)
@@ -551,7 +588,7 @@
 
 (defun count-bits ((val int))
   "return the number of bits set to 1."
-  
+
   (let ((bits 0))
     (dotimes (i 64)
       (if (logtest? val (ash 1 i))
@@ -575,12 +612,6 @@
 
 (defmethod respond-progress menu-music-player-option ((obj menu-music-player-option) (arg0 progress) (arg1 symbol))
   "Handle progress menu navigation logic."
-
-  ;; force sound updates
-  (when (-> *progress-state-pc* music-player-track)
-    (sound-set-midi-reg 3 (-> *progress-state-pc* music-player-track mode))
-    (+! (-> *setting-control* user-current sound-flava) 999999)
-    )
 
   (if (= 0.0 (-> obj max-scroll))
       (set! (-> obj max-scroll) (+ -141.0 (* (-> *music-player-tracks* length) 23))))
@@ -719,8 +750,8 @@
   (when (and *progress-process* *progress-state* (!= (-> *progress-state* starting-state) 'title))
     (stop-music-player)
     (set-next-state (-> *progress-process* 0) 'go-away 0)
+    (clear-history! *progress-pc-generic-store*)
     )
   0
   (none)
   )
-

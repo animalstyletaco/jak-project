@@ -418,12 +418,10 @@ void Tie3Vulkan::render_tree_wind(int idx,
   // note: this isn't the most efficient because we might compute wind matrices for invisible
   // instances. TODO: add vis ids to the instance info to avoid this
   memset(tree.wind_matrix_cache.data(), 0, sizeof(float) * 16 * tree.wind_matrix_cache.size());
-  auto& cam_bad = settings.camera;
-  std::array<math::Vector4f, 4> cam;
+  auto& cam_bad = settings.camera.camera;
+  std::array<math::Vector4f, 4> cam{};
   for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 4; j++) {
-      cam[i][j] = cam_bad.data()[i * 4 + j];
-    }
+    cam[i] = cam_bad[i];
   }
 
   for (size_t inst_id = 0; inst_id < tree.instance_info->size(); inst_id++) {
@@ -561,7 +559,7 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
     setup_shader(ShaderId::ETIE_BASE);
     vulkan_background_common::first_tfrag_draw_setup(settings, &m_tie_vertex_push_constant);
     // if we use envmap, use the envmap-style math for the base draw to avoid rounding issue.
-    init_etie_cam_uniforms(render_state);
+    init_etie_cam_uniforms(m_common_data.settings.camera);
   } else {
     setup_shader(ShaderId::TFRAG3);
     vulkan_background_common::first_tfrag_draw_setup(settings, &m_tie_vertex_push_constant);
@@ -806,7 +804,7 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
                          VK_INDEX_TYPE_UINT32);
   }
 
-  init_etie_cam_uniforms(render_state);
+  init_etie_cam_uniforms(m_common_data.settings.camera);
   //m_etie_vertex_push_constant.envmap_tod_tint = m_common_data.envmap_color;
 
   int last_texture = -1;
@@ -864,20 +862,18 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
   }
 }
 
-void Tie3Vulkan::init_etie_cam_uniforms(const BaseSharedRenderState* render_state) {
+void Tie3Vulkan::init_etie_cam_uniforms(GoalBackgroundCameraData& background_camera) {
   m_etie_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "camera_no_presp", 1, VK_FALSE, (float*)render_state->camera_no_persp[0].data());
-  m_etie_base_vertex_shader_uniform_buffer->Set4x4MatrixDataInVkDeviceMemory(
-      "camera_no_presp", 1, VK_FALSE, (float*)render_state->camera_no_persp[0].data());
+      "camera_no_presp", 1, VK_FALSE, (float*)background_camera.rot[0].data());
 
   math::Vector4f perspective[2] = {};
-  float inv_fog = 1.f / render_state->camera_fog[0];
-  auto& hvdf_off = render_state->camera_hvdf_off;
-  float pxx = render_state->camera_planes[0].x();
-  float pyy = render_state->camera_planes[1].y();
-  float pzz = render_state->camera_planes[2].z();
-  float pzw = render_state->camera_planes[2].w();
-  float pwz = render_state->camera_planes[3].z();
+  float inv_fog = 1.f / background_camera.fog[0];
+  auto& hvdf_off = background_camera.hvdf_off;
+  float pxx = background_camera.perspective[0].x();
+  float pyy = background_camera.perspective[1].y();
+  float pzz = background_camera.perspective[2].z();
+  float pzw = background_camera.perspective[2].w();
+  float pwz = background_camera.perspective[3].z();
   float scale = pzw * inv_fog;
   perspective[0].x() = scale * hvdf_off.x();
   perspective[0].y() = scale * hvdf_off.y();

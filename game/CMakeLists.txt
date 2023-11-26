@@ -216,6 +216,7 @@ set(RUNTIME_SOURCE
         sce/sif_ee.cpp
         sce/stubs.cpp
         settings/settings.cpp
+        system/background_worker.cpp
         system/Deci2Server.cpp
         system/hid/devices/game_controller.cpp
         system/hid/devices/keyboard.cpp
@@ -362,7 +363,7 @@ add_subdirectory(sound)
 # we build the runtime as a static library.
 add_library(runtime STATIC ${RUNTIME_SOURCE} "graphics/general_renderer/renderer_utils/GeneralRenderer.h")
 
-target_link_libraries(runtime common fmt SDL2::SDL2 imgui discord-rpc sound stb_image libco)
+target_link_libraries(runtime common fmt SDL2::SDL2 imgui discord-rpc sound stb_image libco libcurl)
 if(WIN32)
     target_link_libraries(runtime mman)
 else()

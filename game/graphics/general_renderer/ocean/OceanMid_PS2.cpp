@@ -283,7 +283,7 @@ L11:
   return;
 }
 
-void BaseOceanMid::run_call73_vu2c() {
+void BaseOceanMidJak1::run_call73_vu2c() {
   bool bc;
   // xtop vi02                  |  nop                            73
   vu.vi02 = xtop();
@@ -491,7 +491,7 @@ L15:
   return;
 }
 
-void BaseOceanMid::run_call107_vu2c() {
+void BaseOceanMidJak1::run_call107_vu2c() {
   bool bc;
   // xtop vi02                  |  nop                            107
   vu.vi02 = xtop();

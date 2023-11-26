@@ -9,33 +9,63 @@
 #include "common/dma/dma_chain_read.h"
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
+
 #include "common/texture/texture_conversion.h"
 #include "game/graphics/general_renderer/TextureAnimator.h"
+#include "game/graphics/texture/TexturePoolDataTypes.h"
 
 #include "game/graphics/texture/TextureConverter.h"
 #include "game/graphics/texture/TextureID.h"
 
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
+#include "game/graphics/vulkan_renderer/BucketRenderer.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 
-struct GpuTexture;
+class VulkanGpuTextureMap;
 
-struct VulkanTextureAnimationPool {
-  VulkanTextureAnimationPool();
-  ~VulkanTextureAnimationPool();
+class VulkanTextureAnimationPool {
+ public:
+  VulkanTextureAnimationPool(std::shared_ptr<GraphicsDeviceVulkan> device);
   VulkanTexture* allocate(u64 w, u64 h);
   void free(VulkanTexture* texture, u64 w, u64 h);
-  std::unordered_map<u64, std::vector<VulkanTexture*>> textures;
+  VulkanTexture* GetTexture(u64 key);
+  bool IsTextureAvailable(u64 key);
+
+  private:
+   std::unordered_map<u64, std::vector<VulkanTexture>> m_textures;
+   std::shared_ptr<GraphicsDeviceVulkan> m_device;
 };
 
-class ClutVulkanBlender {
+struct VulkanFixedAnim : BaseFixedAnim {
+  std::optional<FramebufferVulkanHelper> fbt;
+  std::vector<VulkanTexture*> src_textures;
+
+  //GpuTexture* pool_gpu_tex = nullptr;
+};
+
+struct VulkanFixedAnimArray {
+  std::vector<VulkanFixedAnim> anims;
+};
+
+struct VulkanVramEntry : public BaseVramEntry {
+  VulkanGpuTextureMap* pool_gpu_tex = nullptr;
+  std::optional<FramebufferVulkanHelper> tex;
+
+  void reset() override {
+    BaseVramEntry::reset();
+    pool_gpu_tex = nullptr;
+  }
+};
+
+class ClutVulkanBlender : public BaseClutBlender {
  public:
   ClutVulkanBlender(const std::string& dest,
               const std::array<std::string, 2>& sources,
               const std::optional<std::string>& level_name,
               const tfrag3::Level* level,
               VulkanTextureAnimationPool* tpool);
-  VulkanTexture* run(const float* weights);
+  void run(const float* weights) override;
   VulkanTexture* texture() const { return m_texture; }
   bool at_default() const { return m_current_weights[0] == 1.f && m_current_weights[1] == 0.f; }
 
@@ -52,14 +82,14 @@ class VulkanTexturePool;
 
 class VulkanTextureAnimator : public BaseTextureAnimator {
  public:
-  VulkanTextureAnimator(VulkanShaderLibrary& shaders, const tfrag3::Level* common_level);
+  VulkanTextureAnimator(std::shared_ptr<GraphicsDeviceVulkan> device,
+                        VulkanInitializationInfo& vulkan_info, const tfrag3::Level* common_level);
   ~VulkanTextureAnimator();
   void handle_texture_anim_data(DmaFollower& dma,
                                 const u8* ee_mem,
                                 VulkanTexturePool* texture_pool,
                                 u64 frame_idx);
   VulkanTexture* get_by_slot(int idx);
-  void draw_debug_window();
   const std::vector<VulkanTexture*>* slots() { return &m_public_output_slots; }
   void clear_stale_textures(u64 frame_idx);
 
@@ -68,16 +98,16 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   void setup_texture_anims();
   void setup_sky();
   void handle_upload_clut_16_16(const DmaTransfer& tf, const u8* ee_mem);
-  void handle_generic_upload(const DmaTransfer& tf, const u8* ee_mem);
-  void handle_clouds_and_fog(const DmaTransfer& tf, BaseTexturePool* texture_pool);
-  void handle_slime(const DmaTransfer& tf, BaseTexturePool* texture_pool);
+  void handle_generic_upload(const DmaTransfer& tf, const u8* ee_mem) override;
+  void handle_clouds_and_fog(const DmaTransfer& tf) override;
+  void handle_slime(const DmaTransfer& tf) override;
   void handle_erase_dest(DmaFollower& dma);
   void handle_set_shader(DmaFollower& dma);
-  void handle_draw(DmaFollower& dma, BaseTexturePool& texture_pool);
+  void handle_draw(DmaFollower& dma, VulkanTexturePool& texture_pool);
 
-  BaseVramEntry* setup_vram_entry_for_gpu_texture(int w, int h, int tbp);
-  void set_up_opengl_for_fixed(const FixedLayerDef& def, std::optional<VulkanTexture*> texture);
-  bool set_up_opengl_for_shader(const ShaderContext& shader,
+  VulkanVramEntry* setup_vram_entry_for_gpu_texture(int w, int h, int tbp);
+  void set_up_vulkan_for_fixed(const BaseFixedLayerDef& def, std::optional<VulkanTexture*> texture);
+  bool set_up_vulkan_for_shader(const ShaderContext& shader,
                                 std::optional<VulkanTexture*> texture,
                                 bool prim_abe);
   VulkanTexture* make_temp_gpu_texture(const u32* data, u32 width, u32 height);
@@ -87,16 +117,31 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   void load_clut_to_converter();
   void force_to_gpu(int tbp);
 
-  int create_fixed_anim_array(const std::vector<FixedAnimDef>& defs);
+  int create_fixed_anim_array(const std::vector<BaseFixedAnimDef>& defs) override;
   void run_fixed_animation_array(int idx, const DmaTransfer& transfer, VulkanTexturePool* texture_pool);
-  void run_fixed_animation(FixedAnim& anim, float time);
+  void run_fixed_animation(BaseFixedAnim& anim, float time);
 
   void set_uniforms_from_draw_data(const DrawData& dd, int dest_w, int dest_h);
-  void set_draw_data_from_interpolated(DrawData* result, const LayerVals& vals, int w, int h);
+  void set_draw_data_from_interpolated(DrawData* result, const BaseLayerVals& vals, int w, int h);
 
   PcTextureId get_id_for_tbp(VulkanTexturePool* pool, u64 tbp, u64 other_id);
+  void create_pipeline_layout();
+  void InitializeVertexDescriptions();
 
-  BaseVramEntry* m_tex_looking_for_clut = nullptr;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
+  VulkanInitializationInfo& m_vulkan_info;
+
+  GraphicsPipelineLayout m_pipeline_layout;
+  PipelineConfigInfo m_pipeline_config_info;
+
+  BaseTextureAnimationVertexUniformBufferData m_vertex_shader_data{}; //local copy of data that gets passed to uniform buffer
+  std::unique_ptr<UniformVulkanBuffer> m_vertex_uniform_buffer;
+  std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
+  std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+
+  BaseTextureAnimationFragmentPushConstant m_fragment_push_constant;
+
+  VulkanVramEntry* m_tex_looking_for_clut = nullptr;
   const tfrag3::Level* m_common_level = nullptr;
   std::unordered_map<u32, VulkanVramEntry> m_textures;
   std::unordered_map<u64, PcTextureId> m_ids_by_vram;
@@ -113,17 +158,12 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   std::unique_ptr<VulkanTexture> m_dummy_texture;
 
   u8 m_index_to_clut_addr[256];
-  VulkanTextureAnimationPool m_opengl_texture_pool;
+  VulkanTextureAnimationPool m_texture_animation_pool;
   int m_current_dest_tbp = -1;
 
-  std::vector<VulkanTexture*> m_private_output_slots;
   std::vector<VulkanTexture*> m_public_output_slots;
+  std::vector<VulkanTexture*> m_private_output_slots;
   std::vector<int> m_skip_tbps;
-
-  struct Bool {
-    bool b = false;
-  };
-  std::vector<Bool> m_output_debug_flags;
 
   struct ClutVulkanBlenderGroup {
     std::vector<ClutVulkanBlender> blenders;
@@ -132,11 +172,13 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   };
   std::vector<ClutVulkanBlenderGroup> m_clut_blender_groups;
 
-  int m_darkjak_clut_blender_idx = -1;
-  int m_jakb_prison_clut_blender_idx = -1;
-  int m_jakb_oracle_clut_blender_idx = -1;
-  int m_jakb_nest_clut_blender_idx = -1;
-  int m_kor_transform_clut_blender_idx = -1;
+  void set_uniform_vector_three_float(float* position) override;
+  void set_uniform_vector_two_float(float* uv) override;
+  void handle_graphics_erase_dest(DmaFollower& dma,
+                                  int tex_width,
+                                  int tex_height,
+                                  int dest_texture_address,
+                                  math::Vector<u32, 4> rgba_u32) override;
 
   int create_clut_blender_group(const std::vector<std::string>& textures,
                                 const std::string& suffix0,
@@ -147,63 +189,34 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
                                  const std::string& suffix0,
                                  const std::string& suffix1,
                                  const std::optional<std::string>& dgo);
-  void run_clut_blender_group(DmaTransfer& tf, int idx, u64 frame_idx);
+  void run_clut_blender_group(DmaTransfer& tf, int idx, u64 frame_idx) override;
   VulkanTexture* run_clouds(const SkyInput& input);
   void run_slime(const SlimeInput& input);
 
-  Psm32ToPsm8Scrambler m_psm32_to_psm8_8_8, m_psm32_to_psm8_16_16, m_psm32_to_psm8_32_32,
-      m_psm32_to_psm8_64_64;
-  ClutReader m_clut_table;
-
-  int m_skull_gem_fixed_anim_array_idx = -1;
-  int m_bomb_fixed_anim_array_idx = -1;
-  int m_cas_conveyor_anim_array_idx = -1;
-  int m_security_anim_array_idx = -1;
-  int m_waterfall_anim_array_idx = -1;
-  int m_waterfall_b_anim_array_idx = -1;
-  int m_lava_anim_array_idx = -1;
-  int m_lava_b_anim_array_idx = -1;
-  int m_stadiumb_anim_array_idx = -1;
-  int m_fortress_pris_anim_array_idx = -1;
-  int m_fortress_warp_anim_array_idx = -1;
-  int m_metkor_anim_array_idx = -1;
-  int m_shield_anim_array_idx = -1;
-  int m_krew_holo_anim_array_idx = -1;
-
-  std::vector<FixedAnimArray> m_fixed_anim_arrays;
-
- public:
-  // note: for now these can't be easily changed because each layer has its own hand-tuned
-  // parameters from the original game. If you want to change it, you'll need to make up parameters
-  // for those new layers.
-  // must be power of 2 - number of 16-byte rows in random table. (original
-  // game has 8)
-  static constexpr int kRandomTableSize = 8;
-
-  // must be power of 2 - dimensions of the final clouds textures
-  static constexpr int kFinalSkyTextureSize = 128;
-  static constexpr int kFinalSlimeTextureSize = 128;
-
-  // number of small sub-textures. Must be less than log2(kFinalTextureSize).
-  static constexpr int kNumSkyNoiseLayers = 4;
-  static constexpr int kNumSlimeNoiseLayers = 4;
+  std::vector<VulkanFixedAnimArray> m_fixed_anim_arrays;
 
  private:
+  void imgui_show_final_slime_tex() override;
+  void imgui_show_final_slime_scroll_tex() override;
+
+  void imgui_show_sky_blend_tex() override;
+  void imgui_show_sky_final_tex() override;
+
+  void imgui_show_private_output_slots_at_index(int idx) override;
+
   Vector16ub m_random_table[kRandomTableSize];
   int m_random_index = 0;
 
-  SkyInput m_debug_sky_input;
-  VulkanNoiseTexturePair m_sky_noise_textures[kNumSkyNoiseLayers];
-  FramebufferVulkanTexture m_sky_blend_texture;
-  FramebufferVulkanTexture m_sky_final_texture;
-  GpuTexture* m_sky_pool_gpu_tex = nullptr;
+  BaseNoiseTexturePair m_sky_noise_textures[kNumSkyNoiseLayers];
+  FramebufferVulkanHelper m_sky_blend_texture;
+  FramebufferVulkanHelper m_sky_final_texture;
+  VulkanGpuTextureMap* m_sky_pool_gpu_tex = nullptr;
 
-  SlimeInput m_debug_slime_input;
   BaseNoiseTexturePair m_slime_noise_textures[kNumSkyNoiseLayers];
-  FramebufferVulkanTexture m_slime_blend_texture;
-  FramebufferVulkanTexture m_slime_final_texture, m_slime_final_scroll_texture;
-  GpuVulkanTexture* m_slime_pool_gpu_tex = nullptr;
-  GpuVulkanTexture* m_slime_scroll_pool_gpu_tex = nullptr;
-  int m_slime_output_slot = -1;
-  int m_slime_scroll_output_slot = -1;
+  FramebufferVulkanHelper m_slime_blend_texture;
+  FramebufferVulkanHelper m_slime_final_texture, m_slime_final_scroll_texture;
+  VulkanTexture* m_slime_pool_gpu_tex = nullptr;
+  VulkanTexture* m_slime_scroll_pool_gpu_tex = nullptr;
+
+  VulkanTexturePool* m_texture_pool = nullptr;
 };

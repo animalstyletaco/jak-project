@@ -18,6 +18,7 @@ class BaseLoader {
   BaseLoader(const fs::path& base_path, int max_levels) : m_base_path(base_path), m_max_levels(max_levels){};
   virtual ~BaseLoader() = default;
   virtual void set_want_levels(const std::vector<std::string>& levels) = 0;
+  virtual void set_active_levels(const std::vector<std::string>& levels) = 0;
 
   std::string uppercase_string(const std::string& s) {
     std::string result;

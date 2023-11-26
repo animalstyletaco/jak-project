@@ -43,7 +43,9 @@
 
 constexpr bool run_dma_copy = false;
 
-constexpr PerGameVersion<int> fr3_level_count(jak1::LEVEL_TOTAL, jak2::LEVEL_TOTAL);
+constexpr PerGameVersion<int> fr3_level_count(jak1::LEVEL_TOTAL,
+                                              jak2::LEVEL_TOTAL,
+                                              jak3::LEVEL_TOTAL);
 
 struct GraphicsData {
   // vsync
@@ -220,6 +222,7 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   SDL_Window* window =
       SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+  Display::SetupPeripheralManagers(window);
   prof().end_event();
   if (!window) {
     sdl_util::log_error("gl_make_display failed - Could not create display window");

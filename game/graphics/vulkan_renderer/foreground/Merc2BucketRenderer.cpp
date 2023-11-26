@@ -10,16 +10,17 @@ MercVulkan2BucketRenderer::MercVulkan2BucketRenderer(const std::string& name,
 void MercVulkan2BucketRenderer::render(DmaFollower& dma,
                                  SharedVulkanRenderState* render_state,
                                  ScopedProfilerNode& prof) {
-  BaseMerc2BucketRenderer::render(dma, render_state, prof);
-}
+  // skip if disabled
+  if (!m_enabled) {
+    while (dma.current_tag_offset() != render_state->next_bucket) {
+      dma.read_and_advance();
+    }
+    return;
+  }
 
-void MercVulkan2BucketRenderer::merc2_render(DmaFollower& dma,
-                  BaseSharedRenderState* render_state,
-                  ScopedProfilerNode& prof,
-                  BaseMercDebugStats* debug_stats) {
-  m_merc2->render(dma, render_state, prof, debug_stats);
+  m_merc2->render(dma, render_state, prof, &m_debug_stats);
 }
 
 void MercVulkan2BucketRenderer::draw_debug_window() {
-  m_merc2->draw_debug_window();
+  m_merc2->draw_debug_window(&m_debug_stats);
 }

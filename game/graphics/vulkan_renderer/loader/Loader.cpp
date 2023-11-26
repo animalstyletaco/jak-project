@@ -74,6 +74,15 @@ void VulkanLoader::set_want_levels(const std::vector<std::string>& levels) {
 }
 
 /*!
+ * The game calls this to tell the loader that we absolutely want these levels active.
+ * This will NOT trigger a load!
+ */
+void VulkanLoader::set_active_levels(const std::vector<std::string>& levels) {
+  std::unique_lock<std::mutex> lk(m_loader_mutex);
+  m_active_levels = levels;
+}
+
+/*!
  * Get all levels that are in memory and used very recently.
  */
 std::vector<LevelDataVulkan*> VulkanLoader::get_in_use_levels() {

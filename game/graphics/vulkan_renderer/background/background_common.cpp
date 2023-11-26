@@ -236,7 +236,7 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
 void vulkan_background_common::first_tfrag_draw_setup(
   const TfragRenderSettings& settings,
   BackgroundCommonVertexUniformShaderData* uniform_vertex_push_constant) {
-    uniform_vertex_push_constant->camera = settings.camera.camera;
+    ::memcpy(&uniform_vertex_push_constant->camera, &settings.camera.camera, sizeof(settings.camera.camera));
     uniform_vertex_push_constant->hvdf_offset =
         math::Vector4f{settings.camera.hvdf_off[0], settings.camera.hvdf_off[1], settings.camera.hvdf_off[2],
                        settings.camera.hvdf_off[3]};

@@ -5,7 +5,8 @@
 #include "common/util/FileUtil.h"
 #include "common/util/Timer.h"
 
-#include "game/graphics/texture/TexturePool.h"
+#include "game/graphics/opengl_renderer/slime_lut.h"
+#include "game/graphics/texture/TexturePoolOpenGL.h"
 
 #include "third-party/imgui/imgui.h"
 
@@ -428,6 +429,19 @@ TextureAnimator::TextureAnimator(ShaderLibrary& shaders, const tfrag3::Level* co
   glGenerateMipmap(GL_TEXTURE_2D);
   glBindTexture(GL_TEXTURE_2D, 0);
 
+  // create the slime LUT texture
+  glGenTextures(1, &m_slime_lut_texture);
+  glBindTexture(GL_TEXTURE_1D, m_slime_lut_texture);
+  std::vector<u8> slime_data;
+  for (auto x : kSlimeLutData) {
+    slime_data.push_back(x * 255);
+  }
+  glTexImage1D(GL_TEXTURE_1D, 0, GL_RGBA, 256, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+               slime_data.data());
+  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
   shader.activate();
 
   // generate CLUT table.
@@ -686,111 +700,111 @@ void TextureAnimator::handle_texture_anim_data(DmaFollower& dma,
     if (vif0.kind == VifCode::Kind::PC_PORT) {
       switch (vif0.immediate) {
         case UPLOAD_CLUT_16_16: {
-          auto p = scoped_prof("clut-16-16");
+          auto p = profiler::scoped_prof("clut-16-16");
           handle_upload_clut_16_16(tf, ee_mem);
         } break;
         case ERASE_DEST_TEXTURE: {
-          auto p = scoped_prof("erase");
+          auto p = profiler::scoped_prof("erase");
           handle_erase_dest(dma);
         } break;
         case GENERIC_UPLOAD: {
-          auto p = scoped_prof("generic-upload");
+          auto p = profiler::scoped_prof("generic-upload");
           handle_generic_upload(tf, ee_mem);
         } break;
         case SET_SHADER: {
-          auto p = scoped_prof("set-shader");
+          auto p = profiler::scoped_prof("set-shader");
           handle_set_shader(dma);
         } break;
         case DRAW: {
-          auto p = scoped_prof("draw");
+          auto p = profiler::scoped_prof("draw");
           handle_draw(dma, *texture_pool);
         } break;
         case FINISH_ARRAY:
           done = true;
           break;
         case DARKJAK: {
-          auto p = scoped_prof("darkjak");
+          auto p = profiler::scoped_prof("darkjak");
           run_clut_blender_group(tf, m_darkjak_clut_blender_idx, frame_idx);
         } break;
         case PRISON_JAK: {
-          auto p = scoped_prof("prisonjak");
+          auto p = profiler::scoped_prof("prisonjak");
           run_clut_blender_group(tf, m_jakb_prison_clut_blender_idx, frame_idx);
         } break;
         case ORACLE_JAK: {
-          auto p = scoped_prof("oraclejak");
+          auto p = profiler::scoped_prof("oraclejak");
           run_clut_blender_group(tf, m_jakb_oracle_clut_blender_idx, frame_idx);
         } break;
         case NEST_JAK: {
-          auto p = scoped_prof("nestjak");
+          auto p = profiler::scoped_prof("nestjak");
           run_clut_blender_group(tf, m_jakb_nest_clut_blender_idx, frame_idx);
         } break;
         case KOR_TRANSFORM: {
-          auto p = scoped_prof("kor");
+          auto p = profiler::scoped_prof("kor");
           run_clut_blender_group(tf, m_kor_transform_clut_blender_idx, frame_idx);
         } break;
         case SKULL_GEM: {
-          auto p = scoped_prof("skull-gem");
+          auto p = profiler::scoped_prof("skull-gem");
           run_fixed_animation_array(m_skull_gem_fixed_anim_array_idx, tf, texture_pool);
         } break;
         case BOMB: {
-          auto p = scoped_prof("bomb");
+          auto p = profiler::scoped_prof("bomb");
           run_fixed_animation_array(m_bomb_fixed_anim_array_idx, tf, texture_pool);
         } break;
         case CAS_CONVEYOR: {
-          auto p = scoped_prof("cas-conveyor");
+          auto p = profiler::scoped_prof("cas-conveyor");
           run_fixed_animation_array(m_cas_conveyor_anim_array_idx, tf, texture_pool);
         } break;
         case SECURITY: {
-          auto p = scoped_prof("security");
+          auto p = profiler::scoped_prof("security");
           run_fixed_animation_array(m_security_anim_array_idx, tf, texture_pool);
         } break;
         case WATERFALL: {
-          auto p = scoped_prof("waterfall");
+          auto p = profiler::scoped_prof("waterfall");
           run_fixed_animation_array(m_waterfall_anim_array_idx, tf, texture_pool);
         } break;
         case WATERFALL_B: {
-          auto p = scoped_prof("waterfall-b");
+          auto p = profiler::scoped_prof("waterfall-b");
           run_fixed_animation_array(m_waterfall_b_anim_array_idx, tf, texture_pool);
         } break;
         case LAVA: {
-          auto p = scoped_prof("lava");
+          auto p = profiler::scoped_prof("lava");
           run_fixed_animation_array(m_lava_anim_array_idx, tf, texture_pool);
         } break;
         case LAVA_B: {
-          auto p = scoped_prof("lava-b");
+          auto p = profiler::scoped_prof("lava-b");
           run_fixed_animation_array(m_lava_b_anim_array_idx, tf, texture_pool);
         } break;
         case STADIUMB: {
-          auto p = scoped_prof("stadiumb");
+          auto p = profiler::scoped_prof("stadiumb");
           run_fixed_animation_array(m_stadiumb_anim_array_idx, tf, texture_pool);
         } break;
         case FORTRESS_PRIS: {
-          auto p = scoped_prof("fort-pris");
+          auto p = profiler::scoped_prof("fort-pris");
           run_fixed_animation_array(m_fortress_pris_anim_array_idx, tf, texture_pool);
         } break;
         case FORTRESS_WARP: {
-          auto p = scoped_prof("fort-warp");
+          auto p = profiler::scoped_prof("fort-warp");
           run_fixed_animation_array(m_fortress_warp_anim_array_idx, tf, texture_pool);
         } break;
         case METKOR: {
-          auto p = scoped_prof("metkor");
+          auto p = profiler::scoped_prof("metkor");
           run_fixed_animation_array(m_metkor_anim_array_idx, tf, texture_pool);
         } break;
         case SHIELD: {
-          auto p = scoped_prof("shield");
+          auto p = profiler::scoped_prof("shield");
           run_fixed_animation_array(m_shield_anim_array_idx, tf, texture_pool);
         } break;
         case KREW_HOLO: {
-          auto p = scoped_prof("krew-holo");
+          auto p = profiler::scoped_prof("krew-holo");
           run_fixed_animation_array(m_krew_holo_anim_array_idx, tf, texture_pool);
         } break;
         case CLOUDS_AND_FOG:
         case CLOUDS_HIRES: {
-          auto p = scoped_prof("clouds-and-fog");
+          auto p = profiler::scoped_prof("clouds-and-fog");
           handle_clouds_and_fog(tf, texture_pool, vif0.immediate == CLOUDS_HIRES);
         } break;
         case SLIME: {
-          auto p = scoped_prof("slime");
+          auto p = profiler::scoped_prof("slime");
           handle_slime(tf, texture_pool);
         } break;
         default:
@@ -809,7 +823,7 @@ void TextureAnimator::handle_texture_anim_data(DmaFollower& dma,
   // we need to make sure that all final textures end up on the GPU, if desired. (todo: move this to
   // happen somewhere else)?
   for (auto tbp : m_force_to_gpu) {
-    auto p = scoped_prof("force-to-gpu");
+    auto p = profiler::scoped_prof("force-to-gpu");
     force_to_gpu(tbp);
   }
 
@@ -835,7 +849,7 @@ void TextureAnimator::handle_texture_anim_data(DmaFollower& dma,
     if (entry.needs_pool_update) {
       if (entry.pool_gpu_tex) {
         // we have a GPU texture in the pool, but we need to change the actual texture.
-        auto p = scoped_prof("pool-update");
+        auto p = profiler::scoped_prof("pool-update");
         ASSERT(entry.pool_gpu_tex);
         // change OpenGL texture in the pool
         texture_pool->update_gl_texture(entry.pool_gpu_tex, entry.tex_width, entry.tex_height,
@@ -848,7 +862,7 @@ void TextureAnimator::handle_texture_anim_data(DmaFollower& dma,
       } else {
         // this is the first time we use a texture in this slot, so we need to create it.
         // should happen only once per TBP.
-        auto p = scoped_prof("pool-create");
+        auto p = profiler::scoped_prof("pool-create");
         TextureInput in;
         in.gpu_texture = entry.tex.value().texture();
         in.w = entry.tex_width;
@@ -862,7 +876,7 @@ void TextureAnimator::handle_texture_anim_data(DmaFollower& dma,
       }
     } else {
       // ideal case: OpenGL texture modified in place, just have to simulate "upload".
-      auto p = scoped_prof("pool-move");
+      auto p = profiler::scoped_prof("pool-move");
       texture_pool->move_existing_to_vram(entry.pool_gpu_tex, tbp);
       dprintf("no change %d\n", tbp);
     }
@@ -912,7 +926,7 @@ void TextureAnimator::force_to_gpu(int tbp) {
       std::vector<u32> rgba_data(tw * th);
 
       {
-        auto p = scoped_prof("convert");
+        auto p = profiler::scoped_prof("convert");
         // the CLUT is usually uploaded in PSM32 format, as a 16x16.
         const u32* clut = get_clut_16_16_psm32(entry.cbp);
         for (int r = 0; r < th; r++) {
@@ -937,7 +951,7 @@ void TextureAnimator::force_to_gpu(int tbp) {
       int th = entry.tex_height;
       std::vector<u32> rgba_data(tw * th);
       {
-        auto p = scoped_prof("convert");
+        auto p = profiler::scoped_prof("convert");
         // for psmt4, we don't use the special 16x16 case
         const auto& clut_lookup = m_textures.find(entry.cbp);
         ASSERT(clut_lookup != m_textures.end());
@@ -1250,7 +1264,7 @@ void TextureAnimator::handle_erase_dest(DmaFollower& dma) {
     // write the exact specified alpha (texture holds game-style alphas)
     glUniform1f(m_uniforms.alpha_multiply, 1.f);
     {
-      auto p = scoped_prof("erase-draw");
+      auto p = profiler::scoped_prof("erase-draw");
       glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
     }
   }
@@ -1331,7 +1345,7 @@ void TextureAnimator::handle_draw(DmaFollower& dma, TexturePool& texture_pool) {
     // get the source texture
     GLuint gpu_texture;
     {
-      auto p = scoped_prof("make-tex");
+      auto p = profiler::scoped_prof("make-tex");
       gpu_texture = make_or_get_gpu_texture_for_current_shader(texture_pool);
     }
 
@@ -1426,7 +1440,7 @@ GLuint TextureAnimator::make_or_get_gpu_texture_for_current_shader(TexturePool& 
       switch (m_current_shader.tex0.psm()) {
         // reading as a different format, needs scrambler.
         case GsTex0::PSM::PSMT8: {
-          auto p = scoped_prof("scrambler");
+          auto p = profiler::scoped_prof("scrambler");
           int w = 1 << m_current_shader.tex0.tw();
           int h = 1 << m_current_shader.tex0.th();
           ASSERT(w == vram_entry->tex_width * 2);
@@ -1649,7 +1663,7 @@ bool TextureAnimator::set_up_opengl_for_shader(const ShaderContext& shader,
  * - sets flags to indicate if this GPU texture needs to be updated in the pool.
  */
 VramEntry* TextureAnimator::setup_vram_entry_for_gpu_texture(int w, int h, int tbp) {
-  auto pp = scoped_prof("setup-vram-entry");
+  auto pp = profiler::scoped_prof("setup-vram-entry");
   const auto& existing_dest = m_textures.find(tbp);
 
   // see if we have an existing OpenGL texture at all
@@ -2750,6 +2764,10 @@ void TextureAnimator::run_slime(const SlimeInput& input) {
     glUniform3fv(m_uniforms.positions, 4, positions);
     float uv[2 * 4] = {0, 0, 1, 0, 1, 1, 0, 1};
     glUniform2fv(m_uniforms.uvs, 4, uv);
+
+    glActiveTexture(GL_TEXTURE10);
+    glBindTexture(GL_TEXTURE_1D, m_slime_lut_texture);
+    glActiveTexture(GL_TEXTURE0);
 
     // Anim 1:
     // noise (16x16)

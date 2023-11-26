@@ -79,10 +79,10 @@ void GraphicsDeviceVulkan::createInstance() {
   VkApplicationInfo appInfo{};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.pApplicationName = "OpenGOAL";
-  appInfo.applicationVersion = VK_API_VERSION_1_0;
+  appInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, 2, 0);
   appInfo.pEngineName = "OpenGOAL";
-  appInfo.engineVersion = VK_API_VERSION_1_0;
-  appInfo.apiVersion = VK_API_VERSION_1_0;
+  appInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, 2, 0);
+  appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 2, 0);
 
   VkInstanceCreateInfo createInfo{};
   createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -136,8 +136,8 @@ void GraphicsDeviceVulkan::populateDebugMessengerCreateInfo(
 }
 
 void GraphicsDeviceVulkan::createSurface() {
-  if (SDL_Vulkan_CreateSurface(m_window, m_instance, &m_surface) != VK_SUCCESS) {
-    lg::error("failed to create window surface!");
+  if (SDL_Vulkan_CreateSurface(m_window, m_instance, &m_surface) == SDL_FALSE) {
+    throw new std::exception("failed to create window surface!");
   }
 }
 
@@ -473,9 +473,9 @@ void GraphicsDeviceVulkan::copyImageToBuffer(VkImage image,
 }
 
 std::vector<const char*> GraphicsDeviceVulkan::getRequiredExtensions() {
-  uint32_t sdlExtensionCount = 0;
-  const char** sdlExtensions = NULL;
-  if (SDL_Vulkan_GetInstanceExtensions(m_window, &sdlExtensionCount, sdlExtensions) != SDL_TRUE) {
+  const char* sdlExtensions[2] = {NULL};  // Two extensions are always required for SDL vulkan instances
+  uint32_t sdlExtensionCount = sizeof(sdlExtensions) / sizeof(sdlExtensions[0]); 
+  if(SDL_Vulkan_GetInstanceExtensions(m_window, &sdlExtensionCount, sdlExtensions) == SDL_FALSE){
     return {};
   }
 
@@ -593,7 +593,7 @@ VkFormat GraphicsDeviceVulkan::findSupportedFormat(const std::vector<VkFormat>& 
 }
 
 QueueFamilyIndices GraphicsDeviceVulkan::findQueueFamilies(VkPhysicalDevice device) {
-  QueueFamilyIndices indices;
+  QueueFamilyIndices indices{};
 
   uint32_t queueFamilyCount = 0;
   vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);

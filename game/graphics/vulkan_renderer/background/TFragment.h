@@ -17,10 +17,9 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
                   const std::vector<tfrag3::TFragmentTreeKind>& trees,
                   bool child_mode,
                   int level_id,
-                  std::vector<VulkanTexture*> anim_slots);
+                  const std::vector<VulkanTexture*>* anim_slots);
   virtual ~TFragmentVulkan();
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void draw_debug_window() override;
   void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,
@@ -115,5 +114,7 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
   std::unique_ptr<VulkanTexture> m_placeholder_texture;
   std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
   VkDescriptorImageInfo m_placeholder_descriptor_image_info;
+
+  const std::vector<VulkanTexture*>* m_anim_slot_array = nullptr;
 };
 

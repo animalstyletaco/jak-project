@@ -16,6 +16,22 @@
 
 struct GpuTexture;
 
+struct alignas(float) BaseTextureAnimationVertexUniformBufferData {
+  std::array<std::array<float, 2>, 4> uvs;
+  std::array<std::array<float, 3>, 4> positions;
+};
+
+struct alignas(float) BaseTextureAnimationFragmentPushConstant {
+  std::array<u32, 4> rgba;
+  int enable_tex;
+  int tcc;
+  std::array<s32, 4> channel_scramble;
+  float alpha_multiply;
+  float minimum;
+  float maximum;
+  float slime_scroll;
+};
+
 // IDs sent from GOAL telling us what texture operation to perform.
 enum PcTextureAnimCodes {
   FINISH_ARRAY = 13,
@@ -24,14 +40,28 @@ enum PcTextureAnimCodes {
   GENERIC_UPLOAD = 16,
   SET_SHADER = 17,
   DRAW = 18,
-  MOVE_RG_TO_BA = 19,
-  SET_CLUT_ALPHA = 20,
-  COPY_CLUT_ALPHA = 21,
   DARKJAK = 22,
   PRISON_JAK = 23,
   ORACLE_JAK = 24,
   NEST_JAK = 25,
-  KOR_TRANSFORM = 26
+  KOR_TRANSFORM = 26,
+  SKULL_GEM = 27,
+  BOMB = 28,
+  CAS_CONVEYOR = 29,
+  SECURITY = 30,
+  WATERFALL = 31,
+  WATERFALL_B = 32,
+  LAVA = 33,
+  LAVA_B = 34,
+  STADIUMB = 35,
+  FORTRESS_PRIS = 36,
+  FORTRESS_WARP = 37,
+  METKOR = 38,
+  SHIELD = 39,
+  KREW_HOLO = 40,
+  CLOUDS_AND_FOG = 41,
+  SLIME = 42,
+  CLOUDS_HIRES = 43,
 };
 
 // metadata for an upload from GOAL memory
@@ -44,7 +74,8 @@ struct TextureAnimPcUpload {
   // note that the data can be any format. They upload stuff in the wrong format sometimes, as
   // an optimization (ps2 is fastest at psmct32)
   u8 format;
-  u8 pad[3];
+  u8 force_to_gpu;
+  u8 pad[2];
 };
 static_assert(sizeof(TextureAnimPcUpload) == 16);
 
@@ -57,7 +88,14 @@ struct TextureAnimPcTransform {
 };
 
 struct BaseVramEntry {
-  enum class Kind { CLUT16_16_IN_PSM32, GENERIC_PSM32, GENERIC_PSMT8, GPU, INVALID } kind;
+  enum class Kind {
+    CLUT16_16_IN_PSM32,
+    GENERIC_PSM32,
+    GENERIC_PSMT8,
+    GENERIC_PSMT4,
+    GPU,
+    INVALID
+  } kind;
   std::vector<u8> data;
 
   int tex_width = 0;
@@ -67,7 +105,6 @@ struct BaseVramEntry {
   // math::Vector<u8, 4> rgba_clear;
 
   bool needs_pool_update = false;
-  GpuTexture* pool_gpu_tex = nullptr;
 
   virtual void reset() {
     data.clear();
@@ -96,9 +133,9 @@ struct Psm32ToPsm8Scrambler {
   std::vector<int> destinations_per_byte;
 };
 
-struct ClutReader {
+struct BaseClutReader {
   std::array<int, 256> addrs;
-  ClutReader() {
+  BaseClutReader() {
     for (int i = 0; i < 256; i++) {
       u32 clut_chunk = i / 16;
       u32 off_in_chunk = i % 16;
@@ -121,7 +158,7 @@ struct ClutReader {
   }
 };
 
-struct LayerVals {
+struct BaseLayerVals {
   math::Vector4f color = math::Vector4f::zero();
   math::Vector2f scale = math::Vector2f::zero();
   math::Vector2f offset = math::Vector2f::zero();
@@ -132,12 +169,12 @@ struct LayerVals {
   float st_rot = 0;
   u8 pad[8];
 };
-static_assert(sizeof(LayerVals) == 80);
+static_assert(sizeof(BaseLayerVals) == 80);
 
 /*!
  * A single layer in a FixedAnimationDef.
  */
-struct FixedLayerDef {
+struct BaseFixedLayerDef {
   enum class Kind {
     DEFAULT_ANIM_LAYER,
   } kind = Kind::DEFAULT_ANIM_LAYER;
@@ -178,30 +215,24 @@ struct FixedLayerDef {
   }
 };
 
-struct FixedAnimDef {
+struct BaseFixedAnimDef {
   math::Vector4<u8> color;  // clear color
   std::string tex_name;
   std::optional<math::Vector2<int>> override_size;
   // assuming (new 'static 'gs-test :ate #x1 :afail #x1 :zte #x1 :ztst (gs-ztest always))
   // alpha blend off, so alpha doesn't matter i think.
-  std::vector<FixedLayerDef> layers;
+  std::vector<BaseFixedLayerDef> layers;
   bool move_to_pool = false;
 };
 
 struct DynamicLayerData {
-  LayerVals start_vals, end_vals;
+  BaseLayerVals start_vals, end_vals;
 };
 
-struct FixedAnim {
-  FixedAnimDef def;
+struct BaseFixedAnim {
+  BaseFixedAnimDef def;
   std::vector<DynamicLayerData> dynamic_data;
   int dest_slot;
-
-  GpuTexture* pool_gpu_tex = nullptr;
-};
-
-struct FixedAnimArray {
-  std::vector<FixedAnim> anims;
 };
 
 /*
@@ -231,6 +262,10 @@ struct SlimeInput {
 };
 
 using Vector16ub = math::Vector<u8, 16>;
+
+namespace texture_utils {
+int make_noise_texture(u8* dest, Vector16ub* random_table, int dim, int random_index_in);
+}
 
 struct BaseNoiseTexturePair {
   std::vector<u8> temp_data;
@@ -262,16 +297,32 @@ class BaseTextureAnimator {
   BaseTextureAnimator(const tfrag3::Level* common_level);
   ~BaseTextureAnimator();
 
+  // note: for now these can't be easily changed because each layer has its own hand-tuned
+  // parameters from the original game. If you want to change it, you'll need to make up parameters
+  // for those new layers.
+  // must be power of 2 - number of 16-byte rows in random table. (original
+  // game has 8)
+  static constexpr int kRandomTableSize = 8;
+
+  // must be power of 2 - dimensions of the final clouds textures
+  static constexpr int kFinalSkyTextureSize = 128;
+  static constexpr int kFinalSlimeTextureSize = 128;
+
+  // number of small sub-textures. Must be less than log2(kFinalTextureSize).
+  static constexpr int kNumSkyNoiseLayers = 4;
+  static constexpr int kNumSlimeNoiseLayers = 4;
+
  protected:
   void handle_upload_clut_16_16(const DmaTransfer& tf, const u8* ee_mem);
-  void handle_generic_upload(const DmaTransfer& tf, const u8* ee_mem);
+  virtual void handle_generic_upload(const DmaTransfer& tf, const u8* ee_mem) = 0;
   void handle_erase_dest(DmaFollower& dma);
   void handle_set_shader(DmaFollower& dma);
-  void handle_rg_to_ba(const DmaTransfer& tf);
-  void handle_set_clut_alpha(const DmaTransfer& tf);
-  void handle_copy_clut_alpha(const DmaTransfer& tf);
 
-  virtual BaseVramEntry* setup_vram_entry_for_gpu_texture(int w, int h, int tbp) = 0;
+  virtual void handle_graphics_erase_dest(DmaTransfer& dma,
+                                          int tex_width,
+                                          int tex_height,
+                                          int dest_texture_address,
+                                          math::Vector<u32, 4> rgba_u32) = 0;
 
   void load_clut_to_converter();
   const u32* get_clut_16_16_psm32(int cbp);
@@ -305,9 +356,55 @@ class BaseTextureAnimator {
   virtual bool is_vram_entry_available_at_index(unsigned) = 0;
   virtual void update_and_move_texture_data_to_pool() = 0;
 
-  BaseVramEntry* m_tex_looking_for_clut = nullptr;
+  virtual unsigned long get_clut_blender_groups_size() = 0;
+  virtual void clut_blender_groups_emplace_back() = 0;
+
+  virtual void set_uniform_vector_four_float(float, float, float, float) = 0;
+  virtual void set_uniform_vector_three_float(float*) = 0;
+  virtual void set_uniform_vector_two_float(float*) = 0;
+
+  int create_clut_blender_group(const std::vector<std::string>& textures,
+                                const std::string& suffix0,
+                                const std::string& suffix1,
+                                const std::optional<std::string>& dgo);
+  virtual void add_to_clut_blender_group(int idx,
+                                         const std::vector<std::string>& textures,
+                                         const std::string& suffix0,
+                                         const std::string& suffix1,
+                                         const std::optional<std::string>& dgo) = 0;
+  virtual void run_clut_blender_group(DmaTransfer& tf, int idx) = 0;
+  virtual void run_clut_blender_group(DmaTransfer& tf, int idx, u64 frame_idx) = 0;
+
+  void setup_texture_anims();
+  virtual int create_fixed_anim_array(const std::vector<BaseFixedAnimDef>& defs) = 0;
+
+  virtual void run_fixed_animation_array(int idx, DmaTransfer& tf) = 0;
+
+  void loop_over_dma_tex_anims_operations(DmaFollower& dma, const u8* ee_mem, u64 frame_idx);
+  virtual void draw_debug_window();
+
+  virtual void imgui_show_final_slime_tex() = 0;
+  virtual void imgui_show_final_slime_scroll_tex() = 0;
+
+  virtual void imgui_show_sky_blend_tex() = 0;
+  virtual void imgui_show_sky_final_tex() = 0;
+
+  virtual void handle_slime(const DmaTransfer& tf) = 0;
+  virtual void handle_clouds_and_fog(const DmaTransfer& tf) = 0;
+  virtual void set_tex_looking_for_clut() = 0;
+
+  virtual int get_private_output_slots_id(int idx);
+  virtual void imgui_show_private_output_slots_at_index(int idx) = 0;
+  virtual void handle_graphics_erase_dest(DmaFollower& dma,
+                                          int tex_width,
+                                          int tex_height,
+                                          int dest_texture_address,
+                                          math::Vector<u32, 4> rgba_u32) = 0;
+
   const tfrag3::Level* m_common_level = nullptr;
   std::unordered_map<u32, PcTextureId> m_ids_by_vram;
+
+  std::vector<u8> m_output_debug_flags;
 
   std::set<u32> m_erased_on_this_frame;
 
@@ -322,26 +419,28 @@ class BaseTextureAnimator {
     u32 pad3;
   };
 
-  struct alignas(float) VertexPushConstant {
-    math::Vector2f uvs[4];
-    math::Vector3f positions[4];
-  };
-
-  struct alignas(float) FragmentPushConstant {
-    int enable_tex;
-    int tcc;
-    math::Vector4f rgba;
-    math::Vector<int, 4> channel_scramble;
-  };
-
   u8 m_index_to_clut_addr[256];
 
-  virtual unsigned long get_clut_blender_groups_size() = 0;
-  virtual void clut_blender_groups_emplace_back() = 0;
+  Psm32ToPsm8Scrambler m_psm32_to_psm8_8_8, m_psm32_to_psm8_16_16, m_psm32_to_psm8_32_32,
+      m_psm32_to_psm8_64_64;
 
-  virtual void set_uniform_vector_four_float(float, float, float, float) = 0;
-  virtual void set_uniform_vector_three_float(float*) = 0;
-  virtual void set_uniform_vector_two_float(float*) = 0;
+  SkyInput m_debug_sky_input;
+  SlimeInput m_debug_slime_input;
+
+  int m_skull_gem_fixed_anim_array_idx = -1;
+  int m_bomb_fixed_anim_array_idx = -1;
+  int m_cas_conveyor_anim_array_idx = -1;
+  int m_security_anim_array_idx = -1;
+  int m_waterfall_anim_array_idx = -1;
+  int m_waterfall_b_anim_array_idx = -1;
+  int m_lava_anim_array_idx = -1;
+  int m_lava_b_anim_array_idx = -1;
+  int m_stadiumb_anim_array_idx = -1;
+  int m_fortress_pris_anim_array_idx = -1;
+  int m_fortress_warp_anim_array_idx = -1;
+  int m_metkor_anim_array_idx = -1;
+  int m_shield_anim_array_idx = -1;
+  int m_krew_holo_anim_array_idx = -1;
 
   int m_darkjak_clut_blender_idx = -1;
   int m_jakb_prison_clut_blender_idx = -1;
@@ -349,14 +448,6 @@ class BaseTextureAnimator {
   int m_jakb_nest_clut_blender_idx = -1;
   int m_kor_transform_clut_blender_idx = -1;
 
-  int create_clut_blender_group(const std::vector<std::string>& textures,
-                                const std::string& suffix0,
-                                const std::string& suffix1,
-                                const std::optional<std::string>& dgo);
-  virtual void add_to_clut_blender_group(int idx,
-                                         const std::vector<std::string>& textures,
-                                         const std::string& suffix0,
-                                         const std::string& suffix1,
-                                         const std::optional<std::string>& dgo) = 0;
-  void run_clut_blender_group(DmaTransfer& tf, int idx);
+  int m_slime_output_slot = -1;
+  int m_slime_scroll_output_slot = -1;
 };

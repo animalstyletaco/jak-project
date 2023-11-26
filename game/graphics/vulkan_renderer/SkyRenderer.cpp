@@ -28,7 +28,7 @@ SkyBlendVulkanHandler::SkyBlendVulkanHandler(const std::string& name,
                                  int level_id,
                                  std::shared_ptr<SkyBlendVulkanGPU> shared_blender,
                                  std::shared_ptr<SkyBlendCPU> shared_blender_cpu,
-                                 std::vector<VulkanTexture*> anim_slots)
+                                 const std::vector<VulkanTexture*>* anim_slots)
     : BaseSkyBlendHandler(name, my_id, level_id), BucketVulkanRenderer(device, vulkan_info),
       m_shared_gpu_blender(shared_blender),
       m_shared_cpu_blender(shared_blender_cpu),

@@ -7,7 +7,7 @@
 #include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
 
 struct BackgroundCommonVertexUniformShaderData {
-  math::Matrix4f camera;
+  math::Vector4f camera[4];
   math::Vector4f hvdf_offset;
   float fog_constant;
   float fog_min;

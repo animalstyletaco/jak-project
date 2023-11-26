@@ -21,6 +21,8 @@ struct PipelineConfigInfo {
   VkPipelineLayout pipelineLayout = nullptr;
   VkRenderPass renderPass = nullptr;
   uint32_t subpass = 0;
+
+  bool operator==(const PipelineConfigInfo& rhs);
 };
 
 class GraphicsPipelineLayout {

@@ -46,6 +46,7 @@ class VulkanTexture {
   uint32_t getWidth() const { return m_image_create_info.extent.width; };
   uint32_t getHeight() const { return m_image_create_info.extent.height; };
   uint32_t getDepth() const { return m_image_create_info.extent.depth; };
+  std::shared_ptr<GraphicsDeviceVulkan> getLogicalDevice() { return m_device; };
   bool isInitialized() { return m_initialized; };
   VkSampleCountFlagBits getMsaaCount() const { return m_device->getMsaaCount(); }
   void generateMipmaps(VkFormat imageFormat, unsigned mipLevels) {

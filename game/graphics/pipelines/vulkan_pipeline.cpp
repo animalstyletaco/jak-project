@@ -144,40 +144,16 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   //   https://answers.microsoft.com/en-us/windows/forum/all/hdr-monitor-low-brightness-after-exiting-full/999f7ee9-7ba3-4f9c-b812-bbeb9ff8dcc1
   SDL_Window* window =
       SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
-                       SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+                       SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+  Display::SetupPeripheralManagers(window);
   profiler::prof().end_event();
   if (!window) {
     sdl_util::log_error("gl_make_display failed - Could not create display window");
     dialogs::create_error_message_dialog(
         "Critical Error Encountered",
-        "Unable to create OpenGL window.\nOpenGOAL requires OpenGL 4.3.\nEnsure your GPU "
+        "Unable to create OpenGL window.\nOpenGOAL requires OpenGL 4.3 or Vulkan 1.0.\nEnsure your GPU "
         "supports this and your drivers are up to date.");
     return NULL;
-  }
-
-  // Make an OpenGL Context
-  profiler::prof().begin_event("startup::sdl::create_context");
-  SDL_GLContext gl_context = SDL_GL_CreateContext(window);
-  profiler::prof().end_event();
-  if (!gl_context) {
-    sdl_util::log_error("gl_make_display failed - Could not create OpenGL Context");
-    dialogs::create_error_message_dialog(
-        "Critical Error Encountered",
-        "Unable to create OpenGL context.\nOpenGOAL requires OpenGL 4.3.\nEnsure your GPU "
-        "supports this and your drivers are up to date.");
-    return NULL;
-  }
-
-  {
-    auto p = profiler::scoped_prof("startup::sdl::assign_context");
-    if (SDL_GL_MakeCurrent(window, gl_context) != 0) {
-      sdl_util::log_error("gl_make_display failed - Could not associated context with window");
-      dialogs::create_error_message_dialog("Critical Error Encountered",
-                                           "Unable to create OpenGL window with context.\nOpenGOAL "
-                                           "requires OpenGL 4.3.\nEnsure your GPU "
-                                           "supports this and your drivers are up to date.");
-      return NULL;
-    }
   }
 
   if (!vk_inited) {
@@ -422,6 +398,30 @@ void render_vk_game_frame(int game_width,
     g_gfx_data->sync_cv.notify_all();
   }
 }
+
+void VkDisplay::process_sdl_events() {
+  SDL_Event evt;
+  while (SDL_PollEvent(&evt) != 0) {
+    if (evt.type == SDL_QUIT) {
+      m_should_quit = true;
+    }
+    {
+      auto p = profiler::scoped_prof("sdl-display-manager");
+      m_display_manager->process_sdl_event(evt);
+    }
+    if (!m_should_quit) {
+      {
+        auto p = profiler::scoped_prof("imgui-sdl-process");
+        ImGui_ImplSDL2_ProcessEvent(&evt);
+      }
+    }
+    {
+      auto p = profiler::scoped_prof("sdl-input-monitor-process-event");
+      m_input_manager->process_sdl_event(evt);
+    }
+  }
+}
+
 /*!
  * Main function called to render graphics frames. This is called in a loop.
  */
@@ -625,6 +625,10 @@ void vk_set_levels(const std::vector<std::string>& levels) {
   g_gfx_data->loader->set_want_levels(levels);
 }
 
+void vk_set_active_levels(const std::vector<std::string>& levels) {
+  g_gfx_data->loader->set_active_levels(levels);
+}
+
 void vk_set_pmode_alp(float val) {
   g_gfx_data->pmode_alp = val;
 }
@@ -639,6 +643,7 @@ const GfxRendererModule gRendererVulkan = {
     vk_texture_upload_now,  // texture_upload_now
     vk_texture_relocate,    // texture_relocate
     vk_set_levels,          // set_levels
+    vk_set_active_levels,          // set_levels
     vk_set_pmode_alp,       // set_pmode_alp
     GfxPipeline::Vulkan,    // pipeline
     "Vulkan 1.0"            // name

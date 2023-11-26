@@ -22,6 +22,7 @@
 #include "game/kernel/common/kscheme.h"
 #include "game/runtime.h"
 #include "pipelines/opengl.h"
+#include "pipelines/vulkan_pipeline.h"
 
 namespace Gfx {
 
@@ -36,6 +37,8 @@ const GfxRendererModule* GetRenderer(GfxPipeline pipeline) {
       return NULL;
     case GfxPipeline::OpenGL:
       return &gRendererOpenGL;
+    case GfxPipeline::Vulkan:
+      return &gRendererVulkan;
     default:
       lg::error("Requested unknown renderer {}", fmt::underlying(pipeline));
       return NULL;
@@ -57,7 +60,8 @@ u32 Init(GameVersion version) {
   g_debug_settings = game_settings::DebugSettings();
   {
     auto p = profiler::scoped_prof("startup::gfx::get_renderer");
-    g_global_settings.renderer = GetRenderer(GfxPipeline::OpenGL);
+    //g_global_settings.renderer = GetRenderer(GfxPipeline::OpenGL);
+    g_global_settings.renderer = GetRenderer(GfxPipeline::Vulkan);
   }
 
   {

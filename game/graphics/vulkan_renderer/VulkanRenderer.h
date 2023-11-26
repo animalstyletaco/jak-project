@@ -15,6 +15,7 @@
 #include "game/graphics/vulkan_renderer/FullScreenDraw.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
 #include "game/tools/subtitle_editor/subtitle_editor.h"
+#include "game/graphics/vulkan_renderer/TextureAnimator.h"
 
 
 /*!
@@ -79,6 +80,12 @@ class VulkanRenderer {
     m_graphics_bucket_renderers.at((int)id) = renderer;
     m_bucket_categories.at((int)id) = cat;
     return ret;
+  }
+
+
+  VulkanTextureAnimator* m_texture_animator = nullptr;
+  const std::vector<VulkanTexture*>* anim_slot_array() {
+    return m_texture_animator ? m_texture_animator->slots() : nullptr;
   }
 
   std::unique_ptr<EyeVulkanRenderer> m_jak2_eye_renderer;

@@ -9,11 +9,11 @@ TFragmentVulkan::TFragmentVulkan(const std::string& name,
                                  const std::vector<tfrag3::TFragmentTreeKind>& trees,
                                  bool child_mode,
                                  int level_id,
-                                 std::vector<VulkanTexture*> anim_slots)
+                                 const std::vector<VulkanTexture*>* anim_slots)
     : BaseTFragment(name, my_id, trees, child_mode, level_id),
       BucketVulkanRenderer(device, vulkan_info),
       m_device(device),
-      m_vulkan_info(vulkan_info) {
+      m_vulkan_info(vulkan_info), m_anim_slot_array(anim_slots) {
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_debug_pipeline_config_info);
 
@@ -233,6 +233,12 @@ TFragmentVulkan::~TFragmentVulkan() {
     ASSERT(time_of_day_count <= background_common::TIME_OF_DAY_COLOR_COUNT);
   }
 
+  void TFragmentVulkan::render(DmaFollower& dma,
+                               SharedVulkanRenderState* render_state,
+                               ScopedProfilerNode& prof) {
+    BaseTFragment::render(dma, render_state, prof);
+  }
+
   // This is pretty dumb but if our descriptor pool is big enough this shouldn't be a problem
   void TFragmentVulkan::AllocateDescriptorSets(std::vector<VkDescriptorSet> & descriptorSets,
                                             VkDescriptorSetLayout & layout,
@@ -332,6 +338,9 @@ void TFragmentVulkan::render_tree(int geom,
 #endif
 
     vulkan_background_common::first_tfrag_draw_setup(settings, &m_vertex_push_constant);
+    m_time_of_day_color_push_constant.fog_color =
+        math::Vector4f{render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
+                       render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255};
     background_common::cull_check_all_slow(settings.camera.planes, tree.vis->vis_nodes,
                                            settings.occlusion_culling, m_cache.vis_temp.data());
 
@@ -515,7 +524,7 @@ void TFragmentVulkan::render_tree(int geom,
     debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
                    tree.vis->vis_nodes, m_debug_vert_data);
 
-    m_vertex_push_constant.camera = settings.camera.camera;
+    ::memcpy(&m_vertex_push_constant.camera, &settings.camera.camera, sizeof(settings.camera.camera));
     m_vertex_push_constant.hvdf_offset =
         math::Vector4f{settings.camera.hvdf_off[0], settings.camera.hvdf_off[1],
                        settings.camera.hvdf_off[2], settings.camera.hvdf_off[3]};

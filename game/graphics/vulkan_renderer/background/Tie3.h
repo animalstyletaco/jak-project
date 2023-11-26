@@ -120,7 +120,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
                          std::unique_ptr<DescriptorWriter>& fragment_descriptor_writer);
 
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
-  void init_etie_cam_uniforms(const BaseSharedRenderState* render_state);
+  void init_etie_cam_uniforms(GoalBackgroundCameraData& render_state);
 
   std::array<std::vector<TreeVulkan>, 4> m_trees;  // includes 4 lods!
   std::unordered_map<u32, VulkanTexture>* m_textures;

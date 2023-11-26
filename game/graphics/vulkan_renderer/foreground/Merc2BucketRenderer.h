@@ -12,7 +12,6 @@ class MercVulkan2BucketRenderer : public BaseMerc2BucketRenderer, public BucketV
                             VulkanInitializationInfo& vulkan_info,
                             std::shared_ptr<MercVulkan2>);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  void merc2_render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof, BaseMercDebugStats*) override;
   void draw_debug_window() override;
 
  protected:

@@ -22,7 +22,7 @@ class SkyBlendVulkanHandler : public BaseSkyBlendHandler, public BucketVulkanRen
                   int level_id,
                   std::shared_ptr<SkyBlendVulkanGPU> shared_gpu_blender,
                   std::shared_ptr<SkyBlendCPU> shared_cpu_blender,
-                  std::vector<VulkanTexture*> anim_slot);
+                  const std::vector<VulkanTexture*>* anim_slot);
   void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
 
  protected:

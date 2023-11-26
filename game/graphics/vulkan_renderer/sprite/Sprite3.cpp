@@ -258,7 +258,8 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
         .Reinitialize(fragment_descriptor_layout, m_bucket_list.size());
   }
 
-  if (m_sprite_graphics_settings_map.at(m_flush_sprite_call_count).pipeline_layouts.size() < m_bucket_list.size()) {
+  if (m_sprite_graphics_settings_map.at(m_flush_sprite_call_count).descriptor_image_infos.size() <
+      m_bucket_list.size()) {
     m_sprite_graphics_settings_map.at(m_flush_sprite_call_count)
         .Reinitialize(fragment_descriptor_layout, m_bucket_list.size());
   }

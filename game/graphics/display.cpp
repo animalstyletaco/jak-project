@@ -54,8 +54,12 @@ std::shared_ptr<GfxDisplay> GetMainDisplay() {
 }
 
 void SetupPeripheralManagers(SDL_Window* window) {
-  g_input_manager = std::make_shared<InputManager>();
-  g_display_manager = std::make_shared<DisplayManager>(window);
+  if (!g_input_manager) {
+    g_input_manager = std::make_shared<InputManager>();
+  }
+  if (!g_display_manager) {
+    g_display_manager = std::make_shared<DisplayManager>(window);
+  }
 }
 
 int InitMainDisplay(int width,

@@ -19,7 +19,8 @@ class VulkanLoader : public BaseLoader {
   void update(VulkanTexturePool& tex_pool);
   void update_blocking(VulkanTexturePool& tex_pool);
   void load_common(VulkanTexturePool& tex_pool, const std::string& name);
-  void set_want_levels(const std::vector<std::string>& levels);
+  void set_want_levels(const std::vector<std::string>& levels) override;
+  void set_active_levels(const std::vector<std::string>& levels) override;
   LevelDataVulkan* get_tfrag3_level(const std::string& level_name);
   void draw_debug_window();
   std::optional<MercRefVulkan> get_merc_model(const char* model_name);
@@ -41,4 +42,6 @@ class VulkanLoader : public BaseLoader {
 
   std::shared_ptr<GraphicsDeviceVulkan> m_device;
   LevelDataVulkan m_common_level;
+
+  std::vector<std::string> m_active_levels;
 };

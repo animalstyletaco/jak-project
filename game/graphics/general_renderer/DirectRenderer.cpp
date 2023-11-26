@@ -600,7 +600,7 @@ void BaseDirectRenderer::handle_xyz2_packed(const u8* data,
 }
 
 namespace direct_renderer {
-PerGameVersion<u32> normal_zbp = {448, 304};
+PerGameVersion<u32> normal_zbp = {448, 304, 304};
 
 float u32_to_float(u32 in) {
   double x = (double)in / UINT32_MAX;

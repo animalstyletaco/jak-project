@@ -300,7 +300,7 @@ void CommonOceanRenderer::flush_near(SharedRenderState* render_state, ScopedProf
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
         glBlendEquation(GL_FUNC_ADD);
         auto tbp =
-            render_state->version == GameVersion::Jak1 ? OCEAN_TEX_TBP_JAK1 : OCEAN_TEX_TBP_JAK2;
+            render_state->GetVersion() == GameVersion::Jak1 ? OCEAN_TEX_TBP_JAK1 : OCEAN_TEX_TBP_JAK2;
         auto tex = render_state->texture_pool->lookup(tbp);
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();
@@ -494,7 +494,7 @@ void CommonOceanRenderer::flush_mid(SharedRenderState* render_state, ScopedProfi
     switch (bucket) {
       case 0: {
         auto tbp =
-            render_state->version == GameVersion::Jak1 ? OCEAN_TEX_TBP_JAK1 : OCEAN_TEX_TBP_JAK2;
+            render_state->GetVersion() == GameVersion::Jak1 ? OCEAN_TEX_TBP_JAK1 : OCEAN_TEX_TBP_JAK2;
         auto tex = render_state->texture_pool->lookup(tbp);
         if (!tex) {
           tex = render_state->texture_pool->get_placeholder_texture();

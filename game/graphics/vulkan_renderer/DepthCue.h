@@ -3,20 +3,21 @@
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
 
-#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
-#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DepthCue.h"
+#include "game/graphics/vulkan_renderer/BucketRenderer.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 
 class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
  public:
   DepthCueVulkan(const std::string& name,
-           int my_id,
-           std::shared_ptr<GraphicsDeviceVulkan> device,
-           VulkanInitializationInfo& vulkan_info);
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+                 int my_id,
+                 std::shared_ptr<GraphicsDeviceVulkan> device,
+                 VulkanInitializationInfo& vulkan_info);
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
 
  protected:
-
   struct {
     // Framebuffer for depth-cue-base-page
     std::unique_ptr<FramebufferVulkanHelper> fbo;

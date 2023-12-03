@@ -262,7 +262,7 @@ void BaseGeneric2Jak2::process_dma(DmaFollower& dma, u32 next_bucket) {
       ASSERT(vif_transfer.size_bytes * 4 / 48 == up.num);
       ASSERT(up.num == continued_fragment->vtx_count);
       generic_dma::unpack_vtx_positions(&m_verts[continued_fragment->vtx_idx], vif_transfer.data,
-                           continued_fragment->vtx_count);
+                                        continued_fragment->vtx_count);
       continued_fragment = nullptr;
       auto call = dma.read_and_advance();
       ASSERT(call.size_bytes == 0);
@@ -326,11 +326,11 @@ void BaseGeneric2Jak2::process_dma(DmaFollower& dma, u32 next_bucket) {
 }
 
 u32 BaseGeneric2::handle_fragments_after_unpack_v4_32(const u8* data,
-                                                  u32 off,
-                                                  u32 first_unpack_bytes,
-                                                  u32 end_of_vif,
-                                                  Fragment* frag,
-                                                  bool loop) {
+                                                      u32 off,
+                                                      u32 first_unpack_bytes,
+                                                      u32 end_of_vif,
+                                                      Fragment* frag,
+                                                      bool loop) {
   // note: they rely on _something_ aligning this?
   u32 off_aligned = (off + 15) & ~15;
   // each header should have 7 qw header + at least 5 qw for a single adgif.
@@ -501,8 +501,8 @@ void BaseGeneric2Jak1::process_dma(DmaFollower& dma, u32 next_bucket) {
       ASSERT(up.kind == VifCode::Kind::UNPACK_V3_32);
       ASSERT(continue_vif_transfer.size_bytes * 4 / 48 == up.num);
       ASSERT(up.num == continued_fragment->vtx_count);
-      generic_dma::unpack_vtx_positions(&m_verts[continued_fragment->vtx_idx], continue_vif_transfer.data,
-                           continued_fragment->vtx_count);
+      generic_dma::unpack_vtx_positions(&m_verts[continued_fragment->vtx_idx],
+                                        continue_vif_transfer.data, continued_fragment->vtx_count);
       continued_fragment = nullptr;
       auto call = dma.read_and_advance();
       ASSERT(call.size_bytes == 0);
@@ -553,7 +553,6 @@ void BaseGeneric2Jak1::process_dma(DmaFollower& dma, u32 next_bucket) {
     }
   }
 }
-
 
 void BaseGeneric2::process_dma_lightning(DmaFollower& dma, u32 next_bucket) {
   reset_buffers();
@@ -615,14 +614,16 @@ void BaseGeneric2::process_dma_lightning(DmaFollower& dma, u32 next_bucket) {
     (void)mscal;
 
     auto* frag = &next_frag();
-    ASSERT(maybe_first_upload.size_bytes == BaseGeneric2::FRAG_HEADER_SIZE + 5 * 16);  // header + adgif
+    ASSERT(maybe_first_upload.size_bytes ==
+           BaseGeneric2::FRAG_HEADER_SIZE + 5 * 16);  // header + adgif
     memcpy(frag->header, maybe_first_upload.data, BaseGeneric2::FRAG_HEADER_SIZE);
     frag->adgif_idx = m_next_free_adgif;
     frag->adgif_count = 1;
     frag->mscal_addr = 6;
     frag->uses_hud = false;
     auto* adgif = &next_adgif();
-    memcpy(&adgif->data, maybe_first_upload.data + BaseGeneric2::FRAG_HEADER_SIZE, sizeof(AdGifData));
+    memcpy(&adgif->data, maybe_first_upload.data + BaseGeneric2::FRAG_HEADER_SIZE,
+           sizeof(AdGifData));
     // (new 'static 'gif-tag-regs-32 :regs0 (gif-reg-id st) :regs1 (gif-reg-id rgbaq) :regs2
     // (gif-reg-id xyzf2))
     int num_vtx = second_upload.size_bytes / (16 * 3);

@@ -11,13 +11,11 @@
 /////////////////////////
 BaseEyeRenderer::BaseEyeRenderer(const std::string& name, int id) : BaseBucketRenderer(name, id) {}
 
-BaseEyeRenderer::~BaseEyeRenderer() {
-
-}
+BaseEyeRenderer::~BaseEyeRenderer() {}
 
 void BaseEyeRenderer::render(DmaFollower& dma,
-                         BaseSharedRenderState* render_state,
-                         ScopedProfilerNode& prof) {
+                             BaseSharedRenderState* render_state,
+                             ScopedProfilerNode& prof) {
   m_debug.clear();
 
   // skip if disabled
@@ -29,7 +27,7 @@ void BaseEyeRenderer::render(DmaFollower& dma,
   }
 
   // jump to bucket
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     auto data0 = dma.read_and_advance();
     ASSERT(data0.vif1() == 0);
     ASSERT(data0.vif0() == 0);
@@ -156,8 +154,8 @@ BaseEyeRenderer::SpriteInfo BaseEyeRenderer::decode_sprite(const DmaTransfer& dm
 }
 
 void BaseEyeRenderer::handle_eye_dma2(DmaFollower& dma,
-                                  BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode&) {
+                                      BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode&) {
   Timer timer;
   m_debug.clear();
 
@@ -174,7 +172,7 @@ void BaseEyeRenderer::handle_eye_dma2(DmaFollower& dma,
   ASSERT(alpha_setup.vifcode1().kind == VifCode::Kind::DIRECT);
 
   // from the add to bucket
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     ASSERT(dma.current_tag().kind == DmaTag::Kind::NEXT);
     ASSERT(dma.current_tag().qwc == 0);
     ASSERT(dma.current_tag_vif0() == 0);
@@ -189,10 +187,10 @@ void BaseEyeRenderer::handle_eye_dma2(DmaFollower& dma,
 }
 
 int BaseEyeRenderer::add_draw_to_buffer_32(int idx,
-                          const BaseEyeRenderer::EyeDraw& draw,
-                          float* data,
-                          int pair,
-                          int lr) {
+                                           const BaseEyeRenderer::EyeDraw& draw,
+                                           float* data,
+                                           int pair,
+                                           int lr) {
   int x_off = lr * SINGLE_EYE_SIZE * 16;
   int y_off = pair * SINGLE_EYE_SIZE * 16;
 
@@ -215,7 +213,11 @@ int BaseEyeRenderer::add_draw_to_buffer_32(int idx,
   return idx;
 }
 
-int BaseEyeRenderer::add_draw_to_buffer_64(int idx, const BaseEyeRenderer::EyeDraw& draw, float* data, int pair, int lr) {
+int BaseEyeRenderer::add_draw_to_buffer_64(int idx,
+                                           const BaseEyeRenderer::EyeDraw& draw,
+                                           float* data,
+                                           int pair,
+                                           int lr) {
   int x_off = lr * SINGLE_EYE_SIZE * 16;
   int y_off = pair * SINGLE_EYE_SIZE * 16;
   data[idx++] = draw.sprite.xyz0[0] - x_off;

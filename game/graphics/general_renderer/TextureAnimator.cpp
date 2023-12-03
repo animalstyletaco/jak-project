@@ -1,13 +1,12 @@
 #include "TextureAnimator.h"
 
 #include "common/global_profiler/GlobalProfiler.h"
+#include "common/log/log.h"
 #include "common/texture/texture_slots.h"
 #include "common/util/FileUtil.h"
 #include "common/util/Timer.h"
 
-#include "common/log/log.h"
 #include "third-party/imgui/imgui.h"
-#include "common/texture/texture_slots.h"
 
 #define dprintf(...)
 #define dfmt(...)
@@ -66,9 +65,9 @@ int output_slot_by_idx(GameVersion version, const std::string& name) {
 }
 
 BaseClutBlender::BaseClutBlender(const std::string& dest,
-                         const std::vector<std::string>& sources,
-                         const std::optional<std::string>& level_name,
-                         const tfrag3::Level* level) {
+                                 const std::vector<std::string>& sources,
+                                 const std::optional<std::string>& level_name,
+                                 const tfrag3::Level* level) {
   m_dest = itex_by_name(level, dest, level_name);
   for (const auto& sname : sources) {
     m_cluts.push_back(&itex_by_name(level, sname, level_name)->color_table);
@@ -87,10 +86,9 @@ BaseTextureAnimator::BaseTextureAnimator(const tfrag3::Level* common_level)
       m_psm32_to_psm8_16_16(16, 16, 16, 64),
       m_psm32_to_psm8_32_32(32, 32, 16, 64),
       m_psm32_to_psm8_64_64(64, 64, 64, 64) {
-  //Initialize graphics
+  // Initialize graphics
 
   m_output_debug_flags = std::vector<u8>{0, jak2_animated_texture_slots().size()};
-
 
   // generate CLUT table.
   for (int i = 0; i < 256; i++) {
@@ -615,23 +613,21 @@ void BaseTextureAnimator::setup_texture_anims() {
 }
 
 int BaseTextureAnimator::create_clut_blender_group(const std::vector<std::string>& textures,
-                                               const std::string& suffix0,
-                                               const std::string& suffix1,
-                                               const std::optional<std::string>& dgo) {
+                                                   const std::string& suffix0,
+                                                   const std::string& suffix1,
+                                                   const std::optional<std::string>& dgo) {
   int ret = get_clut_blender_groups_size();
   clut_blender_groups_emplace_back();
   add_to_clut_blender_group(ret, textures, suffix0, suffix1, dgo);
   return ret;
 }
 
-BaseTextureAnimator::~BaseTextureAnimator() {
-}
+BaseTextureAnimator::~BaseTextureAnimator() {}
 
 /*!
  * Main function to run texture animations from DMA. Updates textures in the pool.
  */
-void BaseTextureAnimator::handle_texture_anim_data(DmaFollower& dma,
-                                               const u8* ee_mem) {
+void BaseTextureAnimator::handle_texture_anim_data(DmaFollower& dma, const u8* ee_mem) {
   clear_in_use_temp_texture();
 
   // loop over DMA, and do the appropriate texture operations.
@@ -711,7 +707,6 @@ void BaseTextureAnimator::handle_texture_anim_data(DmaFollower& dma,
 
   update_and_move_texture_data_to_pool();
 }
-
 
 /*!
  * Handle the initialization of an animated texture. This fills the entire texture with a solid
@@ -882,8 +877,7 @@ void BaseTextureAnimator::load_clut_to_converter() {
   const auto& clut_lookup = get_vram_entry_at_index(m_current_shader.tex0.cbp());
   switch (clut_lookup.kind) {
     case BaseVramEntry::Kind::CLUT16_16_IN_PSM32:
-      m_converter.upload_width(clut_lookup.data.data(), m_current_shader.tex0.cbp(), 16,
-                               16);
+      m_converter.upload_width(clut_lookup.data.data(), m_current_shader.tex0.cbp(), 16, 16);
       break;
     default:
       printf("unhandled clut source kind: %d\n", (int)clut_lookup.kind);
@@ -891,7 +885,9 @@ void BaseTextureAnimator::load_clut_to_converter() {
   }
 }
 
-void BaseTextureAnimator::loop_over_dma_tex_anims_operations(DmaFollower& dma, const u8* ee_mem, u64 frame_idx) {
+void BaseTextureAnimator::loop_over_dma_tex_anims_operations(DmaFollower& dma,
+                                                             const u8* ee_mem,
+                                                             u64 frame_idx) {
   // loop over DMA, and do the appropriate texture operations.
   // this will fill out m_textures, which is keyed on TBP.
   // as much as possible, we keep around buffers/textures.

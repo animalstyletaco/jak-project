@@ -21,9 +21,9 @@ math::Vector2f fixed_to_floating_point(const math::Vector<s32, 2>& fixed_vec) {
 constexpr int TOTAL_DRAW_SLICES = 16;
 
 DepthCueVulkan::DepthCueVulkan(const std::string& name,
-                   int my_id,
-                   std::shared_ptr<GraphicsDeviceVulkan> device,
-                   VulkanInitializationInfo& vulkan_info)
+                               int my_id,
+                               std::shared_ptr<GraphicsDeviceVulkan> device,
+                               VulkanInitializationInfo& vulkan_info)
     : BaseDepthCue(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
   graphics_setup();
 
@@ -32,11 +32,11 @@ DepthCueVulkan::DepthCueVulkan(const std::string& name,
 
 void DepthCueVulkan::graphics_setup() {
   // Gen texture for sampling the framebuffer
-  m_ogl.depth_cue_page_vertex_buffer = std::make_unique<VertexBuffer>(
-      m_device, sizeof(SpriteVertex), 4, 1);
+  m_ogl.depth_cue_page_vertex_buffer =
+      std::make_unique<VertexBuffer>(m_device, sizeof(SpriteVertex), 4, 1);
 
-  m_ogl.on_screen_vertex_buffer = std::make_unique<VertexBuffer>(
-      m_device, sizeof(SpriteVertex), 4, 1);
+  m_ogl.on_screen_vertex_buffer =
+      std::make_unique<VertexBuffer>(m_device, sizeof(SpriteVertex), 4, 1);
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -58,7 +58,7 @@ void DepthCueVulkan::graphics_setup() {
   samplerInfo.magFilter = VK_FILTER_LINEAR;
   samplerInfo.minFilter = VK_FILTER_LINEAR;
 
-  //Emerc fragment descriptor is the same as standard merc no need for separate object
+  // Emerc fragment descriptor is the same as standard merc no need for separate object
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -71,7 +71,7 @@ void DepthCueVulkan::graphics_setup() {
   InitializeInputAttributes();
 }
 
-void DepthCueVulkan::InitializeInputAttributes(){
+void DepthCueVulkan::InitializeInputAttributes() {
   // Gen framebuffer for depth-cue-base-page
 
   std::array<VkVertexInputBindingDescription, 2> bindingDescriptions{};
@@ -110,7 +110,7 @@ void DepthCueVulkan::InitializeInputAttributes(){
       m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
       attributeDescriptions.end());
 
-    // Activate shader
+  // Activate shader
   auto& shader = m_vulkan_info.shaders[ShaderId::DEPTH_CUE];
   VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
   vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -128,29 +128,31 @@ void DepthCueVulkan::InitializeInputAttributes(){
 }
 
 void DepthCueVulkan::create_pipeline_layout() {
-    std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
-        m_fragment_descriptor_layout->getDescriptorSetLayout()};
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{
+      m_fragment_descriptor_layout->getDescriptorSetLayout()};
 
-    VkPushConstantRange pushConstantRange{};
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(m_depth_cue_push_constant);
-    pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  VkPushConstantRange pushConstantRange{};
+  pushConstantRange.offset = 0;
+  pushConstantRange.size = sizeof(m_depth_cue_push_constant);
+  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-    pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-    
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
+  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-    if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                               &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create pipeline layout!");
-    }
+  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
+
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create pipeline layout!");
+  }
 }
 
-void DepthCueVulkan::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void DepthCueVulkan::render(DmaFollower& dma,
+                            SharedVulkanRenderState* render_state,
+                            ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples =
       m_vulkan_info.swap_chain->get_render_pass_sample_count();
@@ -385,8 +387,9 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
   m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
@@ -449,9 +452,9 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
 
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
-    
-    m_graphics_pipeline_layout.updateGraphicsPipeline(
-        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                      m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkViewport viewport;
@@ -464,18 +467,17 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     vkCmdSetViewport(m_vulkan_info.render_command_buffer, 0, 1, &viewport);
     vkCmdSetScissor(m_vulkan_info.render_command_buffer, 0, 1, &extents);
 
-    VkDeviceSize offsets[]  = {0};
+    VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffers[] = {m_ogl.depth_cue_page_vertex_buffer->getBuffer()};
     vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                   VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_depth_cue_push_constant),
-                   (void*)&m_depth_cue_push_constant);
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_depth_cue_push_constant),
+                       (void*)&m_depth_cue_push_constant);
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                        m_pipeline_config_info.pipelineLayout, 0, 1,
-                        &m_descriptor_sets[0], 0,
-                        NULL);
+                            m_pipeline_config_info.pipelineLayout, 0, 1, &m_descriptor_sets[0], 0,
+                            NULL);
 
     vkCmdDraw(m_vulkan_info.render_command_buffer, 6 * TOTAL_DRAW_SLICES, 1, 0, 0);
   }
@@ -503,7 +505,8 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
     m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-    m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
     m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -511,8 +514,8 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(
-        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                      m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkViewport viewport;
@@ -520,22 +523,22 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     viewport.y = render_state->draw_offset_y;
     viewport.width = render_state->draw_region_w;
     viewport.height = render_state->draw_region_h;
-    VkRect2D extents = {{render_state->draw_offset_x, render_state->draw_offset_y}, m_vulkan_info.swap_chain->getSwapChainExtent()};
+    VkRect2D extents = {{render_state->draw_offset_x, render_state->draw_offset_y},
+                        m_vulkan_info.swap_chain->getSwapChainExtent()};
 
     vkCmdSetViewport(m_vulkan_info.render_command_buffer, 0, 1, &viewport);
     vkCmdSetScissor(m_vulkan_info.render_command_buffer, 0, 1, &extents);
 
-    VkDeviceSize offsets[]  = {0};
+    VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffers[] = {m_ogl.on_screen_vertex_buffer->getBuffer()};
     vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                   VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_depth_cue_push_constant),
-                   (void*)&m_depth_cue_push_constant);
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_depth_cue_push_constant),
+                       (void*)&m_depth_cue_push_constant);
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            m_pipeline_config_info.pipelineLayout, 0, 1,
-                            &m_descriptor_sets[1], 0,
+                            m_pipeline_config_info.pipelineLayout, 0, 1, &m_descriptor_sets[1], 0,
                             NULL);
 
     vkCmdDraw(m_vulkan_info.render_command_buffer, 6 * TOTAL_DRAW_SLICES, 1, 0, 0);
@@ -544,4 +547,3 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
   // Done
   m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_TRUE;
 }
-

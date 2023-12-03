@@ -4,18 +4,18 @@
 
 #include "game/graphics/vulkan_renderer/VulkanRenderer.h"
 
-BlitDisplaysVulkan::BlitDisplaysVulkan(const std::string& name, int my_id, std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) : BaseBucketRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info), m_texture(device), m_sampler_helper(device) {
+BlitDisplaysVulkan::BlitDisplaysVulkan(const std::string& name,
+                                       int my_id,
+                                       std::shared_ptr<GraphicsDeviceVulkan> device,
+                                       VulkanInitializationInfo& vulkan_info)
+    : BaseBucketRenderer(name, my_id),
+      BucketVulkanRenderer(device, vulkan_info),
+      m_texture(device),
+      m_sampler_helper(device) {
   // set up target texture
-  u32 tbp = 0;
-  switch (m_vulkan_info.m_version) {
-    case GameVersion::Jak2:
-      tbp = 0x3300;
-      break;
-    default:
-      ASSERT_NOT_REACHED();
-  }
+  u32 tbp = 0x3300;
 
-  //TODO: Create poulate image here
+  // TODO: Create poulate image here
   m_texture.createImage({32, 32, 1}, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
                         VK_IMAGE_TILING_OPTIMAL,
                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
@@ -24,7 +24,7 @@ BlitDisplaysVulkan::BlitDisplaysVulkan(const std::string& name, int my_id, std::
   m_texture.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM,
                             VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-  auto sampler_create_info = m_sampler_helper.GetSamplerCreateInfo();
+  auto& sampler_create_info = m_sampler_helper.GetSamplerCreateInfo();
   sampler_create_info.minFilter = VK_FILTER_NEAREST;
   sampler_create_info.magFilter = VK_FILTER_NEAREST;
 
@@ -36,14 +36,14 @@ BlitDisplaysVulkan::BlitDisplaysVulkan(const std::string& name, int my_id, std::
   VulkanTextureInput in;
   in.debug_page_name = "PC-BLIT";
   in.debug_name = fmt::format("blit-display");
-  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture(m_vulkan_info.m_version);
+  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture();
   m_gpu_tex = m_vulkan_info.texture_pool->give_texture_and_load_to_vram(in, tbp);
   m_tbp = tbp;
 }
 
 void BlitDisplaysVulkan::render(DmaFollower& dma,
-                          SharedVulkanRenderState* render_state,
-                          ScopedProfilerNode& prof) {
+                                SharedVulkanRenderState* render_state,
+                                ScopedProfilerNode& prof) {
   auto& back = render_state->back_fbo;
   bool valid = back && render_state->isFramebufferValid;
 
@@ -82,7 +82,7 @@ void BlitDisplaysVulkan::render(DmaFollower& dma,
             vkCmdCopyImage(m_vulkan_info.render_command_buffer, my_tex_id->getImage(),
                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                            back->ColorAttachmentTexture().getImage(),
-                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, &imageCopy);  
+                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, &imageCopy);
 
             m_vulkan_info.texture_pool->move_existing_to_vram(m_gpu_tex, m_tbp);
           } else {

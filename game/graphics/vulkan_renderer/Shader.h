@@ -4,6 +4,7 @@
 
 #include "common/common_types.h"
 #include "common/versions/versions.h"
+
 #include "game/graphics/general_renderer/ShaderCommon.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.h"
 
@@ -14,8 +15,7 @@ class VulkanShader {
   VulkanShader() = default;
   VulkanShader(VkDevice device, const std::string& shader_name);
   VulkanShader(const VulkanShader& shader);
-  void initialize_shader(VkDevice device,
-                         const std::string& shader_name);
+  void initialize_shader(VkDevice device, const std::string& shader_name);
   ~VulkanShader();
 
   VkShaderModule GetVertexShader() { return m_vert_shader; };
@@ -35,7 +35,6 @@ class VulkanShader {
   bool m_is_okay = false;
 
   std::string shader_name;
-  GameVersion m_version;
 };
 
 class VulkanShaderLibrary {

@@ -6,15 +6,13 @@
 class BaseOceanMid {
  public:
   BaseOceanMid();
-  void run(DmaFollower& dma,
-           BaseSharedRenderState* render_state,
-           ScopedProfilerNode& prof);
+  void run(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
 
  protected:
   virtual void common_ocean_renderer_init_for_mid() = 0;
   virtual void common_ocean_renderer_kick_from_mid(const u8* data) = 0;
   virtual void common_ocean_renderer_flush_mid(BaseSharedRenderState* render_state,
-    ScopedProfilerNode& prof) = 0;
+                                               ScopedProfilerNode& prof) = 0;
 
   virtual void prepare_for_run(DmaFollower& dma, BaseSharedRenderState* render_state) = 0;
   void run_call0();

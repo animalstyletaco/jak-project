@@ -17,22 +17,23 @@
 #include "common/util/FrameLimiter.h"
 #include "common/util/Timer.h"
 #include "common/util/compress.h"
+
+#include "game/graphics/display.h"
+#include "game/graphics/general_renderer/debug_gui.h"
+#include "game/graphics/gfx.h"
+#include "game/graphics/pipelines/vulkan_pipeline.h"
+#include "game/graphics/texture/VulkanTexturePool.h"
+#include "game/graphics/vulkan_renderer/VulkanRenderer.h"
+#include "game/runtime.h"
 #include "game/system/hid/input_manager.h"
 #include "game/system/hid/sdl_util.h"
 
 #include "third-party/SDL/include/SDL_vulkan.h"
-#include "game/graphics/display.h"
-#include "game/graphics/gfx.h"
-#include "game/graphics/general_renderer/debug_gui.h"
-#include "game/graphics/pipelines/vulkan_pipeline.h"
-#include "game/graphics/vulkan_renderer/VulkanRenderer.h"
-#include "game/graphics/texture/VulkanTexturePool.h"
-#include "game/runtime.h"
-
 #include "third-party/imgui/imgui.h"
 #include "third-party/imgui/imgui_style.h"
 #define STBI_WINDOWS_UTF8
 #include "common/util/dialogs.h"
+
 #include "third-party/stb_image/stb_image.h"
 
 namespace {
@@ -55,7 +56,7 @@ struct VulkanGraphicsData {
 
   std::shared_ptr<VulkanLoader> loader;
 
-  VulkanRenderer vulkan_renderer;
+  std::shared_ptr<VulkanRenderer> vulkan_renderer;
   GraphicsDebugGui debug_gui;
 
   FrameLimiter frame_limiter;
@@ -68,12 +69,25 @@ struct VulkanGraphicsData {
 
   VulkanGraphicsData(GameVersion version, std::shared_ptr<GraphicsDeviceVulkan> vulkan_device)
       : dma_copier(EE_MAIN_MEM_SIZE),
-        texture_pool(std::make_shared<VulkanTexturePool>(version, vulkan_device)),
         loader(std::make_shared<VulkanLoader>(
             vulkan_device,
             file_util::get_jak_project_dir() / "out" / game_version_names[version] / "fr3",
             pipeline_common::fr3_level_count[version])),
-        vulkan_renderer(texture_pool, loader, version, vulkan_device), version(version) {}
+        version(version) {
+    switch (version) {
+      case GameVersion::Jak1:
+        texture_pool = std::make_shared<VulkanTexturePoolJak1>(vulkan_device);
+        vulkan_renderer = std::make_shared<VulkanRendererJak1>(texture_pool, loader, vulkan_device);
+        break;
+      case GameVersion::Jak2:
+        texture_pool = std::make_shared<VulkanTexturePoolJak2>(vulkan_device);
+        vulkan_renderer = std::make_shared<VulkanRendererJak2>(texture_pool, loader, vulkan_device);
+        break;
+      default:
+        ASSERT_MSG(false, "Invalid version selected");
+        break;
+    }
+  }
 };
 }  // namespace
 
@@ -82,7 +96,7 @@ std::unique_ptr<VulkanGraphicsData> g_gfx_data;
 static bool vk_inited = false;
 static int vk_init(GfxGlobalSettings& settings) {
   profiler::prof().instant_event("ROOT");
-  Timer gl_init_timer;
+  Timer vk_init_timer;
   // Initialize SDL
   {
     auto p = profiler::scoped_prof("startup::sdl::init_sdl");
@@ -98,35 +112,16 @@ static int vk_init(GfxGlobalSettings& settings) {
 
   {
     auto p = profiler::scoped_prof("startup::sdl::get_version_info");
-    SDL_version compiled;
+    SDL_version compiled{};
     SDL_VERSION(&compiled);
-    SDL_version linked;
+    SDL_version linked{};
     SDL_GetVersion(&linked);
     lg::info("SDL Initialized, compiled with version - {}.{}.{} | linked with version - {}.{}.{}",
              compiled.major, compiled.minor, compiled.patch, linked.major, linked.minor,
              linked.patch);
   }
 
-  {
-    auto p = profiler::scoped_prof("startup::sdl::set_gl_attributes");
-
-    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-    if (settings.debug) {
-      SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
-    } else {
-      SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, 0);
-    }
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-#ifdef __APPLE__
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
-#endif
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
-  }
-  lg::info("gl init took {:.3f}s\n", gl_init_timer.getSeconds());
+  lg::info("vk init took {:.3f}s\n", vk_init_timer.getSeconds());
   return 0;
 }
 
@@ -148,11 +143,11 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   Display::SetupPeripheralManagers(window);
   profiler::prof().end_event();
   if (!window) {
-    sdl_util::log_error("gl_make_display failed - Could not create display window");
-    dialogs::create_error_message_dialog(
-        "Critical Error Encountered",
-        "Unable to create OpenGL window.\nOpenGOAL requires OpenGL 4.3 or Vulkan 1.0.\nEnsure your GPU "
-        "supports this and your drivers are up to date.");
+    sdl_util::log_error("vk_make_display failed - Could not create display window");
+    dialogs::create_error_message_dialog("Critical Error Encountered",
+                                         "Unable to create Vulkan window.\nOpenGOAL requires "
+                                         "OpenGL 4.3 or Vulkan 1.0.\nEnsure your GPU "
+                                         "supports this and your drivers are up to date.");
     return NULL;
   }
 
@@ -160,6 +155,50 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
     auto p = profiler::scoped_prof("startup::sdl::gfx_data_init");
     auto vulkan_device = std::make_shared<GraphicsDeviceVulkan>(window);
     g_gfx_data = std::make_unique<VulkanGraphicsData>(game_version, vulkan_device);
+
+    // check that version of the library is okay
+    IMGUI_CHECKVERSION();
+
+    // this does initialization for stuff like the font data
+    ImGui::CreateContext();
+
+    // Init ImGui settings
+    g_gfx_data->imgui_filename = file_util::get_file_path({"imgui.ini"});
+    g_gfx_data->imgui_log_filename = file_util::get_file_path({"imgui_log.txt"});
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;  // We manage the mouse cursor!
+    if (!Gfx::g_debug_settings.monospaced_font) {
+      // TODO - add or switch to Noto since it supports the entire unicode range
+      std::string font_path =
+          (file_util::get_jak_project_dir() / "game" / "assets" / "fonts" / "NotoSansJP-Medium.ttf")
+              .string();
+      if (file_util::file_exists(font_path)) {
+        static const ImWchar ranges[] = {
+            0x0020, 0x00FF,  // Basic Latin + Latin Supplement
+            0x0400, 0x052F,  // Cyrillic + Cyrillic Supplement
+            0x2000, 0x206F,  // General Punctuation
+            0x2DE0, 0x2DFF,  // Cyrillic Extended-A
+            0x3000, 0x30FF,  // CJK Symbols and Punctuations, Hiragana, Katakana
+            0x3131, 0x3163,  // Korean alphabets
+            0x31F0, 0x31FF,  // Katakana Phonetic Extensions
+            0x4E00, 0x9FAF,  // CJK Ideograms
+            0xA640, 0xA69F,  // Cyrillic Extended-B
+            0xAC00, 0xD7A3,  // Korean characters
+            0xFF00, 0xFFEF,  // Half-width characters
+            0xFFFD, 0xFFFD,  // Invalid
+            0,
+        };
+        io.Fonts->AddFontFromFileTTF(font_path.c_str(), Gfx::g_debug_settings.imgui_font_size,
+                                     nullptr, ranges);
+      }
+    }
+
+    io.IniFilename = g_gfx_data->imgui_filename.c_str();
+    io.LogFilename = g_gfx_data->imgui_log_filename.c_str();
+
+    if (Gfx::g_debug_settings.alternate_style) {
+      ImGui::applyAlternateStyle();
+    }
     vk_inited = true;
   }
 
@@ -181,13 +220,13 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
       SDL_FreeSurface(icon_surf);
       stbi_image_free(icon_data);
     } else {
-      lg::error("Could not load icon for OpenGL window");
+      lg::error("Could not load icon for Vulkan window");
     }
   }
 
-  profiler::prof().begin_event("startup::sdl::create_GLDisplay");
+  profiler::prof().begin_event("startup::sdl::create_VkDisplay");
   auto display =
-      std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer.GetSwapChain(),
+      std::make_shared<VkDisplay>(window, g_gfx_data->vulkan_renderer->GetSwapChain(),
                                   Display::g_display_manager, Display::g_input_manager, is_main);
   display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
   profiler::prof().end_event();
@@ -250,17 +289,16 @@ static std::shared_ptr<GfxDisplay> vk_make_display(int width,
   return std::static_pointer_cast<GfxDisplay>(display);
 }
 
-
 static void vk_exit() {
   g_gfx_data.reset();
   vk_inited = false;
 }
 
 VkDisplay::VkDisplay(SDL_Window* window,
-          std::unique_ptr<SwapChain>& swapChain,
-          std::shared_ptr<DisplayManager> display_manager,
-          std::shared_ptr<InputManager> input_manager,
-          bool is_main)
+                     std::unique_ptr<SwapChain>& swapChain,
+                     std::shared_ptr<DisplayManager> display_manager,
+                     std::shared_ptr<InputManager> input_manager,
+                     bool is_main)
     : m_window(window),
       m_imgui_helper(swapChain),
       m_display_manager(display_manager),
@@ -280,19 +318,19 @@ VkDisplay::VkDisplay(SDL_Window* window,
 }
 
 VkDisplay::~VkDisplay() {
-    // Cleanup ImGUI
-    ImGuiIO& io = ImGui::GetIO();
-    io.IniFilename = nullptr;
-    io.LogFilename = nullptr;
-    ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    // Cleanup SDL
-    SDL_DestroyWindow(m_window);
-    SDL_Quit();
-    if (m_main) {
-      vk_exit();
-    }
+  // Cleanup ImGUI
+  ImGuiIO& io = ImGui::GetIO();
+  io.IniFilename = nullptr;
+  io.LogFilename = nullptr;
+  ImGui_ImplVulkan_Shutdown();
+  ImGui_ImplSDL2_Shutdown();
+  // Cleanup SDL
+  SDL_DestroyWindow(m_window);
+  SDL_Quit();
+  if (m_main) {
+    vk_exit();
   }
+}
 
 namespace {
 std::string make_full_screenshot_output_file_path(const std::string& file_name) {
@@ -320,13 +358,13 @@ static bool endsWith(std::string_view str, std::string_view suffix) {
 }
 
 void render_vk_game_frame(int game_width,
-                       int game_height,
-                       int window_fb_width,
-                       int window_fb_height,
-                       int draw_region_width,
-                       int draw_region_height,
-                       int msaa_samples,
-                       bool take_screenshot) {
+                          int game_height,
+                          int window_fb_width,
+                          int window_fb_height,
+                          int draw_region_width,
+                          int draw_region_height,
+                          int msaa_samples,
+                          bool take_screenshot) {
   // wait for a copied chain.
   bool got_chain = false;
   {
@@ -379,12 +417,14 @@ void render_vk_game_frame(int game_width,
 
     if constexpr (pipeline_common::run_dma_copy) {
       auto& chain = g_gfx_data->dma_copier.get_last_result();
-      g_gfx_data->vulkan_renderer.render(DmaFollower(chain.data.data(), chain.start_offset), options);
+      g_gfx_data->vulkan_renderer->render(DmaFollower(chain.data.data(), chain.start_offset),
+                                          options);
     } else {
       auto p = profiler::scoped_prof("vulkan-render");
-      g_gfx_data->vulkan_renderer.render(DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
-                                                  g_gfx_data->dma_copier.get_last_input_offset()),
-                                      options);
+      g_gfx_data->vulkan_renderer->render(
+          DmaFollower(g_gfx_data->dma_copier.get_last_input_data(),
+                      g_gfx_data->dma_copier.get_last_input_offset()),
+          options);
     }
   }
 
@@ -501,7 +541,7 @@ void VkDisplay::render() {
   {
     auto p = profiler::scoped_prof("imgui-render");
     m_imgui_helper.Render(Gfx::g_global_settings.game_res_w, Gfx::g_global_settings.game_res_h,
-                          g_gfx_data->vulkan_renderer.GetSwapChain());
+                          g_gfx_data->vulkan_renderer->GetSwapChain());
   }
 
   // actual vsync
@@ -643,7 +683,7 @@ const GfxRendererModule gRendererVulkan = {
     vk_texture_upload_now,  // texture_upload_now
     vk_texture_relocate,    // texture_relocate
     vk_set_levels,          // set_levels
-    vk_set_active_levels,          // set_levels
+    vk_set_active_levels,   // set_levels
     vk_set_pmode_alp,       // set_pmode_alp
     GfxPipeline::Vulkan,    // pipeline
     "Vulkan 1.0"            // name

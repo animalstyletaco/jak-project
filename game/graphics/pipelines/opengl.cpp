@@ -20,9 +20,9 @@
 #include "common/util/compress.h"
 
 #include "game/graphics/display.h"
+#include "game/graphics/general_renderer/debug_gui.h"
 #include "game/graphics/gfx.h"
 #include "game/graphics/opengl_renderer/OpenGLRenderer.h"
-#include "game/graphics/general_renderer/debug_gui.h"
 #include "game/graphics/texture/TexturePoolOpenGL.h"
 #include "game/runtime.h"
 #include "game/sce/libscf.h"
@@ -304,7 +304,8 @@ static std::shared_ptr<GfxDisplay> gl_make_display(int width,
   }
 
   prof().begin_event("startup::sdl::create_GLDisplay");
-  auto display = std::make_shared<GLDisplay>(window, gl_context, Display::g_display_manager, Display::g_input_manager, is_main);
+  auto display = std::make_shared<GLDisplay>(window, gl_context, Display::g_display_manager,
+                                             Display::g_input_manager, is_main);
   display->set_imgui_visible(Gfx::g_debug_settings.show_imgui);
   prof().end_event();
 

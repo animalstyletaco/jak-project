@@ -4,8 +4,8 @@
 
 #include "third-party/imgui/imgui.h"
 
-BaseShadowRenderer::BaseShadowRenderer(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
-}
+BaseShadowRenderer::BaseShadowRenderer(const std::string& name, int my_id)
+    : BaseBucketRenderer(name, my_id) {}
 
 void BaseShadowRenderer::draw_debug_window() {
   ImGui::Checkbox("Volume", &m_debug_draw_volume);
@@ -13,8 +13,7 @@ void BaseShadowRenderer::draw_debug_window() {
               m_next_back_index);
 }
 
-BaseShadowRenderer::~BaseShadowRenderer() {
-}
+BaseShadowRenderer::~BaseShadowRenderer() {}
 
 void BaseShadowRenderer::xgkick(u16 imm) {
   u32 ind_of_fan_start = UINT32_MAX;
@@ -142,8 +141,8 @@ void BaseShadowRenderer::xgkick(u16 imm) {
 }
 
 void BaseShadowRenderer::render(DmaFollower& dma,
-                            BaseSharedRenderState* render_state,
-                            ScopedProfilerNode& prof) {
+                                BaseSharedRenderState* render_state,
+                                ScopedProfilerNode& prof) {
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
       dma.read_and_advance();
@@ -288,4 +287,3 @@ void BaseShadowRenderer::render(DmaFollower& dma,
 
   draw(render_state, prof);
 }
-

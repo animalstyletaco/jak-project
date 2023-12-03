@@ -5,15 +5,16 @@
 #include "third-party/imgui/imgui.h"
 
 DirectVulkanRenderer2::DirectVulkanRenderer2(std::shared_ptr<GraphicsDeviceVulkan> device,
-                                           VulkanInitializationInfo& vulkan_info,
-                                 u32 max_verts,
-                                 u32 max_inds,
-                                 u32 max_draws,
-                                 const std::string& name,
-                                 bool use_ftoi_mod)
+                                             VulkanInitializationInfo& vulkan_info,
+                                             u32 max_verts,
+                                             u32 max_inds,
+                                             u32 max_draws,
+                                             const std::string& name,
+                                             bool use_ftoi_mod)
     : BaseDirectRenderer2(max_verts, max_inds, max_draws, name, use_ftoi_mod),
       m_device(device),
-      m_vulkan_info(vulkan_info), m_sampler_helper(device) {
+      m_vulkan_info(vulkan_info),
+      m_sampler_helper(device) {
   // allocate buffers
   m_vertices.vertices.resize(max_verts);
   m_vertices.indices.resize(max_inds);
@@ -21,11 +22,9 @@ DirectVulkanRenderer2::DirectVulkanRenderer2(std::shared_ptr<GraphicsDeviceVulka
 
   m_pipeline_layouts.resize(10, m_device);
 
-  m_ogl.index_buffer = std::make_unique<IndexBuffer>(
-      device, sizeof(u32), max_inds, 1);
+  m_ogl.index_buffer = std::make_unique<IndexBuffer>(device, sizeof(u32), max_inds, 1);
 
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
-    device, sizeof(Vertex), max_verts, 1);
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, sizeof(Vertex), max_verts, 1);
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -120,8 +119,7 @@ void DirectVulkanRenderer2::InitializeShaderModule() {
   m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
 
-DirectVulkanRenderer2::~DirectVulkanRenderer2() {
-}
+DirectVulkanRenderer2::~DirectVulkanRenderer2() {}
 
 void DirectVulkanRenderer2::reset_buffers() {
   m_next_free_draw = 0;
@@ -140,7 +138,8 @@ void DirectVulkanRenderer2::reset_state() {
   reset_buffers();
 }
 
-void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
+                                          ScopedProfilerNode& prof) {
   // skip, if we're empty.
   if (m_next_free_draw == 0) {
     reset_buffers();
@@ -155,9 +154,10 @@ void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffers[] = {m_ogl.index_buffer->getBuffer()};
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets); 
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_ogl.index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_ogl.index_buffer->getBuffer(), 0,
+                       VK_INDEX_TYPE_UINT32);
 
   m_stats.upload_wait += upload_timer.getSeconds();
   m_stats.num_uploads++;
@@ -172,7 +172,7 @@ void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
 }
 
 void DirectVulkanRenderer2::draw_call_loop_simple(SharedVulkanRenderState* render_state,
-                                            ScopedProfilerNode& prof) {
+                                                  ScopedProfilerNode& prof) {
   fmt::print("------------------------\n");
   for (u32 draw_idx = 0; draw_idx < m_next_free_draw; draw_idx++) {
     const auto& draw = m_draw_buffer[draw_idx];
@@ -187,16 +187,17 @@ void DirectVulkanRenderer2::draw_call_loop_simple(SharedVulkanRenderState* rende
     } else {
       end_idx = m_draw_buffer[draw_idx + 1].start_index;
     }
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1, draw.start_index, 0, 0);
-    //glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1,
+                     draw.start_index, 0, 0);
+    // glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT,
+    // (void*)offset);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) - 2);
   }
 }
 
 void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* render_state,
-                                             ScopedProfilerNode& prof) {
-
+                                                   ScopedProfilerNode& prof) {
   u32 draw_idx = 0;
   while (draw_idx < m_next_free_draw) {
     const auto& draw = m_draw_buffer[draw_idx];
@@ -234,8 +235,10 @@ void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* rend
     // fmt::print("drawing {:4d} with abe {} tex {} {}", end_idx - draw.start_index,
     // (int)draw.mode.get_ab_enable(), end_of_draw_group - draw_idx, draw.to_single_line_string() );
     // fmt::print("{}\n", draw.mode.to_string());
-    //glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1, draw.start_index, 0, 0);
+    // glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT,
+    // (void*)offset);
+    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1,
+                     draw.start_index, 0, 0);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) / 3);
     draw_idx = end_of_draw_group + 1;
@@ -243,7 +246,7 @@ void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* rend
 }
 
 void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
-                                                 SharedVulkanRenderState* render_state) {
+                                                       SharedVulkanRenderState* render_state) {
   m_push_constant.fog_colors[0] = render_state->fog_color[0] / 255.f;
   m_push_constant.fog_colors[1] = render_state->fog_color[1] / 255.f;
   m_push_constant.fog_colors[2] = render_state->fog_color[2] / 255.f;
@@ -265,10 +268,11 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
     }
   }
 
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-  
+
   m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
@@ -292,10 +296,11 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
       // s, d
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-      
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_SRC_DST) {
@@ -306,10 +311,10 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
 
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
       m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::ZERO_SRC_SRC_DST) {
@@ -317,12 +322,14 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
       // Cd - Cs * As
       // s, d
 
-      m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-      
+      m_pipeline_config_info.colorBlendAttachment.colorBlendOp =
+          VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+      m_pipeline_config_info.colorBlendAttachment.alphaBlendOp =
+          VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
       m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_DST_FIX_DST) {
@@ -333,13 +340,15 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
       m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
       m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
       m_pipeline_config_info.colorBlendInfo.blendConstants[3] = draw.fix / 127.0f;
-      
+
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-      
-      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
-      
+
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor =
+          VK_BLEND_FACTOR_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_SRC_SRC_SRC) {
@@ -348,10 +357,10 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
 
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
     } else if (draw.mode.get_alpha_blend() == DrawMode::AlphaBlend::SRC_0_DST_DST) {
@@ -359,10 +368,10 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
 
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
       m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
-      
+
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
       m_push_constant.color_mult = 0.5;
@@ -371,7 +380,8 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
     }
   }
 
-  m_pipeline_config_info.depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  m_pipeline_config_info.depthStencilInfo.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
@@ -395,23 +405,25 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
     }
   }
 
-  m_pipeline_config_info.depthStencilInfo.depthWriteEnable = (draw.mode.get_depth_write_enable()) ? VK_TRUE : VK_FALSE;
+  m_pipeline_config_info.depthStencilInfo.depthWriteEnable =
+      (draw.mode.get_depth_write_enable()) ? VK_TRUE : VK_FALSE;
 
   if (draw.tbp == UINT16_MAX) {
     // not using a texture
     ASSERT(false);
-  } 
-    // yes using a texture
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 
-                     sizeof(float), sizeof(m_push_constant), (void*) &m_push_constant);
+  }
+  // yes using a texture
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float), sizeof(m_push_constant),
+                     (void*)&m_push_constant);
 }
 
 void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
-                                       u16 tbp,
-                                       bool filter,
-                                       bool clamp_s,
-                                       bool clamp_t,
-                                       SharedVulkanRenderState* render_state) {
+                                             u16 tbp,
+                                             bool filter,
+                                             bool clamp_s,
+                                             bool clamp_t,
+                                             SharedVulkanRenderState* render_state) {
   // look up the texture
   VulkanTexture* tex;
   u32 tbp_to_lookup = tbp & 0x7fff;
@@ -424,8 +436,7 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
   }
 
   if (!tex) {
-    lg::warn("Failed to find texture at {}, using random (direct2: {})", tbp_to_lookup,
-             m_name);
+    lg::warn("Failed to find texture at {}, using random (direct2: {})", tbp_to_lookup, m_name);
     tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
   }
 
@@ -477,4 +488,3 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
   }
   m_sampler_helper.CreateSampler();
 }
-

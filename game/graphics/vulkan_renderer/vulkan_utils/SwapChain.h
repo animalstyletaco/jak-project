@@ -8,10 +8,13 @@ class SwapChain {
  public:
   static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
-  SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef, VkExtent2D windowExtent, bool vsyncEnabled);
   SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
-               VkExtent2D windowExtent, bool vsyncEnabled,
-               std::shared_ptr<SwapChain> previous);
+            VkExtent2D windowExtent,
+            bool vsyncEnabled);
+  SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
+            VkExtent2D windowExtent,
+            bool vsyncEnabled,
+            std::shared_ptr<SwapChain> previous);
 
   ~SwapChain();
 
@@ -35,9 +38,9 @@ class SwapChain {
   std::shared_ptr<GraphicsDeviceVulkan> getLogicalDevice() { return device; };
 
   void drawCommandBuffer(VkCommandBuffer commandBuffer,
-                       std::unique_ptr<VertexBuffer>& vertex_buffer,
-                       VkPipelineLayout& pipeline_layout,
-                       std::vector<VkDescriptorSet>& descriptors);
+                         std::unique_ptr<VertexBuffer>& vertex_buffer,
+                         VkPipelineLayout& pipeline_layout,
+                         std::vector<VkDescriptorSet>& descriptors);
 
   void setupForDrawIndexedCommand(VkCommandBuffer commandBuffer,
                                   VertexBuffer* vertex_buffer,
@@ -64,11 +67,11 @@ class SwapChain {
                                 uint32_t* dynamicDescriptorOffsets = nullptr);
 
   void multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                              VertexBuffer* vertex_buffer,
-                              IndexBuffer* index_buffer,
-                              VkPipelineLayout& pipeline_layout,
-                              std::vector<VkDescriptorSet>& descriptors,
-                              MultiDrawVulkanBuffer* multiDrawBuffer);
+                                     VertexBuffer* vertex_buffer,
+                                     IndexBuffer* index_buffer,
+                                     VkPipelineLayout& pipeline_layout,
+                                     std::vector<VkDescriptorSet>& descriptors,
+                                     MultiDrawVulkanBuffer* multiDrawBuffer);
 
   void setViewportScissor(VkCommandBuffer commandBuffer);
   void clearFramebufferImage(uint32_t currentImageIndex);
@@ -89,12 +92,8 @@ class SwapChain {
   }
 
   VkSampleCountFlagBits get_render_pass_sample_count() { return m_render_pass_sample; }
-  VulkanTexture& GetColorAttachmentImageAtIndex(uint32_t index) {
-    return colorImages.at(index);
-  }
-  VulkanTexture& GetDepthAttachmentImageAtIndex(uint32_t index) {
-    return depthImages.at(index);
-  }
+  VulkanTexture& GetColorAttachmentImageAtIndex(uint32_t index) { return colorImages.at(index); }
+  VulkanTexture& GetDepthAttachmentImageAtIndex(uint32_t index) { return depthImages.at(index); }
   VkImage GetSwapChainImageAtIndex(uint32_t index) { return swapChainImages.at(index); }
 
  private:
@@ -125,9 +124,9 @@ class SwapChain {
   std::vector<VkImage> swapChainImages;
   std::vector<VkImageView> swapChainImageViews;
 
-  //Typically don't like using vector for VulkanTexture since std::vector calls
-  // all elements copy constructors when appending/removing elements from the container
-  //This is ok since it will only be set once during initialization
+  // Typically don't like using vector for VulkanTexture since std::vector calls
+  //  all elements copy constructors when appending/removing elements from the container
+  // This is ok since it will only be set once during initialization
   std::vector<VulkanTexture> colorImages;
   std::vector<VulkanTexture> depthImages;
 

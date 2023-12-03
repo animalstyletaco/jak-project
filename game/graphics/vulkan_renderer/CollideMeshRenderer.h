@@ -28,17 +28,18 @@ class CollisionMeshVertexUniformBuffer : public UniformVulkanBuffer {
 class CollisionMeshVertexPatternUniformBuffer : public UniformVulkanBuffer {
  public:
   CollisionMeshVertexPatternUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
-                                   uint32_t instanceCount,
-                                   VkDeviceSize minOffsetAlignment = 1);
+                                          uint32_t instanceCount,
+                                          VkDeviceSize minOffsetAlignment = 1);
 };
 
 class CollideMeshVulkanRenderer {
  public:
-  CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
+  CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device,
+                            VulkanInitializationInfo& vulkan_info);
   void render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
-  ~CollideMeshVulkanRenderer();
+  virtual ~CollideMeshVulkanRenderer();
 
- private:
+ protected:
   void init_pat_colors(GameVersion version);
   void InitializeInputVertexAttribute();
   void init_shaders();
@@ -70,4 +71,14 @@ class CollideMeshVulkanRenderer {
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
   std::vector<VkDescriptorSet> m_descriptor_sets;
+};
+
+class CollideMeshVulkanRendererJak1 : public CollideMeshVulkanRenderer {
+ public:
+  CollideMeshVulkanRendererJak1(std::shared_ptr<GraphicsDeviceVulkan> device,
+                                VulkanInitializationInfo& vulkan_info)
+      : CollideMeshVulkanRenderer(device, vulkan_info) {
+    m_push_constant.scissor_adjust = -512.f / 448.f;
+  };
+  ~CollideMeshVulkanRendererJak1() = default;
 };

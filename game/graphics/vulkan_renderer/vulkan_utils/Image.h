@@ -36,7 +36,9 @@ class VulkanTexture {
                     double y_offset);
   VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkResult invalidate(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
-  void transitionImageLayout(VkImageLayout imageLayout, unsigned baseMipLevel = 0, unsigned levelCount = 1);
+  void transitionImageLayout(VkImageLayout imageLayout,
+                             unsigned baseMipLevel = 0,
+                             unsigned levelCount = 1);
 
   void destroyTexture();
   VkFormat findDepthFormat();

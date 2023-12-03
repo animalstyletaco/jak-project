@@ -4,16 +4,17 @@
 
 #include "common/util/FilteredValue.h"
 
-#include "game/graphics/gfx.h"
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/background/background_common.h"
+#include "game/graphics/gfx.h"
 
 class BaseShrub : public BaseBucketRenderer {
  public:
-  BaseShrub(const std::string& name,
-        int my_id);
+  BaseShrub(const std::string& name, int my_id);
   ~BaseShrub();
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  protected:

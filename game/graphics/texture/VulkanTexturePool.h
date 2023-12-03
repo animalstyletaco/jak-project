@@ -27,7 +27,7 @@ struct VulkanTextureInput : BaseTextureInput {
  * This represents a unique in-game texture, including any instances of it that are loaded.
  * It's possible for there to be 0 instances of the texture loaded yet.
  */
-class VulkanGpuTextureMap  {
+class VulkanGpuTextureMap {
  public:
   VulkanGpuTextureMap(PcTextureId id) : tex_id(id) {}
   VulkanGpuTextureMap() = default;
@@ -42,9 +42,11 @@ class VulkanGpuTextureMap  {
 
   bool are_textures_available() { return !gpu_textures.empty(); }
   u32 get_selected_slot() const { return (!slots.empty()) ? slots.at(0) : 0; }
-    // the size of our data, in bytes
+  // the size of our data, in bytes
   u32 data_size() const { return gpu_textures.at(get_selected_slot())->getMemorySize(); }
-  VulkanTexture* get_selected_texture() const { return (!gpu_textures.empty()) ? gpu_textures.front() : nullptr; }
+  VulkanTexture* get_selected_texture() const {
+    return (!gpu_textures.empty()) ? gpu_textures.front() : nullptr;
+  }
 
   // add or remove a VRAM reference to this texture
   void remove_slot(u32 slot);
@@ -86,15 +88,15 @@ struct VulkanTextureVRAMReference {
  */
 class VulkanTexturePool {
  public:
-  VulkanTexturePool(GameVersion version, std::shared_ptr<GraphicsDeviceVulkan> device);
-  ~VulkanTexturePool();
+  VulkanTexturePool(std::shared_ptr<GraphicsDeviceVulkan> device);
+  virtual ~VulkanTexturePool();
   void handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr);
   VulkanGpuTextureMap* give_texture(const VulkanTextureInput& in);
   VulkanGpuTextureMap* give_texture_and_load_to_vram(const VulkanTextureInput& in, u32 vram_slot);
   void unload_texture(PcTextureId tex_id, u64 gpu_id);
 
   /*!
-   * Look up an OpenGL texture by vram address. Return std::nullopt if the game hasn't loaded
+   * Look up an Vulkan texture by vram address. Return std::nullopt if the game hasn't loaded
    * anything to this address.
    */
   VulkanTexture* lookup_vulkan_texture(u32 location);
@@ -123,14 +125,21 @@ class VulkanTexturePool {
   }
 
   std::mutex& mutex() { return m_mutex; }
-  PcTextureId allocate_pc_port_texture(GameVersion version);
+  virtual PcTextureId allocate_pc_port_texture() = 0;
 
   std::string get_debug_texture_name(PcTextureId id);
 
- private:
+ protected:
   void upload_to_gpu(const u8* data, u16 w, u16 h, VulkanTexture& texture);
   void refresh_links(VulkanGpuTextureMap& texture);
   VulkanGpuTextureMap* get_gpu_texture_for_slot(PcTextureId id, u32 slot);
+
+  virtual VulkanGpuTextureMap* lookup_existing_loaded_textures(PcTextureId tex_id) = 0;
+  virtual std::string* lookup_existing_id_to_name(PcTextureId tex_id) = 0;
+  virtual std::pair<VulkanGpuTextureMap*, bool> lookup_or_insert_loaded_textures(
+      PcTextureId tex_id) = 0;
+  virtual std::pair<std::string*, bool> lookup_or_insert_id_to_name(PcTextureId tex_id) = 0;
+  virtual void set_name_to_id(const std::string&, PcTextureId) = 0;
 
   char m_regex_input[256] = "";
   std::array<VulkanTextureVRAMReference, 1024 * 1024 * 4 / 256> m_textures;
@@ -147,6 +156,18 @@ class VulkanTexturePool {
 
   VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 
+  u32 m_next_pc_texture_to_allocate = 0;
+
+  std::mutex m_mutex;
+};
+
+class VulkanTexturePoolJak1 : public VulkanTexturePool {
+ public:
+  VulkanTexturePoolJak1(std::shared_ptr<GraphicsDeviceVulkan> device);
+  ~VulkanTexturePoolJak1() = default;
+  PcTextureId allocate_pc_port_texture() override;
+
+ private:
   TextureMap<VulkanGpuTextureMap> m_loaded_textures;
 
   // we maintain a mapping of all textures/ids we've seen so far.
@@ -154,8 +175,36 @@ class VulkanTexturePool {
   TextureMap<std::string> m_id_to_name;
   std::unordered_map<std::string, PcTextureId> m_name_to_id;
 
-  u32 m_next_pc_texture_to_allocate = 0;
   u32 m_tpage_dir_size = 0;
 
-  std::mutex m_mutex;
+  VulkanGpuTextureMap* lookup_existing_loaded_textures(PcTextureId tex_id) override;
+  std::string* lookup_existing_id_to_name(PcTextureId tex_id) override;
+  std::pair<VulkanGpuTextureMap*, bool> lookup_or_insert_loaded_textures(
+      PcTextureId tex_id) override;
+  std::pair<std::string*, bool> lookup_or_insert_id_to_name(PcTextureId tex_id) override;
+  void set_name_to_id(const std::string&, PcTextureId) override;
+};
+
+class VulkanTexturePoolJak2 : public VulkanTexturePool {
+ public:
+  VulkanTexturePoolJak2(std::shared_ptr<GraphicsDeviceVulkan> device);
+  ~VulkanTexturePoolJak2() = default;
+  PcTextureId allocate_pc_port_texture() override;
+
+ private:
+  TextureMap<VulkanGpuTextureMap> m_loaded_textures;
+
+  // we maintain a mapping of all textures/ids we've seen so far.
+  // this is only used for debug.
+  TextureMap<std::string> m_id_to_name;
+  std::unordered_map<std::string, PcTextureId> m_name_to_id;
+
+  u32 m_tpage_dir_size = 0;
+
+  VulkanGpuTextureMap* lookup_existing_loaded_textures(PcTextureId tex_id) override;
+  std::string* lookup_existing_id_to_name(PcTextureId tex_id) override;
+  std::pair<VulkanGpuTextureMap*, bool> lookup_or_insert_loaded_textures(
+      PcTextureId tex_id) override;
+  std::pair<std::string*, bool> lookup_or_insert_id_to_name(PcTextureId tex_id) override;
+  void set_name_to_id(const std::string&, PcTextureId) override;
 };

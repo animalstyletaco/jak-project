@@ -4,13 +4,13 @@
 
 #include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
-SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) :
-  m_device(device), m_vulkan_info(vulkan_info) {
+SkyBlendVulkanGPU::SkyBlendVulkanGPU(std::shared_ptr<GraphicsDeviceVulkan> device,
+                                     VulkanInitializationInfo& vulkan_info)
+    : m_device(device), m_vulkan_info(vulkan_info) {
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-  m_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
-  m_push_constant.scissor_adjust =
-      (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512.0 / 448.0) : (-512.0 / 416.0);
+  m_push_constant.height_scale = 0.5;
+  m_push_constant.scissor_adjust = -512.0 / 416.0;
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -113,27 +113,27 @@ void SkyBlendVulkanGPU::create_pipeline_layout() {
   }
 }
 
-SkyBlendVulkanGPU::~SkyBlendVulkanGPU() {
-}
+SkyBlendVulkanGPU::~SkyBlendVulkanGPU() {}
 
 void SkyBlendVulkanGPU::init_textures(VulkanTexturePool& tex_pool) {
   for (int i = 0; i < 2; i++) {
     VulkanTextureInput in;
     in.texture = &m_framebuffers[i]->ColorAttachmentTexture();
     in.debug_name = fmt::format("PC-SKY-GPU-{}", i);
-    in.id = tex_pool.allocate_pc_port_texture(m_vulkan_info.m_version);
+    in.id = tex_pool.allocate_pc_port_texture();
     u32 tbp = SKY_TEXTURE_VRAM_ADDRS[i];
     m_tex_info[i] = {tex_pool.give_texture_and_load_to_vram(in, tbp), tbp};
   }
 }
 
 SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
-                                         BaseSharedRenderState* render_state,
-                                         ScopedProfilerNode& prof) {
+                                               BaseSharedRenderState* render_state,
+                                               ScopedProfilerNode& prof) {
   SkyBlendStats stats;
 
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
   m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
@@ -146,7 +146,8 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
   m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
   m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -190,18 +191,19 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
     }
 
     // look up the source texture
-    auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(adgif.tex0().tbp0())->get_selected_texture();
+    auto tex = m_vulkan_info.texture_pool->lookup_vulkan_gpu_texture(adgif.tex0().tbp0())
+                   ->get_selected_texture();
     ASSERT(tex);
 
     // if the first is set, it disables alpha. we can just clear here, so it's easier to find
     // in renderdoc.
     if (is_first_draw) {
       float clear[4] = {0, 0, 0, 0};
-      //glClearBufferfv(GL_COLOR, 0, clear);
+      // glClearBufferfv(GL_COLOR, 0, clear);
     }
 
     // TODO: Are there different clear values for other draw calls
-    m_framebuffers[buffer_idx]->beginRenderPass(m_vulkan_info.render_command_buffer); 
+    m_framebuffers[buffer_idx]->beginRenderPass(m_vulkan_info.render_command_buffer);
     m_framebuffers[buffer_idx]->setViewportScissor(m_vulkan_info.render_command_buffer);
 
     // intensities should be 0-128 (maybe higher is okay, but I don't see how this could be
@@ -231,8 +233,8 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
 
     m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[buffer_idx]);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(
-        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                      m_pipeline_config_info);
     m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -266,7 +268,8 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
     vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
   }
 
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, m_vulkan_info.currentFrame);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+                                                     m_vulkan_info.currentFrame);
 
   return stats;
 }

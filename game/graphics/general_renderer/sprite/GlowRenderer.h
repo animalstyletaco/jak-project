@@ -35,25 +35,27 @@ class BaseGlowRenderer {
   virtual void blit_depth(BaseSharedRenderState* render_state) = 0;
 
   virtual void draw_probes(BaseSharedRenderState* render_state,
-                   ScopedProfilerNode& prof,
-                   u32 idx_start,
-                   u32 idx_end) = 0;
+                           ScopedProfilerNode& prof,
+                           u32 idx_start,
+                           u32 idx_end) = 0;
 
   virtual void debug_draw_probes(BaseSharedRenderState* render_state,
-                         ScopedProfilerNode& prof,
-                         u32 idx_start,
-                         u32 idx_end) = 0;
+                                 ScopedProfilerNode& prof,
+                                 u32 idx_start,
+                                 u32 idx_end) = 0;
 
   virtual void draw_probe_copies(BaseSharedRenderState* render_state,
-                         ScopedProfilerNode& prof,
-                         u32 idx_start,
-                         u32 idx_end) = 0;
+                                 ScopedProfilerNode& prof,
+                                 u32 idx_start,
+                                 u32 idx_end) = 0;
 
   virtual void debug_draw_probe_copies(BaseSharedRenderState* render_state,
-                               ScopedProfilerNode& prof,
-                               u32 idx_start,
-                               u32 idx_end) = 0;
-  virtual void downsample_chain(BaseSharedRenderState* render_state, ScopedProfilerNode& prof, u32 num_sprites) = 0;
+                                       ScopedProfilerNode& prof,
+                                       u32 idx_start,
+                                       u32 idx_end) = 0;
+  virtual void downsample_chain(BaseSharedRenderState* render_state,
+                                ScopedProfilerNode& prof,
+                                u32 num_sprites) = 0;
 
   virtual void draw_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
 

@@ -500,7 +500,7 @@ void Merc2::handle_pc_model(const DmaTransfer& setup,
   input_data += sizeof(VuLights);
 
   u64 uses_water = 0;
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     // jak 1 figures out water at runtime sadly
     memcpy(&uses_water, input_data, 8);
     input_data += 16;
@@ -908,7 +908,7 @@ void Merc2::handle_setup_dma(DmaFollower& dma, SharedRenderState* render_state) 
 
   // TODO: process low memory initialization
 
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     auto second = dma.read_and_advance();
     ASSERT(second.size_bytes == 32);  // setting up test register.
     auto nothing = dma.read_and_advance();
@@ -950,7 +950,7 @@ void Merc2::handle_merc_chain(DmaFollower& dma,
 
   auto init = dma.read_and_advance();
   int skip_count = 2;
-  if (render_state->version == GameVersion::Jak2) {
+  if (render_state->GetVersion() == GameVersion::Jak2) {
     skip_count = 1;
   }
 

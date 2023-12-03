@@ -11,12 +11,19 @@
 class BaseTextureUploadHandler : public BaseBucketRenderer {
  public:
   BaseTextureUploadHandler(const std::string& name, int my_id);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  protected:
-  virtual void eye_renderer_handle_eye_dma2(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
-  virtual void texture_pool_handle_upload_now(const u8* tpage, int mode, const u8* memory_base, u32 s7_ptr) = 0;
+  virtual void eye_renderer_handle_eye_dma2(DmaFollower& dma,
+                                            BaseSharedRenderState* render_state,
+                                            ScopedProfilerNode& prof) = 0;
+  virtual void texture_pool_handle_upload_now(const u8* tpage,
+                                              int mode,
+                                              const u8* memory_base,
+                                              u32 s7_ptr) = 0;
 
   struct TextureUpload {
     u64 page;

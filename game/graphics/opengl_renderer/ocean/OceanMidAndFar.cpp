@@ -25,7 +25,7 @@ void OceanMidAndFar::render(DmaFollower& dma,
     return;
   }
 
-  switch (render_state->version) {
+  switch (render_state->GetVersion()) {
     case GameVersion::Jak1:
       render_jak1(dma, render_state, prof);
       break;
@@ -169,7 +169,7 @@ void OceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
                                       SharedRenderState* render_state,
                                       ScopedProfilerNode& prof) {
   if (dma.current_tag_vifcode0().kind == VifCode::Kind::BASE) {
-    switch (render_state->version) {
+    switch (render_state->GetVersion()) {
       case GameVersion::Jak1:
         m_mid_renderer.run(dma, render_state, prof);
         break;

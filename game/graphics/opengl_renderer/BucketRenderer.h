@@ -30,6 +30,7 @@ struct SharedRenderState : BaseSharedRenderState {
   std::shared_ptr<TexturePool> texture_pool;
   std::shared_ptr<Loader> loader;
 
+  void SetVersion(GameVersion new_version) { version = new_version; };
   void reset() override;
 
   EyeRenderer* eye_renderer = nullptr;

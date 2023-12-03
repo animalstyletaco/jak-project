@@ -7,8 +7,8 @@
 #include "common/math/Vector.h"
 #include "common/util/SmallVector.h"
 
-#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/DirectRenderer.h"
+#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 struct alignas(float) DirectBasicTexturedFragmentUniformShaderData {
   math::Vector4f fog_color;
@@ -33,12 +33,14 @@ struct alignas(float) DirectBasicTexturedFragmentUniformShaderData {
 class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRenderer {
  public:
   DirectVulkanRenderer(const std::string& name,
-                 int my_id,
-                 std::shared_ptr<GraphicsDeviceVulkan> device,
-                 VulkanInitializationInfo& vulkan_info,
-                 int batch_size);
-  ~DirectVulkanRenderer();
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+                       int my_id,
+                       std::shared_ptr<GraphicsDeviceVulkan> device,
+                       VulkanInitializationInfo& vulkan_info,
+                       int batch_size);
+  virtual ~DirectVulkanRenderer();
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
 
   /*!
    * If you don't use the render interface, call this at the very end.
@@ -79,7 +81,6 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
   struct RendererGraphicsHelper {
     std::unique_ptr<VulkanSamplerHelper> sampler;
     std::unique_ptr<GraphicsPipelineLayout> graphics_pipeline_layout;
-
   };
 
   std::array<VkVertexInputAttributeDescription, 1> debugRedAttributeDescriptions{};
@@ -102,5 +103,19 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
 
   u32 currentImageIndex = 0;
   u32 totalImageCount = 0;
+
+  PushConstant m_push_constant{};
 };
 
+class DirectVulkanRendererJak1 : public DirectVulkanRenderer {
+ public:
+  DirectVulkanRendererJak1(const std::string& name,
+                           int my_id,
+                           std::shared_ptr<GraphicsDeviceVulkan> device,
+                           VulkanInitializationInfo& vulkan_info,
+                           int batch_size)
+      : DirectVulkanRenderer(name, my_id, device, vulkan_info, batch_size) {
+    m_push_constant.height_scale = 1;
+    m_push_constant.scissor_adjust = -512 / 448.f;
+  }
+};

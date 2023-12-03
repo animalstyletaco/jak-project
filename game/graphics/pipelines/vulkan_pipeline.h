@@ -6,19 +6,21 @@
  */
 
 #include <mutex>
+
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
-
 #include "game/graphics/pipelines/pipeline_common.h"
-
 #include "game/graphics/vulkan_renderer/vulkan_utils/ImguiVulkanHelper.h"
 #include "game/system/hid/input_manager.h"
 #include "game/system/hid/sdl_util.h"
 
-
 class VkDisplay : public GfxDisplay {
  public:
-  VkDisplay(SDL_Window* window, std::unique_ptr<SwapChain>& swapChain, std::shared_ptr<DisplayManager>, std::shared_ptr<InputManager> inputManager, bool is_main);
+  VkDisplay(SDL_Window* window,
+            std::unique_ptr<SwapChain>& swapChain,
+            std::shared_ptr<DisplayManager>,
+            std::shared_ptr<InputManager> inputManager,
+            bool is_main);
   virtual ~VkDisplay();
 
   // Overrides

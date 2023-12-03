@@ -11,7 +11,7 @@ ProgressVulkanRenderer::ProgressVulkanRenderer(const std::string& name,
   in.texture = &m_minimap_fb.ColorAttachmentTexture();
   in.debug_page_name = "PC-MAP";
   in.debug_name = "map";
-  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture(m_vulkan_info.m_version);
+  in.id = m_vulkan_info.texture_pool->allocate_pc_port_texture();
   // m_minimap_gpu_tex = m_vulkan_info.texture_pool->give_texture_and_load_to_vram(in,
   // kMinimapVramAddr);
 }
@@ -21,13 +21,13 @@ void ProgressVulkanRenderer::pre_render() {
 }
 
 void ProgressVulkanRenderer::post_render() {
-  //m_fb_ctxt.reset();
+  // m_fb_ctxt.reset();
   m_offscreen_mode = false;
 }
 
 void ProgressVulkanRenderer::handle_frame(u64 val,
-                                    BaseSharedRenderState* render_state,
-                                    ScopedProfilerNode& prof) {
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) {
   GsFrame f(val);
   u32 fbp = f.fbp();
   bool flushed = false;
@@ -38,11 +38,11 @@ void ProgressVulkanRenderer::handle_frame(u64 val,
     m_current_fbp = fbp;
     switch (f.fbp()) {
       case kScreenFbp:  // 408
-        //m_fb_ctxt.reset();
+        // m_fb_ctxt.reset();
         m_offscreen_mode = false;
         break;
       case kMinimapFbp:  // 126
-        //m_fb_ctxt.emplace(m_minimap_fb);
+        // m_fb_ctxt.emplace(m_minimap_fb);
         m_offscreen_mode = true;
         break;
       default:

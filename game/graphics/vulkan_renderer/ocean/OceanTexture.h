@@ -1,8 +1,8 @@
 #pragma once
 
 #include "game/common/vu.h"
-#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/ocean/OceanTexture.h"
+#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
 #include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/vulkan_renderer/ocean/CommonOceanRenderer.h"
@@ -10,11 +10,11 @@
 class OceanVulkanTexture : public virtual BaseOceanTexture {
  public:
   OceanVulkanTexture(bool generate_mipmaps,
-               std::shared_ptr<GraphicsDeviceVulkan> device,
-               VulkanInitializationInfo& vulkan_info);
+                     std::shared_ptr<GraphicsDeviceVulkan> device,
+                     VulkanInitializationInfo& vulkan_info);
   virtual void handle_ocean_texture(DmaFollower& dma,
-                            BaseSharedRenderState* render_state,
-                            ScopedProfilerNode& prof) = 0;
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) = 0;
   void init_textures(VulkanTexturePool& pool);
   void draw_debug_window();
   ~OceanVulkanTexture();
@@ -28,13 +28,13 @@ class OceanVulkanTexture : public virtual BaseOceanTexture {
   void move_existing_to_vram(u32 slot_addr) override;
   void setup_framebuffer_context(int) override;
 
-  void flush(BaseSharedRenderState* render_state,
-             ScopedProfilerNode& prof) override;
+  void flush(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
   void make_texture_with_mipmaps(BaseSharedRenderState* render_state,
                                  ScopedProfilerNode& prof) override;
 
   VulkanGpuTextureMap* m_tex0_gpu = nullptr;
+  virtual u32 GetOceanTextureId() = 0;
 
   struct PcDataVulkan {
     std::unique_ptr<VertexBuffer> static_vertex_buffer;
@@ -66,8 +66,7 @@ class OceanVulkanTexture : public virtual BaseOceanTexture {
       m_ocean_texture_mipmap_input_attribute_descriptions;
   std::vector<VkVertexInputAttributeDescription> m_ocean_texture_input_attribute_descriptions;
 
-  std::vector<VkVertexInputBindingDescription>
-      m_ocean_texture_input_binding_attribute_descriptions;
+  std::vector<VkVertexInputBindingDescription> m_ocean_texture_input_binding_attribute_descriptions;
   VkVertexInputBindingDescription m_ocean_texture_mipmap_input_binding_attribute_description;
 
   VkDescriptorSet m_ocean_texture_descriptor_set;
@@ -80,10 +79,13 @@ class OceanVulkanTextureJak1 : public BaseOceanTextureJak1, public OceanVulkanTe
   OceanVulkanTextureJak1(bool generate_mipmaps,
                          std::shared_ptr<GraphicsDeviceVulkan> device,
                          VulkanInitializationInfo& vulkan_info)
-      : BaseOceanTexture(generate_mipmaps), BaseOceanTextureJak1(generate_mipmaps), OceanVulkanTexture(generate_mipmaps, device, vulkan_info) {}
+      : BaseOceanTexture(generate_mipmaps),
+        BaseOceanTextureJak1(generate_mipmaps),
+        OceanVulkanTexture(generate_mipmaps, device, vulkan_info) {}
   void handle_ocean_texture(DmaFollower& dma,
                             BaseSharedRenderState* render_state,
                             ScopedProfilerNode& prof) override;
+  u32 GetOceanTextureId() override { return ocean_common::OCEAN_TEX_TBP_JAK1; };
 };
 
 class OceanVulkanTextureJak2 : public BaseOceanTextureJak2, public OceanVulkanTexture {
@@ -91,8 +93,11 @@ class OceanVulkanTextureJak2 : public BaseOceanTextureJak2, public OceanVulkanTe
   OceanVulkanTextureJak2(bool generate_mipmaps,
                          std::shared_ptr<GraphicsDeviceVulkan> device,
                          VulkanInitializationInfo& vulkan_info)
-      : BaseOceanTexture(generate_mipmaps), BaseOceanTextureJak2(generate_mipmaps), OceanVulkanTexture(generate_mipmaps, device, vulkan_info) {}
+      : BaseOceanTexture(generate_mipmaps),
+        BaseOceanTextureJak2(generate_mipmaps),
+        OceanVulkanTexture(generate_mipmaps, device, vulkan_info) {}
   void handle_ocean_texture(DmaFollower& dma,
                             BaseSharedRenderState* render_state,
                             ScopedProfilerNode& prof) override;
+  u32 GetOceanTextureId() override { return ocean_common::OCEAN_TEX_TBP_JAK2; };
 };

@@ -25,7 +25,4 @@ BaseSkyBlendGPU::BaseSkyBlendGPU() {
   m_vertex_data[5].y = 1;
 }
 
-BaseSkyBlendGPU::~BaseSkyBlendGPU() {
-}
-
-
+BaseSkyBlendGPU::~BaseSkyBlendGPU() {}

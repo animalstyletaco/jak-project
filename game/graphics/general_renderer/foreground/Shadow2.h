@@ -13,14 +13,15 @@ struct Shadow2VertexPushConstantData {
   float fog;
 };
 
-
 class BaseShadow2 : public BaseBucketRenderer {
  public:
   static constexpr int kMaxVerts = 8192 * 3;
   static constexpr int kMaxInds = 8192 * 3;
   BaseShadow2(const std::string& name, int my_id);
   ~BaseShadow2();
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  protected:

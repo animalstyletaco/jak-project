@@ -14,9 +14,18 @@ class UniformBuffer {
                                        uint32_t flags){};
 
   virtual uint32_t GetDeviceMemoryOffset(const char* section_name) { return 0; };
-  virtual void SetUniform1ui(const char* section_name, uint32_t value, uint32_t instanceIndex = 0, uint32_t flags = 0);
-  virtual void SetUniform1i(const char* section_name, int32_t value, uint32_t instanceIndex = 0, uint32_t flags = 0);
-  virtual void SetUniform1f(const char* section_name, float value, uint32_t instanceIndex = 0, uint32_t flags = 0);
+  virtual void SetUniform1ui(const char* section_name,
+                             uint32_t value,
+                             uint32_t instanceIndex = 0,
+                             uint32_t flags = 0);
+  virtual void SetUniform1i(const char* section_name,
+                            int32_t value,
+                            uint32_t instanceIndex = 0,
+                            uint32_t flags = 0);
+  virtual void SetUniform1f(const char* section_name,
+                            float value,
+                            uint32_t instanceIndex = 0,
+                            uint32_t flags = 0);
   virtual void SetUniform3f(const char* section_name,
                             float value1,
                             float value2,
@@ -43,9 +52,15 @@ class UniformBuffer {
                                          uint32_t instanceIndex = 0,
                                          uint32_t flags = 0);
 
-  virtual void SetUniformMathVector3f(const char* section_name, math::Vector3f& value, uint32_t instanceIndex = 0, uint32_t flags = 0);
+  virtual void SetUniformMathVector3f(const char* section_name,
+                                      math::Vector3f& value,
+                                      uint32_t instanceIndex = 0,
+                                      uint32_t flags = 0);
 
-  virtual void SetUniformMathVector4f(const char* section_name, math::Vector4f& value, uint32_t instanceIndex = 0, uint32_t flags = 0);
+  virtual void SetUniformMathVector4f(const char* section_name,
+                                      math::Vector4f& value,
+                                      uint32_t instanceIndex = 0,
+                                      uint32_t flags = 0);
 
   template <class T>
   void SetMatrixDataInVkDeviceMemory(uint32_t memory_offset,

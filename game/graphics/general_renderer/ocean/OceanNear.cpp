@@ -2,10 +2,7 @@
 
 #include "third-party/imgui/imgui.h"
 
-BaseOceanNear::BaseOceanNear(const std::string& name,
-                     int my_id)
-    : BaseBucketRenderer(name, my_id) {
-
+BaseOceanNear::BaseOceanNear(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
   for (auto& a : m_vu_data) {
     a.fill(0);
   }
@@ -19,8 +16,8 @@ static bool is_end_tag(const DmaTag& tag, const VifCode& v0, const VifCode& v1) 
 }
 
 void BaseOceanNear::render(DmaFollower& dma,
-                       BaseSharedRenderState* render_state,
-                       ScopedProfilerNode& prof) {
+                           BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof) {
   // skip if disabled
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {

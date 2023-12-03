@@ -133,7 +133,7 @@ class BaseMerc2 {
 
   math::Vector4f m_shader_bone_vector_buffer[MAX_SHADER_BONE_VECTORS];
   ShaderMercMat m_skel_matrix_buffer[MAX_SKEL_BONES];
-  
+
   u32 alloc_bones(int count, ShaderMercMat* data);
 
   struct Stats {
@@ -168,7 +168,7 @@ class BaseMerc2 {
     u8 flags;
     u8 fade[4];
   };
-  
+
   static constexpr int MAX_MOD_VTX = UINT16_MAX;
   std::vector<tfrag3::MercVertex> m_mod_vtx_temp;
 

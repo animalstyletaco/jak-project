@@ -5,11 +5,13 @@
 #include "common/util/Timer.h"
 #include "common/util/compress.h"
 
-#include "third-party/imgui/imgui.h"
-
 #include "game/graphics/vulkan_renderer/loader/LoaderStages.h"
 
-VulkanLoader::VulkanLoader(std::shared_ptr<GraphicsDeviceVulkan> device, const fs::path& base_path, int max_levels)
+#include "third-party/imgui/imgui.h"
+
+VulkanLoader::VulkanLoader(std::shared_ptr<GraphicsDeviceVulkan> device,
+                           const fs::path& base_path,
+                           int max_levels)
     : BaseLoader(base_path, max_levels), m_device(device) {
   m_loader_thread = std::thread(&VulkanLoader::loader_thread, this);
   m_loader_stages = vk_loader_stage::make_loader_stages(m_device);
@@ -109,11 +111,13 @@ void VulkanLoader::load_common(VulkanTexturePool& tex_pool, const std::string& n
   m_common_level.level = std::make_unique<tfrag3::Level>();
   m_common_level.level->serialize(ser);
 
-  for (unsigned i = m_common_level.textures_map.size(); i < m_common_level.level->textures.size(); i++) {
-     m_common_level.textures_map.insert(std::pair<u32, VulkanTexture>(i, VulkanTexture{m_device}));
+  for (unsigned i = m_common_level.textures_map.size(); i < m_common_level.level->textures.size();
+       i++) {
+    m_common_level.textures_map.insert(std::pair<u32, VulkanTexture>(i, VulkanTexture{m_device}));
   }
   for (size_t i = 0; i < m_common_level.level->textures.size(); i++) {
-    vk_loader_stage::update_texture(tex_pool, m_common_level.level->textures.at(i), &m_common_level.textures_map.at(i), true);
+    vk_loader_stage::update_texture(tex_pool, m_common_level.level->textures.at(i),
+                                    &m_common_level.textures_map.at(i), true);
   }
 
   Timer tim;
@@ -184,7 +188,9 @@ void VulkanLoader::draw_debug_window() {
   ImGui::End();
 }
 
-bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTexturePool& texture_pool) {
+bool VulkanLoader::upload_textures(Timer& timer,
+                                   LevelDataVulkan& data,
+                                   VulkanTexturePool& texture_pool) {
   // try to move level from initializing to initialized:
   auto evt = profiler::scoped_prof("upload-textures");
   constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 128;
@@ -199,7 +205,8 @@ bool VulkanLoader::upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTe
       auto& level_texture = data.level->textures[texture_id];
 
       data.textures_map.insert(std::pair<u32, VulkanTexture>(texture_id, VulkanTexture{m_device}));
-      vk_loader_stage::update_texture(texture_pool, level_texture, &data.textures_map.at(texture_id), false);
+      vk_loader_stage::update_texture(texture_pool, level_texture,
+                                      &data.textures_map.at(texture_id), false);
       texture_id++;
 
       bytes_this_run += level_texture.w * level_texture.h * 4;

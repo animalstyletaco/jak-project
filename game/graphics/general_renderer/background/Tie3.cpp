@@ -2,20 +2,15 @@
 
 #include "third-party/imgui/imgui.h"
 
-BaseTie3::BaseTie3(const std::string& name,
-           int my_id,
-                   int level_id,
-                   tfrag3::TieCategory category)
-    : BaseBucketRenderer(name, my_id),
-      m_level_id(level_id), m_default_category(category) {
+BaseTie3::BaseTie3(const std::string& name, int my_id, int level_id, tfrag3::TieCategory category)
+    : BaseBucketRenderer(name, my_id), m_level_id(level_id), m_default_category(category) {
   // regardless of how many we use some fixed max
   // we won't actually interp or upload to gpu the unused ones, but we need a fixed maximum so
   // indexing works properly.
   m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 
-BaseTie3::~BaseTie3() {
-}
+BaseTie3::~BaseTie3() {}
 
 void BaseTie3::vector_min_in_place(math::Vector4f& v, float val) {
   for (int i = 0; i < 4; i++) {
@@ -34,10 +29,10 @@ math::Vector4f BaseTie3::vector_max(const math::Vector4f& v, float val) {
 }
 
 void BaseTie3::do_wind_math(u16 wind_idx,
-                  float* wind_vector_data,
-                  const BaseTie3::WindWork& wind_work,
-                  float stiffness,
-                  std::array<math::Vector4f, 4>& mat) {
+                            float* wind_vector_data,
+                            const BaseTie3::WindWork& wind_work,
+                            float stiffness,
+                            std::array<math::Vector4f, 4>& mat) {
   float* my_vector = wind_vector_data + (4 * wind_idx);
   const auto& work_vector = wind_work.wind_array[(wind_work.wind_time + wind_idx) & 63];
   constexpr float cx = 0.5;
@@ -127,7 +122,9 @@ void BaseTie3::do_wind_math(u16 wind_idx,
   // sd s2, 0(s5)
 }
 
-void BaseTie3::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseTie3::render(DmaFollower& dma,
+                      BaseSharedRenderState* render_state,
+                      ScopedProfilerNode& prof) {
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
       dma.read_and_advance();
@@ -144,8 +141,7 @@ void BaseTie3::render(DmaFollower& dma, BaseSharedRenderState* render_state, Sco
   }
 }
 
-bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
-                                           BaseSharedRenderState* render_state) {
+bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma, BaseSharedRenderState* render_state) {
   auto data0 = dma.read_and_advance();
   ASSERT(data0.vif1() == 0 || data0.vifcode1().kind == VifCode::Kind::NOP);
   ASSERT(data0.vif0() == 0 || data0.vifcode0().kind == VifCode::Kind::NOP ||
@@ -191,13 +187,13 @@ bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
   memcpy(&m_pc_port_data, pc_port_data.data, sizeof(TfragPcPortData));
   m_pc_port_data.level_name[11] = '\0';
 
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     auto wind_data = dma.read_and_advance();
     ASSERT(wind_data.size_bytes == sizeof(WindWork));
     memcpy(&m_wind_data, wind_data.data, sizeof(WindWork));
   }
 
-  if (render_state->version == GameVersion::Jak2) {
+  if (render_state->GetVersion() == GameVersion::Jak2) {
     // jak 2 proto visibility
     auto proto_mask_data = dma.read_and_advance();
     m_common_data.proto_vis_data = proto_mask_data.data;
@@ -208,7 +204,7 @@ bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
   ASSERT(envmap_color.size_bytes == 16);
   memcpy(m_common_data.envmap_color.data(), envmap_color.data, 16);
   m_common_data.envmap_color /= 128.f;
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     m_common_data.envmap_color *= 2;
   }
   m_common_data.envmap_color *= m_envmap_strength;
@@ -243,11 +239,11 @@ bool BaseTie3::set_up_common_data_from_dma(DmaFollower& dma,
 }
 
 void BaseTie3::setup_all_trees(int geom,
-                            const TfragRenderSettings& settings,
-                            const u8* proto_vis_data,
-                            size_t proto_vis_data_size,
-                            bool use_multidraw,
-                            ScopedProfilerNode& prof) {
+                               const TfragRenderSettings& settings,
+                               const u8* proto_vis_data,
+                               size_t proto_vis_data_size,
+                               bool use_multidraw,
+                               ScopedProfilerNode& prof) {
   for (u32 i = 0; i < get_tree_count(geom); i++) {
     setup_tree(i, geom, settings, proto_vis_data, proto_vis_data_size, use_multidraw, prof);
   }

@@ -7,10 +7,9 @@ GenericVulkan2::GenericVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
                                u32 num_frags,
                                u32 num_adgif,
                                u32 num_buckets)
-    : m_device(device), m_vulkan_info(vulkan_info), BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets) {
-  m_vertex_push_constant.height_scale = (m_vulkan_info.m_version == GameVersion::Jak1) ? 1 : 0.5;
-  m_vertex_push_constant.scissor_adjust =
-      (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512 / 448.0) : (-512 / 416.0);
+    : m_device(device),
+      m_vulkan_info(vulkan_info),
+      BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets) {
   init_shaders();
   graphics_setup();
 }
@@ -26,29 +25,28 @@ GenericVulkan2::~GenericVulkan2() {
  * and then return.
  */
 void GenericVulkan2Jak1::render(DmaFollower& dma,
-                            SharedVulkanRenderState* render_state,
-                            ScopedProfilerNode& prof) {
+                                SharedVulkanRenderState* render_state,
+                                ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseGeneric2Jak1::render(dma, render_state, prof);
 }
 
 void GenericVulkan2Jak2::render(DmaFollower& dma,
-                            SharedVulkanRenderState* render_state,
-                            ScopedProfilerNode& prof) {
+                                SharedVulkanRenderState* render_state,
+                                ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseGeneric2Jak2::render(dma, render_state, prof);
 }
 
 void GenericVulkan2::graphics_setup() {
-  m_descriptor_image_infos.resize(m_buckets.size(), *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+  m_descriptor_image_infos.resize(
+      m_buckets.size(), *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
   m_samplers.resize(m_buckets.size(), m_device);
 
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
-    m_device, sizeof(Vertex), m_verts.size(), 1);
-  m_ogl.index_buffer = std::make_unique<IndexBuffer>(
-      m_device, sizeof(u32), m_indices.size(), 1);
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(m_device, sizeof(Vertex), m_verts.size(), 1);
+  m_ogl.index_buffer = std::make_unique<IndexBuffer>(m_device, sizeof(u32), m_indices.size(), 1);
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -59,19 +57,21 @@ void GenericVulkan2::graphics_setup() {
   m_vertex_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
 
-  m_fragment_descriptor_writer =
-      std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
+  m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
+                                                                    m_vulkan_info.descriptor_pool);
 
   auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
   m_fragment_descriptor_sets.resize(m_buckets.size());
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts{m_buckets.size(), descriptorSetLayout};
 
-  m_vulkan_info.descriptor_pool->allocateDescriptor(
-      descriptorSetLayouts.data(), m_fragment_descriptor_sets.data(), m_fragment_descriptor_sets.size());
+  m_vulkan_info.descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(),
+                                                    m_fragment_descriptor_sets.data(),
+                                                    m_fragment_descriptor_sets.size());
 
   m_fragment_descriptor_writer->writeImage(
-      0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());  // Using placeholder for initializating
-                                                         // descriptor writer info for now
+      0, m_vulkan_info.texture_pool
+             ->get_placeholder_descriptor_image_info());  // Using placeholder for initializating
+                                                          // descriptor writer info for now
   InitializeInputAttributes();
 }
 
@@ -100,8 +100,7 @@ void GenericVulkan2::create_pipeline_layout() {
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) !=
-      VK_SUCCESS) {
+                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
   }
 }
@@ -129,16 +128,17 @@ void GenericVulkan2::init_shaders() {
 }
 
 void GenericVulkan2::graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) {
-  m_vertex_push_constant.scale = math::Vector4f{m_drawing_config.proj_scale[0], m_drawing_config.proj_scale[1],
-                                  m_drawing_config.proj_scale[2], 0};
+  m_vertex_push_constant.scale =
+      math::Vector4f{m_drawing_config.proj_scale[0], m_drawing_config.proj_scale[1],
+                     m_drawing_config.proj_scale[2], 0};
   m_vertex_push_constant.mat_23 = m_drawing_config.proj_mat_23;
   m_vertex_push_constant.mat_32 = m_drawing_config.proj_mat_32;
   m_vertex_push_constant.mat_33 = 0;
-  m_vertex_push_constant.fog_constants = math::Vector3f{m_drawing_config.pfog0, m_drawing_config.fog_min,
-                                          m_drawing_config.fog_max};
-  m_vertex_push_constant.hvdf_offset = math::Vector4f{
-      m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
-      m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]};
+  m_vertex_push_constant.fog_constants =
+      math::Vector3f{m_drawing_config.pfog0, m_drawing_config.fog_min, m_drawing_config.fog_max};
+  m_vertex_push_constant.hvdf_offset =
+      math::Vector4f{m_drawing_config.hvdf_offset[0], m_drawing_config.hvdf_offset[1],
+                     m_drawing_config.hvdf_offset[2], m_drawing_config.hvdf_offset[3]};
 }
 
 void GenericVulkan2::setup_graphics_for_draw_mode(const DrawMode& draw_mode,
@@ -326,7 +326,8 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
                                         bool filter,
                                         bool clamp_s,
                                         bool clamp_t,
-                                        BaseSharedRenderState* render_state, u32 bucketId) {
+                                        BaseSharedRenderState* render_state,
+                                        u32 bucketId) {
   // look up the texture
   VulkanTexture* texture = NULL;
   u32 tbp_to_lookup = tbp & 0x7fff;
@@ -369,7 +370,7 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
   }
 
   m_vertex_push_constant.warp_sample_mode =
-      (render_state->version == GameVersion::Jak2 && tbp_to_lookup == 1216) ? 1 : 0;
+      (render_state->GetVersion() == GameVersion::Jak2 && tbp_to_lookup == 1216) ? 1 : 0;
   if (m_vertex_push_constant.warp_sample_mode) {
     // warp shader uses region clamp, which isn't supported by DrawMode.
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -382,8 +383,9 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
 
   m_samplers[bucketId].CreateSampler();
 
-  m_descriptor_image_infos[bucketId] = VkDescriptorImageInfo{
-      m_samplers[bucketId].GetSampler(), texture->getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  m_descriptor_image_infos[bucketId] =
+      VkDescriptorImageInfo{m_samplers[bucketId].GetSampler(), texture->getImageView(),
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 }
 
 void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
@@ -394,8 +396,9 @@ void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedPro
     auto& first = m_adgifs[bucket.start];
     if (first.uses_hud) {
       setup_graphics_for_draw_mode(first.mode, first.fix, render_state, i);
-      setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
-                       first.mode.get_clamp_t_enable(), render_state, i);
+      setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(),
+                         first.mode.get_clamp_s_enable(), first.mode.get_clamp_t_enable(),
+                         render_state, i);
 
       FinalizeVulkanDraws(i, bucket.idx_count, bucket.idx_idx);
 
@@ -406,8 +409,8 @@ void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedPro
 }
 
 void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
-  if(m_next_free_vert == 0 && m_next_free_idx == 0) {
-    //Nothing to do
+  if (m_next_free_vert == 0 && m_next_free_idx == 0) {
+    // Nothing to do
     return;
   }
 
@@ -450,8 +453,9 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
   }
 
   if (m_drawing_config.uses_hud) {
-    m_vertex_push_constant.scale = math::Vector4f{m_drawing_config.hud_scale[0], m_drawing_config.hud_scale[1],
-                                    m_drawing_config.hud_scale[2], 0};
+    m_vertex_push_constant.scale =
+        math::Vector4f{m_drawing_config.hud_scale[0], m_drawing_config.hud_scale[1],
+                       m_drawing_config.hud_scale[2], 0};
     m_vertex_push_constant.mat_23 = m_drawing_config.hud_mat_23;
     m_vertex_push_constant.mat_32 = m_drawing_config.hud_mat_32;
     m_vertex_push_constant.mat_33 = m_drawing_config.hud_mat_33;
@@ -475,8 +479,9 @@ void GenericVulkan2::do_draws_for_alpha(BaseSharedRenderState* render_state,
     auto& first = m_adgifs[bucket.start];
     if (first.mode.get_alpha_blend() == alpha && first.uses_hud == hud) {
       setup_graphics_for_draw_mode(first.mode, first.fix, render_state, i);
-      setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(), first.mode.get_clamp_s_enable(),
-                       first.mode.get_clamp_t_enable(), render_state, i);
+      setup_graphics_tex(0, first.tbp, first.mode.get_filt_enable(),
+                         first.mode.get_clamp_s_enable(), first.mode.get_clamp_t_enable(),
+                         render_state, i);
 
       FinalizeVulkanDraws(i, bucket.idx_count, bucket.idx_idx);
 
@@ -492,12 +497,13 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
   }
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-  write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_infos[bucket]);
+  write_descriptors_info[0] =
+      m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_infos[bucket]);
 
   m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[bucket]);
-  
-  m_graphics_pipeline_layout.updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                    m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   std::vector<VkDescriptorSet> descriptor_sets = {m_fragment_descriptor_sets[bucket]};
@@ -506,8 +512,7 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                           descriptor_sets.data(), 0, NULL);
 
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer,
-                   indexCount, 1, firstIndex, 0, 0);
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexCount, 1, firstIndex, 0, 0);
 }
 
 void GenericVulkan2::InitializeInputAttributes() {
@@ -520,7 +525,8 @@ void GenericVulkan2::InitializeInputAttributes() {
   std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
   attributeDescriptions[0].location = 0;
-  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT; //Is there a way to normalize floats
+  attributeDescriptions[0].format =
+      VK_FORMAT_R32G32B32_SFLOAT;  // Is there a way to normalize floats
   attributeDescriptions[0].offset = offsetof(Vertex, xyz);
 
   attributeDescriptions[1].binding = 0;
@@ -539,6 +545,6 @@ void GenericVulkan2::InitializeInputAttributes() {
   attributeDescriptions[3].format = VK_FORMAT_R8G8B8A8_UINT;
   attributeDescriptions[3].offset = offsetof(Vertex, tex_unit);
   m_pipeline_config_info.attributeDescriptions.insert(
-    m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(), attributeDescriptions.end());
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }
-

@@ -12,8 +12,7 @@ BaseSkyBlendCPU::BaseSkyBlendCPU() {
   }
 }
 
-BaseSkyBlendCPU::~BaseSkyBlendCPU() {
-}
+BaseSkyBlendCPU::~BaseSkyBlendCPU() {}
 
 void BaseSkyBlendCPU::blend_sky_initial_fast(u8 intensity, u8* out, const u8* in, u32 size) {
 #ifndef __arm64__
@@ -86,8 +85,8 @@ void BaseSkyBlendCPU::blend_sky_fast(u8 intensity, u8* out, const u8* in, u32 si
 }
 
 SkyBlendStats BaseSkyBlendCPU::do_sky_blends(DmaFollower& dma,
-                                         BaseSharedRenderState* render_state,
-                                         ScopedProfilerNode& /*prof*/) {
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& /*prof*/) {
   SkyBlendStats stats;
 
   while (dma.current_tag().qwc == 6) {
@@ -132,5 +131,3 @@ SkyBlendStats BaseSkyBlendCPU::do_sky_blends(DmaFollower& dma,
 
   return stats;
 }
-
-

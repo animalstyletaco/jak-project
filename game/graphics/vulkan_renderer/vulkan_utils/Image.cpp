@@ -1,15 +1,16 @@
 #include "Image.h"
-#include "VulkanBuffer.h"
 
 #include <cassert>
 #include <stdexcept>
+
+#include "VulkanBuffer.h"
 
 namespace vulkan_texture {
 static unsigned long image_id = 0;
 }
 
 VulkanTexture::VulkanTexture(std::shared_ptr<GraphicsDeviceVulkan> device) : m_device(device) {
-  m_image_id = vulkan_texture::image_id++; 
+  m_image_id = vulkan_texture::image_id++;
 }
 
 VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_device) {
@@ -33,7 +34,6 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
 
   m_device_size = texture.m_device_size;
 }
-
 
 void VulkanTexture::AllocateVulkanImageMemory() {
   VkImageFormatProperties image_format_properties;
@@ -89,13 +89,13 @@ void VulkanTexture::createImage(VkExtent3D extents,
 }
 
 void VulkanTexture::createImage(VkExtent3D extents,
-                              uint32_t mipLevels,
-                              VkImageType image_type,
-                              VkSampleCountFlagBits numSamples,
-                              VkFormat format,
-                              VkImageTiling tiling,
-                              VkImageUsageFlags usage,
-                              VkImageLayout layout) {
+                                uint32_t mipLevels,
+                                VkImageType image_type,
+                                VkSampleCountFlagBits numSamples,
+                                VkFormat format,
+                                VkImageTiling tiling,
+                                VkImageUsageFlags usage,
+                                VkImageLayout layout) {
   m_image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   m_image_create_info.imageType = image_type;
   m_image_create_info.extent = extents;
@@ -103,12 +103,16 @@ void VulkanTexture::createImage(VkExtent3D extents,
   m_image_create_info.arrayLayers = 1;
   m_image_create_info.format = format;
 
-  //Added this check to make sure imageCreateMaybeLinear is set to false if multisampling is enabled.
-  //More details in https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
-  m_image_create_info.tiling = (numSamples > VK_SAMPLE_COUNT_1_BIT) ? VK_IMAGE_TILING_OPTIMAL : tiling;
+  // Added this check to make sure imageCreateMaybeLinear is set to false if multisampling is
+  // enabled. More details in
+  // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkImageCreateInfo.html
+  m_image_create_info.tiling =
+      (numSamples > VK_SAMPLE_COUNT_1_BIT) ? VK_IMAGE_TILING_OPTIMAL : tiling;
   m_image_create_info.initialLayout = layout;
   m_image_create_info.usage = usage;
-  m_image_create_info.samples = (numSamples > m_device->GetMaxUsableSampleCount()) ? m_device->GetMaxUsableSampleCount() : numSamples;
+  m_image_create_info.samples = (numSamples > m_device->GetMaxUsableSampleCount())
+                                    ? m_device->GetMaxUsableSampleCount()
+                                    : numSamples;
   m_image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
   AllocateVulkanImageMemory();
@@ -116,9 +120,9 @@ void VulkanTexture::createImage(VkExtent3D extents,
 }
 
 void VulkanTexture::createImageView(VkImageViewType image_view_type,
-                                  VkFormat format,
-                                  VkImageAspectFlags aspectFlags,
-                                  uint32_t mipLevels) {
+                                    VkFormat format,
+                                    VkImageAspectFlags aspectFlags,
+                                    uint32_t mipLevels) {
   m_image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
   m_image_view_create_info.image = m_image;
   m_image_view_create_info.viewType = image_view_type;
@@ -150,10 +154,13 @@ void VulkanTexture::destroyTexture() {
   }
 };
 
-void VulkanTexture::transitionImageLayout(VkImageLayout imageLayout, unsigned baseMipLevel, unsigned levelCount) {
-  m_device->transitionImageLayout(m_image, m_image_create_info.initialLayout,
-                                  imageLayout, baseMipLevel, levelCount);
-  m_image_create_info.initialLayout = imageLayout; //TODO: Should there be a separate variable to keep track of image layout is
+void VulkanTexture::transitionImageLayout(VkImageLayout imageLayout,
+                                          unsigned baseMipLevel,
+                                          unsigned levelCount) {
+  m_device->transitionImageLayout(m_image, m_image_create_info.initialLayout, imageLayout,
+                                  baseMipLevel, levelCount);
+  m_image_create_info.initialLayout =
+      imageLayout;  // TODO: Should there be a separate variable to keep track of image layout is
 }
 
 /**
@@ -169,14 +176,14 @@ void VulkanTexture::writeToImage(void* data, VkDeviceSize size, VkDeviceSize off
   transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
   StagingBuffer stagingBuffer(m_device,
                               m_image_create_info.extent.width * m_image_create_info.extent.height *
-                                  m_image_create_info.extent.depth * 4, 1,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+                                  m_image_create_info.extent.depth * 4,
+                              1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
   stagingBuffer.map();
   stagingBuffer.writeToCpuBuffer(data);
 
-  m_device->copyBufferToImage(stagingBuffer.getBuffer(), m_image, m_image_create_info.extent.width, m_image_create_info.extent.height,
-                              0, 0, 1);
+  m_device->copyBufferToImage(stagingBuffer.getBuffer(), m_image, m_image_create_info.extent.width,
+                              m_image_create_info.extent.height, 0, 0, 1);
   stagingBuffer.unmap();
   transitionImageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 }
@@ -190,7 +197,11 @@ void VulkanTexture::writeToImage(void* data, VkDeviceSize size, VkDeviceSize off
  * @param offset (Optional) Byte offset from beginning of mapped region
  *
  */
-void VulkanTexture::getImageData(VkBuffer buffer, uint32_t width, uint32_t height, double x_offset, double y_offset) {
+void VulkanTexture::getImageData(VkBuffer buffer,
+                                 uint32_t width,
+                                 uint32_t height,
+                                 double x_offset,
+                                 double y_offset) {
   VkImageLayout originalLayout = m_image_create_info.initialLayout;
   bool needsToTransitionImageLayout = originalLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
   if (needsToTransitionImageLayout) {
@@ -251,5 +262,3 @@ VkFormat VulkanTexture::findDepthFormat() {
 bool hasStencilComponent(VkFormat format) {
   return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
 }
-
-

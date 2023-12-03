@@ -7,8 +7,8 @@
 #include "background_common.h"
 
 void background_common::interp_time_of_day_slow(const math::Vector<s32, 4> itimes[4],
-                             const std::vector<tfrag3::TimeOfDayColor>& in,
-                             math::Vector<u8, 4>* out) {
+                                                const std::vector<tfrag3::TimeOfDayColor>& in,
+                                                math::Vector<u8, 4>* out) {
   // Timer interp_timer;
   math::Vector4f weights[8];
   for (int component = 0; component < 8; component++) {
@@ -59,7 +59,8 @@ void background_common::interp_time_of_day_slow(const math::Vector<s32, 4> itime
 // the swizzle function below rearranges to get this pattern.
 // it's not the most efficient way to do it, but it just runs during loading and not on every frame.
 
-SwizzledTimeOfDay background_common::swizzle_time_of_day(const std::vector<tfrag3::TimeOfDayColor>& in) {
+SwizzledTimeOfDay background_common::swizzle_time_of_day(
+    const std::vector<tfrag3::TimeOfDayColor>& in) {
   SwizzledTimeOfDay out;
   out.data.resize((in.size() + 3) * 8 * 4);
 
@@ -89,8 +90,8 @@ SwizzledTimeOfDay background_common::swizzle_time_of_day(const std::vector<tfrag
 }
 
 void background_common::interp_time_of_day_fast(const math::Vector<s32, 4> itimes[4],
-                             const SwizzledTimeOfDay& swizzled_colors,
-                             math::Vector<u8, 4>* out) {
+                                                const SwizzledTimeOfDay& swizzled_colors,
+                                                math::Vector<u8, 4>* out) {
   math::Vector<u16, 4> weights[8];
   for (int component = 0; component < 8; component++) {
     int quad_idx = component / 2;
@@ -244,7 +245,8 @@ void background_common::interp_time_of_day_fast(const math::Vector<s32, 4> itime
   }
 }
 
-bool background_common::sphere_in_view_ref(const math::Vector4f& sphere, const math::Vector4f* planes) {
+bool background_common::sphere_in_view_ref(const math::Vector4f& sphere,
+                                           const math::Vector4f* planes) {
   math::Vector4f acc =
       planes[0] * sphere.x() + planes[1] * sphere.y() + planes[2] * sphere.z() - planes[3];
 
@@ -254,9 +256,9 @@ bool background_common::sphere_in_view_ref(const math::Vector4f& sphere, const m
 
 // this isn't super efficient, but we spend so little time here it's not worth it to go faster.
 void background_common::cull_check_all_slow(const math::Vector4f* planes,
-                         const std::vector<tfrag3::VisNode>& nodes,
-                         const u8* level_occlusion_string,
-                         u8* out) {
+                                            const std::vector<tfrag3::VisNode>& nodes,
+                                            const u8* level_occlusion_string,
+                                            u8* out) {
   if (level_occlusion_string) {
     for (size_t i = 0; i < nodes.size(); i++) {
       u16 my_id = nodes[i].my_id;
@@ -271,7 +273,8 @@ void background_common::cull_check_all_slow(const math::Vector4f* planes,
   }
 }
 
-void background_common::update_render_state_from_pc_settings(BaseSharedRenderState* state, const TfragPcPortData& data) {
+void background_common::update_render_state_from_pc_settings(BaseSharedRenderState* state,
+                                                             const TfragPcPortData& data) {
   if (!state->has_pc_data) {
     for (int i = 0; i < 4; i++) {
       state->camera_planes[i] = data.camera.planes[i];

@@ -40,25 +40,57 @@ class GraphicsDeviceVulkan {
   GraphicsDeviceVulkan(GraphicsDeviceVulkan&&) = delete;
   GraphicsDeviceVulkan& operator=(GraphicsDeviceVulkan&&) = delete;
 
-  VkSampleCountFlagBits getMsaaCount() { return m_msaa_samples; }
-  void setMsaaCount(VkSampleCountFlagBits msaa_count) { m_msaa_samples = msaa_count; }
-  VkCommandPool getCommandPool() { return m_command_pool; }
-  VkDevice getLogicalDevice() { return m_device; }
-  VkPhysicalDevice getPhysicalDevice() { return m_physical_device; }
-  VkSurfaceKHR surface() { return m_surface; }
-  VkQueue graphicsQueue() { return m_graphics_queue; }
-  VkQueue presentQueue() { return m_present_queue; }
-  VkInstance getInstance() { return m_instance; }
-  VkPhysicalDeviceFeatures getPhysicalDeviceFeatures() { return m_physical_device_features; }
-  VkPhysicalDeviceProperties getPhysicalDeviceProperties() { return m_physical_device_properties; }
-  VkPhysicalDeviceLimits getPhysicalDeviceLimits() { return m_physical_device_properties.limits; }
+  VkSampleCountFlagBits getMsaaCount() {
+    return m_msaa_samples;
+  }
+  void setMsaaCount(VkSampleCountFlagBits msaa_count) {
+    m_msaa_samples = msaa_count;
+  }
+  VkCommandPool getCommandPool() {
+    return m_command_pool;
+  }
+  VkDevice getLogicalDevice() {
+    return m_device;
+  }
+  VkPhysicalDevice getPhysicalDevice() {
+    return m_physical_device;
+  }
+  VkSurfaceKHR surface() {
+    return m_surface;
+  }
+  VkQueue graphicsQueue() {
+    return m_graphics_queue;
+  }
+  VkQueue presentQueue() {
+    return m_present_queue;
+  }
+  VkInstance getInstance() {
+    return m_instance;
+  }
+  VkPhysicalDeviceFeatures getPhysicalDeviceFeatures() {
+    return m_physical_device_features;
+  }
+  VkPhysicalDeviceProperties getPhysicalDeviceProperties() {
+    return m_physical_device_properties;
+  }
+  VkPhysicalDeviceLimits getPhysicalDeviceLimits() {
+    return m_physical_device_properties.limits;
+  }
 
-  uint32_t getMinimumBufferOffsetAlignment() { return m_physical_device_properties.limits.minUniformBufferOffsetAlignment; }
-  float getMaxSamplerAnisotropy() { return m_physical_device_properties.limits.maxSamplerAnisotropy; }
+  uint32_t getMinimumBufferOffsetAlignment() {
+    return m_physical_device_properties.limits.minUniformBufferOffsetAlignment;
+  }
+  float getMaxSamplerAnisotropy() {
+    return m_physical_device_properties.limits.maxSamplerAnisotropy;
+  }
 
-  SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(m_physical_device); }
+  SwapChainSupportDetails getSwapChainSupport() {
+    return querySwapChainSupport(m_physical_device);
+  }
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
-  QueueFamilyIndices findPhysicalQueueFamilies() { return findQueueFamilies(m_physical_device); }
+  QueueFamilyIndices findPhysicalQueueFamilies() {
+    return findQueueFamilies(m_physical_device);
+  }
   VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
                                VkImageTiling tiling,
                                VkFormatFeatureFlags features);
@@ -70,7 +102,11 @@ class GraphicsDeviceVulkan {
   void submitCommandsBufferToQueue(std::vector<VkCommandBuffer> commandBuffer);
   VkCommandBuffer beginSingleTimeCommands();
   void endSingleTimeCommands(VkCommandBuffer commandBuffer);
-  void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkDeviceSize srcOffset = 0, VkDeviceSize dstOffset = 0);
+  void copyBuffer(VkBuffer srcBuffer,
+                  VkBuffer dstBuffer,
+                  VkDeviceSize size,
+                  VkDeviceSize srcOffset = 0,
+                  VkDeviceSize dstOffset = 0);
   void copyBufferToImage(VkBuffer buffer,
                          VkImage image,
                          uint32_t width,

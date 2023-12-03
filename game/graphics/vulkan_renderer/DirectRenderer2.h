@@ -21,8 +21,7 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
   void render_gif_data(const u8* data,
                        SharedVulkanRenderState* render_state,
                        ScopedProfilerNode& prof);
-  void flush_pending(SharedVulkanRenderState* render_state,
-                     ScopedProfilerNode& prof);
+  void flush_pending(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
   ~DirectVulkanRenderer2();
 
  private:
@@ -31,10 +30,8 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
 
   void reset_buffers();
 
-  void draw_call_loop_simple(SharedVulkanRenderState* render_state,
-                             ScopedProfilerNode& prof);
-  void draw_call_loop_grouped(SharedVulkanRenderState* render_state,
-                              ScopedProfilerNode& prof);
+  void draw_call_loop_simple(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
+  void draw_call_loop_grouped(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
 
   struct {
     std::unique_ptr<VertexBuffer> vertex_buffer;
@@ -42,8 +39,7 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
   } m_ogl;
 
   void CreatePipelineLayout();
-  void setup_vulkan_for_draw_mode(const Draw& draw,
-                                  SharedVulkanRenderState* render_state);
+  void setup_vulkan_for_draw_mode(const Draw& draw, SharedVulkanRenderState* render_state);
   void setup_vulkan_tex(u16 unit,
                         u16 tbp,
                         bool filter,
@@ -75,5 +71,5 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
     math::Vector4f fog_colors;
     float alpha_reject;
     float color_mult;
-  } m_push_constant; 
+  } m_push_constant;
 };

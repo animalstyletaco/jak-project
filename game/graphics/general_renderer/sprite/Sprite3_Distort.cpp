@@ -19,14 +19,14 @@ constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
  * Run the sprite distorter.
  */
 void BaseSprite3::render_distorter(DmaFollower& dma,
-                               BaseSharedRenderState* render_state,
-                               ScopedProfilerNode& prof) {
+                                   BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) {
   // Skip to distorter DMA
   direct_renderer_reset_state();
   while (dma.current_tag().qwc != 7) {
     auto direct_data = dma.read_and_advance();
     direct_renderer_render_vif(direct_data.vif0(), direct_data.vif1(), direct_data.data,
-                        direct_data.size_bytes, render_state, prof);
+                               direct_data.size_bytes, render_state, prof);
   }
   direct_renderer_flush_pending(render_state, prof);
 
@@ -314,7 +314,3 @@ void BaseSprite3::distort_setup_instanced(ScopedProfilerNode& /*prof*/) {
     m_distort_stats.total_tris += res * 2;
   }
 }
-
-
-
-

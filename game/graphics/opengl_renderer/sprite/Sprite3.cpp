@@ -370,7 +370,7 @@ void Sprite3::render_2d_group1(DmaFollower& dma,
     ASSERT(run.vifcode0().kind == VifCode::Kind::NOP);
     ASSERT(run.vifcode1().kind == VifCode::Kind::MSCAL);
 
-    switch (render_state->version) {
+    switch (render_state->GetVersion()) {
       case GameVersion::Jak1:
         ASSERT(run.vifcode1().immediate == SpriteProgMem::Sprites2dHud_Jak1);
         break;
@@ -387,7 +387,7 @@ void Sprite3::render_2d_group1(DmaFollower& dma,
 }
 
 void Sprite3::render(DmaFollower& dma, SharedRenderState* render_state, ScopedProfilerNode& prof) {
-  switch (render_state->version) {
+  switch (render_state->GetVersion()) {
     case GameVersion::Jak1:
       render_jak1(dma, render_state, prof);
       break;
@@ -427,7 +427,7 @@ void Sprite3::render_jak2(DmaFollower& dma,
   }
 
   // next, the normal sprite stuff
-  handle_sprite_frame_setup(dma, render_state->version, render_state, prof);
+  handle_sprite_frame_setup(dma, render_state->GetVersion(), render_state, prof);
 
   // 3d sprites
   render_3d(dma);
@@ -508,7 +508,7 @@ void Sprite3::render_jak1(DmaFollower& dma,
   }
 
   // next, sprite frame setup.
-  handle_sprite_frame_setup(dma, render_state->version, render_state, prof);
+  handle_sprite_frame_setup(dma, render_state->GetVersion(), render_state, prof);
 
   // 3d sprites
   render_3d(dma);
@@ -787,7 +787,7 @@ void Sprite3::do_block_common(SpriteMode mode,
       }
     }
 
-    if (render_state->version > GameVersion::Jak1) {
+    if (render_state->GetVersion() > GameVersion::Jak1) {
       // glow code sets the matrix to -1,
       // jak 2 adds:
       // ibltz vi08, L4

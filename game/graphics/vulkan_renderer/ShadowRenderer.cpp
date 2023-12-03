@@ -4,20 +4,19 @@
 
 #include "third-party/imgui/imgui.h"
 
-ShadowVulkanRenderer::ShadowVulkanRenderer(
-    const std::string& name,
-    int my_id,
-    std::shared_ptr<GraphicsDeviceVulkan> device,
-    VulkanInitializationInfo& vulkan_info)
+ShadowVulkanRenderer::ShadowVulkanRenderer(const std::string& name,
+                                           int my_id,
+                                           std::shared_ptr<GraphicsDeviceVulkan> device,
+                                           VulkanInitializationInfo& vulkan_info)
     : BaseShadowRenderer(name, my_id), BucketVulkanRenderer(device, vulkan_info) {
+  m_push_constant.height_scale = 0.5;
+  m_push_constant.scissor_adjust = -512 / 416.f;
 
   // set up the vertex array
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(
-      device, sizeof(Vertex), MAX_VERTICES, 1);
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, sizeof(Vertex), MAX_VERTICES, 1);
 
   for (int i = 0; i < 2; i++) {
-    m_ogl.index_buffers[i] = std::make_unique<IndexBuffer>(
-        device, sizeof(u32), MAX_INDICES, 1);
+    m_ogl.index_buffers[i] = std::make_unique<IndexBuffer>(device, sizeof(u32), MAX_INDICES, 1);
   }
 
   create_pipeline_layout();
@@ -25,7 +24,9 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(
   InitializeInputVertexAttribute();
 }
 
-void ShadowVulkanRenderer::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void ShadowVulkanRenderer::render(DmaFollower& dma,
+                                  SharedVulkanRenderState* render_state,
+                                  ScopedProfilerNode& prof) {
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseShadowRenderer::render(dma, render_state, prof);
 }
@@ -57,7 +58,8 @@ void ShadowVulkanRenderer::create_pipeline_layout() {
   pushConstantRanges[0].size = sizeof(m_push_constant.scissor_adjust);
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  pushConstantRanges[1].offset = sizeof(m_color_uniform); //Offset need to be a multiple of the push constant size
+  pushConstantRanges[1].offset =
+      sizeof(m_color_uniform);  // Offset need to be a multiple of the push constant size
   pushConstantRanges[1].size = sizeof(m_color_uniform);
   pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
@@ -86,8 +88,7 @@ void ShadowVulkanRenderer::InitializeInputVertexAttribute() {
   m_pipeline_config_info.attributeDescriptions.push_back(attributeDescriptions[0]);
 }
 
-ShadowVulkanRenderer::~ShadowVulkanRenderer() {
-}
+ShadowVulkanRenderer::~ShadowVulkanRenderer() {}
 
 void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -111,7 +112,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_front_indices[m_next_front_index++] = clear_vertices + 1;
 
   m_ogl.vertex_buffer->writeToGpuBuffer(m_vertices);
-  
+
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = m_ogl.vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
@@ -128,8 +129,9 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
 
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
   m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
@@ -145,7 +147,8 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
     m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
     m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
     m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -229,8 +232,9 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   // finally, draw shadow.
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_ALWAYS;
   m_color_uniform = math::Vector4f{0.13, 0.13, 0.13, 0.5};
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
 
   m_pipeline_config_info.depthStencilInfo.front.compareOp = VK_COMPARE_OP_NOT_EQUAL;
   m_pipeline_config_info.depthStencilInfo.front.reference = 0;
@@ -244,8 +248,10 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
-  m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.colorBlendOp =
+      VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+  m_pipeline_config_info.colorBlendAttachment.alphaBlendOp =
+      VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
 
   m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -254,8 +260,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
   PrepareVulkanDraw(draw_idx, 0);
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 6, 1,
-                   m_next_front_index - 6, 0, 0);
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 6, 1, m_next_front_index - 6, 0, 0);
 
   prof.add_draw_call();
   prof.add_tri(2);
@@ -274,14 +279,13 @@ void ShadowVulkanRenderer::PrepareVulkanDraw(uint32_t& pipeline_layout_id, uint3
 
   auto& index_buffer = m_ogl.index_buffers[indexBufferId % 2];
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                    m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
-                       index_buffer->getBuffer(), 0,
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
   pipeline_layout_id++;

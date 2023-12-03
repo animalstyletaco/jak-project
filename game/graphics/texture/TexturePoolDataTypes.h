@@ -2,10 +2,10 @@
 
 #include <vector>
 
-#include "common/log/log.h"
 #include "common/common_types.h"
-#include "game/graphics/texture/TextureID.h"
+#include "common/log/log.h"
 
+#include "game/graphics/texture/TextureID.h"
 
 // verify all texture lookups.
 // will make texture lookups slower and likely caused dropped frames when loading
@@ -203,4 +203,4 @@ struct GoalTexturePage {
 
 namespace texture_pool {
 const char* goal_string(u32 ptr, const u8* memory_base);
-}  // namespace
+}  // namespace texture_pool

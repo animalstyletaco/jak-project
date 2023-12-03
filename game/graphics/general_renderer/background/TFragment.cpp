@@ -17,10 +17,10 @@ bool looks_like_tfrag_init(const DmaFollower& follow) {
 }  // namespace
 
 BaseTFragment::BaseTFragment(const std::string& name,
-                     int my_id,
-                     const std::vector<tfrag3::TFragmentTreeKind>& trees,
-                     bool child_mode,
-                     int level_id)
+                             int my_id,
+                             const std::vector<tfrag3::TFragmentTreeKind>& trees,
+                             bool child_mode,
+                             int level_id)
     : BaseBucketRenderer(name, my_id),
       m_child_mode(child_mode),
       m_tree_kinds(trees),
@@ -33,8 +33,8 @@ BaseTFragment::BaseTFragment(const std::string& name,
 }
 
 void BaseTFragment::render(DmaFollower& dma,
-                       BaseSharedRenderState* render_state,
-                       ScopedProfilerNode& prof) {
+                           BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof) {
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
       dma.read_and_advance();
@@ -117,8 +117,7 @@ void BaseTFragment::render(DmaFollower& dma,
     TfragRenderSettings settings;
     settings.camera.hvdf_off = m_tfrag_data.hvdf_offset;
     settings.camera.fog = m_tfrag_data.fog;
-    memcpy(&settings.camera, &m_buffered_data[0].pad[TFragDataMem::TFragMatrix0 * 16],
-           64);
+    memcpy(&settings.camera, &m_buffered_data[0].pad[TFragDataMem::TFragMatrix0 * 16], 64);
     settings.tree_idx = 0;
     if (render_state->occlusion_vis[m_level_id].valid) {
       settings.occlusion_culling = render_state->occlusion_vis[m_level_id].data;
@@ -210,9 +209,9 @@ BaseTFragment::~BaseTFragment() {}
  * working.
  */
 void BaseTFragment::render_all_trees(int geom,
-                                  const TfragRenderSettings& settings,
-                                  BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode& prof) {
+                                     const TfragRenderSettings& settings,
+                                     BaseSharedRenderState* render_state,
+                                     ScopedProfilerNode& prof) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < get_total_cached_trees_count(geom); i++) {
     if (get_cached_tree(geom, i).kind != tfrag3::TFragmentTreeKind::INVALID) {
@@ -223,10 +222,10 @@ void BaseTFragment::render_all_trees(int geom,
 }
 
 void BaseTFragment::render_matching_trees(int geom,
-                                       const std::vector<tfrag3::TFragmentTreeKind>& trees,
-                                       const TfragRenderSettings& settings,
-                                       BaseSharedRenderState* render_state,
-                                       ScopedProfilerNode& prof) {
+                                          const std::vector<tfrag3::TFragmentTreeKind>& trees,
+                                          const TfragRenderSettings& settings,
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) {
   TfragRenderSettings settings_copy = settings;
   for (size_t i = 0; i < get_total_cached_trees_count(geom); i++) {
     auto& tree = get_cached_tree(geom, i);
@@ -271,11 +270,11 @@ float BaseTFragment::frac(float in) {
 }
 
 void BaseTFragment::debug_vis_draw(int first_root,
-                                int tree,
-                                int num,
-                                int depth,
-                                const std::vector<tfrag3::VisNode>& nodes,
-                                std::vector<BaseTFragment::DebugVertex>& verts_out) {
+                                   int tree,
+                                   int num,
+                                   int depth,
+                                   const std::vector<tfrag3::VisNode>& nodes,
+                                   std::vector<BaseTFragment::DebugVertex>& verts_out) {
   for (int ki = 0; ki < num; ki++) {
     auto& node = nodes.at(ki + tree - first_root);
     ASSERT(node.child_id != 0xffff);

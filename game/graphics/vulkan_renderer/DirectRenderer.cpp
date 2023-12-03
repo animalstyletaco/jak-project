@@ -8,11 +8,14 @@
 #include "third-party/imgui/imgui.h"
 
 DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
-                               int my_id,
-                               std::shared_ptr<GraphicsDeviceVulkan> device,
-                               VulkanInitializationInfo& vulkan_info,
-                               int batch_size)
+                                           int my_id,
+                                           std::shared_ptr<GraphicsDeviceVulkan> device,
+                                           VulkanInitializationInfo& vulkan_info,
+                                           int batch_size)
     : BaseDirectRenderer(name, my_id, batch_size), BucketVulkanRenderer(device, vulkan_info) {
+  m_push_constant.height_scale = 0.5;
+  m_push_constant.scissor_adjust = -512 / 416.f;
+
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
   m_ogl.vertex_buffer_max_verts = batch_size * 3 * 2;
@@ -25,10 +28,10 @@ DirectVulkanRenderer::DirectVulkanRenderer(const std::string& name,
           .build();
 
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(
-      m_direct_basic_fragment_descriptor_layout,
-      m_vulkan_info.descriptor_pool);
+      m_direct_basic_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
 
-  m_fragment_descriptor_writer->writeImage(0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
+  m_fragment_descriptor_writer->writeImage(
+      0, m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
 
   allocate_new_descriptor_set();
 
@@ -47,7 +50,7 @@ void DirectVulkanRenderer::set_current_index(u32 imageIndex) {
 void DirectVulkanRenderer::allocate_new_descriptor_set() {
   auto descriptorSetLayout = m_direct_basic_fragment_descriptor_layout->getDescriptorSetLayout();
 
-  //One helper for renderer and one for debug renderer
+  // One helper for renderer and one for debug renderer
   m_graphics_helper_map.insert(
       std::pair<u32, RendererGraphicsHelper>(totalImageCount++, RendererGraphicsHelper()));
   auto& graphics_helper = m_graphics_helper_map[totalImageCount - 1];
@@ -55,8 +58,8 @@ void DirectVulkanRenderer::allocate_new_descriptor_set() {
   graphics_helper.sampler = std::make_unique<VulkanSamplerHelper>(m_device);
 
   m_descriptor_sets.emplace_back();
-  m_vulkan_info.descriptor_pool->allocateDescriptor(
-      &descriptorSetLayout, &m_descriptor_sets[totalImageCount - 1]);
+  m_vulkan_info.descriptor_pool->allocateDescriptor(&descriptorSetLayout,
+                                                    &m_descriptor_sets[totalImageCount - 1]);
 }
 
 void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
@@ -107,8 +110,7 @@ void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
     m_textured_pipeline_push_constant.offscreen_mode = m_offscreen_mode;
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                       VK_SHADER_STAGE_VERTEX_BIT, 0,
-                       sizeof(m_textured_pipeline_push_constant),
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_textured_pipeline_push_constant),
                        (void*)&m_textured_pipeline_push_constant);
   }
 }
@@ -213,8 +215,8 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   texturedPipelineLayoutInfo.pPushConstantRanges = texturedPushConstantRanges.data();
   texturedPipelineLayoutInfo.pushConstantRangeCount = texturedPushConstantRanges.size();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr, &m_textured_pipeline_layout) !=
-      VK_SUCCESS) {
+  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr,
+                             &m_textured_pipeline_layout) != VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
   }
 
@@ -293,9 +295,8 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
     m_direct_basic_fragment_push_constant.scissor_enable = (m_scissor_enable && !m_offscreen_mode);
     auto swapchain_extents = m_vulkan_info.swap_chain->getSwapChainExtent();
 
-    m_direct_basic_fragment_push_constant.game_sizes =
-        math::Vector4f{512.0f, GetHeightScaleByGameVersion(m_vulkan_info.m_version),
-                       swapchain_extents.width, swapchain_extents.height};
+    m_direct_basic_fragment_push_constant.game_sizes = math::Vector4f{
+        512.0f, render_state->GetHeightScale(), swapchain_extents.width, swapchain_extents.height};
 
     vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(math::Vector4f),
@@ -387,8 +388,8 @@ void DirectVulkanRenderer::update_graphics_texture(BaseSharedRenderState* render
                                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
-  write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
-      0, &m_descriptor_image_info, 1);
+  write_descriptors_info[0] =
+      m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_info, 1);
 
   m_fragment_descriptor_writer->overwrite(m_descriptor_sets[currentImageIndex]);
 }
@@ -399,15 +400,15 @@ void DirectVulkanRenderer::update_graphics_blend() {
   m_ogl.alpha_mult = 1.f;
   m_prim_graphics_state_needs_graphics_update = true;
 
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
   m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 0.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 0.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.0f;
-
 
   m_pipeline_config_info.colorBlendInfo.attachmentCount = 1;
   m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
@@ -430,7 +431,8 @@ void DirectVulkanRenderer::update_graphics_blend() {
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -482,8 +484,10 @@ void DirectVulkanRenderer::update_graphics_blend() {
       m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
-      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_CONSTANT_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor =
+          VK_BLEND_FACTOR_CONSTANT_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
 
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
       m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -517,7 +521,8 @@ void DirectVulkanRenderer::update_graphics_blend() {
 void DirectVulkanRenderer::update_graphics_test() {
   const auto& state = m_test_state;
 
-  m_pipeline_config_info.depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+  m_pipeline_config_info.depthStencilInfo.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
@@ -589,14 +594,13 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
 
   // render!
   // update buffers:
-  m_ogl.vertex_buffer->writeToGpuBuffer(
-      m_prim_buffer.vertices.data(), sizeof(Vertex) * m_prim_buffer.vert_count);
+  m_ogl.vertex_buffer->writeToGpuBuffer(m_prim_buffer.vertices.data(),
+                                        sizeof(Vertex) * m_prim_buffer.vert_count);
 
   int draw_count = 0;
 
   m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, 
-      m_pipeline_config_info);
+      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
   m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->bind(
       m_vulkan_info.render_command_buffer);
 
@@ -608,10 +612,10 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, 1,
-                          &m_descriptor_sets[currentImageIndex], 0,
-                          nullptr);
-  //Hack OpenGL and Vulkan Y-Axis are inverted in VkCmdDraw(...) (OpenGL equivalent - glDrawArrays(...))
-  //This doesn't need to happen when using vkCmdDrawIndexed(...) (OpenGL Equivalent - glDrawElements(...))
+                          &m_descriptor_sets[currentImageIndex], 0, nullptr);
+  // Hack OpenGL and Vulkan Y-Axis are inverted in VkCmdDraw(...) (OpenGL equivalent -
+  // glDrawArrays(...)) This doesn't need to happen when using vkCmdDrawIndexed(...) (OpenGL
+  // Equivalent - glDrawElements(...))
   for (unsigned i = 0; i < m_prim_buffer.vert_count; i++) {
     m_prim_buffer.vertices[i].xyzf[1] *= -1;
   }
@@ -624,14 +628,13 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 
-    m_debug_graphics_pipeline_layout.updateGraphicsPipeline(
-        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+    m_debug_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                            m_pipeline_config_info);
     m_debug_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, 1,
-                            &m_descriptor_sets[currentImageIndex], 0,
-                            nullptr);
+                            &m_descriptor_sets[currentImageIndex], 0, nullptr);
     vkCmdDraw(m_vulkan_info.render_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
 
     m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
@@ -657,8 +660,8 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
 }
 
 void DirectVulkanRenderer::handle_trxdir(u64 dir,
-                                       BaseSharedRenderState* render_state,
-                                       ScopedProfilerNode& prof) {
+                                         BaseSharedRenderState* render_state,
+                                         ScopedProfilerNode& prof) {
   ASSERT(m_blit_buf_state.expect == 3);
   m_blit_buf_state.expect++;
 
@@ -696,4 +699,3 @@ void DirectVulkanRenderer::handle_trxdir(u64 dir,
       break;
   }
 }
-

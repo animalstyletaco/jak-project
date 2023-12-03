@@ -1,10 +1,10 @@
 #pragma once
 
-#include <string>
 #include <memory>
+#include <string>
 
-#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/EyeRenderer.h"
+#include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 
 class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
@@ -26,7 +26,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
         : descriptor_writer(setLayout, vulkan_info.descriptor_pool) {
       descriptor_writer.build(descriptor_set);
       descriptor_writer.writeImage(
-          0, vulkan_info.texture_pool->get_placeholder_descriptor_image_info()); 
+          0, vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
     }
     VulkanGpuTextureMap* texture = VK_NULL_HANDLE;
     VkDescriptorImageInfo descriptor_image_info;
@@ -40,8 +40,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
                          VulkanInitializationInfo& vulkan_info)
         : iris_vulkan_graphics(device, layout, vulkan_info),
           pupil_vulkan_graphics(device, layout, vulkan_info),
-          lid_vulkan_graphics(device, layout, vulkan_info) {
-    }                                                   
+          lid_vulkan_graphics(device, layout, vulkan_info) {}
 
     EyeVulkanGraphics iris_vulkan_graphics;
     EyeVulkanGraphics pupil_vulkan_graphics;
@@ -50,8 +49,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
 
  private:
   std::optional<u64> lookup_eye_texture(u8 eye_id);
-  void run_dma_draws_in_gpu(DmaFollower& dma,
-                            BaseSharedRenderState* render_state) override;
+  void run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) override;
   void InitializeInputVertexAttribute();
   void create_pipeline_layout() override;
   void init_shaders();

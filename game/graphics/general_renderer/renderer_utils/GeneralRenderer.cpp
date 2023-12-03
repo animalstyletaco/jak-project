@@ -1,4 +1,5 @@
 #include "GeneralRenderer.h"
+
 #include "common/log/log.h"
 
 #ifdef _WIN32
@@ -12,7 +13,10 @@ void win_print_last_error(const std::string& msg, const std::string& renderer) {
   lg::error("[{}] {} Win Err: {}", renderer, msg, lpMsgBuf);
 }
 
-void copy_texture_to_clipboard(int width, int height, const std::vector<u32>& texture_data, const std::string& renderer) {
+void copy_texture_to_clipboard(int width,
+                               int height,
+                               const std::vector<u32>& texture_data,
+                               const std::string& renderer) {
   std::vector<u32> data(texture_data);
 
   // BGR -> RGB

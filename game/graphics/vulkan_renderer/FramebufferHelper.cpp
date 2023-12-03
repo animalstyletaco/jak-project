@@ -1,20 +1,19 @@
 #include "FramebufferHelper.h"
 
-#include <cassert>
 #include <array>
+#include <cassert>
 #include <cstdio>
 
 #include "common/util/Assert.h"
 
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
-
 namespace framebuffer_vulkan {
-  VkFormat GetSupportedDepthFormat(std::shared_ptr<GraphicsDeviceVulkan> device) {
-    return device->findSupportedFormat(
-        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-        VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-  }
+VkFormat GetSupportedDepthFormat(std::shared_ptr<GraphicsDeviceVulkan> device) {
+  return device->findSupportedFormat(
+      {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+      VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+}
 }  // namespace framebuffer_vulkan
 
 FramebufferVulkan::FramebufferVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, VkFormat format)
@@ -47,7 +46,8 @@ void FramebufferVulkan::createFramebuffer() {
 
   std::vector<VkImageView> attachments;
   if (m_current_msaa != VK_SAMPLE_COUNT_1_BIT) {
-    attachments = {m_multisample_texture.getImageView(), m_color_texture.getImageView(), m_depth_texture.getImageView()};
+    attachments = {m_multisample_texture.getImageView(), m_color_texture.getImageView(),
+                   m_depth_texture.getImageView()};
   } else {
     attachments = {m_color_texture.getImageView(), m_depth_texture.getImageView()};
   }
@@ -77,8 +77,12 @@ FramebufferVulkanHelper::FramebufferVulkanHelper(unsigned w,
                                                  unsigned h,
                                                  VkFormat format,
                                                  std::shared_ptr<GraphicsDeviceVulkan> device,
-                                                 VkSampleCountFlagBits samples, int mipmapLevel)
-    : m_device(device), m_format(format), m_framebuffer(device, format), m_mipmap_level(mipmapLevel) {
+                                                 VkSampleCountFlagBits samples,
+                                                 int mipmapLevel)
+    : m_device(device),
+      m_format(format),
+      m_framebuffer(device, format),
+      m_mipmap_level(mipmapLevel) {
   m_framebuffer.extents = extents = {w, h};
   m_framebuffer.initializeFramebufferAtLevel(samples, m_mipmap_level);
 }
@@ -96,7 +100,8 @@ void FramebufferVulkanHelper::setViewportScissor(VkCommandBuffer commandBuffer) 
   vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }
 
-void FramebufferVulkan::initializeFramebufferAtLevel(VkSampleCountFlagBits samples, unsigned mipmapLevel) {
+void FramebufferVulkan::initializeFramebufferAtLevel(VkSampleCountFlagBits samples,
+                                                     unsigned mipmapLevel) {
   m_current_msaa = samples;
   VkExtent3D textureExtents{extents.width, extents.height, 1};
   if (m_current_msaa != VK_SAMPLE_COUNT_1_BIT) {
@@ -272,8 +277,7 @@ void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer) {
   beginRenderPass(commandBuffer, clearValues);
 }
 
-void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer,
-                                              unsigned mipmapLevel) {
+void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer, unsigned mipmapLevel) {
   m_framebuffer.beginRenderPass(commandBuffer);
 }
 
@@ -283,8 +287,12 @@ void FramebufferVulkanHelper::beginRenderPass(VkCommandBuffer commandBuffer,
   m_framebuffer.beginRenderPass(commandBuffer, clearValues);
 }
 
-FramebufferVulkanCopier::FramebufferVulkanCopier(std::shared_ptr<GraphicsDeviceVulkan> device, std::unique_ptr<SwapChain>& swapChain)
-    : m_device(device), m_framebuffer_image(device), m_sampler_helper(device), m_swap_chain(swapChain) {
+FramebufferVulkanCopier::FramebufferVulkanCopier(std::shared_ptr<GraphicsDeviceVulkan> device,
+                                                 std::unique_ptr<SwapChain>& swapChain)
+    : m_device(device),
+      m_framebuffer_image(device),
+      m_sampler_helper(device),
+      m_swap_chain(swapChain) {
   createFramebufferImage();
 
   VkSamplerCreateInfo& samplerCreateInfo = m_sampler_helper.GetSamplerCreateInfo();
@@ -305,13 +313,13 @@ void FramebufferVulkanCopier::createFramebufferImage() {
                                       VK_IMAGE_ASPECT_COLOR_BIT, 1);
 }
 
-FramebufferVulkanCopier::~FramebufferVulkanCopier() {
-}
+FramebufferVulkanCopier::~FramebufferVulkanCopier() {}
 
 void FramebufferVulkanCopier::copy_now(int render_fb_w,
-                                 int render_fb_h,
-                                 int render_fb_x,
-                                 int render_fb_y, uint32_t swapChainImageIndex) {
+                                       int render_fb_h,
+                                       int render_fb_x,
+                                       int render_fb_y,
+                                       uint32_t swapChainImageIndex) {
   if (m_fbo_width != render_fb_w || m_fbo_height != render_fb_h) {
     m_fbo_width = render_fb_w;
     m_fbo_height = render_fb_h;
@@ -342,11 +350,11 @@ void FramebufferVulkanCopier::copy_now(int render_fb_w,
   imageBlit.dstSubresource.layerCount = 1;
 
   vkCmdBlitImage(commandBuffer, srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                 m_framebuffer_image.getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit,
-                 VK_FILTER_NEAREST); 
+                 m_framebuffer_image.getImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
+                 &imageBlit, VK_FILTER_NEAREST);
 
   m_device->endSingleTimeCommands(commandBuffer);
 
-  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
-

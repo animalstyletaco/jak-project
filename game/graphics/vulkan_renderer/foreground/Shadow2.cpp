@@ -1,9 +1,9 @@
 #include "Shadow2.h"
 
 ShadowVulkan2::ShadowVulkan2(const std::string& name,
-                 int my_id,
-                 std::shared_ptr<GraphicsDeviceVulkan> device,
-                 VulkanInitializationInfo& vulkan_info)
+                             int my_id,
+                             std::shared_ptr<GraphicsDeviceVulkan> device,
+                             VulkanInitializationInfo& vulkan_info)
     : BucketVulkanRenderer(device, vulkan_info), BaseShadow2(name, my_id) {
   for (int i = 0; i < 2; i++) {
     m_ogl.index_buffers[i] = std::make_unique<IndexBuffer>(m_device, sizeof(u32) * kMaxInds, 1);
@@ -23,8 +23,7 @@ ShadowVulkan2::ShadowVulkan2(const std::string& name,
   init_shaders(m_vulkan_info.shaders);
 }
 
-ShadowVulkan2::~ShadowVulkan2() {
-}
+ShadowVulkan2::~ShadowVulkan2() {}
 
 void ShadowVulkan2::init_shaders(VulkanShaderLibrary& library) {
   auto& shader = library[ShaderId::SHADOW2];
@@ -66,22 +65,24 @@ void ShadowVulkan2::create_pipeline_layout() {
   }
 }
 
-void ShadowVulkan2::render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void ShadowVulkan2::render(DmaFollower& dma,
+                           SharedVulkanRenderState* render_state,
+                           ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   BaseShadow2::render(dma, render_state, prof);
 }
 
 void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
-                           ScopedProfilerNode& prof,
-                           const FrameConstants& constants) {
+                                 ScopedProfilerNode& prof,
+                                 const FrameConstants& constants) {
   if (!m_front_index_buffer_used && !m_back_index_buffer_used) {
     return;
   }
 
   if (render_state->stencil_dirty) {
-    //FIXME: Figure out how to clear stencil attachment when attached to existing swap chain
-    //glClearStencil(0);
-    //glClear(GL_STENCIL_BUFFER_BIT);
+    // FIXME: Figure out how to clear stencil attachment when attached to existing swap chain
+    // glClearStencil(0);
+    // glClear(GL_STENCIL_BUFFER_BIT);
   }
   render_state->stencil_dirty = true;
 
@@ -159,7 +160,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_ogl.fragment_push_constant = math::Vector4f{0., 0.4, 0., 0.5};
-      //m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
+      // m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
 
       PrepareVulkanDraw(m_ogl.front_debug_graphics_pipeline_layout);
@@ -226,8 +227,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
 
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
   m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
-      VK_BLEND_FACTOR_ONE;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -249,17 +249,20 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
   if (have_darken) {
     m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
         GetColorMaskSettings(darken_channel[0], darken_channel[1], darken_channel[2], false);
-    m_ogl.fragment_push_constant = math::Vector4f{(128 - m_color[0]) / 256.f, (128 - m_color[1]) / 256.f,
-                (128 - m_color[2]) / 256.f, 0};
-    m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
-    m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+    m_ogl.fragment_push_constant = math::Vector4f{
+        (128 - m_color[0]) / 256.f, (128 - m_color[1]) / 256.f, (128 - m_color[2]) / 256.f, 0};
+    m_pipeline_config_info.colorBlendAttachment.colorBlendOp =
+        VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
+    m_pipeline_config_info.colorBlendAttachment.alphaBlendOp =
+        VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
     PrepareVulkanDraw(m_ogl.lighten_graphics_pipeline_layout);
     vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 6, 1, m_front_index_buffer_used - 6, 0,
                      0);
   }
 
   if (have_lighten) {
-    m_pipeline_config_info.colorBlendAttachment.colorWriteMask = GetColorMaskSettings(lighten_channel[0], lighten_channel[1], lighten_channel[2], false);
+    m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+        GetColorMaskSettings(lighten_channel[0], lighten_channel[1], lighten_channel[2], false);
     m_ogl.fragment_push_constant = math::Vector4f{
         (m_color[0] - 128) / 256.f, (m_color[1] - 128) / 256.f, (m_color[2] - 128) / 256.f, 0};
     m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
@@ -279,7 +282,6 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
   m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 }
 
-
 void ShadowVulkan2::InitializeInputAttributes() {
   VkVertexInputBindingDescription bindingDescription{};
   bindingDescription.binding = 0;
@@ -290,16 +292,16 @@ void ShadowVulkan2::InitializeInputAttributes() {
   VkVertexInputAttributeDescription attributeDescription;
   attributeDescription.binding = 0;
   attributeDescription.location = 0;
-  attributeDescription.format =
-      VK_FORMAT_R32G32B32_SFLOAT;  // Is there a way to normalize floats
+  attributeDescription.format = VK_FORMAT_R32G32B32_SFLOAT;  // Is there a way to normalize floats
   attributeDescription.offset = offsetof(ShadowVertex, pos);
 
   m_pipeline_config_info.attributeDescriptions.push_back(attributeDescription);
 }
 
-void ShadowVulkan2::PrepareVulkanDraw(std::unique_ptr<GraphicsPipelineLayout>& graphics_pipeline_layout){
-  graphics_pipeline_layout->updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+void ShadowVulkan2::PrepareVulkanDraw(
+    std::unique_ptr<GraphicsPipelineLayout>& graphics_pipeline_layout) {
+  graphics_pipeline_layout->updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                   m_pipeline_config_info);
   graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
@@ -310,7 +312,10 @@ void ShadowVulkan2::PrepareVulkanDraw(std::unique_ptr<GraphicsPipelineLayout>& g
                      &m_ogl.fragment_push_constant);
 }
 
-VkColorComponentFlags ShadowVulkan2::GetColorMaskSettings(bool red_enabled, bool green_enabled, bool blue_enabled, bool alpha_enabled){
+VkColorComponentFlags ShadowVulkan2::GetColorMaskSettings(bool red_enabled,
+                                                          bool green_enabled,
+                                                          bool blue_enabled,
+                                                          bool alpha_enabled) {
   VkColorComponentFlags flags = 0;
   flags |= (red_enabled) ? VK_COLOR_COMPONENT_R_BIT : 0;
   flags |= (green_enabled) ? VK_COLOR_COMPONENT_G_BIT : 0;

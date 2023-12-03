@@ -4,11 +4,7 @@
 
 #include "third-party/imgui/imgui.h"
 
-BaseGeneric2::BaseGeneric2(
-                   u32 num_verts,
-                   u32 num_frags,
-                   u32 num_adgif,
-                   u32 num_buckets) {
+BaseGeneric2::BaseGeneric2(u32 num_verts, u32 num_frags, u32 num_adgif, u32 num_buckets) {
   m_verts.resize(num_verts);
   m_fragments.resize(num_frags);
   m_adgifs.resize(num_adgif);
@@ -16,8 +12,7 @@ BaseGeneric2::BaseGeneric2(
   m_indices.resize(num_verts * 3);
 }
 
-BaseGeneric2::~BaseGeneric2() {
-}
+BaseGeneric2::~BaseGeneric2() {}
 
 void BaseGeneric2::draw_debug_window() {
   ImGui::Checkbox("Alpha 1", &m_alpha_draw_enable[0]);
@@ -47,14 +42,16 @@ void BaseGeneric2::draw_debug_window() {
  * generic renderer. This renderer is expected to follow the chain until it reaches "next_bucket"
  * and then return.
  */
-void BaseGeneric2::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseGeneric2::render(DmaFollower& dma,
+                          BaseSharedRenderState* render_state,
+                          ScopedProfilerNode& prof) {
   render_in_mode(dma, render_state, prof, Mode::NORMAL);
 }
 
 void BaseGeneric2::render_in_mode(DmaFollower& dma,
-                              BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof,
-                              Mode mode) {
+                                  BaseSharedRenderState* render_state,
+                                  ScopedProfilerNode& prof,
+                                  Mode mode) {
   // completely clear out state. These will get populated by the rendering functions, then displayed
   // by draw_debug_window() if the user opens that window
   m_debug.clear();
@@ -66,7 +63,7 @@ void BaseGeneric2::render_in_mode(DmaFollower& dma,
     auto p = prof.make_scoped_child("dma");
     switch (mode) {
       case Mode::NORMAL:
-          process_dma(dma, render_state->next_bucket);
+        process_dma(dma, render_state->next_bucket);
         break;
       case Mode::LIGHTNING:
         process_dma_lightning(dma, render_state->next_bucket);

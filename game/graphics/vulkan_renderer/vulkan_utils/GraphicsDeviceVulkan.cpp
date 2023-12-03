@@ -1,8 +1,9 @@
+#include "GraphicsDeviceVulkan.h"
+
+#include <iostream>
 #include <set>
 #include <stdexcept>
-#include <iostream>
 
-#include "GraphicsDeviceVulkan.h"
 #include "third-party/SDL/include/SDL_vulkan.h"
 
 namespace vulkan_device {
@@ -20,7 +21,7 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
   }
   return VK_FALSE;
 }
-}
+}  // namespace vulkan_device
 
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance,
                                       const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
@@ -47,7 +48,7 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
 
 GraphicsDeviceVulkan::GraphicsDeviceVulkan(SDL_Window* window) : m_window(window) {
   if (!vulkan_device::is_vulkan_loaded) {
-    gladLoaderLoadVulkan(nullptr, nullptr, nullptr); //Initial load to get vulkan function loaded
+    gladLoaderLoadVulkan(nullptr, nullptr, nullptr);  // Initial load to get vulkan function loaded
   }
 
   createInstance();
@@ -117,13 +118,14 @@ void GraphicsDeviceVulkan::setupDebugMessenger() {
   VkDebugUtilsMessengerCreateInfoEXT createInfo;
   populateDebugMessengerCreateInfo(createInfo);
 
-  if (CreateDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debug_messenger) != VK_SUCCESS) {
+  if (CreateDebugUtilsMessengerEXT(m_instance, &createInfo, nullptr, &m_debug_messenger) !=
+      VK_SUCCESS) {
     lg::error("failed to set up debug messenger!");
   }
 }
 
 void GraphicsDeviceVulkan::populateDebugMessengerCreateInfo(
-  VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+    VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
   createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
   createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
@@ -190,7 +192,6 @@ void GraphicsDeviceVulkan::createLogicalDevice() {
   createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
   createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
-  
   VkPhysicalDeviceDescriptorIndexingFeaturesEXT physicalDeviceDescriptorIndexingFeatures{};
   physicalDeviceDescriptorIndexingFeatures.sType =
       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
@@ -216,7 +217,9 @@ void GraphicsDeviceVulkan::createLogicalDevice() {
   }
 
   if (!vulkan_device::is_vulkan_loaded) {
-    if (!gladLoaderLoadVulkan(m_instance, m_physical_device, m_device)) { //update loader with new instance, physical device, and logical device
+    if (!gladLoaderLoadVulkan(
+            m_instance, m_physical_device,
+            m_device)) {  // update loader with new instance, physical device, and logical device
       lg::error("GL init fail");
     }
     vulkan_device::is_vulkan_loaded = true;
@@ -279,8 +282,11 @@ void GraphicsDeviceVulkan::submitCommandsBufferToQueue(std::vector<VkCommandBuff
   vkFreeCommandBuffers(m_device, m_command_pool, 1, commandBuffer.data());
 }
 
-void GraphicsDeviceVulkan::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size,
-                                      VkDeviceSize srcOffset, VkDeviceSize dstOffset) {
+void GraphicsDeviceVulkan::copyBuffer(VkBuffer srcBuffer,
+                                      VkBuffer dstBuffer,
+                                      VkDeviceSize size,
+                                      VkDeviceSize srcOffset,
+                                      VkDeviceSize dstOffset) {
   VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
   VkBufferCopy copyRegion{};
@@ -293,7 +299,8 @@ void GraphicsDeviceVulkan::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, Vk
   endSingleTimeCommands(commandBuffer);
 }
 
-uint32_t GraphicsDeviceVulkan::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
+uint32_t GraphicsDeviceVulkan::findMemoryType(uint32_t typeFilter,
+                                              VkMemoryPropertyFlags properties) {
   VkPhysicalDeviceMemoryProperties memProperties;
   vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memProperties);
 
@@ -309,10 +316,10 @@ uint32_t GraphicsDeviceVulkan::findMemoryType(uint32_t typeFilter, VkMemoryPrope
 }
 
 void GraphicsDeviceVulkan::transitionImageLayout(VkImage image,
-                           VkImageLayout oldLayout,
-                           VkImageLayout newLayout,
-                           unsigned baseMipLevel,
-                           unsigned levelCount) {
+                                                 VkImageLayout oldLayout,
+                                                 VkImageLayout newLayout,
+                                                 unsigned baseMipLevel,
+                                                 unsigned levelCount) {
   if (oldLayout == newLayout) {
     return;
   }
@@ -341,7 +348,8 @@ void GraphicsDeviceVulkan::transitionImageLayout(VkImage image,
 
     sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-  } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
+  } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+             newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL) {
     barrier.srcAccessMask = 0;
     barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 
@@ -473,9 +481,10 @@ void GraphicsDeviceVulkan::copyImageToBuffer(VkImage image,
 }
 
 std::vector<const char*> GraphicsDeviceVulkan::getRequiredExtensions() {
-  const char* sdlExtensions[2] = {NULL};  // Two extensions are always required for SDL vulkan instances
-  uint32_t sdlExtensionCount = sizeof(sdlExtensions) / sizeof(sdlExtensions[0]); 
-  if(SDL_Vulkan_GetInstanceExtensions(m_window, &sdlExtensionCount, sdlExtensions) == SDL_FALSE){
+  const char* sdlExtensions[2] = {
+      NULL};  // Two extensions are always required for SDL vulkan instances
+  uint32_t sdlExtensionCount = sizeof(sdlExtensions) / sizeof(sdlExtensions[0]);
+  if (SDL_Vulkan_GetInstanceExtensions(m_window, &sdlExtensionCount, sdlExtensions) == SDL_FALSE) {
     return {};
   }
 
@@ -514,7 +523,8 @@ bool GraphicsDeviceVulkan::checkValidationLayerSupport() {
   return true;
 }
 
-SwapChainSupportDetails GraphicsDeviceVulkan::querySwapChainSupport(VkPhysicalDevice physicalDevice) {
+SwapChainSupportDetails GraphicsDeviceVulkan::querySwapChainSupport(
+    VkPhysicalDevice physicalDevice) {
   SwapChainSupportDetails details;
 
   vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, m_surface, &details.capabilities);
@@ -737,13 +747,13 @@ VkSampleCountFlagBits GraphicsDeviceVulkan::GetMaxUsableSampleCount() {
 }
 
 uint32_t GraphicsDeviceVulkan::getMinimumBufferOffsetAlignment(uint32_t originalOffset) {
-  return getMinimumMemoryNeedFor(originalOffset,
-                                 m_physical_device_properties.limits.minUniformBufferOffsetAlignment);
+  return getMinimumMemoryNeedFor(
+      originalOffset, m_physical_device_properties.limits.minUniformBufferOffsetAlignment);
 }
 
 uint32_t GraphicsDeviceVulkan::getNonCoherentAtomSizeMultiple(uint32_t originalOffset) {
-  return getMinimumMemoryNeedFor(
-      originalOffset, m_physical_device_properties.limits.nonCoherentAtomSize);
+  return getMinimumMemoryNeedFor(originalOffset,
+                                 m_physical_device_properties.limits.nonCoherentAtomSize);
 }
 
 uint32_t GraphicsDeviceVulkan::getMinimumMemoryNeedFor(uint32_t memorySize,

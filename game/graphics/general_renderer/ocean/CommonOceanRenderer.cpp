@@ -1,14 +1,13 @@
 #include "CommonOceanRenderer.h"
 
-BaseCommonOceanRenderer::BaseCommonOceanRenderer(){
+BaseCommonOceanRenderer::BaseCommonOceanRenderer() {
   m_vertices.resize(4096 * 10);  // todo decrease
   for (auto& buf : m_indices) {
     buf.resize(4096 * 10);
   }
 }
 
-BaseCommonOceanRenderer::~BaseCommonOceanRenderer() {
-}
+BaseCommonOceanRenderer::~BaseCommonOceanRenderer() {}
 
 void BaseCommonOceanRenderer::init_for_near() {
   m_next_free_vertex = 0;
@@ -44,7 +43,9 @@ void BaseCommonOceanRenderer::kick_from_near(const u8* data) {
   }
 }
 
-void BaseCommonOceanRenderer::handle_near_vertex_gif_data_strip(const u8* data, u32 offset, u32 loop) {
+void BaseCommonOceanRenderer::handle_near_vertex_gif_data_strip(const u8* data,
+                                                                u32 offset,
+                                                                u32 loop) {
   m_indices[m_current_bucket][m_next_free_index[m_current_bucket]++] = UINT32_MAX;
   bool reset_last = false;
   for (u32 i = 0; i < loop; i++) {
@@ -95,7 +96,9 @@ void BaseCommonOceanRenderer::handle_near_vertex_gif_data_strip(const u8* data, 
   }
 }
 
-void BaseCommonOceanRenderer::handle_near_vertex_gif_data_fan(const u8* data, u32 offset, u32 loop) {
+void BaseCommonOceanRenderer::handle_near_vertex_gif_data_fan(const u8* data,
+                                                              u32 offset,
+                                                              u32 loop) {
   u32 ind_of_fan_start = UINT32_MAX;
   bool fan_running = false;
   // :regs0 (gif-reg-id st) :regs1 (gif-reg-id rgbaq) :regs2 (gif-reg-id xyzf2)

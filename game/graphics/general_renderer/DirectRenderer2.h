@@ -10,12 +10,14 @@
 class BaseDirectRenderer2 {
  public:
   BaseDirectRenderer2(u32 max_verts,
-                  u32 max_inds,
-                  u32 max_draws,
-                  const std::string& name,
-                  bool use_ftoi_mod);
+                      u32 max_inds,
+                      u32 max_draws,
+                      const std::string& name,
+                      bool use_ftoi_mod);
   void reset_state();
-  void render_gif_data(const u8* data, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void render_gif_data(const u8* data,
+                       BaseSharedRenderState* render_state,
+                       ScopedProfilerNode& prof);
   void flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void draw_debug_window();
   virtual ~BaseDirectRenderer2();
@@ -62,13 +64,9 @@ class BaseDirectRenderer2 {
     std::string to_single_line_string() const;
   };
 
-  virtual void setup_graphics_for_draw_mode(const Draw& draw, BaseSharedRenderState* render_state) = 0;
-  virtual void setup_graphics_tex(u32,
-                     u16,
-                     bool,
-                     bool,
-                     bool,
-                     BaseSharedRenderState*) = 0;
+  virtual void setup_graphics_for_draw_mode(const Draw& draw,
+                                            BaseSharedRenderState* render_state) = 0;
+  virtual void setup_graphics_tex(u32, u16, bool, bool, bool, BaseSharedRenderState*) = 0;
 
   std::vector<Draw> m_draw_buffer;
   u32 m_next_free_draw = 0;

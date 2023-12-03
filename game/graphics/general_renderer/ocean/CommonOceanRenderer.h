@@ -1,12 +1,14 @@
 #pragma once
 
-#include "common/log/log.h"
-#include "game/graphics/general_renderer/BucketRenderer.h"
 #include <exception>
 
+#include "common/log/log.h"
+
+#include "game/graphics/general_renderer/BucketRenderer.h"
+
 namespace ocean_common {
-   static constexpr int OCEAN_TEX_TBP_JAK1 = 8160;  // todo
-   static constexpr int OCEAN_TEX_TBP_JAK2 = 672;
+static constexpr int OCEAN_TEX_TBP_JAK1 = 8160;  // todo
+static constexpr int OCEAN_TEX_TBP_JAK2 = 672;
 }  // namespace ocean_common
 
 class BaseCommonOceanRenderer {
@@ -58,4 +60,3 @@ class BaseCommonOceanRenderer {
 
   u32 m_envmap_tex = 0;
 };
-

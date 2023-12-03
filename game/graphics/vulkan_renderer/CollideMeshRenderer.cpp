@@ -3,14 +3,13 @@
 #include "game/graphics/display.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 
-CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info) :
-      m_device(device),
+CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device,
+                                                     VulkanInitializationInfo& vulkan_info)
+    : m_device(device),
       m_collision_mesh_vertex_uniform_buffer(device, 1, 1),
       m_pipeline_layout{device},
       m_vulkan_info{vulkan_info} {
-
-  m_push_constant.scissor_adjust =
-      (m_vulkan_info.m_version == GameVersion::Jak1) ? (-512.f / 448.f) : (-512.f / 416.f);
+  m_push_constant.scissor_adjust = -512.f / 416.f;
 
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -25,8 +24,8 @@ CollideMeshVulkanRenderer::CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDev
           .build();
 
   create_pipeline_layout();
-  m_vertex_descriptor_writer = std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout,
-                                                                  m_vulkan_info.descriptor_pool);
+  m_vertex_descriptor_writer =
+      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
 
   m_descriptor_sets.resize(1);
   m_vertex_buffer_descriptor_info = m_collision_mesh_vertex_uniform_buffer.descriptorInfo();
@@ -108,10 +107,10 @@ void CollideMeshVulkanRenderer::init_shaders() {
   m_pipeline_config_info.shaderStages = {vertShaderStageInfo, fragShaderStageInfo};
 }
 
-CollideMeshVulkanRenderer::~CollideMeshVulkanRenderer() {
-}
+CollideMeshVulkanRenderer::~CollideMeshVulkanRenderer() {}
 
-void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) {
+void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
+                                       ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   if (!render_state->has_pc_data) {
     return;
@@ -123,8 +122,7 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
   }
 
   m_collision_mesh_vertex_uniform_buffer.Set4x4MatrixDataInVkDeviceMemory(
-      "camera", 1, VK_FALSE,
-                     render_state->camera_matrix[0].data());
+      "camera", 1, VK_FALSE, render_state->camera_matrix[0].data());
   m_collision_mesh_vertex_uniform_buffer.SetUniform4f(
       "hvdf_offset", render_state->camera_hvdf_off[0], render_state->camera_hvdf_off[1],
       render_state->camera_hvdf_off[2], render_state->camera_hvdf_off[3]);
@@ -134,13 +132,15 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
   m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_constant", render_state->camera_fog.x());
   m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_min", render_state->camera_fog.y());
   m_collision_mesh_vertex_uniform_buffer.SetUniform1f("fog_max", render_state->camera_fog.z());
-  m_collision_mesh_vertex_uniform_buffer.SetUniform1ui("version", static_cast<u32>(render_state->version));
+  m_collision_mesh_vertex_uniform_buffer.SetUniform1ui(
+      "version", static_cast<u32>(render_state->GetVersion()));
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
 
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
 
   m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
@@ -167,8 +167,8 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
                        &m_push_constant);
 
-    m_pipeline_layout.updateGraphicsPipeline(
-        m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+    m_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                             m_pipeline_config_info);
     m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkDeviceSize offsets[] = {0};
@@ -189,23 +189,26 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
                          &m_push_constant);
 
-      VkPipelineColorBlendAttachmentState& colorBlendAttachment = m_pipeline_config_info.colorBlendAttachment;
+      VkPipelineColorBlendAttachmentState& colorBlendAttachment =
+          m_pipeline_config_info.colorBlendAttachment;
       m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
           VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
           VK_COLOR_COMPONENT_A_BIT;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-      //imageView.aspectView &= ~VK_IMAGE_ASPECT_DEPTH_BIT;
+      // imageView.aspectView &= ~VK_IMAGE_ASPECT_DEPTH_BIT;
 
-      m_pipeline_config_info.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+      m_pipeline_config_info.rasterizationInfo.sType =
+          VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
       m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;
       m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-      m_pipeline_config_info.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; //TODO: Verify that this is correct
+      m_pipeline_config_info.rasterizationInfo.frontFace =
+          VK_FRONT_FACE_COUNTER_CLOCKWISE;  // TODO: Verify that this is correct
       m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-      m_pipeline_layout.updateGraphicsPipeline(
-          m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+      m_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                               m_pipeline_config_info);
       m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
       vkCmdDraw(m_vulkan_info.render_command_buffer, level->collide_vertices->getBufferSize(), 0, 0,
@@ -213,7 +216,7 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
 
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       colorBlendAttachment.blendEnable = VK_TRUE;
-      //imageView.aspectView |= VK_IMAGE_ASPECT_DEPTH_BIT;
+      // imageView.aspectView |= VK_IMAGE_ASPECT_DEPTH_BIT;
     }
 
     prof.add_draw_call();
@@ -222,35 +225,36 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state, Sc
 }
 
 void CollideMeshVulkanRenderer::InitializeInputVertexAttribute() {
-    VkVertexInputBindingDescription bindingDescription{};
-    bindingDescription.binding = 0;
-    bindingDescription.stride = sizeof(tfrag3::CollisionMesh::Vertex);
-    bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
+  VkVertexInputBindingDescription bindingDescription{};
+  bindingDescription.binding = 0;
+  bindingDescription.stride = sizeof(tfrag3::CollisionMesh::Vertex);
+  bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+  m_pipeline_config_info.bindingDescriptions.push_back(bindingDescription);
 
-    std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
-    // TODO: This value needs to be normalized
-    attributeDescriptions[0].binding = 0;
-    attributeDescriptions[0].location = 0;
-    attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescriptions[0].offset = 0;
+  std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+  // TODO: This value needs to be normalized
+  attributeDescriptions[0].binding = 0;
+  attributeDescriptions[0].location = 0;
+  attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+  attributeDescriptions[0].offset = 0;
 
-    attributeDescriptions[1].binding = 0;
-    attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32_SFLOAT;
-    attributeDescriptions[1].offset = offsetof(tfrag3::CollisionMesh::Vertex, flags);
+  attributeDescriptions[1].binding = 0;
+  attributeDescriptions[1].location = 1;
+  attributeDescriptions[1].format = VK_FORMAT_R32_SFLOAT;
+  attributeDescriptions[1].offset = offsetof(tfrag3::CollisionMesh::Vertex, flags);
 
-    attributeDescriptions[2].binding = 0;
-    attributeDescriptions[2].location = 2;
-    attributeDescriptions[2].format = VK_FORMAT_R16G16B16_SNORM;
-    attributeDescriptions[2].offset = offsetof(tfrag3::CollisionMesh::Vertex, nx);
+  attributeDescriptions[2].binding = 0;
+  attributeDescriptions[2].location = 2;
+  attributeDescriptions[2].format = VK_FORMAT_R16G16B16_SNORM;
+  attributeDescriptions[2].offset = offsetof(tfrag3::CollisionMesh::Vertex, nx);
 
-    attributeDescriptions[3].binding = 0;
-    attributeDescriptions[3].location = 2;
-    attributeDescriptions[3].format = VK_FORMAT_R32_UINT;
-    attributeDescriptions[3].offset = offsetof(tfrag3::CollisionMesh::Vertex, pat);
-    m_pipeline_config_info.attributeDescriptions.insert(
-        m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(), attributeDescriptions.end());
+  attributeDescriptions[3].binding = 0;
+  attributeDescriptions[3].location = 2;
+  attributeDescriptions[3].format = VK_FORMAT_R32_UINT;
+  attributeDescriptions[3].offset = offsetof(tfrag3::CollisionMesh::Vertex, pat);
+  m_pipeline_config_info.attributeDescriptions.insert(
+      m_pipeline_config_info.attributeDescriptions.end(), attributeDescriptions.begin(),
+      attributeDescriptions.end());
 }
 
 CollisionMeshVertexUniformBuffer::CollisionMeshVertexUniformBuffer(
@@ -275,9 +279,7 @@ CollisionMeshVertexPatternUniformBuffer::CollisionMeshVertexPatternUniformBuffer
     std::shared_ptr<GraphicsDeviceVulkan> device,
     uint32_t instanceCount,
     VkDeviceSize minOffsetAlignment)
-    : UniformVulkanBuffer(device, sizeof(PatColors),
-                          instanceCount,
-                          minOffsetAlignment) {
+    : UniformVulkanBuffer(device, sizeof(PatColors), instanceCount, minOffsetAlignment) {
   section_name_to_memory_offset_map = {
       {"pat_mode_colors", offsetof(PatColors, pat_mode_colors)},
       {"pat_material_colors", offsetof(PatColors, pat_material_colors)},

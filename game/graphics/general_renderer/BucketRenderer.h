@@ -4,9 +4,9 @@
 #include <string>
 
 #include "common/dma/dma_chain_read.h"
-#include "game/graphics/general_renderer/ShaderCommon.h"
 
 #include "game/graphics/general_renderer/Profiler.h"
+#include "game/graphics/general_renderer/ShaderCommon.h"
 #include "game/graphics/general_renderer/buckets.h"
 #include "game/graphics/general_renderer/loader/Loader.h"
 #include "game/graphics/texture/TexturePoolDataTypes.h"
@@ -21,8 +21,8 @@ struct LevelVis {
  * This allows bucket renders to share textures and shaders.
  */
 struct BaseSharedRenderState {
-  explicit BaseSharedRenderState(GameVersion version)
-      : version(version) {}
+  BaseSharedRenderState() {}
+  BaseSharedRenderState(GameVersion version) : version(version) {}
   u32 buckets_base = 0;  // address of buckets array.
   u32 next_bucket = 0;   // address of next bucket that we haven't started rendering in buckets
   u32 default_regs_buffer = 0;  // address of the default regs chain.
@@ -71,12 +71,18 @@ struct BaseSharedRenderState {
 
   int bucket_for_vis_copy = 0;
   int num_vis_to_copy = 0;
-  GameVersion version;
   u64 frame_idx = 0;
 
   bool stencil_dirty = false;
+  float GetHeightScale() { return height_scales.at(version); }
+  GameVersion GetVersion() { return version; }
 
   virtual ~BaseSharedRenderState() = default;
+
+ protected:
+  GameVersion version = GameVersion::Jak1;
+  const std::unordered_map<GameVersion, float> height_scales = {{GameVersion::Jak1, 448},
+                                                                {GameVersion::Jak2, 416}};
 };
 
 /*!
@@ -94,25 +100,19 @@ class BaseBucketRenderer {
   virtual bool empty() const { return false; }
   virtual void draw_debug_window() = 0;
   virtual void SetupShader(ShaderId){};
-  float GetHeightScaleByGameVersion(GameVersion version) { return height_scales.at(version); }
 
  protected:
   std::string m_name;
   int m_my_id;
   bool m_enabled = true;
-
-  private:
-  const std::unordered_map<GameVersion, float> height_scales = {{
-      GameVersion::Jak1, 448}, {GameVersion::Jak2, 416}};
 };
 
 class BaseRenderMux : public BaseBucketRenderer {
  public:
-  BaseRenderMux(const std::string& name,
-            int my_id);
+  BaseRenderMux(const std::string& name, int my_id);
   void render(DmaFollower& dma,
               BaseSharedRenderState* render_state,
-              ScopedProfilerNode& prof) override {};
+              ScopedProfilerNode& prof) override{};
   void draw_debug_window() override;
   void set_idx(u32 i) { m_render_idx = i; };
 
@@ -128,7 +128,9 @@ class BaseRenderMux : public BaseBucketRenderer {
 class BaseEmptyBucketRenderer : public BaseBucketRenderer {
  public:
   BaseEmptyBucketRenderer(const std::string& name, int my_id);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   bool empty() const override { return true; }
   void draw_debug_window() override {}
 };
@@ -136,7 +138,9 @@ class BaseEmptyBucketRenderer : public BaseBucketRenderer {
 class BaseSkipRenderer : public BaseBucketRenderer {
  public:
   BaseSkipRenderer(const std::string& name, int my_id);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   bool empty() const override { return true; }
   void draw_debug_window() override {}
 };

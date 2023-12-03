@@ -1,21 +1,22 @@
 
 #include "common/dma/dma_chain_read.h"
 
-#include "game/graphics/general_renderer/SkyBlendGPU.h"
 #include "game/graphics/general_renderer/SkyBlendCommon.h"
+#include "game/graphics/general_renderer/SkyBlendGPU.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 
 class SkyBlendVulkanGPU : BaseSkyBlendGPU {
  public:
-  SkyBlendVulkanGPU(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
-  ~SkyBlendVulkanGPU();
+  SkyBlendVulkanGPU(std::shared_ptr<GraphicsDeviceVulkan> device,
+                    VulkanInitializationInfo& vulkan_info);
+  virtual ~SkyBlendVulkanGPU();
   void init_textures(VulkanTexturePool& tex_pool);
   SkyBlendStats do_sky_blends(DmaFollower& dma,
                               BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof);
 
- private:
+ protected:
   void create_pipeline_layout();
 
   struct PushConstant {
@@ -52,4 +53,15 @@ class SkyBlendVulkanGPU : BaseSkyBlendGPU {
     VulkanGpuTextureMap* tex;
     u32 tbp;
   } m_tex_info[2];
+};
+
+class SkyBlendVulkanGPUJak1 : public SkyBlendVulkanGPU {
+ public:
+  SkyBlendVulkanGPUJak1(std::shared_ptr<GraphicsDeviceVulkan> device,
+                        VulkanInitializationInfo& vulkan_info)
+      : SkyBlendVulkanGPU(device, vulkan_info) {
+    m_push_constant.height_scale = 1;
+    m_push_constant.scissor_adjust = (-512.0 / 448.0);
+  };
+  ~SkyBlendVulkanGPUJak1() = default;
 };

@@ -7,8 +7,9 @@ GenericVulkan2BucketRenderer::GenericVulkan2BucketRenderer(
     VulkanInitializationInfo& vulkan_info,
     BaseGeneric2::Mode mode,
     std::shared_ptr<GenericVulkan2> generic_renderer)
-    : BaseGeneric2BucketRenderer(name, id, mode), BucketVulkanRenderer(device, vulkan_info), m_generic(generic_renderer) {
-}
+    : BaseGeneric2BucketRenderer(name, id, mode),
+      BucketVulkanRenderer(device, vulkan_info),
+      m_generic(generic_renderer) {}
 
 void GenericVulkan2BucketRenderer::render(DmaFollower& dma,
                                           SharedVulkanRenderState* render_state,

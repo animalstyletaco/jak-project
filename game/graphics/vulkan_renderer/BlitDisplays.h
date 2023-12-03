@@ -7,12 +7,17 @@
  */
 class BlitDisplaysVulkan : public BaseBucketRenderer, public BucketVulkanRenderer {
  public:
-  BlitDisplaysVulkan(const std::string& name, int my_id, std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  BlitDisplaysVulkan(const std::string& name,
+                     int my_id,
+                     std::shared_ptr<GraphicsDeviceVulkan> device,
+                     VulkanInitializationInfo& vulkan_info);
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void render(DmaFollower& dma,
               BaseSharedRenderState* render_state,
               ScopedProfilerNode& prof) override {}
-  //void init_textures(VulkanTexturePool& texture_pool, GameVersion) override;
+  // void init_textures(VulkanTexturePool& texture_pool, GameVersion) override;
   void draw_debug_window() override;
 
  private:

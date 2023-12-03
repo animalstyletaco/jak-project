@@ -10,18 +10,16 @@
 BaseDirectRenderer::ScissorState BaseDirectRenderer::m_scissor;
 
 BaseDirectRenderer::BaseDirectRenderer(const std::string& name, int my_id, int batch_size)
-    : BaseBucketRenderer(name, my_id), m_prim_buffer(batch_size) {
-}
+    : BaseBucketRenderer(name, my_id), m_prim_buffer(batch_size) {}
 
-BaseDirectRenderer::~BaseDirectRenderer() {
-}
+BaseDirectRenderer::~BaseDirectRenderer() {}
 
 /*!
  * Render from a DMA bucket.
  */
 void BaseDirectRenderer::render(DmaFollower& dma,
-                            BaseSharedRenderState* render_state,
-                            ScopedProfilerNode& prof) {
+                                BaseSharedRenderState* render_state,
+                                ScopedProfilerNode& prof) {
   pre_render();
 
   // if we're rendering from a bucket, we should start off we a totally reset state:
@@ -47,7 +45,7 @@ void BaseDirectRenderer::render(DmaFollower& dma,
     flush_pending(render_state, prof);
   }
   post_render();
-  //glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+  // glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 }
 
 void BaseDirectRenderer::reset_state() {
@@ -104,7 +102,8 @@ void BaseDirectRenderer::draw_debug_window() {
               m_stats.draw_calls);
 }
 
-void BaseDirectRenderer::flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseDirectRenderer::flush_pending(BaseSharedRenderState* render_state,
+                                       ScopedProfilerNode& prof) {
   // update opengl state
   if (m_blend_state_needs_graphics_update) {
     update_graphics_blend();
@@ -165,11 +164,11 @@ u32 get_direct_qwc_or_nop(const VifCode& code) {
  * Render VIF data.
  */
 void BaseDirectRenderer::render_vif(u32 vif0,
-                                u32 vif1,
-                                const u8* data,
-                                u32 size,
-                                BaseSharedRenderState* render_state,
-                                ScopedProfilerNode& prof) {
+                                    u32 vif1,
+                                    const u8* data,
+                                    u32 size,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) {
   // here we process VIF data. Basically we just go forward, looking for DIRECTs.
   // We skip stuff like flush and nops.
 
@@ -210,9 +209,9 @@ void BaseDirectRenderer::render_vif(u32 vif0,
  * Render GIF data.
  */
 void BaseDirectRenderer::render_gif(const u8* data,
-                                u32 size,
-                                BaseSharedRenderState* render_state,
-                                ScopedProfilerNode& prof) {
+                                    u32 size,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) {
   if (size != UINT32_MAX) {
     ASSERT(size >= 16);
   }
@@ -306,14 +305,14 @@ void BaseDirectRenderer::render_gif(const u8* data,
         }
       }
     } else if (format == GifTag::Format::IMAGE) {
-    ASSERT(m_blit_buf_state.expect == 4);
-    m_blit_buf_state.expect++;
+      ASSERT(m_blit_buf_state.expect == 4);
+      m_blit_buf_state.expect++;
 
-    // dont support non-eop image transfers yet
-    ASSERT(eop);
-    // in IMAGE mode this is the amount of 2x64-bit (1 qword) we will transfer
-    m_blit_buf_state.qwc = tag.nloop();
-  } else {
+      // dont support non-eop image transfers yet
+      ASSERT(eop);
+      // in IMAGE mode this is the amount of 2x64-bit (1 qword) we will transfer
+      m_blit_buf_state.qwc = tag.nloop();
+    } else {
       ASSERT(false);  // format not packed or reglist.
     }
   }
@@ -329,8 +328,8 @@ void BaseDirectRenderer::render_gif(const u8* data,
 }
 
 void BaseDirectRenderer::handle_ad(const u8* data,
-                               BaseSharedRenderState* render_state,
-                               ScopedProfilerNode& prof) {
+                                   BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) {
   u64 value;
   GsRegisterAddress addr;
   memcpy(&value, data, sizeof(u64));
@@ -395,7 +394,8 @@ void BaseDirectRenderer::handle_ad(const u8* data,
       handle_scissor(value);
       break;
     case GsRegisterAddress::XYOFFSET_1:
-      ASSERT(render_state->version == GameVersion::Jak2);  // hardcoded jak 2 scissor vals in handle
+      ASSERT(render_state->GetVersion() ==
+             GameVersion::Jak2);  // hardcoded jak 2 scissor vals in handle
       handle_xyoffset(value);
       break;
     case GsRegisterAddress::COLCLAMP:
@@ -526,7 +526,9 @@ void BaseDirectRenderer::handle_tex0_1(u64 val) {
   // csm: assume they got it right
 }
 
-void BaseDirectRenderer::handle_texa(u64 val, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseDirectRenderer::handle_texa(u64 val,
+                                     BaseSharedRenderState* render_state,
+                                     ScopedProfilerNode& prof) {
   GsTexa reg(val);
 
   // rgba16 isn't used so this doesn't matter?
@@ -569,8 +571,8 @@ void BaseDirectRenderer::handle_rgbaq_packed(const u8* data) {
 }
 
 void BaseDirectRenderer::handle_xyzf2_packed(const u8* data,
-                                         BaseSharedRenderState* render_state,
-                                         ScopedProfilerNode& prof) {
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) {
   u32 x, y;
   memcpy(&x, data, 4);
   memcpy(&y, data + 4, 4);
@@ -585,8 +587,8 @@ void BaseDirectRenderer::handle_xyzf2_packed(const u8* data,
 }
 
 void BaseDirectRenderer::handle_xyz2_packed(const u8* data,
-                                        BaseSharedRenderState* render_state,
-                                        ScopedProfilerNode& prof) {
+                                            BaseSharedRenderState* render_state,
+                                            ScopedProfilerNode& prof) {
   u32 x, y;
   memcpy(&x, data, 4);
   memcpy(&y, data + 4, 4);
@@ -611,15 +613,15 @@ float u32_to_sc(u32 in) {
   float flt = u32_to_float(in);
   return (flt - 0.5) * 16.0;
 }
-}
+}  // namespace direct_renderer
 void BaseDirectRenderer::handle_zbuf1(u64 val,
-                                  BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode& prof) {
+                                      BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode& prof) {
   // note: we can basically ignore this. There's a single z buffer that's always configured the same
   // way - 24-bit, at offset 448.
   GsZbuf x(val);
   ASSERT(x.psm() == TextureFormat::PSMZ24);
-  ASSERT(x.zbp() == direct_renderer::normal_zbp[render_state->version]);
+  ASSERT(x.zbp() == direct_renderer::normal_zbp[render_state->GetVersion()]);
 
   bool write = !x.zmsk();
   //  ASSERT(write);
@@ -633,8 +635,8 @@ void BaseDirectRenderer::handle_zbuf1(u64 val,
 }
 
 void BaseDirectRenderer::handle_test1(u64 val,
-                                  BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode& prof) {
+                                      BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode& prof) {
   GsTest reg(val);
   if (reg.alpha_test_enable()) {
     // ASSERT(reg.alpha_test() == GsTest::AlphaTest::ALWAYS);
@@ -650,8 +652,8 @@ void BaseDirectRenderer::handle_test1(u64 val,
 }
 
 void BaseDirectRenderer::handle_alpha1(u64 val,
-                                   BaseSharedRenderState* render_state,
-                                   ScopedProfilerNode& prof) {
+                                       BaseSharedRenderState* render_state,
+                                       ScopedProfilerNode& prof) {
   GsAlpha reg(val);
   if (m_blend_state.current_register != reg) {
     m_stats.flush_from_alpha++;
@@ -680,16 +682,16 @@ void BaseDirectRenderer::handle_clamp1(u64 val) {
 }
 
 void BaseDirectRenderer::handle_prim_packed(const u8* data,
-                                        BaseSharedRenderState* render_state,
-                                        ScopedProfilerNode& prof) {
+                                            BaseSharedRenderState* render_state,
+                                            ScopedProfilerNode& prof) {
   u64 val;
   memcpy(&val, data, sizeof(u64));
   handle_prim(val, render_state, prof);
 }
 
 void BaseDirectRenderer::handle_prim(u64 val,
-                                 BaseSharedRenderState* render_state,
-                                 ScopedProfilerNode& prof) {
+                                     BaseSharedRenderState* render_state,
+                                     ScopedProfilerNode& prof) {
   if (m_prim_building.tri_strip_startup) {
     m_prim_building.tri_strip_startup = 0;
     m_prim_building.building_idx = 0;
@@ -701,7 +703,8 @@ void BaseDirectRenderer::handle_prim(u64 val,
   // need to flush any in progress prims to the buffer.
 
   GsPrim prim(val);
-  if (m_prim_graphics_state.current_register != prim || m_blend_state.alpha_blend_enable != prim.abe()) {
+  if (m_prim_graphics_state.current_register != prim ||
+      m_blend_state.alpha_blend_enable != prim.abe()) {
     m_stats.flush_from_prim++;
     flush_pending(render_state, prof);
     m_prim_graphics_state.from_register(prim);
@@ -719,7 +722,7 @@ void BaseDirectRenderer::handle_rgbaq(u64 val) {
 }
 
 int BaseDirectRenderer::get_texture_unit_for_current_reg(BaseSharedRenderState* render_state,
-                                                     ScopedProfilerNode& prof) {
+                                                         ScopedProfilerNode& prof) {
   if (m_current_tex_state_idx != -1) {
     return m_current_tex_state_idx;
   }
@@ -738,12 +741,12 @@ int BaseDirectRenderer::get_texture_unit_for_current_reg(BaseSharedRenderState* 
 }
 
 void BaseDirectRenderer::handle_xyzf2_common(u32 x,
-                                         u32 y,
-                                         u32 z,
-                                         u8 f,
-                                         BaseSharedRenderState* render_state,
-                                         ScopedProfilerNode& prof,
-                                         bool advance) {
+                                             u32 y,
+                                             u32 z,
+                                             u8 f,
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof,
+                                             bool advance) {
   if (m_prim_buffer.is_full()) {
     lg::warn("Buffer wrapped in {} ({} verts, {} bytes)", m_name, vertex_buffer_max_verts,
              m_prim_buffer.vert_count * sizeof(Vertex));
@@ -764,8 +767,7 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
   bool use_uv = m_prim_graphics_state.use_uv;
 
   math::Vector<float, 4> scissor(m_scissor.scax0, m_scissor.scax1, m_scissor.scay0,
-                               m_scissor.scay1);
-
+                                 m_scissor.scay1);
 
   switch (m_prim_building.kind) {
     case GsPrim::Kind::SPRITE: {
@@ -791,12 +793,18 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         auto& corner3_rgba = corner2_rgba;
         auto& corner4_rgba = corner2_rgba;
 
-        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, scissor, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner3_rgba, corner3_vert, corner3_stq, scissor, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, scissor, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, scissor, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner4_rgba, corner4_vert, corner4_stq, scissor, 0, tcc, decal, fge, use_uv);
-        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, scissor, 0, tcc, decal, fge, use_uv);
+        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, scissor, 0, tcc, decal, fge,
+                           use_uv);
+        m_prim_buffer.push(corner3_rgba, corner3_vert, corner3_stq, scissor, 0, tcc, decal, fge,
+                           use_uv);
+        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, scissor, 0, tcc, decal, fge,
+                           use_uv);
+        m_prim_buffer.push(corner2_rgba, corner2_vert, corner2_stq, scissor, 0, tcc, decal, fge,
+                           use_uv);
+        m_prim_buffer.push(corner4_rgba, corner4_vert, corner4_stq, scissor, 0, tcc, decal, fge,
+                           use_uv);
+        m_prim_buffer.push(corner1_rgba, corner1_vert, corner1_stq, scissor, 0, tcc, decal, fge,
+                           use_uv);
         m_prim_building.building_idx = 0;
       }
     } break;
@@ -812,7 +820,8 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         if (advance) {
           for (int i = 0; i < 3; i++) {
             m_prim_buffer.push(m_prim_building.building_rgba[i], m_prim_building.building_vert[i],
-                               m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge, use_uv);
+                               m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge,
+                               use_uv);
           }
         }
       }
@@ -824,7 +833,8 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         m_prim_building.building_idx = 0;
         for (int i = 0; i < 3; i++) {
           m_prim_buffer.push(m_prim_building.building_rgba[i], m_prim_building.building_vert[i],
-                             m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge, use_uv);
+                             m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge,
+                             use_uv);
         }
       }
       break;
@@ -840,7 +850,8 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         }
         for (int i = 0; i < 3; i++) {
           m_prim_buffer.push(m_prim_building.building_rgba[i], m_prim_building.building_vert[i],
-                             m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge, use_uv);
+                             m_prim_building.building_stq[i], scissor, tex_unit, tcc, decal, fge,
+                             use_uv);
         }
       }
     } break;
@@ -865,13 +876,19 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
         math::Vector<u32, 4> di{d.x(), d.y(), d.z(), 0};
 
         // ACB:
-        m_prim_buffer.push(m_prim_building.building_rgba[0], ai, {}, scissor, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, scissor, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, scissor, 0, false, false, false, false);
-        // b c d                                                                        
-        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, scissor, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, scissor, 0, false, false, false, false);
-        m_prim_buffer.push(m_prim_building.building_rgba[1], di, {}, scissor, 0, false, false, false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[0], ai, {}, scissor, 0, false, false,
+                           false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, scissor, 0, false, false,
+                           false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, scissor, 0, false, false,
+                           false, false);
+        // b c d
+        m_prim_buffer.push(m_prim_building.building_rgba[1], bi, {}, scissor, 0, false, false,
+                           false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[0], ci, {}, scissor, 0, false, false,
+                           false, false);
+        m_prim_buffer.push(m_prim_building.building_rgba[1], di, {}, scissor, 0, false, false,
+                           false, false);
         //
 
         m_prim_building.building_idx = 0;
@@ -884,8 +901,8 @@ void BaseDirectRenderer::handle_xyzf2_common(u32 x,
 }
 
 void BaseDirectRenderer::handle_xyzf2(u64 val,
-                                  BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode& prof) {
+                                      BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode& prof) {
   u32 x = val & 0xffff;
   u32 y = (val >> 16) & 0xffff;
   u32 z = (val >> 32) & 0xffffff;
@@ -938,14 +955,14 @@ BaseDirectRenderer::PrimitiveBuffer::PrimitiveBuffer(int max_triangles) {
 }
 
 void BaseDirectRenderer::PrimitiveBuffer::push(const math::Vector<u8, 4>& rgba,
-                                           const math::Vector<u32, 4>& vert,
-                                           const math::Vector3f& stq,
-                                           const math::Vector4f& scissor,
-                                           int unit,
-                                           bool tcc,
-                                           bool decal,
-                                           bool fog_enable,
-                                           bool use_uv) {
+                                               const math::Vector<u32, 4>& vert,
+                                               const math::Vector3f& stq,
+                                               const math::Vector4f& scissor,
+                                               int unit,
+                                               bool tcc,
+                                               bool decal,
+                                               bool fog_enable,
+                                               bool use_uv) {
   if (is_full()) {
     return;
   }

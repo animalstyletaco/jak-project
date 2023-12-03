@@ -12,10 +12,14 @@ class BaseEyeRenderer : public BaseBucketRenderer {
  public:
   BaseEyeRenderer(const std::string& name, int id);
   ~BaseEyeRenderer();
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
-  void handle_eye_dma2(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void handle_eye_dma2(DmaFollower& dma,
+                       BaseSharedRenderState* render_state,
+                       ScopedProfilerNode& prof);
 
   struct SpriteInfo {
     u8 a;
@@ -54,10 +58,10 @@ class BaseEyeRenderer : public BaseBucketRenderer {
                             int pair,
                             int lr);
   int add_draw_to_buffer_64(int idx,
-                         const BaseEyeRenderer::EyeDraw& draw,
-                         float* data,
-                         int pair,
-                         int lr);
+                            const BaseEyeRenderer::EyeDraw& draw,
+                            float* data,
+                            int pair,
+                            int lr);
 
   virtual void run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) = 0;
 

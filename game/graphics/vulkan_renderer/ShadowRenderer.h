@@ -7,11 +7,13 @@
 class ShadowVulkanRenderer : public BaseShadowRenderer, public BucketVulkanRenderer {
  public:
   ShadowVulkanRenderer(const std::string& name,
-                 int my_id,
-                 std::shared_ptr<GraphicsDeviceVulkan> device,
-                 VulkanInitializationInfo& vulkan_info);
+                       int my_id,
+                       std::shared_ptr<GraphicsDeviceVulkan> device,
+                       VulkanInitializationInfo& vulkan_info);
   ~ShadowVulkanRenderer();
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void init_shaders(VulkanShaderLibrary& shaders) override;
 
  protected:
@@ -29,4 +31,17 @@ class ShadowVulkanRenderer : public BaseShadowRenderer, public BucketVulkanRende
   bool m_debug_draw_volume = false;
 
   math::Vector4f m_color_uniform;
+  PushConstant m_push_constant{};
+};
+
+class ShadowVulkanRendererJak1 : public ShadowVulkanRenderer {
+ public:
+  ShadowVulkanRendererJak1(const std::string& name,
+                           int my_id,
+                           std::shared_ptr<GraphicsDeviceVulkan> device,
+                           VulkanInitializationInfo& vulkan_info)
+      : ShadowVulkanRenderer(name, my_id, device, vulkan_info) {
+    m_push_constant.height_scale = 1;
+    m_push_constant.scissor_adjust = -512 / 448.f;
+  }
 };

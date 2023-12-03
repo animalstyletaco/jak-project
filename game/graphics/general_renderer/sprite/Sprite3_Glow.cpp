@@ -175,8 +175,8 @@ bool glow_math(const SpriteGlowConsts* consts,
  * Handle glow dma and draw glow sprites using GlowRenderer
  */
 void BaseSprite3::glow_dma_and_draw(DmaFollower& dma,
-                                BaseSharedRenderState* render_state,
-                                ScopedProfilerNode& prof) {
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) {
   auto maybe_consts_setup = dma.read_and_advance();
   if (maybe_consts_setup.size_bytes != sizeof(SpriteGlowConsts)) {
     fmt::print("no consts...\n");

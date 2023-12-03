@@ -70,6 +70,7 @@ void cull_check_all_slow(const math::Vector4f* planes,
                          u8* out);
 bool sphere_in_view_ref(const math::Vector4f& sphere, const math::Vector4f* planes);
 
-void update_render_state_from_pc_settings(BaseSharedRenderState* state, const TfragPcPortData& data);
+void update_render_state_from_pc_settings(BaseSharedRenderState* state,
+                                          const TfragPcPortData& data);
 
 }  // namespace background_common

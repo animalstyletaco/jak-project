@@ -12,11 +12,13 @@
 class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
  public:
   ShrubVulkan(const std::string& name,
-        int my_id,
-        std::shared_ptr<GraphicsDeviceVulkan> device,
-        VulkanInitializationInfo& vulkan_info);
+              int my_id,
+              std::shared_ptr<GraphicsDeviceVulkan> device,
+              VulkanInitializationInfo& vulkan_info);
   ~ShrubVulkan();
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
 
  protected:
   void render_all_trees(const TfragRenderSettings& settings,
@@ -27,7 +29,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
                    BaseSharedRenderState* render_state,
                    ScopedProfilerNode& prof);
 
- private:
+ protected:
   void InitializeVertexDescriptions();
   void InitializeShaders();
 
@@ -82,3 +84,14 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
 };
 
+class ShrubVulkanJak1 : public ShrubVulkan {
+ public:
+  ShrubVulkanJak1(const std::string& name,
+                  int my_id,
+                  std::shared_ptr<GraphicsDeviceVulkan> device,
+                  VulkanInitializationInfo& vulkan_info)
+      : ShrubVulkan(name, my_id, device, vulkan_info) {
+    m_vertex_shrub_push_constant.height_scale = 1;
+    m_vertex_shrub_push_constant.scissor_adjust = -512 / 448.0;
+  }
+};

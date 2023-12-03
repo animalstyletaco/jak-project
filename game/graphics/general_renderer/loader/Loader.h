@@ -15,7 +15,8 @@ class BaseLoader {
   static constexpr float TIE_LOAD_BUDGET = 1.5f;
   static constexpr float SHARED_TEXTURE_LOAD_BUDGET = 3.f;
   static constexpr unsigned MAX_LEVELS_LOADED = 3;
-  BaseLoader(const fs::path& base_path, int max_levels) : m_base_path(base_path), m_max_levels(max_levels){};
+  BaseLoader(const fs::path& base_path, int max_levels)
+      : m_base_path(base_path), m_max_levels(max_levels){};
   virtual ~BaseLoader() = default;
   virtual void set_want_levels(const std::vector<std::string>& levels) = 0;
   virtual void set_active_levels(const std::vector<std::string>& levels) = 0;

@@ -8,10 +8,9 @@
 class BaseOceanTexture {
  public:
   BaseOceanTexture(bool generate_mipmaps);
-  virtual void handle_ocean_texture(
-      DmaFollower& dma,
-      BaseSharedRenderState* render_state,
-      ScopedProfilerNode& prof) = 0;
+  virtual void handle_ocean_texture(DmaFollower& dma,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) = 0;
 
   virtual ~BaseOceanTexture();
 
@@ -24,8 +23,7 @@ class BaseOceanTexture {
   void xgkick_PC(Vf* src);
 
   void setup_renderer();
-  virtual void flush(BaseSharedRenderState* render_state,
-                     ScopedProfilerNode& prof) = 0;
+  virtual void flush(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
 
   void init_pc();
   void destroy_pc();
@@ -170,7 +168,7 @@ class BaseOceanTextureJak2 : public virtual BaseOceanTexture {
                             BaseSharedRenderState* render_state,
                             ScopedProfilerNode& prof) override;
 
-  protected:
+ protected:
   void run_L1_PC() override;
   void run_L2_PC() override;
   void run_L3_PC() override;

@@ -40,7 +40,9 @@ class BaseTFragment : public BaseBucketRenderer {
                 const std::vector<tfrag3::TFragmentTreeKind>& trees,
                 bool child_mode,
                 int level_id);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   virtual ~BaseTFragment();
 
   void draw_debug_window() override;
@@ -166,5 +168,4 @@ class BaseTFragment : public BaseBucketRenderer {
 
   std::vector<tfrag3::TFragmentTreeKind> m_tree_kinds;
   int m_level_id;
-
 };

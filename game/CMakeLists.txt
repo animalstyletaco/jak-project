@@ -48,9 +48,7 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/foreground/Generic2_Build.cpp
         graphics/general_renderer/foreground/Generic2_DMA.cpp
         graphics/general_renderer/foreground/Generic2.cpp
-        graphics/general_renderer/foreground/Generic2BucketRenderer.cpp
         graphics/general_renderer/foreground/Merc2.cpp
-        graphics/general_renderer/foreground/Merc2BucketRenderer.cpp
         graphics/general_renderer/foreground/Shadow2.cpp
         graphics/general_renderer/ocean/CommonOceanRenderer.cpp
         graphics/general_renderer/ocean/OceanMid_PS2.cpp
@@ -73,7 +71,7 @@ set(RUNTIME_SOURCE
         graphics/general_renderer/sprite/Sprite3_Distort.cpp
         graphics/general_renderer/sprite/Sprite3_Glow.cpp
         graphics/general_renderer/sprite/Sprite3.cpp
-        graphics/general_renderer/TextureAnimator.cpp
+        #graphics/general_renderer/TextureAnimator.cpp
         graphics/general_renderer/TextureUploadHandler.cpp
         graphics/general_renderer/VisDataHandler.cpp
         graphics/general_renderer/Warp.cpp
@@ -277,7 +275,9 @@ if(WIN32)
         graphics/vulkan_renderer/FramebufferHelper.cpp
         graphics/vulkan_renderer/FullScreenDraw.cpp
         graphics/vulkan_renderer/foreground/Generic2_Vulkan.cpp
+        graphics/vulkan_renderer/foreground/Generic2BucketRenderer.cpp
         graphics/vulkan_renderer/foreground/Merc2.cpp
+        graphics/vulkan_renderer/foreground/Merc2BucketRenderer.cpp
         graphics/vulkan_renderer/foreground/Shadow2.cpp
         graphics/vulkan_renderer/loader/Loader.cpp
         graphics/vulkan_renderer/loader/LoaderStages.cpp
@@ -295,7 +295,7 @@ if(WIN32)
         graphics/vulkan_renderer/sprite/GlowRenderer.cpp
         graphics/vulkan_renderer/sprite/Sprite3_Distort.cpp
         graphics/vulkan_renderer/sprite/Sprite3.cpp
-        graphics/vulkan_renderer/TextureAnimator.cpp
+        #graphics/vulkan_renderer/TextureAnimator.cpp
         graphics/vulkan_renderer/VulkanRenderer.cpp
         graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.cpp
         graphics/vulkan_renderer/vulkan_utils/GraphicsDeviceVulkan.cpp

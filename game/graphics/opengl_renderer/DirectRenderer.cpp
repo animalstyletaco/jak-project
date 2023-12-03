@@ -269,7 +269,7 @@ void DirectRenderer::flush_pending(SharedRenderState* render_state, ScopedProfil
   glUniform1i(glGetUniformLocation(current_shader, "scissor_enable"),
               m_scissor_enable && !m_offscreen_mode);
   glUniform4f(glGetUniformLocation(current_shader, "game_sizes"), 512.0f,
-              game_height[render_state->version], viewport_size[2], viewport_size[3]);
+              game_height[render_state->GetVersion()], viewport_size[2], viewport_size[3]);
 
   int draw_count = 0;
   int num_tris = 0;
@@ -818,7 +818,7 @@ void DirectRenderer::handle_ad(const u8* data,
       handle_scissor(value);
       break;
     case GsRegisterAddress::XYOFFSET_1:
-      ASSERT(render_state->version == GameVersion::Jak2);  // hardcoded jak 2 scissor vals in handle
+      ASSERT(render_state->GetVersion() == GameVersion::Jak2);  // hardcoded jak 2 scissor vals in handle
       handle_xyoffset(value);
       break;
     case GsRegisterAddress::COLCLAMP:
@@ -1056,7 +1056,7 @@ void DirectRenderer::handle_zbuf1(u64 val,
   // way - 24-bit, at offset 448.
   GsZbuf x(val);
   ASSERT(x.psm() == TextureFormat::PSMZ24);
-  ASSERT(x.zbp() == normal_zbp[render_state->version]);
+  ASSERT(x.zbp() == normal_zbp[render_state->GetVersion()]);
 
   bool write = !x.zmsk();
   //  ASSERT(write);

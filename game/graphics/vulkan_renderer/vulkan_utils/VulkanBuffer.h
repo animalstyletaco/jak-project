@@ -2,9 +2,11 @@
 
 #include <unordered_map>
 
-#include "common/math/geometry.h"
-#include "game/graphics/general_renderer/renderer_utils/Buffer.h"
 #include "GraphicsDeviceVulkan.h"
+
+#include "common/math/geometry.h"
+
+#include "game/graphics/general_renderer/renderer_utils/Buffer.h"
 
 class VulkanBuffer {
  public:
@@ -147,8 +149,8 @@ class StorageTexelVulkanBuffer : public TexelVulkanBuffer {
 class MultiDrawVulkanBuffer : public UniformBuffer, public VulkanBuffer {
  public:
   MultiDrawVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
-                  uint32_t instanceCount,
-                  VkDeviceSize minOffsetAlignment = 1);
+                        uint32_t instanceCount,
+                        VkDeviceSize minOffsetAlignment = 1);
 
   VkDrawIndexedIndirectCommand GetDrawIndexIndirectCommandAtInstanceIndex(unsigned);
   void SetDrawIndexIndirectCommandAtInstanceIndex(unsigned, VkDrawIndexedIndirectCommand);

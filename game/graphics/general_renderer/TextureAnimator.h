@@ -127,7 +127,6 @@ struct ShaderContext {
   bool source_texture_set = false;
 };
 
-
 struct Psm32ToPsm8Scrambler {
   Psm32ToPsm8Scrambler(int w, int h, int write_tex_width, int read_tex_width);
   std::vector<int> destinations_per_byte;
@@ -275,16 +274,15 @@ struct BaseNoiseTexturePair {
   float max_time = 0;
 };
 
-
 class BaseClutBlender {
  public:
   BaseClutBlender(const std::string& dest,
-              const std::vector<std::string>& sources,
-              const std::optional<std::string>& level_name,
-              const tfrag3::Level* level);
+                  const std::vector<std::string>& sources,
+                  const std::optional<std::string>& level_name,
+                  const tfrag3::Level* level);
   virtual void run(const float* weight) = 0;
 
-protected:
+ protected:
   const tfrag3::IndexTexture* m_dest;
   std::vector<const std::array<math::Vector4<u8>, 256>*> m_cluts;
   std::vector<float> m_current_weights;

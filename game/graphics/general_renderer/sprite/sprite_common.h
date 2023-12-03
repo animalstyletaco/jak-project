@@ -7,7 +7,6 @@
 #include "game/graphics/general_renderer/DirectRenderer.h"
 #include "game/graphics/general_renderer/dma_helpers.h"
 
-
 using math::Matrix4f;
 using math::Vector4f;
 
@@ -273,12 +272,12 @@ struct Sprite3dFragmentUniformShaderData {
 
 namespace sprite_common {
 
- static constexpr int SPRITES_PER_CHUNK = 48;
- static constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
+static constexpr int SPRITES_PER_CHUNK = 48;
+static constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
 /*!
  * Does the next DMA transfer look like it could be the start of a 2D group?
  */
- bool looks_like_2d_chunk_start(const DmaFollower& dma);
+bool looks_like_2d_chunk_start(const DmaFollower& dma);
 
 /*!
  * Read the header. Asserts if it's bad.
@@ -287,6 +286,6 @@ namespace sprite_common {
  */
 u32 process_sprite_chunk_header(DmaFollower& dma);
 
- bool looks_like_distort_frame_data(const DmaFollower& dma);
+bool looks_like_distort_frame_data(const DmaFollower& dma);
 
-}  // namespace
+}  // namespace sprite_common

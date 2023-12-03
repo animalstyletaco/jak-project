@@ -4,13 +4,14 @@
 
 class BaseGeneric2 {
  public:
-  BaseGeneric2(
-           u32 num_verts = 200000,
-           u32 num_frags = 2000,
-           u32 num_adgif = 6000,
-           u32 num_buckets = 800);
+  BaseGeneric2(u32 num_verts = 200000,
+               u32 num_frags = 2000,
+               u32 num_adgif = 6000,
+               u32 num_buckets = 800);
   ~BaseGeneric2();
-  virtual void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  virtual void render(DmaFollower& dma,
+                      BaseSharedRenderState* render_state,
+                      ScopedProfilerNode& prof);
   void draw_debug_window();
 
   enum class Mode {
@@ -190,10 +191,7 @@ class BaseGeneric2 {
 
 class BaseGeneric2Jak1 : public virtual BaseGeneric2 {
  public:
-  BaseGeneric2Jak1(u32 num_verts,
-                   u32 num_frags,
-                   u32 num_adgif,
-                   u32 num_buckets)
+  BaseGeneric2Jak1(u32 num_verts, u32 num_frags, u32 num_adgif, u32 num_buckets)
       : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets) {}
 
  protected:
@@ -202,10 +200,7 @@ class BaseGeneric2Jak1 : public virtual BaseGeneric2 {
 
 class BaseGeneric2Jak2 : public virtual BaseGeneric2 {
  public:
-  BaseGeneric2Jak2(u32 num_verts,
-                   u32 num_frags,
-                   u32 num_adgif,
-                   u32 num_buckets)
+  BaseGeneric2Jak2(u32 num_verts, u32 num_frags, u32 num_adgif, u32 num_buckets)
       : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets) {}
 
  protected:

@@ -1,20 +1,20 @@
 #pragma once
 
-#include "common/math/Vector.h"
 #include "common/log/log.h"
+#include "common/math/Vector.h"
 
-#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/SamplerHelper.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/SwapChain.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 
 /*!
  * This is a wrapper around a framebuffer and texture to make it easier to render to a texture.
  */
 
-//TODO: Come up with better framebuffer name
+// TODO: Come up with better framebuffer name
 class FramebufferVulkan {
  public:
   FramebufferVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, VkFormat format);
@@ -33,8 +33,7 @@ class FramebufferVulkan {
   void createFramebuffer();
   void initializeFramebufferAtLevel(VkSampleCountFlagBits samples, unsigned level);
   void beginRenderPass(VkCommandBuffer commandBuffer);
-  void beginRenderPass(VkCommandBuffer commandBuffer,
-                       std::vector<VkClearValue>&);
+  void beginRenderPass(VkCommandBuffer commandBuffer, std::vector<VkClearValue>&);
   void createRenderPass();
   VkSampleCountFlagBits m_current_msaa = VK_SAMPLE_COUNT_1_BIT;
 
@@ -61,7 +60,9 @@ class FramebufferVulkanHelper {
   void beginRenderPass(VkCommandBuffer commandBuffer,
                        std::vector<VkClearValue>&,
                        unsigned mipmapLevel = 0);
-  void GenerateMipmaps() { m_framebuffer.m_color_texture.generateMipmaps(m_format, m_mipmap_level); }
+  void GenerateMipmaps() {
+    m_framebuffer.m_color_texture.generateMipmaps(m_format, m_mipmap_level);
+  }
   void TransitionImageLayout(VkImageLayout imageLayout,
                              unsigned baseMipLevel = 0,
                              unsigned levelCount = 1) {
@@ -91,7 +92,8 @@ class FramebufferVulkanHelper {
 
 class FramebufferVulkanCopier {
  public:
-  FramebufferVulkanCopier(std::shared_ptr<GraphicsDeviceVulkan> device, std::unique_ptr<SwapChain>& swapChain);
+  FramebufferVulkanCopier(std::shared_ptr<GraphicsDeviceVulkan> device,
+                          std::unique_ptr<SwapChain>& swapChain);
   ~FramebufferVulkanCopier();
   void copy_now(int render_fb_w,
                 int render_fb_h,
@@ -101,7 +103,7 @@ class FramebufferVulkanCopier {
   VulkanTexture* Texture() { return &m_framebuffer_image; }
   VulkanSamplerHelper& Sampler() { return m_sampler_helper; }
 
-  private:
+ private:
   void createFramebufferImage();
 
   int m_fbo_width = 640, m_fbo_height = 480;

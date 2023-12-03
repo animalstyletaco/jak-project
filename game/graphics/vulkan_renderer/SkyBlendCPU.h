@@ -2,8 +2,8 @@
 
 #include "common/dma/dma_chain_read.h"
 
-#include "game/graphics/general_renderer/SkyBlendCommon.h"
 #include "game/graphics/general_renderer/SkyBlendCPU.h"
+#include "game/graphics/general_renderer/SkyBlendCommon.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 class SkyBlendCPU : public BaseSkyBlendCPU {

@@ -313,13 +313,13 @@ bool Tie3::set_up_common_data_from_dma(DmaFollower& dma, SharedRenderState* rend
   memcpy(&m_pc_port_data, pc_port_data.data, sizeof(TfragPcPortData));
   m_pc_port_data.level_name[11] = '\0';
 
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     auto wind_data = dma.read_and_advance();
     ASSERT(wind_data.size_bytes == sizeof(WindWork));
     memcpy(&m_wind_data, wind_data.data, sizeof(WindWork));
   }
 
-  if (render_state->version == GameVersion::Jak2) {
+  if (render_state->GetVersion() == GameVersion::Jak2) {
     // jak 2 proto visibility
     auto proto_mask_data = dma.read_and_advance();
     m_common_data.proto_vis_data = proto_mask_data.data;
@@ -331,7 +331,7 @@ bool Tie3::set_up_common_data_from_dma(DmaFollower& dma, SharedRenderState* rend
   ASSERT(envmap_color.size_bytes == 16);
   memcpy(m_common_data.envmap_color.data(), envmap_color.data, 16);
   m_common_data.envmap_color /= 128.f;
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     m_common_data.envmap_color *= 2;
   }
   m_common_data.envmap_color *= m_envmap_strength;

@@ -13,7 +13,7 @@ EmptyBucketRenderer::EmptyBucketRenderer(const std::string& name, int my_id)
 void EmptyBucketRenderer::render(DmaFollower& dma,
                                  SharedRenderState* render_state,
                                  ScopedProfilerNode& /*prof*/) {
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     // an empty bucket should have 4 things:
     // a NEXT in the bucket buffer
     // a CALL that calls the default register buffer chain

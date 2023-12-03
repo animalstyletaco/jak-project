@@ -1,15 +1,16 @@
 #include "Buffer.h"
+
 #include <cassert>
 
 template <class T>
 void UniformBuffer::SetMatrixDataInVkDeviceMemory(uint32_t memory_offset,
-                                           uint32_t row_count,
-                                           uint32_t col_count,
-                                           uint32_t matrix_count,
-                                           bool want_transpose_matrix,
-                                           bool is_row_col_order,
-                                           uint32_t flags,
-                                           T* matrix_data) {
+                                                  uint32_t row_count,
+                                                  uint32_t col_count,
+                                                  uint32_t matrix_count,
+                                                  bool want_transpose_matrix,
+                                                  bool is_row_col_order,
+                                                  uint32_t flags,
+                                                  T* matrix_data) {
   uint32_t element_count = row_count * col_count;
   uint32_t memory_size = row_count * col_count * sizeof(*matrix_data) * matrix_count;
   for (uint32_t matrix_id = 0; matrix_id < matrix_count; matrix_id++)
@@ -71,17 +72,26 @@ void UniformBuffer::SetUniformVectorFourFloat(const char* section_name,
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)value, size, flags);
 }
 
-void UniformBuffer::SetUniform1ui(const char* section_name, uint32_t value, uint32_t instanceIndex, uint32_t flags) {
+void UniformBuffer::SetUniform1ui(const char* section_name,
+                                  uint32_t value,
+                                  uint32_t instanceIndex,
+                                  uint32_t flags) {
   uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
-void UniformBuffer::SetUniform1i(const char* section_name, int32_t value, uint32_t instanceIndex, uint32_t flags) {
+void UniformBuffer::SetUniform1i(const char* section_name,
+                                 int32_t value,
+                                 uint32_t instanceIndex,
+                                 uint32_t flags) {
   uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }
 
-void UniformBuffer::SetUniform1f(const char* section_name, float value, uint32_t instanceIndex, uint32_t flags) {
+void UniformBuffer::SetUniform1f(const char* section_name,
+                                 float value,
+                                 uint32_t instanceIndex,
+                                 uint32_t flags) {
   uint32_t memory_offset = GetDeviceMemoryOffset(section_name) + (instanceIndex * m_instance_size);
   SetDataInVkDeviceMemory(memory_offset, (uint8_t*)&value, sizeof(value), flags);
 }

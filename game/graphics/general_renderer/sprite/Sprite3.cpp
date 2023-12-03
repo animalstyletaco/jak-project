@@ -14,9 +14,7 @@ constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
 constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
     256 * 12;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
 
-BaseSprite3::BaseSprite3(const std::string& name, int my_id)
-    : BaseBucketRenderer(name, my_id) {
-}
+BaseSprite3::BaseSprite3(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {}
 
 void BaseSprite3::graphics_setup() {
   // Set up OpenGL for 'normal' sprites
@@ -132,8 +130,8 @@ void BaseSprite3::render_fake_shadow(DmaFollower& dma) {
   ASSERT(nop_flushe.vifcode1().kind == VifCode::Kind::FLUSHE);
 }
 void BaseSprite3::render_2d_group0(DmaFollower& dma,
-                                     BaseSharedRenderState* render_state,
-                                     ScopedProfilerNode& prof) {
+                                   BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) {
   setup_graphics_for_2d_group_0_render();
 
   u16 last_prog = -1;
@@ -185,13 +183,12 @@ void BaseSprite3::render_2d_group0(DmaFollower& dma,
   }
 }
 
-
 /*!
  * Handle DMA data for group1 2d's (HUD)
  */
 void BaseSprite3::render_2d_group1(DmaFollower& dma,
-                               BaseSharedRenderState* render_state,
-                               ScopedProfilerNode& prof) {
+                                   BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) {
   // one time matrix data upload
   auto mat_upload = dma.read_and_advance();
   bool mat_ok = verify_unpack_with_stcycl(mat_upload, VifCode::Kind::UNPACK_V4_32, 4, 4, 80,
@@ -205,9 +202,8 @@ void BaseSprite3::render_2d_group1(DmaFollower& dma,
   SetSprite3UniformVertexFourFloatVector("hud_hvdf_offset", sizeof(m_hud_matrix_data.hvdf_offset),
                                          m_hud_matrix_data.hvdf_offset.data());
   SetSprite3UniformVertexUserHvdfVector("hud_hvdf_user", sizeof(m_hud_matrix_data.user_hvdf),
-                                         m_hud_matrix_data.user_hvdf[0].data());
-  SetSprite3UniformMatrixFourFloatVector("hud_matrix", 1, false,
-                                         m_hud_matrix_data.matrix.data());
+                                        m_hud_matrix_data.user_hvdf[0].data());
+  SetSprite3UniformMatrixFourFloatVector("hud_matrix", 1, false, m_hud_matrix_data.matrix.data());
 
   // loop through chunks.
   while (sprite_common::looks_like_2d_chunk_start(dma)) {
@@ -236,7 +232,7 @@ void BaseSprite3::render_2d_group1(DmaFollower& dma,
     auto run = dma.read_and_advance();
     ASSERT(run.vifcode0().kind == VifCode::Kind::NOP);
     ASSERT(run.vifcode1().kind == VifCode::Kind::MSCAL);
-    switch (render_state->version) {
+    switch (render_state->GetVersion()) {
       case GameVersion::Jak1:
         ASSERT(run.vifcode1().immediate == SpriteProgMem::Sprites2dHud_Jak1);
         break;
@@ -274,7 +270,7 @@ void BaseSprite3Jak2::render(DmaFollower& dma,
 
   // next, the normal sprite stuff
   SetupShader(ShaderId::SPRITE3);
-  handle_sprite_frame_setup(dma, render_state->version);
+  handle_sprite_frame_setup(dma, render_state->GetVersion());
 
   // 3d sprites
   render_3d(dma);
@@ -319,8 +315,8 @@ void BaseSprite3Jak2::render(DmaFollower& dma,
 }
 
 void BaseSprite3Jak1::render(DmaFollower& dma,
-                          BaseSharedRenderState* render_state,
-                          ScopedProfilerNode& prof) {
+                             BaseSharedRenderState* render_state,
+                             ScopedProfilerNode& prof) {
   m_debug_stats = {};
   // First thing should be a NEXT with two nops. this is a jump from buckets to sprite data
   auto data0 = dma.read_and_advance();
@@ -346,7 +342,7 @@ void BaseSprite3Jak1::render(DmaFollower& dma,
   SetupShader(ShaderId::SPRITE3);
 
   // next, sprite frame setup.
-  handle_sprite_frame_setup(dma, render_state->version);
+  handle_sprite_frame_setup(dma, render_state->GetVersion());
 
   // 3d sprites
   render_3d(dma);
@@ -401,8 +397,8 @@ void BaseSprite3::draw_debug_window() {
 }
 
 void BaseSprite3::handle_tex0(u64 val,
-                          BaseSharedRenderState* /*render_state*/,
-                          ScopedProfilerNode& /*prof*/) {
+                              BaseSharedRenderState* /*render_state*/,
+                              ScopedProfilerNode& /*prof*/) {
   GsTex0 reg(val);
 
   // update tbp
@@ -423,15 +419,15 @@ void BaseSprite3::handle_tex0(u64 val,
 }
 
 void BaseSprite3::handle_tex1(u64 val,
-                          BaseSharedRenderState* /*render_state*/,
-                          ScopedProfilerNode& /*prof*/) {
+                              BaseSharedRenderState* /*render_state*/,
+                              ScopedProfilerNode& /*prof*/) {
   GsTex1 reg(val);
   m_current_mode.set_filt_enable(reg.mmag());
 }
 
 void BaseSprite3::handle_zbuf(u64 val,
-                          BaseSharedRenderState* /*render_state*/,
-                          ScopedProfilerNode& /*prof*/) {
+                              BaseSharedRenderState* /*render_state*/,
+                              ScopedProfilerNode& /*prof*/) {
   // note: we can basically ignore this. There's a single z buffer that's always configured the same
   // way - 24-bit, at offset 448.
   GsZbuf x(val);
@@ -442,8 +438,8 @@ void BaseSprite3::handle_zbuf(u64 val,
 }
 
 void BaseSprite3::handle_clamp(u64 val,
-                           BaseSharedRenderState* /*render_state*/,
-                           ScopedProfilerNode& /*prof*/) {
+                               BaseSharedRenderState* /*render_state*/,
+                               ScopedProfilerNode& /*prof*/) {
   if (!(val == 0b101 || val == 0 || val == 1 || val == 0b100)) {
     ASSERT_MSG(false, fmt::format("clamp: 0x{:x}", val));
   }
@@ -502,15 +498,15 @@ void BaseSprite3::update_mode_from_alpha1(u64 val, DrawMode& mode) {
 }
 
 void BaseSprite3::handle_alpha(u64 val,
-                           BaseSharedRenderState* /*render_state*/,
-                           ScopedProfilerNode& /*prof*/) {
+                               BaseSharedRenderState* /*render_state*/,
+                               ScopedProfilerNode& /*prof*/) {
   update_mode_from_alpha1(val, m_current_mode);
 }
 
 void BaseSprite3::do_block_common(SpriteMode mode,
-                              u32 count,
-                              BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof) {
+                                  u32 count,
+                                  BaseSharedRenderState* render_state,
+                                  ScopedProfilerNode& prof) {
   m_current_mode = m_default_mode;
   for (u32 sprite_idx = 0; sprite_idx < count; sprite_idx++) {
     if (m_sprite_idx == SPRITE_RENDERER_MAX_SPRITES) {
@@ -522,7 +518,8 @@ void BaseSprite3::do_block_common(SpriteMode mode,
       // it's probably possible to do this for 3D as well.
       auto bsphere = m_vec_data_2d[sprite_idx].xyz_sx;
       bsphere.w() = std::max(bsphere.w(), m_vec_data_2d[sprite_idx].sy());
-      if (bsphere.w() == 0 || !background_common::sphere_in_view_ref(bsphere, render_state->camera_planes)) {
+      if (bsphere.w() == 0 ||
+          !background_common::sphere_in_view_ref(bsphere, render_state->camera_planes)) {
         continue;
       }
     }

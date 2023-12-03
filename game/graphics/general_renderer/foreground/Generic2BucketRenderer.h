@@ -6,9 +6,9 @@
 class BaseGeneric2BucketRenderer : public BaseBucketRenderer {
  public:
   BaseGeneric2BucketRenderer(const std::string& name, int id, BaseGeneric2::Mode mode)
-      : BaseBucketRenderer(name, id){};
+      : BaseBucketRenderer(name, id), m_mode(mode){};
   void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof){};
 
-  protected:
+ protected:
   BaseGeneric2::Mode m_mode;
 };

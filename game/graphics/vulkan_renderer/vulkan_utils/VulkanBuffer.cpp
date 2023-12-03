@@ -1,4 +1,5 @@
 #include "VulkanBuffer.h"
+
 #include <cassert>
 
 /**
@@ -10,7 +11,8 @@
  *
  * @return VkResult of the buffer mapping call
  */
-VkDeviceSize VulkanBuffer::getAlignment(VkDeviceSize instanceSize, VkDeviceSize minOffsetAlignment) {
+VkDeviceSize VulkanBuffer::getAlignment(VkDeviceSize instanceSize,
+                                        VkDeviceSize minOffsetAlignment) {
   if (minOffsetAlignment > 0) {
     return (instanceSize + minOffsetAlignment - 1) & ~(minOffsetAlignment - 1);
   }
@@ -26,7 +28,7 @@ VulkanBuffer::VulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
     : m_device{device},
       instanceSize{instanceSize},
       instanceCount{instanceCount},
-      minOffsetAlignment {minOffsetAlignment},
+      minOffsetAlignment{minOffsetAlignment},
       usageFlags{usageFlags},
       memoryPropertyFlags{memoryPropertyFlags} {
   alignmentSize = getAlignment(instanceSize, minOffsetAlignment);
@@ -47,17 +49,18 @@ VulkanBuffer::VulkanBuffer(const VulkanBuffer& original_buffer)
 
   StagingBuffer stagingBuffer(m_device, instanceSize, instanceCount,
                               VK_BUFFER_USAGE_TRANSFER_DST_BIT, alignmentSize);
-  m_device->copyBuffer(original_buffer.buffer, stagingBuffer.getBuffer(), instanceCount * instanceSize);
+  m_device->copyBuffer(original_buffer.buffer, stagingBuffer.getBuffer(),
+                       instanceCount * instanceSize);
   stagingBuffer.map();
   writeToGpuBuffer(stagingBuffer.getMappedMemory(), instanceCount * instanceSize, 0);
   stagingBuffer.unmap();
 }
 
 void VulkanBuffer::createBuffer(VkDeviceSize size,
-                          VkBufferUsageFlags usage,
-                          VkMemoryPropertyFlags properties,
-                          VkBuffer& buffer,
-                          VkDeviceMemory& bufferMemory) {
+                                VkBufferUsageFlags usage,
+                                VkMemoryPropertyFlags properties,
+                                VkBuffer& buffer,
+                                VkDeviceMemory& bufferMemory) {
   VkBufferCreateInfo bufferInfo{};
   bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
   bufferInfo.size = size;
@@ -76,7 +79,8 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
   allocInfo.allocationSize = memRequirements.size;
   allocInfo.memoryTypeIndex = m_device->findMemoryType(memRequirements.memoryTypeBits, properties);
 
-  if (vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
+  if (vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &bufferMemory) !=
+      VK_SUCCESS) {
     throw std::runtime_error("failed to allocate vertex buffer memory!");
   }
 
@@ -238,7 +242,8 @@ VkResult VulkanBuffer::invalidateIndex(int index) {
 }
 
 /**
- * Copies the specified data to the staging buffer then copies to GPU VRAM. Default value writes whole buffer range
+ * Copies the specified data to the staging buffer then copies to GPU VRAM. Default value writes
+ * whole buffer range
  *
  * @param data Pointer to the data to copy
  * @param size (Optional) Size of the data to copy. Pass VK_WHOLE_SIZE to flush the complete buffer
@@ -275,10 +280,10 @@ void VulkanBuffer::writeToGpuBuffer(void* data, VkDeviceSize size, VkDeviceSize 
 }
 
 StagingBuffer::StagingBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
-                           VkDeviceSize instanceSize,
-                           uint32_t instanceCount,
-                           VkBufferUsageFlags properties,
-                           VkDeviceSize minOffsetAlignment)
+                             VkDeviceSize instanceSize,
+                             uint32_t instanceCount,
+                             VkBufferUsageFlags properties,
+                             VkDeviceSize minOffsetAlignment)
     : VulkanBuffer(device,
                    instanceSize,
                    instanceCount,
@@ -293,10 +298,10 @@ VertexBuffer::VertexBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
     : VulkanBuffer(device,
                    instanceSize,
                    instanceCount,
-                   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                   VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                   minOffsetAlignment) {
-}
+                   minOffsetAlignment) {}
 
 IndexBuffer::IndexBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                          VkDeviceSize instanceSize,
@@ -305,21 +310,23 @@ IndexBuffer::IndexBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
     : VulkanBuffer(device,
                    instanceSize,
                    instanceCount,
-                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                   VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                       VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                   minOffsetAlignment) {
-}
+                   minOffsetAlignment) {}
 
 UniformVulkanBuffer::UniformVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                          VkDeviceSize instanceSize,
                                          uint32_t instanceCount,
                                          VkDeviceSize minOffsetAlignment)
-    : UniformBuffer(instanceSize), VulkanBuffer(device, instanceSize, instanceCount,
+    : UniformBuffer(instanceSize),
+      VulkanBuffer(device,
+                   instanceSize,
+                   instanceCount,
                    VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                        VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
                    device->getMinimumBufferOffsetAlignment(minOffsetAlignment)) {}
-
 
 void UniformVulkanBuffer::SetDataInVkDeviceMemory(uint32_t memory_offset,
                                                   uint8_t* value,
@@ -356,7 +363,8 @@ TexelVulkanBuffer::TexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> devic
 }
 
 void TexelVulkanBuffer::CreateBufferView() {
-  vkCreateBufferView(m_device->getLogicalDevice(), &m_buffer_view_create_info, nullptr, &m_buffer_view);
+  vkCreateBufferView(m_device->getLogicalDevice(), &m_buffer_view_create_info, nullptr,
+                     &m_buffer_view);
 }
 
 TexelVulkanBuffer::~TexelVulkanBuffer() {
@@ -371,10 +379,10 @@ UniformTexelVulkanBuffer::UniformTexelVulkanBuffer(std::shared_ptr<GraphicsDevic
                                                    uint32_t instanceCount,
                                                    VkDeviceSize minOffsetAlignment)
     : TexelVulkanBuffer(device,
-                   instanceSize,
-                   instanceCount,
-                   VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT,
-                   device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
+                        instanceSize,
+                        instanceCount,
+                        VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT,
+                        device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
 
 StorageTexelVulkanBuffer::StorageTexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
                                                    VkDeviceSize instanceSize,
@@ -387,22 +395,21 @@ StorageTexelVulkanBuffer::StorageTexelVulkanBuffer(std::shared_ptr<GraphicsDevic
                         device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
 
 MultiDrawVulkanBuffer::MultiDrawVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
-                                         uint32_t instanceCount,
-                                         VkDeviceSize minOffsetAlignment)
+                                             uint32_t instanceCount,
+                                             VkDeviceSize minOffsetAlignment)
     : VulkanBuffer(device,
                    sizeof(VkDrawIndexedIndirectCommand),
                    instanceCount,
                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                       VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+                       VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                    minOffsetAlignment) {}
 
 VkDrawIndexedIndirectCommand MultiDrawVulkanBuffer::GetDrawIndexIndirectCommandAtInstanceIndex(
     unsigned index) {
   VkDrawIndexedIndirectCommand command;
-  StagingBuffer stagingBuffer(m_device, instanceSize, 1,
-                              VK_BUFFER_USAGE_TRANSFER_DST_BIT, alignmentSize);
+  StagingBuffer stagingBuffer(m_device, instanceSize, 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                              alignmentSize);
 
   m_device->copyBuffer(buffer, stagingBuffer.getBuffer(), instanceSize, index * instanceCount, 0);
 
@@ -414,9 +421,11 @@ VkDrawIndexedIndirectCommand MultiDrawVulkanBuffer::GetDrawIndexIndirectCommandA
   return command;
 }
 
-void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandAtInstanceIndex(unsigned index, VkDrawIndexedIndirectCommand command) {
-  StagingBuffer stagingBuffer(m_device, instanceSize, 1,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT, alignmentSize);
+void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandAtInstanceIndex(
+    unsigned index,
+    VkDrawIndexedIndirectCommand command) {
+  StagingBuffer stagingBuffer(m_device, instanceSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                              alignmentSize);
   stagingBuffer.map();
   void* stagingMappedMemory = stagingBuffer.getMappedMemory();
   ::memcpy(stagingMappedMemory, &command, sizeof(command));

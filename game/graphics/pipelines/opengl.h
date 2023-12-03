@@ -9,8 +9,8 @@
 
 #include "game/graphics/display.h"
 #include "game/graphics/gfx.h"
-
 #include "game/graphics/pipelines/pipeline_common.h"
+
 #include "third-party/glad/include/glad/glad.h"
 
 class GLDisplay : public GfxDisplay {

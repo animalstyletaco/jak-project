@@ -11,8 +11,8 @@ BaseTextureUploadHandler::BaseTextureUploadHandler(const std::string& name, int 
     : BaseBucketRenderer(name, my_id) {}
 
 void BaseTextureUploadHandler::render(DmaFollower& dma,
-                                  BaseSharedRenderState* render_state,
-                                  ScopedProfilerNode& prof) {
+                                      BaseSharedRenderState* render_state,
+                                      ScopedProfilerNode& prof) {
   // this is the data we get from the PC Port modification.
   m_upload_count = 0;
   std::vector<TextureUpload> uploads;
@@ -56,7 +56,7 @@ void BaseTextureUploadHandler::render(DmaFollower& dma,
 }
 
 void BaseTextureUploadHandler::flush_uploads(std::vector<TextureUpload>& uploads,
-                                         BaseSharedRenderState* render_state) {
+                                             BaseSharedRenderState* render_state) {
   if (m_fake_uploads) {
     uploads.clear();
   } else {
@@ -67,7 +67,7 @@ void BaseTextureUploadHandler::flush_uploads(std::vector<TextureUpload>& uploads
     const u8* ee_mem = (const u8*)render_state->ee_main_memory;
     for (auto& upload : uploads) {
       texture_pool_handle_upload_now(ee_mem + upload.page, upload.mode, ee_mem,
-                                          render_state->offset_of_s7);
+                                     render_state->offset_of_s7);
     }
   }
 }

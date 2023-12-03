@@ -1,30 +1,30 @@
 #include "ImguiVulkanHelper.h"
+
 #include "common/util/FileUtil.h"
 
-ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swapChain) : m_device(swapChain->getLogicalDevice()){
-
+ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swapChain)
+    : m_device(swapChain->getLogicalDevice()) {
   // May be overkill for descriptor pool
-  std::vector<VkDescriptorPoolSize> pool_sizes = {
-    {VK_DESCRIPTOR_TYPE_SAMPLER, 100},
-    {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100},
-    {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100},
-    {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100},
-    {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 100},
-    {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 100}
-  };
+  std::vector<VkDescriptorPoolSize> pool_sizes = {{VK_DESCRIPTOR_TYPE_SAMPLER, 100},
+                                                  {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 100},
+                                                  {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 100},
+                                                  {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 100},
+                                                  {VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 100},
+                                                  {VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 100},
+                                                  {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 100},
+                                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 100},
+                                                  {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 100},
+                                                  {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 100},
+                                                  {VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 100}};
 
   uint32_t max_sets = 0;
   for (auto& pool_size : pool_sizes) {
     max_sets += pool_size.descriptorCount;
   }
-  m_descriptor_pool = std::make_unique<DescriptorPool>(swapChain->getLogicalDevice(), max_sets, 0, pool_sizes);
+  m_descriptor_pool =
+      std::make_unique<DescriptorPool>(swapChain->getLogicalDevice(), max_sets, 0, pool_sizes);
 
-    // set up the renderer
+  // set up the renderer
   ImGui_ImplVulkan_InitInfo imgui_vulkan_info = {};
   imgui_vulkan_info.Instance = swapChain->getLogicalDevice()->getInstance();
   imgui_vulkan_info.PhysicalDevice = swapChain->getLogicalDevice()->getPhysicalDevice();
@@ -43,7 +43,7 @@ ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swapChain) : m_
 
   ImGui_ImplVulkan_Init(&imgui_vulkan_info, swapChain->getRenderPass());
 
-      // Load Fonts
+  // Load Fonts
   // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple
   // fonts and use ImGui::PushFont()/PopFont() to select them.
   // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the
@@ -65,11 +65,16 @@ ImguiVulkanHelper::ImguiVulkanHelper(std::unique_ptr<SwapChain>& swapChain) : m_
   // ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, NULL,
   // io.Fonts->GetGlyphRangesJapanese()); IM_ASSERT(font != NULL);
 
+  // NOTE: imgui's setup calls functions that may fail intentionally, and attempts to disable error
+  // reporting so these errors are invisible. But it does not work, and some weird X11 default
+  // cursor error is set here that we clear.
+  SDL_ClearError();
+
   // Upload Fonts
   {
     // Use any command queue
-    //VkCommandPool commandPool = m_swap_chain->getLogicalDevice()->getCommandPool();
-    //vkResetCommandPool(m_swap_chain->getLogicalDevice()->getLogicalDevice(), commandPool, 0);
+    // VkCommandPool commandPool = m_swap_chain->getLogicalDevice()->getCommandPool();
+    // vkResetCommandPool(m_swap_chain->getLogicalDevice()->getLogicalDevice(), commandPool, 0);
     VkCommandBuffer commandBuffer = swapChain->getLogicalDevice()->beginSingleTimeCommands();
 
     ImGui_ImplVulkan_CreateFontsTexture(commandBuffer);
@@ -85,8 +90,10 @@ void ImguiVulkanHelper::InitializeNewFrame() {
   ImGui::NewFrame();
 }
 
-//TODO: Implement secondary command buffer to prevent frame buffer from clearing data too fast
-void ImguiVulkanHelper::Render(uint32_t width, uint32_t height, std::unique_ptr<SwapChain>& swapChain) {
+// TODO: Implement secondary command buffer to prevent frame buffer from clearing data too fast
+void ImguiVulkanHelper::Render(uint32_t width,
+                               uint32_t height,
+                               std::unique_ptr<SwapChain>& swapChain) {
   ImGui_ImplVulkan_Data* bd = (ImGui_ImplVulkan_Data*)ImGui::GetIO().BackendRendererUserData;
   bd->RenderPass = swapChain->getRenderPass();
 
@@ -97,13 +104,15 @@ void ImguiVulkanHelper::Render(uint32_t width, uint32_t height, std::unique_ptr<
 
   ImGui::Render();
   VkCommandBuffer commandBuffer = swapChain->getLogicalDevice()->beginSingleTimeCommands();
-  swapChain->beginSwapChainRenderPass(commandBuffer, m_current_image_index++ % swapChain->imageCount());
+  swapChain->beginSwapChainRenderPass(commandBuffer,
+                                      m_current_image_index++ % swapChain->imageCount());
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer, m_pipeline);
   swapChain->endSwapChainRenderPass(commandBuffer);
   swapChain->getLogicalDevice()->endSingleTimeCommands(commandBuffer);
 }
 
-void ImguiVulkanHelper::recreateGraphicsPipeline(ImGui_ImplVulkan_Data* bd, VkSampleCountFlagBits msaaCount) {
+void ImguiVulkanHelper::recreateGraphicsPipeline(ImGui_ImplVulkan_Data* bd,
+                                                 VkSampleCountFlagBits msaaCount) {
   VkPipelineShaderStageCreateInfo stage[2] = {};
   stage[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
   stage[0].stage = VK_SHADER_STAGE_VERTEX_BIT;

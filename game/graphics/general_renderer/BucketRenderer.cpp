@@ -13,7 +13,7 @@ BaseEmptyBucketRenderer::BaseEmptyBucketRenderer(const std::string& name, int my
 void BaseEmptyBucketRenderer::render(DmaFollower& dma,
                                      BaseSharedRenderState* render_state,
                                      ScopedProfilerNode& /*prof*/) {
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     // an empty bucket should have 4 things:
     // a NEXT in the bucket buffer
     // a CALL that calls the default register buffer chain
@@ -56,7 +56,8 @@ void BaseEmptyBucketRenderer::render(DmaFollower& dma,
   }
 }
 
-BaseSkipRenderer::BaseSkipRenderer(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {}
+BaseSkipRenderer::BaseSkipRenderer(const std::string& name, int my_id)
+    : BaseBucketRenderer(name, my_id) {}
 
 void BaseSkipRenderer::render(DmaFollower& dma,
                               BaseSharedRenderState* render_state,
@@ -74,9 +75,7 @@ void BaseSharedRenderState::reset() {
   load_status_debug.clear();
 }
 
-BaseRenderMux::BaseRenderMux(const std::string& name,
-                             int my_id)
-    : BaseBucketRenderer(name, my_id) {
+BaseRenderMux::BaseRenderMux(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {
   for (auto& n : m_name_strs) {
     m_name_str_ptrs.push_back(n.data());
   }
@@ -86,4 +85,3 @@ void BaseRenderMux::draw_debug_window() {
   ImGui::ListBox("Pick", &m_render_idx, m_name_str_ptrs.data(), m_name_strs.size());
   ImGui::Separator();
 }
-

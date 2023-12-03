@@ -2,7 +2,8 @@
 
 #include "third-party/imgui/imgui.h"
 
-BaseVisDataHandler::BaseVisDataHandler(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {}
+BaseVisDataHandler::BaseVisDataHandler(const std::string& name, int my_id)
+    : BaseBucketRenderer(name, my_id) {}
 
 void BaseVisDataHandler::draw_debug_window() {
   ImGui::Checkbox("Count Visible?", &m_count_vis);
@@ -35,8 +36,8 @@ int bitcount(const u8* data) {
 }  // namespace vis_data_handler
 
 void BaseVisDataHandler::render(DmaFollower& dma,
-                            BaseSharedRenderState* render_state,
-                            ScopedProfilerNode& /*prof*/) {
+                                BaseSharedRenderState* render_state,
+                                ScopedProfilerNode& /*prof*/) {
   // reset stats
   for (auto& stats : m_stats) {
     stats = LevelStats();

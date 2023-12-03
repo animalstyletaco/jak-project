@@ -1,10 +1,10 @@
 #pragma once
 
+#include "game/graphics/general_renderer/ocean/OceanMidAndFar.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
-#include "game/graphics/general_renderer/ocean/OceanMidAndFar.h"
-#include "game/graphics/vulkan_renderer/ocean/OceanTexture.h"
 #include "game/graphics/vulkan_renderer/ocean/OceanMid.h"
+#include "game/graphics/vulkan_renderer/ocean/OceanTexture.h"
 
 /*!
  * OceanMidAndFar is the handler for the first ocean bucket.
@@ -17,9 +17,9 @@
 class OceanVulkanMidAndFar : public virtual BaseOceanMidAndFar, public BucketVulkanRenderer {
  public:
   OceanVulkanMidAndFar(const std::string& name,
-                 int my_id,
-                 std::shared_ptr<GraphicsDeviceVulkan> device,
-                 VulkanInitializationInfo& vulkan_info);
+                       int my_id,
+                       std::shared_ptr<GraphicsDeviceVulkan> device,
+                       VulkanInitializationInfo& vulkan_info);
 
  protected:
   void direct_renderer_render_gif(const u8* data,
@@ -85,7 +85,7 @@ class OceanVulkanMidAndFarJak2 : public BaseOceanMidAndFarJak2, public OceanVulk
   void init_textures(VulkanTexturePool& pool) override;
   void draw_debug_window() override;
 
-  private:
+ private:
   void ocean_mid_renderer_run(DmaFollower& dma,
                               BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof) override;

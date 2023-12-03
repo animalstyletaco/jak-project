@@ -14,8 +14,7 @@
 
 class BaseOceanMidAndFar : public BaseBucketRenderer {
  public:
-  BaseOceanMidAndFar(const std::string& name,
-                 int my_id);
+  BaseOceanMidAndFar(const std::string& name, int my_id);
 
  protected:
   void handle_ocean_far(DmaFollower& dma,
@@ -27,11 +26,11 @@ class BaseOceanMidAndFar : public BaseBucketRenderer {
 
   virtual void direct_renderer_reset_state() = 0;
   virtual void direct_renderer_render_gif(const u8* data,
-    u32 size,
-    BaseSharedRenderState* render_state,
-    ScopedProfilerNode& prof) = 0;
+                                          u32 size,
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) = 0;
   virtual void direct_renderer_flush_pending(BaseSharedRenderState* render_state,
-    ScopedProfilerNode& prof) = 0;
+                                             ScopedProfilerNode& prof) = 0;
   virtual void direct_renderer_set_mipmap(bool) = 0;
 
   virtual void texture_renderer_handle_ocean_texture(DmaFollower& dma,

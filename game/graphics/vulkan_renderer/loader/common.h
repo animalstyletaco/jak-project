@@ -13,7 +13,7 @@
 struct LevelDataVulkan : BaseLevelData {
   // Switched from vector to map to avoid using VulkanTexture copy constructors
   // when appending new VulkanTexture objects to an stl container
-  std::unordered_map<u32, VulkanTexture> textures_map; 
+  std::unordered_map<u32, VulkanTexture> textures_map;
 
   struct TieVulkan {
     std::unique_ptr<VertexBuffer> vertex_buffer;
@@ -35,8 +35,7 @@ struct LevelDataVulkan : BaseLevelData {
 struct MercRefVulkan : BaseMercRef {
   MercRefVulkan() = default;
   MercRefVulkan(const tfrag3::MercModel* model, u64 load_id, LevelDataVulkan* level)
-      : model(model), load_id(load_id), level(level) {
-  }
+      : model(model), load_id(load_id), level(level) {}
 
   const tfrag3::MercModel* model = nullptr;
   u64 load_id = 0;
@@ -54,7 +53,8 @@ struct LoaderInputVulkan {
 
 class LoaderStageVulkan : public BaseLoaderStage {
  public:
-  LoaderStageVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, const std::string& name) : BaseLoaderStage(name), m_device(device) {}
+  LoaderStageVulkan(std::shared_ptr<GraphicsDeviceVulkan> device, const std::string& name)
+      : BaseLoaderStage(name), m_device(device) {}
   virtual bool run(Timer& timer, LoaderInputVulkan& data) = 0;
   virtual ~LoaderStageVulkan() = default;
 

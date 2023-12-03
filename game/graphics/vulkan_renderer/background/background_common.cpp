@@ -5,14 +5,17 @@
 #include <immintrin.h>
 
 #include "common/util/os.h"
-#include "game/graphics/gfx.h"
 
+#include "game/graphics/gfx.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 using namespace background_common;
 
 DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
-  DrawMode mode, VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_config_info, bool mipmap) {
+    DrawMode mode,
+    VulkanSamplerHelper& sampler,
+    PipelineConfigInfo& pipeline_config_info,
+    bool mipmap) {
   pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
@@ -39,8 +42,9 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
     }
   }
 
-  pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
   pipeline_config_info.colorBlendInfo.blendConstants[0] = 0.0f;
@@ -60,9 +64,10 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
         pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
         pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; 
+        pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+            VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-        pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; 
+        pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
         break;
@@ -72,15 +77,15 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
         pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
         pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE; 
+        pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
-        pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; 
+        pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
         break;
       case DrawMode::AlphaBlend::SRC_0_FIX_DST:
 
-        pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; 
-        pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; 
+        pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
         pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
         pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -99,8 +104,8 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
         pipeline_config_info.colorBlendInfo.blendConstants[3] = 0.5f;
         break;
       case DrawMode::AlphaBlend::ZERO_SRC_SRC_DST:
-        //glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        //glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+        // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
+        // glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
         pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
         pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_REVERSE_SUBTRACT;
 
@@ -148,11 +153,11 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
   samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
   samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
   samplerInfo.minLod = 0.0f;
-  //samplerInfo.maxLod = static_cast<float>(mipLevels);
+  // samplerInfo.maxLod = static_cast<float>(mipLevels);
   samplerInfo.mipLodBias = 0.0f;
 
-  //ST was used in OpenGL, UV is used in Vulkan
-  if (mode.get_clamp_s_enable() ) {
+  // ST was used in OpenGL, UV is used in Vulkan
+  if (mode.get_clamp_s_enable()) {
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   }
   if (mode.get_clamp_t_enable()) {
@@ -174,7 +179,6 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
 
   // for some reason, they set atest NEVER + FB_ONLY to disable depth writes
   bool alpha_hack_to_disable_z_write = false;
-
 
   float alpha_min = 0.;
   if (mode.get_at_enable()) {
@@ -212,7 +216,7 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
     }
   }
 
-  //FIXME: Add render pass with depth buffering enabled here
+  // FIXME: Add render pass with depth buffering enabled here
   if (mode.get_depth_write_enable() && !alpha_hack_to_disable_z_write) {
     pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_TRUE;
   } else {
@@ -223,10 +227,13 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
 }
 
 DoubleDraw vulkan_background_common::setup_tfrag_shader(
-  BaseSharedRenderState* render_state, DrawMode mode, 
-    VulkanSamplerHelper& sampler, PipelineConfigInfo& pipeline_info,
+    BaseSharedRenderState* render_state,
+    DrawMode mode,
+    VulkanSamplerHelper& sampler,
+    PipelineConfigInfo& pipeline_info,
     BackgroundCommonFragmentPushConstantShaderData& fragment_push_constant) {
-  auto draw_settings = vulkan_background_common::setup_vulkan_from_draw_mode(mode, sampler, pipeline_info, true);
+  auto draw_settings =
+      vulkan_background_common::setup_vulkan_from_draw_mode(mode, sampler, pipeline_info, true);
   fragment_push_constant.alpha_min = draw_settings.aref_first;
   fragment_push_constant.alpha_max = 10.f;
 
@@ -234,19 +241,21 @@ DoubleDraw vulkan_background_common::setup_tfrag_shader(
 }
 
 void vulkan_background_common::first_tfrag_draw_setup(
-  const TfragRenderSettings& settings,
-  BackgroundCommonVertexUniformShaderData* uniform_vertex_push_constant) {
-    ::memcpy(&uniform_vertex_push_constant->camera, &settings.camera.camera, sizeof(settings.camera.camera));
-    uniform_vertex_push_constant->hvdf_offset =
-        math::Vector4f{settings.camera.hvdf_off[0], settings.camera.hvdf_off[1], settings.camera.hvdf_off[2],
-                       settings.camera.hvdf_off[3]};
-    uniform_vertex_push_constant->fog_constant = settings.camera.fog.x();
-    uniform_vertex_push_constant->fog_min = settings.camera.fog.y();
-    uniform_vertex_push_constant->fog_max = settings.camera.fog.z();
+    const TfragRenderSettings& settings,
+    BackgroundCommonVertexUniformShaderData* uniform_vertex_push_constant) {
+  ::memcpy(&uniform_vertex_push_constant->camera, &settings.camera.camera,
+           sizeof(settings.camera.camera));
+  uniform_vertex_push_constant->hvdf_offset =
+      math::Vector4f{settings.camera.hvdf_off[0], settings.camera.hvdf_off[1],
+                     settings.camera.hvdf_off[2], settings.camera.hvdf_off[3]};
+  uniform_vertex_push_constant->fog_constant = settings.camera.fog.x();
+  uniform_vertex_push_constant->fog_min = settings.camera.fog.y();
+  uniform_vertex_push_constant->fog_max = settings.camera.fog.z();
 }
 
-void vulkan_background_common::make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
-                                                           const std::vector<tfrag3::ShrubDraw>& draws) {
+void vulkan_background_common::make_all_visible_multidraws(
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    const std::vector<tfrag3::ShrubDraw>& draws) {
   multiDrawIndexedInfos.clear();
   multiDrawIndexedInfos.resize(draws.size());
   for (size_t i = 0; i < draws.size(); i++) {
@@ -260,8 +269,9 @@ void vulkan_background_common::make_all_visible_multidraws(std::vector<std::vect
   }
 }
 
-u32 vulkan_background_common::make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
-                                                          const std::vector<tfrag3::StripDraw>& draws) {
+u32 vulkan_background_common::make_all_visible_multidraws(
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
+    const std::vector<tfrag3::StripDraw>& draws) {
   u32 num_tris = 0;
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
@@ -272,7 +282,7 @@ u32 vulkan_background_common::make_all_visible_multidraws(std::vector<std::vecto
       num_tris += grp.num_tris;
       num_inds += grp.num_inds;
     }
-    //Assumes Vertex offset is not used
+    // Assumes Vertex offset is not used
     VkMultiDrawIndexedInfoEXT multiDrawIndexedInfo{};
     multiDrawIndexedInfo.indexCount = num_inds;
     multiDrawIndexedInfo.firstIndex = iidx;
@@ -281,10 +291,11 @@ u32 vulkan_background_common::make_all_visible_multidraws(std::vector<std::vecto
   return num_tris;
 }
 
-u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_out,
-                                                          u32* idx_out,
-                                                          const std::vector<tfrag3::ShrubDraw>& draws,
-                                                          const u32* idx_in) {
+u32 vulkan_background_common::make_all_visible_index_list(
+    DrawSettings* group_out,
+    u32* idx_out,
+    const std::vector<tfrag3::ShrubDraw>& draws,
+    const u32* idx_in) {
   int idx_buffer_ptr = 0;
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
@@ -299,9 +310,10 @@ u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_ou
   return idx_buffer_ptr;
 }
 
-u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
-                                                              const std::vector<tfrag3::StripDraw>& draws,
-                                                              const std::vector<u8>& vis_data) {
+u32 vulkan_background_common::make_multidraws_from_vis_string(
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
+    const std::vector<tfrag3::StripDraw>& draws,
+    const std::vector<u8>& vis_data) {
   u32 num_tris = 0;
   u32 sanity_check = 0;
   multiDrawIndexedInfosCollection.clear();
@@ -352,9 +364,9 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(std::vector<std::v
 
 u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
     std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
-                                              const std::vector<tfrag3::StripDraw>& draws,
-                                              const std::vector<u8>& vis_data,
-                                              const std::vector<u8>& proto_vis_data) {
+    const std::vector<tfrag3::StripDraw>& draws,
+    const std::vector<u8>& vis_data,
+    const std::vector<u8>& proto_vis_data) {
   u32 num_tris = 0;
   u32 sanity_check = 0;
   multiDrawIndexedInfosCollection.clear();
@@ -403,12 +415,13 @@ u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
   return num_tris;
 }
 
-u32 vulkan_background_common::make_index_list_from_vis_string(DrawSettings* group_out,
-                                                              u32* idx_out,
-                                                              const std::vector<tfrag3::StripDraw>& draws,
-                                                              const std::vector<u8>& vis_data,
-                                                              const u32* idx_in,
-                                                              u32* num_tris_out) {
+u32 vulkan_background_common::make_index_list_from_vis_string(
+    DrawSettings* group_out,
+    u32* idx_out,
+    const std::vector<tfrag3::StripDraw>& draws,
+    const std::vector<u8>& vis_data,
+    const u32* idx_in,
+    u32* num_tris_out) {
   int idx_buffer_ptr = 0;
   u32 num_tris = 0;
   for (size_t i = 0; i < draws.size(); i++) {
@@ -464,7 +477,7 @@ u32 vulkan_background_common::make_index_list_from_vis_and_proto_string(
     const std::vector<u8>& vis_data,
     const std::vector<u8>& proto_vis_data,
     const u32* idx_in,
-    u32* num_tris_out){
+    u32* num_tris_out) {
   int idx_buffer_ptr = 0;
   u32 num_tris = 0;
   for (size_t i = 0; i < draws.size(); i++) {
@@ -515,11 +528,12 @@ u32 vulkan_background_common::make_index_list_from_vis_and_proto_string(
   return idx_buffer_ptr;
 }
 
-u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_out,
-                                                          u32* idx_out,
-                                                          const std::vector<tfrag3::StripDraw>& draws,
-                                                          const u32* idx_in,
-                                                          u32* num_tris_out) {
+u32 vulkan_background_common::make_all_visible_index_list(
+    DrawSettings* group_out,
+    u32* idx_out,
+    const std::vector<tfrag3::StripDraw>& draws,
+    const u32* idx_in,
+    u32* num_tris_out) {
   int idx_buffer_ptr = 0;
   u32 num_tris = 0;
   for (size_t i = 0; i < draws.size(); i++) {
@@ -542,24 +556,25 @@ u32 vulkan_background_common::make_all_visible_index_list(DrawSettings* group_ou
 }
 
 VkDescriptorImageInfo vulkan_background_common::create_placeholder_descriptor_image_info(
-    std::unique_ptr<VulkanTexture>& texture, std::unique_ptr<VulkanSamplerHelper>& sampler, VkImageType image_type ) {
+    std::unique_ptr<VulkanTexture>& texture,
+    std::unique_ptr<VulkanSamplerHelper>& sampler,
+    VkImageType image_type) {
   if (image_type != VK_IMAGE_TYPE_1D && image_type != VK_IMAGE_TYPE_2D) {
     return VkDescriptorImageInfo{};
   }
 
-  texture->createImage(
-      {TIME_OF_DAY_COLOR_COUNT, 1, 1}, 1, image_type, VK_FORMAT_R8G8B8A8_UNORM,
-      VK_IMAGE_TILING_OPTIMAL,
-      VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+  texture->createImage({TIME_OF_DAY_COLOR_COUNT, 1, 1}, 1, image_type, VK_FORMAT_R8G8B8A8_UNORM,
+                       VK_IMAGE_TILING_OPTIMAL,
+                       VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                           VK_IMAGE_USAGE_SAMPLED_BIT);
 
-  VkImageViewType image_view_type = (image_type == VK_IMAGE_TYPE_1D) ? VK_IMAGE_VIEW_TYPE_1D : VK_IMAGE_VIEW_TYPE_2D;
-  texture->createImageView(image_view_type, VK_FORMAT_R8G8B8A8_UNORM,
-                                         VK_IMAGE_ASPECT_COLOR_BIT, 1);
+  VkImageViewType image_view_type =
+      (image_type == VK_IMAGE_TYPE_1D) ? VK_IMAGE_VIEW_TYPE_1D : VK_IMAGE_VIEW_TYPE_2D;
+  texture->createImageView(image_view_type, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT, 1);
   sampler->CreateSampler();
 
-  return VkDescriptorImageInfo{
-      sampler->GetSampler(), texture->getImageView(),
-      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  return VkDescriptorImageInfo{sampler->GetSampler(), texture->getImageView(),
+                               VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 }
 
 BackgroundCommonEtieBaseVertexUniformBuffer::BackgroundCommonEtieBaseVertexUniformBuffer(
@@ -582,13 +597,11 @@ BackgroundCommonEtieVertexUniformBuffer::BackgroundCommonEtieVertexUniformBuffer
     VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device,
                           sizeof(BackgroundCommonEtieVertexUniformShaderData),
-                          instanceCount,    
+                          instanceCount,
                           minOffsetAlignment) {
   section_name_to_memory_offset_map = {
-    {"cam_no_persp", offsetof(BackgroundCommonEtieVertexUniformShaderData, cam_no_persp)},
-    {"perspective0", offsetof(BackgroundCommonEtieVertexUniformShaderData, perspective0)},
-    {"perspective1", offsetof(BackgroundCommonEtieVertexUniformShaderData, perspective1)},
-    {"envmap_tod_tint", offsetof(BackgroundCommonEtieVertexUniformShaderData, envmap_tod_tint)}
-  };
+      {"cam_no_persp", offsetof(BackgroundCommonEtieVertexUniformShaderData, cam_no_persp)},
+      {"perspective0", offsetof(BackgroundCommonEtieVertexUniformShaderData, perspective0)},
+      {"perspective1", offsetof(BackgroundCommonEtieVertexUniformShaderData, perspective1)},
+      {"envmap_tod_tint", offsetof(BackgroundCommonEtieVertexUniformShaderData, envmap_tod_tint)}};
 }
-

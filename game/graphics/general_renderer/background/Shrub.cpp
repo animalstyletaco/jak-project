@@ -6,10 +6,11 @@ BaseShrub::BaseShrub(const std::string& name, int my_id) : BaseBucketRenderer(na
   m_color_result.resize(background_common::TIME_OF_DAY_COLOR_COUNT);
 }
 
-BaseShrub::~BaseShrub() {
-}
+BaseShrub::~BaseShrub() {}
 
-void BaseShrub::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseShrub::render(DmaFollower& dma,
+                       BaseSharedRenderState* render_state,
+                       ScopedProfilerNode& prof) {
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
       dma.read_and_advance();

@@ -1,13 +1,17 @@
 #include "SwapChain.h"
+
 #include <stdexcept>
 
-SwapChain::SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef, VkExtent2D extent, bool vsyncEnabled)
+SwapChain::SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
+                     VkExtent2D extent,
+                     bool vsyncEnabled)
     : device{deviceRef}, windowExtent{extent}, m_render_pass_sample{deviceRef->getMsaaCount()} {
   init(vsyncEnabled);
 }
 
 SwapChain::SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
-                     VkExtent2D extent, bool vsyncEnabled,
+                     VkExtent2D extent,
+                     bool vsyncEnabled,
                      std::shared_ptr<SwapChain> previous)
     : device{deviceRef},
       windowExtent{extent},
@@ -63,7 +67,8 @@ VkResult SwapChain::acquireNextImage(uint32_t* imageIndex) {
 
 VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex) {
   if (imagesInFlight[*imageIndex] != VK_NULL_HANDLE) {
-    vkWaitForFences(device->getLogicalDevice(), 1, &imagesInFlight[*imageIndex], VK_TRUE, UINT64_MAX);
+    vkWaitForFences(device->getLogicalDevice(), 1, &imagesInFlight[*imageIndex], VK_TRUE,
+                    UINT64_MAX);
   }
   imagesInFlight[*imageIndex] = inFlightFences[currentFrame];
 
@@ -162,7 +167,8 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
 
   createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain;
 
-  if(vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain) != VK_SUCCESS){
+  if (vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain) !=
+      VK_SUCCESS) {
     throw std::runtime_error("failed to create swap chain");
   }
 
@@ -197,8 +203,8 @@ void SwapChain::createImageViews() {
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(device->getLogicalDevice(), &viewInfo, nullptr, &swapChainImageViews[i]) !=
-        VK_SUCCESS) {
+    if (vkCreateImageView(device->getLogicalDevice(), &viewInfo, nullptr,
+                          &swapChainImageViews[i]) != VK_SUCCESS) {
       throw std::runtime_error("failed to create texture image view!");
     }
   }
@@ -214,7 +220,7 @@ void SwapChain::createRenderPass() {
   VkAttachmentDescription colorAttachment = {};
   colorAttachment.format = getSwapChainImageFormat();
   colorAttachment.samples = sampleCount;
-  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; 
+  colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
   colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
   colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -279,7 +285,7 @@ void SwapChain::createRenderPass() {
 
   std::array<VkSubpassDependency, 2> dependencies = {};
 
-		// Depth attachment
+  // Depth attachment
   dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
   dependencies[0].dstSubpass = 0;
   dependencies[0].srcStageMask =
@@ -319,7 +325,8 @@ void SwapChain::createRenderPass() {
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  if (vkCreateRenderPass(device->getLogicalDevice(), &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+  if (vkCreateRenderPass(device->getLogicalDevice(), &renderPassInfo, nullptr, &renderPass) !=
+      VK_SUCCESS) {
     throw std::runtime_error("failed to create render pass!");
   }
 
@@ -327,8 +334,7 @@ void SwapChain::createRenderPass() {
   noClearRenderPassInfo.pAttachments = noClearAttachments.data();
 
   if (vkCreateRenderPass(device->getLogicalDevice(), &noClearRenderPassInfo, nullptr,
-                         &noClearRenderPass) !=
-      VK_SUCCESS) {
+                         &noClearRenderPass) != VK_SUCCESS) {
     throw std::runtime_error("failed to create render pass!");
   }
 }
@@ -343,9 +349,9 @@ void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
   swapChainFramebuffers.resize(imageCount());
   for (size_t i = 0; i < imageCount(); i++) {
     std::vector<VkImageView> attachments;
-    if(sampleCount != VK_SAMPLE_COUNT_1_BIT){
-      attachments = {colorImages[i].getImageView(),
-        swapChainImageViews[i], depthImages[i].getImageView()}; 
+    if (sampleCount != VK_SAMPLE_COUNT_1_BIT) {
+      attachments = {colorImages[i].getImageView(), swapChainImageViews[i],
+                     depthImages[i].getImageView()};
     } else {
       attachments = {colorImages[i].getImageView(), depthImages[i].getImageView()};
     }
@@ -383,7 +389,8 @@ void SwapChain::createColorResources() {
         1, VK_IMAGE_TYPE_2D, swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
 
-    colorImage.createImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+    colorImage.createImageView(VK_IMAGE_VIEW_TYPE_2D, swapChainImageFormat,
+                               VK_IMAGE_ASPECT_COLOR_BIT, 1);
   }
 }
 
@@ -402,12 +409,10 @@ void SwapChain::createDepthResources() {
             swapChainExtent.height,
             1,
         },
-        1, VK_IMAGE_TYPE_2D,
-        depthFormat, VK_IMAGE_TILING_OPTIMAL,
+        1, VK_IMAGE_TYPE_2D, depthFormat, VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
-   depthImage.createImageView(
-        VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
+    depthImage.createImageView(VK_IMAGE_VIEW_TYPE_2D, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
   }
 }
 
@@ -418,7 +423,7 @@ void SwapChain::createSyncObjects() {
   for (auto& renderFinishedSemaphore : renderFinishedSemaphores) {
     vkDestroySemaphore(device->getLogicalDevice(), renderFinishedSemaphore, nullptr);
   }
-  for (auto& inFlightFence : inFlightFences){
+  for (auto& inFlightFence : inFlightFences) {
     vkDestroyFence(device->getLogicalDevice(), inFlightFence, nullptr);
   }
 
@@ -440,11 +445,12 @@ void SwapChain::createSyncObjects() {
   fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    if (vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) !=
-            VK_SUCCESS ||
-        vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) !=
-            VK_SUCCESS ||
-        vkCreateFence(device->getLogicalDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+    if (vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo, nullptr,
+                          &imageAvailableSemaphores[i]) != VK_SUCCESS ||
+        vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo, nullptr,
+                          &renderFinishedSemaphores[i]) != VK_SUCCESS ||
+        vkCreateFence(device->getLogicalDevice(), &fenceInfo, nullptr, &inFlightFences[i]) !=
+            VK_SUCCESS) {
       throw std::runtime_error("failed to create synchronization objects for a frame!");
     }
   }
@@ -463,7 +469,8 @@ VkSurfaceFormatKHR SwapChain::chooseSwapSurfaceFormat(
 }
 
 VkPresentModeKHR SwapChain::chooseSwapPresentMode(
-    const std::vector<VkPresentModeKHR>& availablePresentModes, VkPresentModeKHR presentMode) {
+    const std::vector<VkPresentModeKHR>& availablePresentModes,
+    VkPresentModeKHR presentMode) {
   for (const auto& availablePresentMode : availablePresentModes) {
     if (availablePresentMode == presentMode) {
       lg::info("Present mode: Mailbox");
@@ -505,7 +512,7 @@ void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
-  
+
   if (!descriptors.empty()) {
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
                             descriptors.size(), descriptors.data(), 0, nullptr);
@@ -531,7 +538,6 @@ void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
                                          std::vector<VkDescriptorSet>& descriptors,
                                          uint32_t dynamicDescriptorCount,
                                          uint32_t* dynamicDescriptorOffsets) {
-
   setupForDrawIndexedCommand(commandBuffer, vertex_buffer, index_buffer, pipeline_layout,
                              descriptors, dynamicDescriptorCount, dynamicDescriptorOffsets);
   vkCmdDrawIndexed(commandBuffer, index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
@@ -558,14 +564,15 @@ void SwapChain::setupForDrawIndexedCommand(VkCommandBuffer commandBuffer,
 }
 
 void SwapChain::multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                         VertexBuffer* vertex_buffer,
-                                         IndexBuffer* index_buffer,
-                                         VkPipelineLayout& pipeline_layout,
-                                         std::vector<VkDescriptorSet>& descriptors,
-                                         MultiDrawVulkanBuffer* multiDrawCommand) {
+                                              VertexBuffer* vertex_buffer,
+                                              IndexBuffer* index_buffer,
+                                              VkPipelineLayout& pipeline_layout,
+                                              std::vector<VkDescriptorSet>& descriptors,
+                                              MultiDrawVulkanBuffer* multiDrawCommand) {
   setupForDrawIndexedCommand(commandBuffer, vertex_buffer, index_buffer, pipeline_layout,
                              descriptors, 0, nullptr);
-  vkCmdDrawIndexedIndirect(commandBuffer, multiDrawCommand->getBuffer(), 0, multiDrawCommand->getInstanceCount(),
+  vkCmdDrawIndexedIndirect(commandBuffer, multiDrawCommand->getBuffer(), 0,
+                           multiDrawCommand->getInstanceCount(),
                            sizeof(VkDrawIndexedIndirectCommand));
 }
 

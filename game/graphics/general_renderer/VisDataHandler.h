@@ -9,7 +9,9 @@
 class BaseVisDataHandler : public BaseBucketRenderer {
  public:
   BaseVisDataHandler(const std::string& name, int my_id);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  private:

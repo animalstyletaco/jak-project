@@ -61,7 +61,7 @@ void Generic2::render_in_mode(DmaFollower& dma,
     switch (mode) {
       case Mode::NORMAL:
       case Mode::WARP:
-        if (render_state->version == GameVersion::Jak1) {
+        if (render_state->GetVersion() == GameVersion::Jak1) {
           process_dma_jak1(dma, render_state->next_bucket);
         } else {
           process_dma_jak2(dma, render_state->next_bucket);

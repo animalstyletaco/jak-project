@@ -4,21 +4,23 @@
 
 #include "common/util/FilteredValue.h"
 
+#include "game/graphics/general_renderer/background/Tie3.h"
 #include "game/graphics/gfx.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
-#include "game/graphics/general_renderer/background/Tie3.h"
 
 class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
  public:
   Tie3Vulkan(const std::string& name,
-       int my_id,
-       std::shared_ptr<GraphicsDeviceVulkan> device,
-       VulkanInitializationInfo& vulkan_info,
+             int my_id,
+             std::shared_ptr<GraphicsDeviceVulkan> device,
+             VulkanInitializationInfo& vulkan_info,
              int level_id,
              tfrag3::TieCategory category = tfrag3::TieCategory::NORMAL);
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
-  ~Tie3Vulkan();
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
+  virtual ~Tie3Vulkan();
 
   bool try_loading_level(const std::string& str, BaseSharedRenderState* render_state) override;
 
@@ -41,7 +43,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   int lod() const { return Gfx::g_global_settings.lod_tie; }
 
- private:
+ protected:
   void InitializeInputAttributes();
   void discard_tree_cache() override;
   void create_pipeline_layout() override;
@@ -95,7 +97,8 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
                                BaseSharedRenderState* render_state,
                                ScopedProfilerNode& prof,
                                tfrag3::TieCategory category,
-                               int index, int geom);
+                               int index,
+                               int geom);
 
   struct Cache {
     std::vector<background_common::DrawSettings> draw_idx_temp;
@@ -140,7 +143,8 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   TiePushConstant m_tie_vertex_push_constant;
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_color_push_constant;
 
-  std::unique_ptr<BackgroundCommonEtieBaseVertexUniformBuffer> m_etie_base_vertex_shader_uniform_buffer;
+  std::unique_ptr<BackgroundCommonEtieBaseVertexUniformBuffer>
+      m_etie_base_vertex_shader_uniform_buffer;
   std::unique_ptr<BackgroundCommonEtieVertexUniformBuffer> m_etie_vertex_shader_uniform_buffer;
 
   VkDescriptorBufferInfo m_etie_base_descriptor_buffer_info{};
@@ -159,6 +163,21 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::vector<VkDescriptorSet> m_global_instanced_wind_fragment_shader_descriptor_sets;
 };
 
+class Tie3VulkanJak1 : public Tie3Vulkan {
+ public:
+  Tie3VulkanJak1(const std::string& name,
+                 int my_id,
+                 std::shared_ptr<GraphicsDeviceVulkan> device,
+                 VulkanInitializationInfo& vulkan_info,
+                 int level_id,
+                 tfrag3::TieCategory category = tfrag3::TieCategory::NORMAL)
+      : Tie3Vulkan(name, my_id, device, vulkan_info, level_id, category) {
+    m_tie_vertex_push_constant.height_scale = 1;
+    m_tie_vertex_push_constant.scissor_adjust = -512 / 448.f;
+  }
+  ~Tie3VulkanJak1() = default;
+};
+
 class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkanRenderer {
  public:
   Tie3VulkanAnotherCategory(const std::string& name,
@@ -167,7 +186,9 @@ class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkan
                             VulkanInitializationInfo& vulkan_info,
                             Tie3Vulkan* parent,
                             tfrag3::TieCategory category);
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void render(DmaFollower& dma,
               BaseSharedRenderState* render_state,
               ScopedProfilerNode& prof) override;
@@ -188,7 +209,9 @@ class Tie3VulkanWithEnvmapJak1 : public Tie3Vulkan {
                            std::shared_ptr<GraphicsDeviceVulkan> device,
                            VulkanInitializationInfo& vulkan_info,
                            int level_id);
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  private:

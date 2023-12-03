@@ -28,8 +28,8 @@ struct BackgroundCommonEtieVertexUniformShaderData
 class BackgroundCommonEtieBaseVertexUniformBuffer : public UniformVulkanBuffer {
  public:
   BackgroundCommonEtieBaseVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
-                                          uint32_t instanceCount,
-                                          VkDeviceSize minOffsetAlignment);
+                                              uint32_t instanceCount,
+                                              VkDeviceSize minOffsetAlignment);
 };
 
 class BackgroundCommonEtieVertexUniformBuffer : public UniformVulkanBuffer {
@@ -46,15 +46,18 @@ struct BackgroundCommonFragmentPushConstantShaderData {
 };
 
 namespace vulkan_background_common {
-void make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
-                                 const std::vector<tfrag3::ShrubDraw>& draws);
+void make_all_visible_multidraws(
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    const std::vector<tfrag3::ShrubDraw>& draws);
 
-u32 make_all_visible_multidraws(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
-                                const std::vector<tfrag3::StripDraw>& draws);
+u32 make_all_visible_multidraws(
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    const std::vector<tfrag3::StripDraw>& draws);
 
-u32 make_multidraws_from_vis_string(std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
-                                    const std::vector<tfrag3::StripDraw>& draws,
-                                    const std::vector<u8>& vis_data);
+u32 make_multidraws_from_vis_string(
+    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    const std::vector<tfrag3::StripDraw>& draws,
+    const std::vector<u8>& vis_data);
 
 u32 make_all_visible_index_list(background_common::DrawSettings* group_out,
                                 u32* idx_out,
@@ -88,12 +91,11 @@ u32 make_index_list_from_vis_and_proto_string(background_common::DrawSettings* g
                                               const u32* idx_in,
                                               u32* num_tris_out);
 
-DoubleDraw setup_tfrag_shader(
-    BaseSharedRenderState* render_state,
-    DrawMode mode,
-    VulkanSamplerHelper& sampler,
-    PipelineConfigInfo& pipeline_info,
-    BackgroundCommonFragmentPushConstantShaderData& uniform_buffer);
+DoubleDraw setup_tfrag_shader(BaseSharedRenderState* render_state,
+                              DrawMode mode,
+                              VulkanSamplerHelper& sampler,
+                              PipelineConfigInfo& pipeline_info,
+                              BackgroundCommonFragmentPushConstantShaderData& uniform_buffer);
 DoubleDraw setup_vulkan_from_draw_mode(DrawMode mode,
                                        VulkanSamplerHelper& sampler,
                                        PipelineConfigInfo& pipeline_config,
@@ -104,5 +106,6 @@ void first_tfrag_draw_setup(const TfragRenderSettings& settings,
 
 VkDescriptorImageInfo create_placeholder_descriptor_image_info(
     std::unique_ptr<VulkanTexture>& texture,
-    std::unique_ptr<VulkanSamplerHelper>& sampler, VkImageType image_type);
-}
+    std::unique_ptr<VulkanSamplerHelper>& sampler,
+    VkImageType image_type);
+}  // namespace vulkan_background_common

@@ -64,11 +64,12 @@ class DescriptorPool {
   DescriptorPool& operator=(const DescriptorPool&) = delete;
 
   bool allocateDescriptor(const VkDescriptorSetLayout* descriptorSetLayout,
-                          VkDescriptorSet* descriptor, uint32_t descriptorSetCount = 1) const;
+                          VkDescriptorSet* descriptor,
+                          uint32_t descriptorSetCount = 1) const;
 
   void freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const;
   VkDescriptorPool getDescriptorPool() { return m_descriptor_pool; }
-  std::shared_ptr<GraphicsDeviceVulkan> device(){ return m_device; }
+  std::shared_ptr<GraphicsDeviceVulkan> device() { return m_device; }
 
   void resetPool();
 
@@ -81,14 +82,15 @@ class DescriptorPool {
 
 class DescriptorWriter {
  public:
-  DescriptorWriter(std::unique_ptr<DescriptorLayout>& setLayout, std::unique_ptr<DescriptorPool>& pool);
+  DescriptorWriter(std::unique_ptr<DescriptorLayout>& setLayout,
+                   std::unique_ptr<DescriptorPool>& pool);
 
   VkWriteDescriptorSet writeBufferDescriptorSet(uint32_t binding,
                                                 VkDescriptorBufferInfo* bufferInfo,
                                                 uint32_t bufferInfoCount = 1) const;
   VkWriteDescriptorSet writeImageDescriptorSet(uint32_t binding,
-                                 VkDescriptorImageInfo* imageInfo,
-                                 uint32_t imageInfoCount = 1) const;
+                                               VkDescriptorImageInfo* imageInfo,
+                                               uint32_t imageInfoCount = 1) const;
   VkWriteDescriptorSet writeBufferViewDescriptorSet(uint32_t binding,
                                                     VkBufferView* bufferView,
                                                     uint32_t bufferViewCount) const;
@@ -100,9 +102,8 @@ class DescriptorWriter {
                                VkDescriptorImageInfo* imageInfo,
                                uint32_t imageInfoCount = 1);
   DescriptorWriter& writeBufferView(uint32_t binding,
-                                VkBufferView* bufferView,
-                                uint32_t bufferViewCount = 1);
-
+                                    VkBufferView* bufferView,
+                                    uint32_t bufferViewCount = 1);
 
   bool build(VkDescriptorSet& set);
   void overwrite(VkDescriptorSet& set);

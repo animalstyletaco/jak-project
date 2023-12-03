@@ -25,19 +25,22 @@ class BaseSprite3 : public BaseBucketRenderer {
                                           u32 size,
                                           BaseSharedRenderState* render_state,
                                           ScopedProfilerNode& prof) = 0;
-  virtual void direct_renderer_flush_pending(BaseSharedRenderState * render_state,
-                                              ScopedProfilerNode& prof) = 0;
+  virtual void direct_renderer_flush_pending(BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) = 0;
   virtual void glow_renderer_cancel_sprite() = 0;
   virtual SpriteGlowOutput* glow_renderer_alloc_sprite() = 0;
-  virtual void glow_renderer_flush(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+  virtual void glow_renderer_flush(BaseSharedRenderState* render_state,
+                                   ScopedProfilerNode& prof) = 0;
 
   virtual void SetSprite3UniformVertexFourFloatVector(const char* name,
-                                         u32 numberOfFloats,
-                                         float* data, u32 flags = 0) = 0;
+                                                      u32 numberOfFloats,
+                                                      float* data,
+                                                      u32 flags = 0) = 0;
   virtual void SetSprite3UniformMatrixFourFloatVector(const char* name,
-                                         u32 numberOfFloats,
-                                         bool isTransponsedMatrix,
-                                         float* data, u32 flags = 0) = 0;
+                                                      u32 numberOfFloats,
+                                                      bool isTransponsedMatrix,
+                                                      float* data,
+                                                      u32 flags = 0) = 0;
   virtual void SetSprite3UniformVertexUserHvdfVector(const char* name,
                                                      u32 totalBytes,
                                                      float* data,
@@ -60,8 +63,8 @@ class BaseSprite3 : public BaseBucketRenderer {
                                                      // in as parameter
 
   void render_2d_group0(DmaFollower& dma,
-                       BaseSharedRenderState* render_state,
-                       ScopedProfilerNode& prof);
+                        BaseSharedRenderState* render_state,
+                        ScopedProfilerNode& prof);
   void render_distorter(DmaFollower& dma,
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);

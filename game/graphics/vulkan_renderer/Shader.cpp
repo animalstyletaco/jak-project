@@ -1,7 +1,7 @@
 
-#include <regex>
-
 #include "Shader.h"
+
+#include <regex>
 
 #include "common/log/log.h"
 #include "common/util/Assert.h"
@@ -24,7 +24,7 @@ VkShaderModule VulkanShader::PopulateShader(const std::vector<u8>& code) {
 }
 
 VulkanShader::VulkanShader(VkDevice device, const std::string& shader_name)
-    : m_device(device) ,shader_name(shader_name) {
+    : m_device(device), shader_name(shader_name) {
   initialize_shader(device, shader_name);
 }
 
@@ -62,10 +62,12 @@ VulkanShader::~VulkanShader() {
   }
 }
 
-VulkanShaderLibrary::VulkanShaderLibrary(std::shared_ptr<GraphicsDeviceVulkan> device) : m_device(device) {
+VulkanShaderLibrary::VulkanShaderLibrary(std::shared_ptr<GraphicsDeviceVulkan> device)
+    : m_device(device) {
   at(ShaderId::SOLID_COLOR).initialize_shader(m_device->getLogicalDevice(), "solid_color");
   at(ShaderId::DIRECT_BASIC).initialize_shader(m_device->getLogicalDevice(), "direct_basic");
-  at(ShaderId::DIRECT_BASIC_TEXTURED).initialize_shader(m_device->getLogicalDevice(), "direct_basic_textured");
+  at(ShaderId::DIRECT_BASIC_TEXTURED)
+      .initialize_shader(m_device->getLogicalDevice(), "direct_basic_textured");
   at(ShaderId::DEBUG_RED).initialize_shader(m_device->getLogicalDevice(), "debug_red");
   at(ShaderId::SPRITE).initialize_shader(m_device->getLogicalDevice(), "sprite_3d");
   at(ShaderId::SKY).initialize_shader(m_device->getLogicalDevice(), "sky");
@@ -77,14 +79,16 @@ VulkanShaderLibrary::VulkanShaderLibrary(std::shared_ptr<GraphicsDeviceVulkan> d
   at(ShaderId::EYE).initialize_shader(m_device->getLogicalDevice(), "eye");
   at(ShaderId::GENERIC).initialize_shader(m_device->getLogicalDevice(), "generic");
   at(ShaderId::OCEAN_TEXTURE).initialize_shader(m_device->getLogicalDevice(), "ocean_texture");
-  at(ShaderId::OCEAN_TEXTURE_MIPMAP).initialize_shader(m_device->getLogicalDevice(), "ocean_texture_mipmap");
+  at(ShaderId::OCEAN_TEXTURE_MIPMAP)
+      .initialize_shader(m_device->getLogicalDevice(), "ocean_texture_mipmap");
   at(ShaderId::OCEAN_COMMON).initialize_shader(m_device->getLogicalDevice(), "ocean_common");
   at(ShaderId::SHRUB).initialize_shader(m_device->getLogicalDevice(), "shrub");
   at(ShaderId::SHADOW).initialize_shader(m_device->getLogicalDevice(), "shadow");
   at(ShaderId::COLLISION).initialize_shader(m_device->getLogicalDevice(), "collision");
   at(ShaderId::MERC2).initialize_shader(m_device->getLogicalDevice(), "merc2");
   at(ShaderId::SPRITE_DISTORT).initialize_shader(m_device->getLogicalDevice(), "sprite_distort");
-  at(ShaderId::SPRITE_DISTORT_INSTANCED).initialize_shader(m_device->getLogicalDevice(), "sprite_distort_instanced");
+  at(ShaderId::SPRITE_DISTORT_INSTANCED)
+      .initialize_shader(m_device->getLogicalDevice(), "sprite_distort_instanced");
   at(ShaderId::POST_PROCESSING).initialize_shader(m_device->getLogicalDevice(), "post_processing");
   at(ShaderId::DEPTH_CUE).initialize_shader(m_device->getLogicalDevice(), "depth_cue");
   at(ShaderId::EMERC).initialize_shader(m_device->getLogicalDevice(), "emerc");
@@ -100,6 +104,10 @@ VulkanShaderLibrary::VulkanShaderLibrary(std::shared_ptr<GraphicsDeviceVulkan> d
   at(ShaderId::SHADOW2).initialize_shader(m_device->getLogicalDevice(), "shadow2");
   at(ShaderId::DIRECT_BASIC_TEXTURED_MULTI_UNIT)
       .initialize_shader(m_device->getLogicalDevice(), "direct_basic_textured_multi_unit");
+  at(ShaderId::TEX_ANIM).initialize_shader(m_device->getLogicalDevice(), "tex_anim");
+  at(ShaderId::GLOW_DEPTH_COPY).initialize_shader(m_device->getLogicalDevice(), "glow_depth_copy");
+  at(ShaderId::GLOW_PROBE_ON_GRID)
+      .initialize_shader(m_device->getLogicalDevice(), "glow_probe_on_grid");
 
   for (auto& shader : m_shaders) {
     ASSERT_MSG(shader.okay(), "Shader compiled");

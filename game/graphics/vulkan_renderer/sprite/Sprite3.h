@@ -6,10 +6,10 @@
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
 
-#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/general_renderer/sprite/Sprite3.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/DirectRenderer.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/vulkan_renderer/background/background_common.h"
 #include "game/graphics/vulkan_renderer/sprite/GlowRenderer.h"
 
@@ -22,9 +22,9 @@ class Sprite3dVertexUniformBuffer : public UniformVulkanBuffer {
 class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
  public:
   SpriteVulkan3(const std::string& name,
-          int my_id,
-          std::shared_ptr<GraphicsDeviceVulkan> device,
-          VulkanInitializationInfo& vulkan_info);
+                int my_id,
+                std::shared_ptr<GraphicsDeviceVulkan> device,
+                VulkanInitializationInfo& vulkan_info);
   ~SpriteVulkan3();
   void SetupShader(ShaderId shaderId) override;
 
@@ -38,14 +38,12 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
 
   void glow_renderer_cancel_sprite() override;
   SpriteGlowOutput* glow_renderer_alloc_sprite() override;
-  void glow_renderer_flush(BaseSharedRenderState* render_state,
-                                   ScopedProfilerNode& prof) override;
+  void glow_renderer_flush(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
 
   void distort_draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void distort_draw_instanced(BaseSharedRenderState* render_state,
                               ScopedProfilerNode& prof) override;
-  void distort_draw_common(BaseSharedRenderState* render_state,
-                           ScopedProfilerNode& prof) override;
+  void distort_draw_common(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) override;
 
   void flush_sprites(BaseSharedRenderState* render_state,
@@ -106,7 +104,7 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
   struct FragmentPushConstant {
     float alpha_min;
     float alpha_max;
-  }m_sprite_fragment_push_constant;
+  } m_sprite_fragment_push_constant;
 
   struct DistortPushConstant {
     math::Vector4f colors;
@@ -116,7 +114,8 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
   struct Sprite3GraphicsSettings {
     Sprite3GraphicsSettings(std::unique_ptr<DescriptorPool>& descriptorPool,
                             VkDescriptorSetLayout descriptorSetLayout,
-                            u32 bucketSize) : m_descriptor_pool(descriptorPool){
+                            u32 bucketSize)
+        : m_descriptor_pool(descriptorPool) {
       Reinitialize(descriptorSetLayout, bucketSize);
     }
 
@@ -149,7 +148,7 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
     std::vector<VkDescriptorImageInfo> descriptor_image_infos;
     std::vector<VkDescriptorSet> fragment_descriptor_sets;
 
-    private:
+   private:
     std::unique_ptr<DescriptorPool>& m_descriptor_pool;
   };
 
@@ -176,7 +175,8 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
 
   std::vector<VkVertexInputBindingDescription> m_sprite_input_binding_descriptions;
   std::vector<VkVertexInputBindingDescription> m_sprite_distort_input_binding_descriptions;
-  std::vector<VkVertexInputBindingDescription> m_sprite_distort_instanced_input_binding_descriptions;
+  std::vector<VkVertexInputBindingDescription>
+      m_sprite_distort_instanced_input_binding_descriptions;
 
   std::vector<VkVertexInputAttributeDescription> m_sprite_attribute_descriptions;
   std::vector<VkVertexInputAttributeDescription> m_sprite_distort_attribute_descriptions;
@@ -186,8 +186,7 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
   VkDescriptorSet m_sprite_distort_fragment_descriptor_set = VK_NULL_HANDLE;
 
   VkDescriptorImageInfo m_sprite_distort_descriptor_image_info;
-
-  void AllocateNewDescriptorMapElement();
+  PushConstant m_push_constant{};
 
   uint32_t m_direct_renderer_call_count = 0;
 };
@@ -200,7 +199,13 @@ class SpriteVulkan3Jak1 : public BaseSprite3Jak1, public SpriteVulkan3 {
                     VulkanInitializationInfo& vulkan_info)
       : BaseSprite3(name, my_id),
         BaseSprite3Jak1(name, my_id),
-        SpriteVulkan3(name, my_id, device, vulkan_info) {}
+        SpriteVulkan3(name, my_id, device, vulkan_info) {
+    m_push_constant.height_scale = 1;
+    m_push_constant.scissor_adjust = -512 / 448.f;
+
+    expect_zbp = 0x1c0;
+    expect_th = 8;
+  }
 
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
@@ -215,7 +220,13 @@ class SpriteVulkan3Jak2 : public BaseSprite3Jak2, public SpriteVulkan3 {
                     VulkanInitializationInfo& vulkan_info)
       : BaseSprite3(name, my_id),
         BaseSprite3Jak2(name, my_id),
-        SpriteVulkan3(name, my_id, device, vulkan_info) {}
+        SpriteVulkan3(name, my_id, device, vulkan_info) {
+    m_push_constant.height_scale = 0.5;
+    m_push_constant.scissor_adjust = -512 / 416.f;
+
+    expect_zbp = 0x130;
+    expect_th = 9;
+  }
 
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,

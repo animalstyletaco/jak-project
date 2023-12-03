@@ -350,7 +350,7 @@ std::vector<EyeRenderer::SingleEyeDraws> EyeRenderer::get_draws(DmaFollower& dma
       r_draw.lid_gl_tex = l_draw.lid_gl_tex;
     }
 
-    if (render_state->version == GameVersion::Jak1) {
+    if (render_state->GetVersion() == GameVersion::Jak1) {
       auto end = dma.read_and_advance();
       ASSERT(end.size_bytes == 0);
       ASSERT(end.vif0() == 0);
@@ -378,7 +378,7 @@ void EyeRenderer::handle_eye_dma2(DmaFollower& dma,
   ASSERT(alpha_setup.vifcode0().kind == VifCode::Kind::NOP);
   ASSERT(alpha_setup.vifcode1().kind == VifCode::Kind::DIRECT);
 
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     // from the add to bucket
     ASSERT(dma.current_tag().kind == DmaTag::Kind::NEXT);
     ASSERT(dma.current_tag().qwc == 0);

@@ -7,7 +7,9 @@ class BaseShadowRenderer : public BaseBucketRenderer {
  public:
   BaseShadowRenderer(const std::string& name, int my_id);
   ~BaseShadowRenderer();
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
 
  protected:

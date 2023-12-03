@@ -8,8 +8,7 @@ BaseShadow2::BaseShadow2(const std::string& name, int my_id) : BaseBucketRendere
   m_back_index_buffer.resize(kMaxInds);
 }
 
-BaseShadow2::~BaseShadow2() {
-}
+BaseShadow2::~BaseShadow2() {}
 
 void BaseShadow2::draw_debug_window() {
   ImGui::Checkbox("volume", &m_debug_draw_volume);
@@ -21,7 +20,9 @@ void BaseShadow2::reset_buffers() {
   m_vertex_buffer_used = 0;
 }
 
-void BaseShadow2::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseShadow2::render(DmaFollower& dma,
+                         BaseSharedRenderState* render_state,
+                         ScopedProfilerNode& prof) {
   reset_buffers();
   // jump to bucket
   dma.read_and_advance();
@@ -311,8 +312,8 @@ const u8* BaseShadow2::add_flippable_tris(const u8* byte_data, const u8* vertex_
 }
 
 const u8* BaseShadow2::add_wall_quads(const u8* byte_data,
-                                  const u8* vertex_data_0,
-                                  const u8* vertex_data_1) {
+                                      const u8* vertex_data_0,
+                                      const u8* vertex_data_1) {
   const int num_quads = *byte_data++;
   for (int i = 0; i < 3; i++) {
     int v = *byte_data++;

@@ -8,13 +8,15 @@
 #include "common/util/FileUtil.h"
 #include "common/util/Timer.h"
 
-#include "game/graphics/vulkan_renderer/loader/common.h"
 #include "game/graphics/general_renderer/loader/Loader.h"
 #include "game/graphics/texture/VulkanTexturePool.h"
+#include "game/graphics/vulkan_renderer/loader/common.h"
 
 class VulkanLoader : public BaseLoader {
  public:
-  VulkanLoader(std::shared_ptr<GraphicsDeviceVulkan> device, const fs::path& base_path, int max_levels);
+  VulkanLoader(std::shared_ptr<GraphicsDeviceVulkan> device,
+               const fs::path& base_path,
+               int max_levels);
   ~VulkanLoader();
   void update(VulkanTexturePool& tex_pool);
   void update_blocking(VulkanTexturePool& tex_pool);
@@ -25,9 +27,7 @@ class VulkanLoader : public BaseLoader {
   void draw_debug_window();
   std::optional<MercRefVulkan> get_merc_model(const char* model_name);
   std::vector<LevelDataVulkan*> get_in_use_levels();
-  bool upload_textures(Timer& timer,
-                       LevelDataVulkan& data,
-                       VulkanTexturePool& texture_pool);
+  bool upload_textures(Timer& timer, LevelDataVulkan& data, VulkanTexturePool& texture_pool);
 
  private:
   void loader_thread();

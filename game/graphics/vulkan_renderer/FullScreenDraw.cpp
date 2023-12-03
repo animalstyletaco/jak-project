@@ -1,10 +1,10 @@
 #include "FullScreenDraw.h"
+
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
 FullScreenDrawVulkan::FullScreenDrawVulkan(std::shared_ptr<GraphicsDeviceVulkan> device,
                                            VulkanInitializationInfo& vulkan_info)
     : m_device(device), m_vulkan_info(vulkan_info), m_pipeline_layout(device) {
-
   create_command_buffers();
   GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
   initialize_input_binding_descriptions();
@@ -97,7 +97,7 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
                                 SharedVulkanRenderState* render_state,
                                 ScopedProfilerNode& prof) {
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
-  
+
   prof.add_tri(2);
   prof.add_draw_call();
 
@@ -120,7 +120,7 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   m_pipeline_layout.bind(commandBuffer);
 
   vkCmdPushConstants(commandBuffer, m_pipeline_config_info.pipelineLayout,
-                   VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), &color);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), &color);
 
   m_vulkan_info.swap_chain->drawCommandBuffer(
       commandBuffer, m_vertex_buffer, m_pipeline_config_info.pipelineLayout, m_descriptor_sets);

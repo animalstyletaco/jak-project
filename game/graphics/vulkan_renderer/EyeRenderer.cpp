@@ -10,7 +10,8 @@
 // Bucket Renderer
 /////////////////////////
 // note: eye texture increased to 128x128 (originally 32x32) here.
-EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::shared_ptr<GraphicsDeviceVulkan> device) : fb(128, 128, VK_FORMAT_R8G8B8A8_UNORM, device) {
+EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::shared_ptr<GraphicsDeviceVulkan> device)
+    : fb(128, 128, VK_FORMAT_R8G8B8A8_UNORM, device) {
   VkSamplerCreateInfo& samplerInfo = fb.GetSamplerHelper().GetSamplerCreateInfo();
   samplerInfo.anisotropyEnable = VK_TRUE;
   samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -30,9 +31,9 @@ EyeVulkanRenderer::GpuEyeTex::GpuEyeTex(std::shared_ptr<GraphicsDeviceVulkan> de
 }
 
 EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
-                         int id,
-                         std::shared_ptr<GraphicsDeviceVulkan> device,
-                         VulkanInitializationInfo& vulkan_info)
+                                     int id,
+                                     std::shared_ptr<GraphicsDeviceVulkan> device,
+                                     VulkanInitializationInfo& vulkan_info)
     : BaseEyeRenderer(name, id), BucketVulkanRenderer(device, vulkan_info) {
   m_eye_renderer_extents = VkExtent2D{128, 128};
 
@@ -44,8 +45,7 @@ EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
   }
 
   VkDeviceSize device_size = sizeof(float) * VTX_BUFFER_FLOATS;
-  m_gpu_vertex_buffer = std::make_unique<VertexBuffer>(
-      m_device, device_size, 1, 1);
+  m_gpu_vertex_buffer = std::make_unique<VertexBuffer>(m_device, device_size, 1, 1);
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -98,7 +98,7 @@ void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
       in.texture = &m_gpu_eye_textures[tidx]->fb.ColorAttachmentTexture();
       in.debug_page_name = "PC-EYES";
       in.debug_name = fmt::format("{}-eye-gpu-{}", lr ? "left" : "right", pair_idx);
-      in.id = texture_pool.allocate_pc_port_texture(m_vulkan_info.m_version);
+      in.id = texture_pool.allocate_pc_port_texture();
       m_gpu_eye_textures[tidx]->gpu_texture = texture_pool.give_texture_and_load_to_vram(in, tbp);
       m_gpu_eye_textures[tidx]->tbp = tbp;
     }
@@ -106,8 +106,8 @@ void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
 }
 
 void EyeVulkanRenderer::render(DmaFollower& dma,
-            SharedVulkanRenderState* render_state,
-            ScopedProfilerNode& prof) {
+                               SharedVulkanRenderState* render_state,
+                               ScopedProfilerNode& prof) {
   BaseEyeRenderer::render(dma, render_state, prof);
 };
 
@@ -177,8 +177,8 @@ void EyeVulkanRenderer::setup_draws(DmaFollower& dma, BaseSharedRenderState* ren
       l_draw.pair = pair_idx;
       r_draw.pair = pair_idx;
       if (tex0) {
-        StagingBuffer stagingBuffer{
-            m_device, vulkan_texture->getMemorySize(), 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT};
+        StagingBuffer stagingBuffer{m_device, vulkan_texture->getMemorySize(), 1,
+                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT};
 
         vulkan_texture->getImageData(stagingBuffer.getBuffer(), vulkan_texture->getWidth(),
                                      vulkan_texture->getHeight(), 0, 0);
@@ -278,7 +278,7 @@ void EyeVulkanRenderer::setup_draws(DmaFollower& dma, BaseSharedRenderState* ren
       r_draw.lid_vulkan_graphics.texture = tex2;
     }
 
-    if (render_state->version == GameVersion::Jak1) {
+    if (render_state->GetVersion() == GameVersion::Jak1) {
       auto end = dma.read_and_advance();
       ASSERT(end.size_bytes == 0);
       ASSERT(end.vif0() == 0);
@@ -292,16 +292,18 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
     return;
   }
 
-  //glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
+  // glBindBuffer(GL_ARRAY_BUFFER, m_gl_vertex_buffer);
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.stencilTestEnable = VK_FALSE;
 
-  m_pipeline_config_info.colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                        VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+  m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
+      VK_COLOR_COMPONENT_A_BIT;
   m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
 
-  m_pipeline_config_info.colorBlendInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+  m_pipeline_config_info.colorBlendInfo.sType =
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
   m_pipeline_config_info.colorBlendInfo.blendConstants[0] = 1.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[1] = 1.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
@@ -311,7 +313,8 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
   m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
   m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+  m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
@@ -368,12 +371,13 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
       // set Z
       // set texture
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-      //draw.iris_gl_tex;
-      draw.iris_vulkan_graphics.descriptor_image_info =
-          VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
-                                draw.iris_vulkan_graphics.texture->get_selected_texture()->getImageView(),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.iris_vulkan_graphics, buffer_idx / 4, 4);
+      // draw.iris_gl_tex;
+      draw.iris_vulkan_graphics.descriptor_image_info = VkDescriptorImageInfo{
+          frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
+          draw.iris_vulkan_graphics.texture->get_selected_texture()->getImageView(),
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.iris_vulkan_graphics,
+                        buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
@@ -383,16 +387,18 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
       m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
       m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
       m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+      m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor =
+          VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 
-      //draw.pupil_gl_tex;
-      draw.pupil_vulkan_graphics.descriptor_image_info =
-          VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
-                                draw.pupil_vulkan_graphics.texture->get_selected_texture()->getImageView(),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      // draw.pupil_gl_tex;
+      draw.pupil_vulkan_graphics.descriptor_image_info = VkDescriptorImageInfo{
+          frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
+          draw.pupil_vulkan_graphics.texture->get_selected_texture()->getImageView(),
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
       ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.pupil_vulkan_graphics,
                         buffer_idx / 4, 4);
     }
@@ -400,14 +406,14 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
 
     if (draw.lid_vulkan_graphics.texture) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
-      //draw.lid_gl_tex;
-      draw.lid_vulkan_graphics.descriptor_image_info =
-          VkDescriptorImageInfo{frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
-                                draw.lid_vulkan_graphics.texture->get_selected_texture()->getImageView(),
-                                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+      // draw.lid_gl_tex;
+      draw.lid_vulkan_graphics.descriptor_image_info = VkDescriptorImageInfo{
+          frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
+          draw.lid_vulkan_graphics.texture->get_selected_texture()->getImageView(),
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
       ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.lid_vulkan_graphics,
                         buffer_idx / 4, 4);
-      //glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
+      // glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
 
@@ -416,7 +422,8 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
     vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
   }
 
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, m_vulkan_info.currentFrame);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+                                                     m_vulkan_info.currentFrame);
 
   ASSERT(check == buffer_idx);
 }
@@ -427,13 +434,13 @@ std::optional<u64> EyeVulkanRenderer::lookup_eye_texture(u8 eye_id) {
     fmt::print("lookup eye failed for {} (1)\n", eye_id);
     return {};
   }
-  //auto* gpu_tex = m_gpu_eye_textures[eye_id].gpu_tex;
-  //if (gpu_tex) {
-  //  return gpu_tex->gpu_textures.at(0).gl;
-  //} else {
-  //  fmt::print("lookup eye failed for {}\n", eye_id);
-  //  return {};
-  //}
+  // auto* gpu_tex = m_gpu_eye_textures[eye_id].gpu_tex;
+  // if (gpu_tex) {
+  //   return gpu_tex->gpu_textures.at(0).gl;
+  // } else {
+  //   fmt::print("lookup eye failed for {}\n", eye_id);
+  //   return {};
+  // }
   return {};
 }
 
@@ -442,13 +449,13 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
                                           uint32_t firstVertex,
                                           uint32_t vertexCount) {
   auto& write_descriptors_info = eye.descriptor_writer.getWriteDescriptorSets();
-  write_descriptors_info[0] = eye.descriptor_writer.writeImageDescriptorSet(
-      0, &eye.descriptor_image_info, 1);
+  write_descriptors_info[0] =
+      eye.descriptor_writer.writeImageDescriptorSet(0, &eye.descriptor_image_info, 1);
 
   eye.descriptor_writer.overwrite(eye.descriptor_set);
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                    m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(commandBuffer);
 
   VkDeviceSize offsets[] = {0};
@@ -462,10 +469,10 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
   vkCmdDraw(commandBuffer, vertexCount, 1, firstVertex, 0);
 }
 
-void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) {
+void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma,
+                                             BaseSharedRenderState* render_state) {
   setup_draws(dma, render_state);
   run_gpu(render_state);
 }
 
-EyeVulkanRenderer::~EyeVulkanRenderer() {
-}
+EyeVulkanRenderer::~EyeVulkanRenderer() {}

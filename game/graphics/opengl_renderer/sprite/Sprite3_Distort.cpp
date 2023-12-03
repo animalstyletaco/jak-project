@@ -171,7 +171,7 @@ void Sprite3::render_distorter(DmaFollower& dma,
   // Read DMA
   {
     auto prof_node = prof.make_scoped_child("dma");
-    distort_dma(render_state->version, dma, prof_node);
+    distort_dma(render_state->GetVersion(), dma, prof_node);
   }
 
   if (!m_enabled || !m_distort_enable) {

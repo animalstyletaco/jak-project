@@ -1,12 +1,11 @@
 #include "OceanTexture.h"
 
-#include "game/graphics/vulkan_renderer/AdgifHandler.h"
 #include "game/graphics/general_renderer/ocean/CommonOceanRenderer.h"
+#include "game/graphics/vulkan_renderer/AdgifHandler.h"
 
 #include "third-party/imgui/imgui.h"
 
-BaseOceanTexture::BaseOceanTexture(bool generate_mipmaps)
-    : m_generate_mipmaps(generate_mipmaps) {
+BaseOceanTexture::BaseOceanTexture(bool generate_mipmaps) : m_generate_mipmaps(generate_mipmaps) {
   m_dbuf_x = m_dbuf_a;
   m_dbuf_y = m_dbuf_b;
 
@@ -23,9 +22,8 @@ BaseOceanTexture::~BaseOceanTexture() {
 }
 
 void BaseOceanTextureJak1::handle_ocean_texture(DmaFollower& dma,
-                                        BaseSharedRenderState* render_state,
-                                        ScopedProfilerNode& prof) {
-
+                                                BaseSharedRenderState* render_state,
+                                                ScopedProfilerNode& prof) {
   // if we're doing mipmaps, render to temp.
   // otherwise, render directly to target.
   setup_framebuffer_context(0);
@@ -185,7 +183,7 @@ void BaseOceanTextureJak2::handle_ocean_texture(DmaFollower& dma,
                                                 ScopedProfilerNode& prof) {
   // if we're doing mipmaps, render to temp.
   // otherwise, render directly to target.
-  //setup_framebuffer_context();
+  // setup_framebuffer_context();
   setup_framebuffer_context(0);
   // render to the first texture
   {

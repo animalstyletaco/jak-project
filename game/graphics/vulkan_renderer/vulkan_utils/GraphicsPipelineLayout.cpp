@@ -1,13 +1,12 @@
 #include "GraphicsPipelineLayout.h"
 
-#include <cmath>
-#include <cassert>
-#include <stdexcept>
 #include <algorithm>
+#include <cassert>
+#include <cmath>
+#include <stdexcept>
 
 GraphicsPipelineLayout::GraphicsPipelineLayout(std::shared_ptr<GraphicsDeviceVulkan> device)
-    : _device{device} {
-}
+    : _device{device} {}
 
 GraphicsPipelineLayout::~GraphicsPipelineLayout() {
   destroyPipeline();
@@ -64,7 +63,7 @@ bool areVkPipelineViewportStateCreateInfosEqual(const VkPipelineViewportStateCre
     status &= std::abs(lhs.pViewports[i].x - rhs.pViewports[i].x) < delta;
     status &= std::abs(lhs.pViewports[i].y - rhs.pViewports[i].y) < delta;
     status &= std::abs(lhs.pViewports[i].width - rhs.pViewports[i].width) < delta;
-    status &= std::abs(lhs.pViewports[i].height - rhs.pViewports[i].height) <delta;
+    status &= std::abs(lhs.pViewports[i].height - rhs.pViewports[i].height) < delta;
     status &= std::abs(lhs.pViewports[i].minDepth - rhs.pViewports[i].minDepth) < delta;
     status &= std::abs(lhs.pViewports[i].maxDepth - rhs.pViewports[i].maxDepth) < delta;
   }
@@ -220,29 +219,32 @@ bool PipelineConfigInfo::operator==(const PipelineConfigInfo& rhs) {
   }
   for (size_t i = 0; i < bindingDescriptions.size(); ++i) {
     if (!vk_settings::areVkPipelineShaderStageCreateInfosEqual(shaderStages[i],
-                                                     rhs.shaderStages[i])) {
+                                                               rhs.shaderStages[i])) {
       return false;
     }
   }
 
   status &= vk_settings::areVkPipelineViewportStateCreateInfosEqual(viewportInfo, rhs.viewportInfo);
-  status &= vk_settings::areVkPipelineInputAssemblyStateCreateInfosEqual(inputAssemblyInfo, rhs.inputAssemblyInfo);
-  status &= vk_settings::areVkPipelineRasterizationStateCreateInfosEqual(rasterizationInfo, rhs.rasterizationInfo);
-  status &=
-      vk_settings::areVkPipelineMultisampleStateCreateInfosEqual(multisampleInfo, rhs.multisampleInfo);
+  status &= vk_settings::areVkPipelineInputAssemblyStateCreateInfosEqual(inputAssemblyInfo,
+                                                                         rhs.inputAssemblyInfo);
+  status &= vk_settings::areVkPipelineRasterizationStateCreateInfosEqual(rasterizationInfo,
+                                                                         rhs.rasterizationInfo);
+  status &= vk_settings::areVkPipelineMultisampleStateCreateInfosEqual(multisampleInfo,
+                                                                       rhs.multisampleInfo);
   status &= vk_settings::areVkPipelineColorBlendAttachmentStatesEqual(colorBlendAttachment,
-                                                                rhs.colorBlendAttachment);
+                                                                      rhs.colorBlendAttachment);
   status &=
       vk_settings::areVkPipelineColorBlendStateCreateInfosEqual(colorBlendInfo, rhs.colorBlendInfo);
-  status &= vk_settings::areVkPipelineDepthStencilStateCreateInfosEqual(depthStencilInfo, rhs.depthStencilInfo);
-  //status &= vk_settings::areVkDynamicStatesEqual(dynamicStateEnables, rhs.dynamicStateEnables);
-  status &=
-      vk_settings::areVkPipelineDynamicStateCreateInfosEqual(dynamicStateInfo, rhs.dynamicStateInfo);
+  status &= vk_settings::areVkPipelineDepthStencilStateCreateInfosEqual(depthStencilInfo,
+                                                                        rhs.depthStencilInfo);
+  // status &= vk_settings::areVkDynamicStatesEqual(dynamicStateEnables, rhs.dynamicStateEnables);
+  status &= vk_settings::areVkPipelineDynamicStateCreateInfosEqual(dynamicStateInfo,
+                                                                   rhs.dynamicStateInfo);
   return status;
 }
 
-
-void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer, PipelineConfigInfo& pipelineConfig) {
+void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer,
+                                                    PipelineConfigInfo& pipelineConfig) {
   if (_graphicsPipeline) {
     createGraphicsPipeline(pipelineConfig);
     return;
@@ -254,13 +256,14 @@ void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffe
 
   const float floatEplision = std::numeric_limits<float>::epsilon();
 
-  //TODO: Check to see if extensions are enabled or if Vulkan 1.3 is enabled
-  //Viewport and scissor are handled outside of this class
+  // TODO: Check to see if extensions are enabled or if Vulkan 1.3 is enabled
+  // Viewport and scissor are handled outside of this class
   bool areBlendConstantsEqual = true;
   const unsigned blendConstantCount = sizeof(_currentPipelineConfig.colorBlendInfo.blendConstants);
-  for (unsigned i = 0; i < blendConstantCount; i++){
-    areBlendConstantsEqual &= (std::abs(_currentPipelineConfig.colorBlendInfo.blendConstants[i] -
-                              pipelineConfig.colorBlendInfo.blendConstants[i]) < floatEplision);
+  for (unsigned i = 0; i < blendConstantCount; i++) {
+    areBlendConstantsEqual &=
+        (std::abs(_currentPipelineConfig.colorBlendInfo.blendConstants[i] -
+                  pipelineConfig.colorBlendInfo.blendConstants[i]) < floatEplision);
   }
 
   if (vk_settings::isDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_BLEND_CONSTANTS,
@@ -269,8 +272,8 @@ void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffe
     vkCmdSetBlendConstants(commandBuffer, pipelineConfig.colorBlendInfo.blendConstants);
   }
 
-
-  bool areMinDepthBoundEqual = std::abs(_currentPipelineConfig.depthStencilInfo.minDepthBounds -
+  bool areMinDepthBoundEqual =
+      std::abs(_currentPipelineConfig.depthStencilInfo.minDepthBounds -
                pipelineConfig.depthStencilInfo.minDepthBounds) < floatEplision;
   bool areMaxDepthBoundEqual =
       std::abs(_currentPipelineConfig.depthStencilInfo.maxDepthBounds -
@@ -289,15 +292,15 @@ void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffe
         (_currentPipelineConfig.depthStencilInfo.front.compareMask ==
          pipelineConfig.depthStencilInfo.front.compareMask)) {
       vkCmdSetStencilCompareMask(commandBuffer, pipelineConfig.depthStencilInfo.front.compareOp,
-                          pipelineConfig.depthStencilInfo.front.compareMask);
+                                 pipelineConfig.depthStencilInfo.front.compareMask);
     }
     if ((_currentPipelineConfig.depthStencilInfo.back.compareOp ==
-        pipelineConfig.depthStencilInfo.back.compareOp) &&
+         pipelineConfig.depthStencilInfo.back.compareOp) &&
         (_currentPipelineConfig.depthStencilInfo.back.compareMask ==
          pipelineConfig.depthStencilInfo.back.compareMask)) {
       vkCmdSetStencilCompareMask(commandBuffer, pipelineConfig.depthStencilInfo.back.compareOp,
-                            pipelineConfig.depthStencilInfo.back.compareMask);
-      }
+                                 pipelineConfig.depthStencilInfo.back.compareMask);
+    }
   }
 
   if (vk_settings::isDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_STENCIL_WRITE_MASK,
@@ -381,8 +384,8 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
   pipelineInfo.basePipelineIndex = -1;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-  if (vkCreateGraphicsPipelines(_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr,
-                                &_graphicsPipeline) != VK_SUCCESS) {
+  if (vkCreateGraphicsPipelines(_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo,
+                                nullptr, &_graphicsPipeline) != VK_SUCCESS) {
     throw std::runtime_error("failed to create graphics pipeline");
   }
   _currentPipelineConfig = configInfo;
@@ -462,4 +465,3 @@ void GraphicsPipelineLayout::defaultPipelineConfigInfo(PipelineConfigInfo& confi
       static_cast<uint32_t>(configInfo.dynamicStateEnables.size());
   configInfo.dynamicStateInfo.flags = 0;
 }
-

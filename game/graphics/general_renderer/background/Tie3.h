@@ -4,9 +4,9 @@
 
 #include "common/util/FilteredValue.h"
 
-#include "game/graphics/gfx.h"
 #include "game/graphics/general_renderer/BucketRenderer.h"
 #include "game/graphics/general_renderer/background/background_common.h"
+#include "game/graphics/gfx.h"
 
 struct BaseTieProtoVisibility {
   void init(const std::vector<std::string>& names);
@@ -21,7 +21,9 @@ struct BaseTieProtoVisibility {
 class BaseTie3 : public BaseBucketRenderer {
  public:
   BaseTie3(const std::string& name, int my_id, int level, tfrag3::TieCategory category);
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void draw_debug_window() override;
   virtual ~BaseTie3();
 
@@ -40,7 +42,7 @@ class BaseTie3 : public BaseBucketRenderer {
                           size_t proto_vis_data_size,
                           bool use_multidraw,
                           ScopedProfilerNode& prof) = 0;
-    
+
   void render_from_another(BaseSharedRenderState* render_state,
                            ScopedProfilerNode& prof,
                            tfrag3::TieCategory category);

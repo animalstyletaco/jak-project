@@ -4,21 +4,6 @@
 void SpriteVulkan3::graphics_setup_distort() {
   m_sprite_distort_push_constant.height_scale = m_push_constant.height_scale;
 
-  // set the expected values per game version first
-  switch (m_vulkan_info.m_version) {
-    case GameVersion::Jak1:
-      expect_zbp = 0x1c0;
-      expect_th = 8;
-      break;
-    case GameVersion::Jak2:
-      expect_zbp = 0x130;
-      expect_th = 9;
-      break;
-    default:
-      ASSERT(false);
-      return;
-  }
-
   m_sprite_distort_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -124,9 +109,9 @@ void SpriteVulkan3::graphics_setup_distort() {
   distortInstancedAttributeDescriptions[3].location = 3;
   distortInstancedAttributeDescriptions[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
   distortInstancedAttributeDescriptions[3].offset = offsetof(SpriteDistortInstanceData, sx_sy_sz_t);
-  m_sprite_distort_instanced_attribute_descriptions.insert(m_sprite_distort_instanced_attribute_descriptions.end(),
-                                                 distortInstancedAttributeDescriptions.begin(),
-                                                 distortInstancedAttributeDescriptions.end());
+  m_sprite_distort_instanced_attribute_descriptions.insert(
+      m_sprite_distort_instanced_attribute_descriptions.end(),
+      distortInstancedAttributeDescriptions.begin(), distortInstancedAttributeDescriptions.end());
 
   VkDeviceSize instanced_vertex_device_size =
       distort_max_sprite_slices * 5 * sizeof(SpriteDistortVertex);
@@ -175,18 +160,19 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT);
 
-  m_sprite_distort_push_constant.colors = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
-                             m_sprite_distorter_sine_tables.color.y() / 255.0f,
-                             m_sprite_distorter_sine_tables.color.z() / 255.0f,
-                             m_sprite_distorter_sine_tables.color.w() / 255.0f);
+  m_sprite_distort_push_constant.colors =
+      Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
+               m_sprite_distorter_sine_tables.color.y() / 255.0f,
+               m_sprite_distorter_sine_tables.color.z() / 255.0f,
+               m_sprite_distorter_sine_tables.color.w() / 255.0f);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_sprite_distort_push_constant),
                      &m_sprite_distort_push_constant);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant), sizeof(float),
-                     &m_sprite_distort_push_constant.height_scale);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant),
+                     sizeof(float), &m_sprite_distort_push_constant.height_scale);
 
   // Enable prim restart, we need this to break up the triangle strips
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
@@ -209,8 +195,8 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   m_pipeline_config_info.pipelineLayout = m_sprite_distort_pipeline_layout;
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-  m_distorted_pipeline_layout.updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+  m_distorted_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                     m_pipeline_config_info);
   m_distorted_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
@@ -219,13 +205,13 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   VkBuffer vertex_buffers[] = {m_distort_ogl.vertex_buffer->getBuffer()};
   vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
-                       m_distort_ogl.index_buffer->getBuffer(), 0,
-                       VK_INDEX_TYPE_UINT32);
+  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_distort_ogl.index_buffer->getBuffer(),
+                       0, VK_INDEX_TYPE_UINT32);
 
-  m_sprite_distort_descriptor_image_info = VkDescriptorImageInfo{
-    m_distort_sampler_helper.GetSampler(), m_distort_ogl.fbo->ColorAttachmentTexture().getImageView(),
-    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  m_sprite_distort_descriptor_image_info =
+      VkDescriptorImageInfo{m_distort_sampler_helper.GetSampler(),
+                            m_distort_ogl.fbo->ColorAttachmentTexture().getImageView(),
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& write_descriptors_info =
       m_sprite_distort_fragment_descriptor_writer->getWriteDescriptorSets();
@@ -237,15 +223,16 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
 
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptorSets.size(),
-                          descriptorSets.data(), 0,
-                          NULL);
+                          descriptorSets.data(), 0, NULL);
 
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_sprite_distorter_indices.size(), 1, 0, 0, 0);
+  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_sprite_distorter_indices.size(), 1, 0, 0,
+                   0);
 
   // Done
   vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer, m_vulkan_info.currentFrame);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+                                                     m_vulkan_info.currentFrame);
 }
 
 /*!
@@ -261,7 +248,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
     // No distort sprites to draw, we can end early
     return;
   }
-  
+
   vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
   // Do common distort drawing logic
   distort_draw_common(render_state, prof);
@@ -272,30 +259,31 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   // Set up shader
   SetupShader(ShaderId::SPRITE_DISTORT_INSTANCED);
 
-  m_sprite_distort_push_constant.colors = Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
-                             m_sprite_distorter_sine_tables.color.y() / 255.0f,
-                             m_sprite_distorter_sine_tables.color.z() / 255.0f,
-                             m_sprite_distorter_sine_tables.color.w() / 255.0f);
+  m_sprite_distort_push_constant.colors =
+      Vector4f(m_sprite_distorter_sine_tables.color.x() / 255.0f,
+               m_sprite_distorter_sine_tables.color.y() / 255.0f,
+               m_sprite_distorter_sine_tables.color.z() / 255.0f,
+               m_sprite_distorter_sine_tables.color.w() / 255.0f);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                   VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_sprite_distort_push_constant),
-                   &m_sprite_distort_push_constant);
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_sprite_distort_push_constant),
+                     &m_sprite_distort_push_constant);
 
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                   VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant),
-                   sizeof(float), &m_sprite_distort_push_constant.height_scale);
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant),
+                     sizeof(float), &m_sprite_distort_push_constant.height_scale);
 
-  m_distorted_pipeline_layout.updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+  m_distorted_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                     m_pipeline_config_info);
   m_distorted_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
-  //TODO: update descriptor set here
-  m_sprite_distort_descriptor_image_info = VkDescriptorImageInfo{
-      m_distort_sampler_helper.GetSampler(),
-      m_distort_ogl.fbo->ColorAttachmentTexture().getImageView(),
-      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+  // TODO: update descriptor set here
+  m_sprite_distort_descriptor_image_info =
+      VkDescriptorImageInfo{m_distort_sampler_helper.GetSampler(),
+                            m_distort_ogl.fbo->ColorAttachmentTexture().getImageView(),
+                            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
   auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
   write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
@@ -376,14 +364,14 @@ void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state,
   imageBlit.dstSubresource.layerCount = 1;
 
   VkImage srcImage = m_vulkan_info.swap_chain->GetSwapChainImageAtIndex(m_vulkan_info.currentFrame);
-  m_device->transitionImageLayout(
-      srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+  m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
   vkCmdBlitImage(m_vulkan_info.render_command_buffer, srcImage,
-                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                  m_distort_ogl.fbo->ColorAttachmentTexture().getImage(),
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_NEAREST);
   m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+                                  VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
   // Set up OpenGL state
   m_current_mode.set_depth_write_enable(!m_sprite_distorter_setup.zbuf.zmsk());  // zbuf
@@ -397,9 +385,8 @@ void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state,
   m_current_mode.set_filt_enable(m_sprite_distorter_setup.tex1.mmag());          // tex1
   update_mode_from_alpha1(m_sprite_distorter_setup.alpha.data,
                           m_current_mode);  // alpha1
-  vulkan_background_common::setup_vulkan_from_draw_mode(
-      m_current_mode, m_distort_sampler_helper,
-      m_pipeline_config_info, false);
+  vulkan_background_common::setup_vulkan_from_draw_mode(m_current_mode, m_distort_sampler_helper,
+                                                        m_pipeline_config_info, false);
 }
 
 void SpriteVulkan3::distort_setup_framebuffer_dims(BaseSharedRenderState* render_state) {

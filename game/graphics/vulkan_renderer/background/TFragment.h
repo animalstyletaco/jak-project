@@ -19,7 +19,9 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
                   int level_id,
                   const std::vector<VulkanTexture*>* anim_slots);
   virtual ~TFragmentVulkan();
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,
@@ -44,7 +46,7 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
   void update_load(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
                    const LevelDataVulkan* loader_data);
 
- private:
+ protected:
   void InitializeInputVertexAttribute();
   void InitializeDebugInputVertexAttribute();
   void create_pipeline_layout();
@@ -94,8 +96,6 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
   VulkanInitializationInfo& m_vulkan_info;
 
   PipelineConfigInfo m_debug_pipeline_config_info{};
-  PipelineConfigInfo m_pipeline_config_info{};
-
   VkDescriptorBufferInfo m_vertex_shader_buffer_descriptor_info;
 
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
@@ -113,8 +113,23 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
 
   std::unique_ptr<VulkanTexture> m_placeholder_texture;
   std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
-  VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 
   const std::vector<VulkanTexture*>* m_anim_slot_array = nullptr;
 };
 
+class TFragmentVulkanJak1 : public TFragmentVulkan {
+ public:
+  TFragmentVulkanJak1(const std::string& name,
+                      int my_id,
+                      std::shared_ptr<GraphicsDeviceVulkan> device,
+                      VulkanInitializationInfo& vulkan_info,
+                      const std::vector<tfrag3::TFragmentTreeKind>& trees,
+                      bool child_mode,
+                      int level_id,
+                      const std::vector<VulkanTexture*>* anim_slots)
+      : TFragmentVulkan(name, my_id, device, vulkan_info, trees, child_mode, level_id, anim_slots) {
+    m_vertex_push_constant.height_scale = 1;
+    m_vertex_push_constant.scissor_adjust = -512 / 448.0;
+  }
+  ~TFragmentVulkanJak1() = default;
+};

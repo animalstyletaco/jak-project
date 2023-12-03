@@ -1,19 +1,20 @@
 #pragma once
 
-#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
 #include "game/graphics/general_renderer/sprite/GlowRenderer.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
+#include "game/graphics/vulkan_renderer/FramebufferHelper.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/GraphicsPipelineLayout.h"
 #include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/DescriptorLayout.h"
-
+#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 
 class GlowVulkanRenderer : public BaseGlowRenderer {
  public:
-  GlowVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info);
+  GlowVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device,
+                     VulkanInitializationInfo& vulkan_info);
 
   FramebufferVulkanHelper* render_fb = NULL;
+
  private:
   void blit_depth(BaseSharedRenderState* render_state);
 
@@ -36,7 +37,9 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
                                ScopedProfilerNode& prof,
                                u32 idx_start,
                                u32 idx_end);
-  void downsample_chain(BaseSharedRenderState* render_state, ScopedProfilerNode& prof, u32 num_sprites);
+  void downsample_chain(BaseSharedRenderState* render_state,
+                        ScopedProfilerNode& prof,
+                        u32 num_sprites);
 
   void draw_sprites(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
 
@@ -66,7 +69,7 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
 
     // TODO: verify that this is right. Render objects sound more like swap chain images than
     // standard vulkan images
-    std::unique_ptr<FramebufferVulkan> probe_fbo_zbuf_rb; 
+    std::unique_ptr<FramebufferVulkan> probe_fbo_zbuf_rb;
     uint32_t probe_fbo_w = 640;
     uint32_t probe_fbo_h = 480;
 

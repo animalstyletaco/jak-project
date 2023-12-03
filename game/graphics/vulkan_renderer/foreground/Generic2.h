@@ -29,8 +29,8 @@ class GenericVulkan2 : public virtual BaseGeneric2 {
                  u32 num_buckets);
   ~GenericVulkan2();
   virtual void render(DmaFollower& dma,
-              SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) = 0;
+                      SharedVulkanRenderState* render_state,
+                      ScopedProfilerNode& prof) = 0;
   void do_hud_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
   void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
   void do_draws_for_alpha(BaseSharedRenderState* render_state,
@@ -57,8 +57,9 @@ class GenericVulkan2 : public virtual BaseGeneric2 {
   void graphics_cleanup() override;
   void graphics_bind_and_setup_proj(BaseSharedRenderState* render_state) override;
   void setup_graphics_for_draw_mode(const DrawMode& draw_mode,
-                                  u8 fix,
-                                  BaseSharedRenderState* render_state, uint32_t bucket);
+                                    u8 fix,
+                                    BaseSharedRenderState* render_state,
+                                    uint32_t bucket);
 
   void setup_graphics_tex(u16 unit,
                           u16 tbp,
@@ -92,7 +93,7 @@ class GenericVulkan2 : public virtual BaseGeneric2 {
     float height_scale;
     float scissor_adjust;
     uint32_t warp_sample_mode;
-  }m_vertex_push_constant;
+  } m_vertex_push_constant;
 
   std::vector<VkDescriptorImageInfo> m_descriptor_image_infos;
   std::vector<VulkanSamplerHelper> m_samplers;
@@ -113,8 +114,13 @@ class GenericVulkan2Jak1 : public BaseGeneric2Jak1, public GenericVulkan2 {
                      u32 num_buckets = 800)
       : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets),
         BaseGeneric2Jak1(num_verts, num_frags, num_adgif, num_buckets),
-        GenericVulkan2(device, vulkan_info, num_verts, num_frags, num_adgif, num_buckets) {}
-  void render(DmaFollower& dma, SharedVulkanRenderState* render_state, ScopedProfilerNode& prof) override;
+        GenericVulkan2(device, vulkan_info, num_verts, num_frags, num_adgif, num_buckets) {
+    m_vertex_push_constant.height_scale = 1;
+    m_vertex_push_constant.scissor_adjust = (-512 / 448.0);
+  }
+  void render(DmaFollower& dma,
+              SharedVulkanRenderState* render_state,
+              ScopedProfilerNode& prof) override;
 };
 
 class GenericVulkan2Jak2 : public BaseGeneric2Jak2, public GenericVulkan2 {
@@ -127,7 +133,10 @@ class GenericVulkan2Jak2 : public BaseGeneric2Jak2, public GenericVulkan2 {
                      u32 num_buckets = 800)
       : BaseGeneric2(num_verts, num_frags, num_adgif, num_buckets),
         BaseGeneric2Jak2(num_verts, num_frags, num_adgif, num_buckets),
-        GenericVulkan2(device, vulkan_info, num_verts, num_frags, num_adgif, num_buckets) {}
+        GenericVulkan2(device, vulkan_info, num_verts, num_frags, num_adgif, num_buckets) {
+    m_vertex_push_constant.height_scale = 0.5;
+    m_vertex_push_constant.scissor_adjust = (-512 / 416.0);
+  }
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
               ScopedProfilerNode& prof) override;

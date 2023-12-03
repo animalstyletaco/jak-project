@@ -21,7 +21,9 @@ class BaseDirectRenderer : public BaseBucketRenderer {
  public:
   BaseDirectRenderer(const std::string& name, int my_id, int batch_size);
   ~BaseDirectRenderer();
-  void render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) override;
+  void render(DmaFollower& dma,
+              BaseSharedRenderState* render_state,
+              ScopedProfilerNode& prof) override;
   virtual void pre_render() {}
   virtual void post_render() {}
 
@@ -104,7 +106,9 @@ class BaseDirectRenderer : public BaseBucketRenderer {
   void handle_bitbltbuf(u64 val);
   void handle_trxpos(u64 val);
   void handle_trxreg(u64 val);
-  virtual void handle_trxdir(u64 dir, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+  virtual void handle_trxdir(u64 dir,
+                             BaseSharedRenderState* render_state,
+                             ScopedProfilerNode& prof) = 0;
 
   void handle_xyzf2_common(u32 x,
                            u32 y,
@@ -205,7 +209,8 @@ class BaseDirectRenderer : public BaseBucketRenderer {
   // matches m_tex_state_from_reg.
   int m_current_tex_state_idx = -1;
 
-  int get_texture_unit_for_current_reg(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  int get_texture_unit_for_current_reg(BaseSharedRenderState* render_state,
+                                       ScopedProfilerNode& prof);
 
   // state set through the prim/rgbaq register that doesn't require changing GL stuff
   struct PrimBuildState {

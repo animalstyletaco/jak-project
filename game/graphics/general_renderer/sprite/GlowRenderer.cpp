@@ -48,7 +48,7 @@ BaseGlowRenderer::BaseGlowRenderer() {
   m_sprite_data_buffer.resize(kMaxSprites);
   m_index_buffer.resize(kMaxIndices);
 
-      m_downsample_vertices.resize(kMaxSprites * 4);
+  m_downsample_vertices.resize(kMaxSprites * 4);
   m_downsample_indices.resize(kMaxSprites * 5);
   for (int i = 0; i < kMaxSprites; i++) {
     int x = i / kDownsampleBatchWidth;
@@ -101,7 +101,6 @@ void copy_to_vertex(BaseGlowRenderer::Vertex* vtx, const Vector4f& xyzw) {
   vtx->w = xyzw.w();
 }
 }  // namespace
-
 
 SpriteGlowOutput* BaseGlowRenderer::alloc_sprite() {
   ASSERT(m_next_sprite < m_sprite_data_buffer.size());

@@ -1065,7 +1065,7 @@ void OpenGLRenderer::dispatch_buckets(DmaFollower dma,
                                       bool sync_after_buckets) {
   g_current_renderer = "dispatch-buckets pre";
 
-  m_render_state.version = m_version;
+  m_render_state.SetVersion(m_version);
   m_render_state.frame_idx++;
   switch (m_version) {
     case GameVersion::Jak1:

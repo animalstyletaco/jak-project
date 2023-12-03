@@ -8,7 +8,6 @@
 #include "game/graphics/texture/VulkanTexturePool.h"
 
 #include "third-party/imgui/imgui.h"
-#include "common/texture/texture_slots.h"
 
 //#define dprintf(...) printf(__VA_ARGS__)
 //#define dfmt(...) fmt::print(__VA_ARGS__)
@@ -59,7 +58,8 @@
  * A simple list of preallocated textures by size. If a texture needs to be resized, it's faster
  * to swap to a different Vulkan texture from this pool than glTexImage2D with a different size.
  */
-VulkanTextureAnimationPool::VulkanTextureAnimationPool(std::shared_ptr<GraphicsDeviceVulkan> device) : m_device(device) {
+VulkanTextureAnimationPool::VulkanTextureAnimationPool(std::shared_ptr<GraphicsDeviceVulkan> device)
+    : m_device(device) {
   struct Alloc {
     u64 Width, Height, NumberOfImages;
   };
@@ -131,7 +131,7 @@ VulkanTexture* VulkanTextureAnimationPool::allocate(u64 w, u64 h) {
  * Return a texture to the pool. The size must be provided.
  */
 void VulkanTextureAnimationPool::free(u64 key) {
-  //m_textures[(w << 32) | h].push_back(key);
+  // m_textures[(w << 32) | h].push_back(key);
 }
 
 void VulkanTextureAnimator::create_pipeline_layout() {
@@ -253,9 +253,9 @@ int output_slot_by_idx(GameVersion version, const std::string& name) {
 void vulkan_upload_texture(VulkanTexture* dest, const void* data, int w, int h) {
   VkExtent3D extents = {w, h, 1};
 
-  dest->createImage(extents, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UINT,
-                    VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL);
-  //glGenerateMipmap(GL_TEXTURE_2D);
+  dest->createImage(extents, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_UINT, VK_IMAGE_TILING_OPTIMAL,
+                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL);
+  // glGenerateMipmap(GL_TEXTURE_2D);
 }
 
 /*!
@@ -263,13 +263,14 @@ void vulkan_upload_texture(VulkanTexture* dest, const void* data, int w, int h) 
  * texture using the index data in dest.
  */
 ClutVulkanBlender::ClutVulkanBlender(const std::string& dest,
-                         const std::array<std::string, 2>& sources,
-                         const std::optional<std::string>& level_name,
-                         const tfrag3::Level* level,
-                         VulkanTexturePool* tpool) : BaseClutBlender(dest, sources, level_name, level) {
+                                     const std::array<std::string, 2>& sources,
+                                     const std::optional<std::string>& level_name,
+                                     const tfrag3::Level* level,
+                                     VulkanTexturePool* tpool)
+    : BaseClutBlender(dest, sources, level_name, level) {
   // opengl texture that we'll write to
-  //m_texture = tpool->allocate(m_dest->w, m_dest->h);
-  //m_temp_rgba.resize(m_dest->w * m_dest->h);
+  // m_texture = tpool->allocate(m_dest->w, m_dest->h);
+  // m_temp_rgba.resize(m_dest->w * m_dest->h);
 }
 
 /*!
@@ -329,22 +330,34 @@ void VulkanTextureAnimator::InitializeVertexDescriptions() {
   m_pipeline_config_info.attributeDescriptions.push_back(attributeDescription);
 }
 
-VulkanTextureAnimator::VulkanTextureAnimator(std::shared_ptr<GraphicsDeviceVulkan> device, VulkanInitializationInfo& vulkan_info, const tfrag3::Level* common_level) :
-      BaseTextureAnimator(common_level), m_device(device), m_vulkan_info(vulkan_info),
-      m_pipeline_layout(device), 
-      m_sky_blend_texture(kFinalSkyTextureSize, kFinalSkyTextureSize, VK_FORMAT_R8G8B8A8_UINT, device),
-      m_sky_final_texture(kFinalSkyTextureSize, kFinalSkyTextureSize, VK_FORMAT_R8G8B8A8_UINT, device),
+VulkanTextureAnimator::VulkanTextureAnimator(std::shared_ptr<GraphicsDeviceVulkan> device,
+                                             VulkanInitializationInfo& vulkan_info,
+                                             const tfrag3::Level* common_level)
+    : BaseTextureAnimator(common_level),
+      m_device(device),
+      m_vulkan_info(vulkan_info),
+      m_pipeline_layout(device),
+      m_sky_blend_texture(kFinalSkyTextureSize,
+                          kFinalSkyTextureSize,
+                          VK_FORMAT_R8G8B8A8_UINT,
+                          device),
+      m_sky_final_texture(kFinalSkyTextureSize,
+                          kFinalSkyTextureSize,
+                          VK_FORMAT_R8G8B8A8_UINT,
+                          device),
       m_slime_blend_texture(kFinalSlimeTextureSize,
                             kFinalSlimeTextureSize,
-                            VK_FORMAT_R8G8B8A8_UINT, device),
+                            VK_FORMAT_R8G8B8A8_UINT,
+                            device),
       m_slime_final_texture(kFinalSlimeTextureSize,
                             kFinalSlimeTextureSize,
-                            VK_FORMAT_R8G8B8A8_UINT, device),
+                            VK_FORMAT_R8G8B8A8_UINT,
+                            device),
       m_slime_final_scroll_texture(kFinalSlimeTextureSize,
                                    kFinalSlimeTextureSize,
-                                   VK_FORMAT_R8G8B8A8_UINT, device),
+                                   VK_FORMAT_R8G8B8A8_UINT,
+                                   device),
       m_texture_animation_pool(device) {
-
   // The TextureAnimator does a lot of "draws" which are just a single quad, so we create a 4-vertex
   // buffer. It turns out that just storing the vertex index in the vertex, then indexing into a
   // uniform buffer is faster to update. (though this may be driver specific?)
@@ -353,7 +366,8 @@ VulkanTextureAnimator::VulkanTextureAnimator(std::shared_ptr<GraphicsDeviceVulka
       BaseTextureAnimator::Vertex{2, 0, 0, 0}, BaseTextureAnimator::Vertex{3, 0, 0, 0}};
 
   // static draw - we don't update this buffer.
-  m_vertex_buffer = std::make_unique<VertexBuffer>(m_device, sizeof(BaseTextureAnimator::Vertex), 4, 1);
+  m_vertex_buffer =
+      std::make_unique<VertexBuffer>(m_device, sizeof(BaseTextureAnimator::Vertex), 4, 1);
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -389,7 +403,7 @@ VulkanTextureAnimator::VulkanTextureAnimator(std::shared_ptr<GraphicsDeviceVulka
     }
   }
   m_dummy_texture->writeToImage(data.data(), 16 * 16);
-  //glGenerateMipmap(GL_TEXTURE_2D);
+  // glGenerateMipmap(GL_TEXTURE_2D);
 
   // generate CLUT table.
   for (int i = 0; i < 256; i++) {
@@ -510,9 +524,9 @@ void VulkanTextureAnimator::copy_private_to_public() {
  * Create a clut-blending animator. Returns an index that can later be used to run it.
  */
 int VulkanTextureAnimator::create_clut_blender_group(const std::vector<std::string>& textures,
-                                               const std::string& suffix0,
-                                               const std::string& suffix1,
-                                               const std::optional<std::string>& dgo) {
+                                                     const std::string& suffix0,
+                                                     const std::string& suffix1,
+                                                     const std::optional<std::string>& dgo) {
   int ret = m_clut_blender_groups.size();
   m_clut_blender_groups.emplace_back();
   add_to_clut_blender_group(ret, textures, suffix0, suffix1, dgo);
@@ -523,10 +537,10 @@ int VulkanTextureAnimator::create_clut_blender_group(const std::vector<std::stri
  * Add a texture to an existing blender group created with create_clut_blender_group.
  */
 void VulkanTextureAnimator::add_to_clut_blender_group(int idx,
-                                                const std::vector<std::string>& textures,
-                                                const std::string& suffix0,
-                                                const std::string& suffix1,
-                                                const std::optional<std::string>& dgo) {
+                                                      const std::vector<std::string>& textures,
+                                                      const std::string& suffix0,
+                                                      const std::string& suffix1,
+                                                      const std::optional<std::string>& dgo) {
   auto& grp = m_clut_blender_groups.at(idx);
   for (auto& prefix : textures) {
     grp.blenders.emplace_back(prefix,
@@ -537,22 +551,20 @@ void VulkanTextureAnimator::add_to_clut_blender_group(int idx,
   }
 }
 
-VulkanTextureAnimator::~VulkanTextureAnimator() {
-}
+VulkanTextureAnimator::~VulkanTextureAnimator() {}
 
 VulkanTexture* VulkanTextureAnimator::get_by_slot(int idx) {
   ASSERT(idx >= 0 && idx < (int)m_public_output_slots.size());
   return m_public_output_slots[idx];
 }
 
-
 /*!
  * Main function to run texture animations from DMA. Updates textures in the pool.
  */
 void VulkanTextureAnimator::handle_texture_anim_data(DmaFollower& dma,
-                                               const u8* ee_mem,
-                                               VulkanTexturePool* texture_pool,
-                                               u64 frame_idx) {
+                                                     const u8* ee_mem,
+                                                     VulkanTexturePool* texture_pool,
+                                                     u64 frame_idx) {
   dprintf("animator\n");
   m_current_shader = {};
 
@@ -600,7 +612,7 @@ void VulkanTextureAnimator::handle_texture_anim_data(DmaFollower& dma,
         ASSERT(entry.pool_gpu_tex);
         // change Vulkan texture in the pool
         texture_pool->update_vulkan_texture(entry.pool_gpu_tex, entry.tex_width, entry.tex_height,
-                                        entry.tex.value().ColorAttachmentTexture());
+                                            entry.tex.value().ColorAttachmentTexture());
         // set as the active texture in this vram slot (other textures can be loaded for
         // different part of the frame that we need to replace). This is a fast operation.
         texture_pool->move_existing_to_vram(entry.pool_gpu_tex, tbp);
@@ -729,7 +741,6 @@ PcTextureId VulkanTextureAnimator::get_id_for_tbp(VulkanTexturePool* pool, u64 t
     return it->second;
   }
 }
-
 
 /*!
  * Create an entry for any texture upload. Leaves it on the CPU, as we may do fancy scramble stuff.
@@ -886,17 +897,22 @@ void VulkanTextureAnimator::handle_upload_clut_16_16(const DmaTransfer& tf, cons
   }
 }
 
-void VulkanTextureAnimator::handle_graphics_erase_dest(DmaFollower& dma, int tex_width, int tex_height, int dest_texture_address, math::Vector<u32, 4> rgba_u32) {
+void VulkanTextureAnimator::handle_graphics_erase_dest(DmaFollower& dma,
+                                                       int tex_width,
+                                                       int tex_height,
+                                                       int dest_texture_address,
+                                                       math::Vector<u32, 4> rgba_u32) {
   // do the clear:
   {
     // get the entry set up for being a GPU texture.
-    VulkanVramEntry* entry = setup_vram_entry_for_gpu_texture(tex_width, tex_height, dest_texture_address);
+    VulkanVramEntry* entry =
+        setup_vram_entry_for_gpu_texture(tex_width, tex_height, dest_texture_address);
     VkSamplerCreateInfo& samplerInfo = entry->tex.value().GetSamplerHelper().GetSamplerCreateInfo();
     m_vertex_shader_data.positions = {{{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}}};
     m_fragment_push_constant.enable_tex = 0;
     m_fragment_push_constant.rgba = {rgba_u32[0], rgba_u32[1], rgba_u32[2], rgba_u32[3]};
     m_fragment_push_constant.channel_scramble = {0, 1, 2, 3};
-    //glBindTexture(GL_TEXTURE_2D, m_dummy_texture);
+    // glBindTexture(GL_TEXTURE_2D, m_dummy_texture);
 
     samplerInfo.minFilter = VK_FILTER_NEAREST;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
@@ -1054,7 +1070,8 @@ u64 VulkanTextureAnimator::make_temp_gpu_texture(const u32* data, u32 width, u32
 /*!
  * Read the current shader settings, and get/create/setup a GPU texture for the source texture.
  */
-u64 VulkanTextureAnimator::make_or_get_gpu_texture_for_current_shader(VulkanTexturePool& texture_pool) {
+u64 VulkanTextureAnimator::make_or_get_gpu_texture_for_current_shader(
+    VulkanTexturePool& texture_pool) {
   u32 tbp = m_current_shader.tex0.tbp0();
   const auto& lookup = m_textures.find(m_current_shader.tex0.tbp0());
   if (lookup == m_textures.end()) {
@@ -1168,8 +1185,8 @@ u64 VulkanTextureAnimator::make_or_get_gpu_texture_for_current_shader(VulkanText
 }
 
 bool VulkanTextureAnimator::set_up_vulkan_for_shader(const ShaderContext& shader,
-                                               std::optional<GLuint> texture,
-                                               bool prim_abe) {
+                                                     std::optional<GLuint> texture,
+                                                     bool prim_abe) {
   if (texture) {
     glBindTexture(GL_TEXTURE_2D, *texture);
     glUniform1i(m_uniforms.enable_tex, 1);
@@ -1444,8 +1461,8 @@ void TextureAnimator::set_up_vulkan_for_fixed(const FixedLayerDef& def,
 }
 
 void VulkanTextureAnimator::run_fixed_animation_array(int idx,
-                                                const DmaTransfer& transfer,
-                                                VulkanTexturePool* texture_pool) {
+                                                      const DmaTransfer& transfer,
+                                                      VulkanTexturePool* texture_pool) {
   auto& array = m_fixed_anim_arrays.at(idx);
 
   // sanity check size:
@@ -1655,8 +1672,8 @@ int update_vulkan_noise_texture(VulkanTexture* texture,
                                 int random_index_in) {
   int ret = make_noise_texture(temp, random_table, dim, random_index_in);
   texture->writeToImage(temp, dim * dim);
-  //glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, dim, dim, 0, GL_RED, GL_UNSIGNED_BYTE, temp);
-  //glGenerateMipmap(GL_TEXTURE_2D);
+  // glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, dim, dim, 0, GL_RED, GL_UNSIGNED_BYTE, temp);
+  // glGenerateMipmap(GL_TEXTURE_2D);
   return ret;
 }
 
@@ -1751,7 +1768,8 @@ GLint VulkanTextureAnimator::run_clouds(const SkyInput& input) {
   // it's uploaded 24 * 32 = 768. (texture-anim-alpha-ramp-clut-upload)
   times_idx++;
   {
-    VulkanSamplerCreateInfo& samplerInfo = m_sky_blend_texture.GetSamplerHelper().GetSamplerCreateInfo();
+    VulkanSamplerCreateInfo& samplerInfo =
+        m_sky_blend_texture.GetSamplerHelper().GetSamplerCreateInfo();
 
     m_fragment_push_constant.tcc = 1;
     samplerInfo.minFilter = VK_FILTER_LINEAR;
@@ -1889,13 +1907,14 @@ void VulkanTextureAnimator::run_slime(const SlimeInput& input) {
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
   }
   VulkanTexture& texture = m_slime_final_texture.ColorAttachmentTexture());
-  //glGenerateMipmap(GL_TEXTURE_2D);
+  // glGenerateMipmap(GL_TEXTURE_2D);
 
   {
     m_fragment_push_constant.enable_tex = 3;
     float scroll = input.times[8] / 1200.f;
     m_fragment_push_constant.slime_scroll = scroll;
-    VkSamplerCreateInfo& samplerInfo = m_slime_blend_texture.GetSamplerHelper().GetSamplerCreateInfo();
+    VkSamplerCreateInfo& samplerInfo =
+        m_slime_blend_texture.GetSamplerHelper().GetSamplerCreateInfo();
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
@@ -1907,7 +1926,7 @@ void VulkanTextureAnimator::run_slime(const SlimeInput& input) {
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
   }
   VulkanTexture& texture = m_slime_final_scroll_texture.ColorAttachmentTexture();
-  //glGenerateMipmap(GL_TEXTURE_2D);
+  // glGenerateMipmap(GL_TEXTURE_2D);
 }
 
 void VulkanTextureAnimator::set_uniform_vector_three_float(float* position) {

@@ -35,7 +35,10 @@ void BaseMerc2::draw_debug_window(BaseMercDebugStats* debug_status) {
 /*!
  * Main BaseMerc2 rendering.
  */
-void BaseMerc2::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
+void BaseMerc2::render(DmaFollower& dma,
+                       BaseSharedRenderState* render_state,
+                       ScopedProfilerNode& prof,
+                       BaseMercDebugStats* debug_stats) {
   *debug_stats = {};
   if (debug_stats->collect_debug_model_list) {
     debug_stats->model_list.clear();
@@ -86,8 +89,9 @@ void BaseMerc2::handle_matrix_dma(const DmaTransfer& dma) {
  * Main BaseMerc2 function to handle DMA
  */
 void BaseMerc2::handle_all_dma(DmaFollower& dma,
-                           BaseSharedRenderState* render_state,
-                           ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
+                               BaseSharedRenderState* render_state,
+                               ScopedProfilerNode& prof,
+                               BaseMercDebugStats* debug_stats) {
   // process the first tag. this is just jumping to the merc-specific dma.
   auto data0 = dma.read_and_advance();
   ASSERT(data0.vif1() == 0 || data0.vifcode1().kind == VifCode::Kind::NOP);
@@ -158,7 +162,7 @@ void BaseMerc2::handle_setup_dma(DmaFollower& dma, BaseSharedRenderState* render
     ASSERT(vif3.num == 8);
   }
 
-   // 8 qw's of low memory data
+  // 8 qw's of low memory data
   set_merc_uniform_buffer_data(first);
 
   // 1 qw with another 4 vifcodes.
@@ -175,7 +179,7 @@ void BaseMerc2::handle_setup_dma(DmaFollower& dma, BaseSharedRenderState* render
 
   // TODO: process low memory initialization
 
-  if (render_state->version == GameVersion::Jak1) {
+  if (render_state->GetVersion() == GameVersion::Jak1) {
     auto second = dma.read_and_advance();
     ASSERT(second.size_bytes == 32);  // setting up test register.
     auto nothing = dma.read_and_advance();
@@ -205,8 +209,9 @@ bool tag_is_nothing_cnt(const DmaFollower& dma) {
 }  // namespace
 
 void BaseMerc2::handle_merc_chain(DmaFollower& dma,
-                              BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof, BaseMercDebugStats* debug_stats) {
+                                  BaseSharedRenderState* render_state,
+                                  ScopedProfilerNode& prof,
+                                  BaseMercDebugStats* debug_stats) {
   while (tag_is_nothing_next(dma)) {
     auto nothing = dma.read_and_advance();
     ASSERT(nothing.size_bytes == 0);
@@ -220,7 +225,7 @@ void BaseMerc2::handle_merc_chain(DmaFollower& dma,
 
   auto init = dma.read_and_advance();
   int skip_count = 2;
-  if (render_state->version == GameVersion::Jak2) {
+  if (render_state->GetVersion() == GameVersion::Jak2) {
     skip_count = 1;
   }
 
@@ -284,7 +289,6 @@ u32 BaseMerc2::alloc_bones(int count, ShaderMercMat* data) {
   ASSERT(first_bone_vector + count * 8 <= m_next_free_bone_vector);
   return first_bone_vector;
 }
-
 
 void BaseMerc2::handle_mod_vertices(const DmaTransfer& setup,
                                     const tfrag3::MercEffect& effect,

@@ -4,7 +4,8 @@
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/foreground/Generic2.h"
 
-class GenericVulkan2BucketRenderer : public BaseGeneric2BucketRenderer, public BucketVulkanRenderer {
+class GenericVulkan2BucketRenderer : public BaseGeneric2BucketRenderer,
+                                     public BucketVulkanRenderer {
  public:
   GenericVulkan2BucketRenderer(const std::string& name,
                                int id,

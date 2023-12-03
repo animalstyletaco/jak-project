@@ -3,8 +3,7 @@
 //#include "third-party/imgui/imgui.h"
 
 BaseOceanMidAndFar::BaseOceanMidAndFar(const std::string& name, int my_id)
-    : BaseBucketRenderer(name, my_id) {
-}
+    : BaseBucketRenderer(name, my_id) {}
 
 namespace ocean_mid_and_far {
 void advance_and_print_dma(DmaFollower& dma) {
@@ -22,7 +21,9 @@ bool is_end_tag(const DmaTag& tag, const VifCode& v0, const VifCode& v1) {
 }
 }  // namespace ocean_mid_and_far
 
-void BaseOceanMidAndFarJak1::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof){
+void BaseOceanMidAndFarJak1::render(DmaFollower& dma,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof) {
   // skip if disabled
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -129,8 +130,8 @@ void BaseOceanMidAndFarJak2::render(DmaFollower& dma,
 }
 
 void BaseOceanMidAndFar::handle_ocean_far(DmaFollower& dma,
-                                      BaseSharedRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) {
   auto init_data = dma.read_and_advance();
   ASSERT(init_data.size_bytes == 160);
   u8 init_data_buffer[160];
@@ -154,8 +155,8 @@ void BaseOceanMidAndFar::handle_ocean_far(DmaFollower& dma,
 }
 
 void BaseOceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
-                                      BaseSharedRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) {
   if (dma.current_tag_vifcode0().kind == VifCode::Kind::BASE) {
     ocean_mid_renderer_run(dma, render_state, prof);
   } else {
@@ -163,14 +164,15 @@ void BaseOceanMidAndFar::handle_ocean_mid(DmaFollower& dma,
     return;
   }
 
-  while (!ocean_mid_and_far::is_end_tag(dma.current_tag(), dma.current_tag_vifcode0(), dma.current_tag_vifcode1())) {
+  while (!ocean_mid_and_far::is_end_tag(dma.current_tag(), dma.current_tag_vifcode0(),
+                                        dma.current_tag_vifcode1())) {
     dma.read_and_advance();
   }
 }
 
 void BaseOceanMidAndFarJak2::handle_ocean_89(DmaFollower& dma,
-                                              BaseSharedRenderState* render_state,
-                                              ScopedProfilerNode& prof) {}
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) {}
 void BaseOceanMidAndFarJak2::handle_ocean_79(DmaFollower& dma,
-                                              BaseSharedRenderState* render_state,
-                                              ScopedProfilerNode& prof) {}
+                                             BaseSharedRenderState* render_state,
+                                             ScopedProfilerNode& prof) {}

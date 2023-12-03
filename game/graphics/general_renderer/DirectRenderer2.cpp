@@ -7,10 +7,10 @@
 #include "third-party/imgui/imgui.h"
 
 BaseDirectRenderer2::BaseDirectRenderer2(u32 max_verts,
-                                 u32 max_inds,
-                                 u32 max_draws,
-                                 const std::string& name,
-                                 bool use_ftoi_mod)
+                                         u32 max_inds,
+                                         u32 max_draws,
+                                         const std::string& name,
+                                         bool use_ftoi_mod)
     : m_name(name), m_use_ftoi_mod(use_ftoi_mod) {
   // allocate buffers
   m_vertices.vertices.resize(max_verts);
@@ -18,8 +18,7 @@ BaseDirectRenderer2::BaseDirectRenderer2(u32 max_verts,
   m_draw_buffer.resize(max_draws);
 }
 
-BaseDirectRenderer2::~BaseDirectRenderer2() {
-}
+BaseDirectRenderer2::~BaseDirectRenderer2() {}
 
 void BaseDirectRenderer2::reset_buffers() {
   m_next_free_draw = 0;
@@ -55,14 +54,14 @@ std::string BaseDirectRenderer2::Draw::to_single_line_string() const {
 }
 
 void BaseDirectRenderer2::draw_call_loop_simple(BaseSharedRenderState* render_state,
-                                            ScopedProfilerNode& prof) {
+                                                ScopedProfilerNode& prof) {
   lg::debug("------------------------");
   for (u32 draw_idx = 0; draw_idx < m_next_free_draw; draw_idx++) {
     const auto& draw = m_draw_buffer[draw_idx];
     lg::debug("{}", draw.to_single_line_string());
     setup_graphics_for_draw_mode(draw, render_state);
     setup_graphics_tex(0, draw.tbp, draw.mode.get_filt_enable(), draw.mode.get_clamp_s_enable(),
-                     draw.mode.get_clamp_t_enable(), render_state);
+                       draw.mode.get_clamp_t_enable(), render_state);
     void* offset = (void*)(draw.start_index * sizeof(u32));
     int end_idx;
     if (draw_idx == m_next_free_draw - 1) {
@@ -70,7 +69,8 @@ void BaseDirectRenderer2::draw_call_loop_simple(BaseSharedRenderState* render_st
     } else {
       end_idx = m_draw_buffer[draw_idx + 1].start_index;
     }
-    //glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT, (void*)offset);
+    // glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT,
+    // (void*)offset);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) - 2);
   }
@@ -84,8 +84,8 @@ void BaseDirectRenderer2::draw_debug_window() {
 }
 
 void BaseDirectRenderer2::render_gif_data(const u8* data,
-                                      BaseSharedRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
+                                          BaseSharedRenderState* render_state,
+                                          ScopedProfilerNode& prof) {
   bool eop = false;
 
   u32 offset = 0;
@@ -350,8 +350,8 @@ void BaseDirectRenderer2::handle_rgbaq_packed(const u8* data) {
 }
 
 void BaseDirectRenderer2::handle_xyzf2_packed(const u8* data,
-                                          BaseSharedRenderState* render_state,
-                                          ScopedProfilerNode& prof) {
+                                              BaseSharedRenderState* render_state,
+                                              ScopedProfilerNode& prof) {
   if (m_vertices.close_to_full()) {
     m_stats.flush_due_to_full++;
     flush_pending(render_state, prof);
@@ -415,8 +415,8 @@ void BaseDirectRenderer2::handle_xyzf2_packed(const u8* data,
 }
 
 void BaseDirectRenderer2::handle_xyzf2_mod_packed(const u8* data,
-                                              BaseSharedRenderState* render_state,
-                                              ScopedProfilerNode& prof) {
+                                                  BaseSharedRenderState* render_state,
+                                                  ScopedProfilerNode& prof) {
   if (m_vertices.close_to_full()) {
     m_stats.flush_due_to_full++;
     flush_pending(render_state, prof);

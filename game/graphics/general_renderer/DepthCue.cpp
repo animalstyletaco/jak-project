@@ -15,7 +15,9 @@ BaseDepthCue::BaseDepthCue(const std::string& name, int my_id) : BaseBucketRende
   m_draw_slices.resize(TOTAL_DRAW_SLICES);
 }
 
-void BaseDepthCue::render(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+void BaseDepthCue::render(DmaFollower& dma,
+                          BaseSharedRenderState* render_state,
+                          ScopedProfilerNode& prof) {
   // First thing should be a NEXT with two nops. this is a jump from buckets to depth-cue
   auto data0 = dma.read_and_advance();
   ASSERT(data0.vif1() == 0);
@@ -59,8 +61,8 @@ void BaseDepthCue::render(DmaFollower& dma, BaseSharedRenderState* render_state,
  * Reads all depth-cue DMA packets.
  */
 void BaseDepthCue::read_dma(DmaFollower& dma,
-                        BaseSharedRenderState* render_state,
-                        ScopedProfilerNode& /*prof*/) {
+                            BaseSharedRenderState* render_state,
+                            ScopedProfilerNode& /*prof*/) {
   // First should be general GS register setup
   {
     auto gs_setup = dma.read_and_advance();
@@ -182,14 +184,14 @@ void BaseDepthCue::read_dma(DmaFollower& dma,
 }
 
 void BaseDepthCue::build_sprite(std::vector<SpriteVertex>& vertices,
-                            float x1,
-                            float y1,
-                            float s1,
-                            float t1,
-                            float x2,
-                            float y2,
-                            float s2,
-                            float t2) {
+                                float x1,
+                                float y1,
+                                float s1,
+                                float t1,
+                                float x2,
+                                float y2,
+                                float s2,
+                                float t2) {
   // First triangle
   // -------------
   // Top-left

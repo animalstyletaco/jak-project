@@ -9,18 +9,16 @@
 #include "common/dma/dma_chain_read.h"
 #include "common/dma/gs.h"
 #include "common/math/Vector.h"
-
 #include "common/texture/texture_conversion.h"
-#include "game/graphics/general_renderer/TextureAnimator.h"
-#include "game/graphics/texture/TexturePoolDataTypes.h"
 
+#include "game/graphics/general_renderer/TextureAnimator.h"
 #include "game/graphics/texture/TextureConverter.h"
 #include "game/graphics/texture/TextureID.h"
-
-#include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
-#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
+#include "game/graphics/texture/TexturePoolDataTypes.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 #include "game/graphics/vulkan_renderer/FramebufferHelper.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/Image.h"
+#include "game/graphics/vulkan_renderer/vulkan_utils/VulkanBuffer.h"
 
 class VulkanGpuTextureMap;
 
@@ -32,16 +30,16 @@ class VulkanTextureAnimationPool {
   VulkanTexture* GetTexture(u64 key);
   bool IsTextureAvailable(u64 key);
 
-  private:
-   std::unordered_map<u64, std::vector<VulkanTexture>> m_textures;
-   std::shared_ptr<GraphicsDeviceVulkan> m_device;
+ private:
+  std::unordered_map<u64, std::vector<VulkanTexture>> m_textures;
+  std::shared_ptr<GraphicsDeviceVulkan> m_device;
 };
 
 struct VulkanFixedAnim : BaseFixedAnim {
   std::optional<FramebufferVulkanHelper> fbt;
   std::vector<VulkanTexture*> src_textures;
 
-  //GpuTexture* pool_gpu_tex = nullptr;
+  // GpuTexture* pool_gpu_tex = nullptr;
 };
 
 struct VulkanFixedAnimArray {
@@ -61,10 +59,10 @@ struct VulkanVramEntry : public BaseVramEntry {
 class ClutVulkanBlender : public BaseClutBlender {
  public:
   ClutVulkanBlender(const std::string& dest,
-              const std::array<std::string, 2>& sources,
-              const std::optional<std::string>& level_name,
-              const tfrag3::Level* level,
-              VulkanTextureAnimationPool* tpool);
+                    const std::array<std::string, 2>& sources,
+                    const std::optional<std::string>& level_name,
+                    const tfrag3::Level* level,
+                    VulkanTextureAnimationPool* tpool);
   void run(const float* weights) override;
   VulkanTexture* texture() const { return m_texture; }
   bool at_default() const { return m_current_weights[0] == 1.f && m_current_weights[1] == 0.f; }
@@ -83,7 +81,8 @@ class VulkanTexturePool;
 class VulkanTextureAnimator : public BaseTextureAnimator {
  public:
   VulkanTextureAnimator(std::shared_ptr<GraphicsDeviceVulkan> device,
-                        VulkanInitializationInfo& vulkan_info, const tfrag3::Level* common_level);
+                        VulkanInitializationInfo& vulkan_info,
+                        const tfrag3::Level* common_level);
   ~VulkanTextureAnimator();
   void handle_texture_anim_data(DmaFollower& dma,
                                 const u8* ee_mem,
@@ -118,7 +117,9 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   void force_to_gpu(int tbp);
 
   int create_fixed_anim_array(const std::vector<BaseFixedAnimDef>& defs) override;
-  void run_fixed_animation_array(int idx, const DmaTransfer& transfer, VulkanTexturePool* texture_pool);
+  void run_fixed_animation_array(int idx,
+                                 const DmaTransfer& transfer,
+                                 VulkanTexturePool* texture_pool);
   void run_fixed_animation(BaseFixedAnim& anim, float time);
 
   void set_uniforms_from_draw_data(const DrawData& dd, int dest_w, int dest_h);
@@ -134,7 +135,8 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   GraphicsPipelineLayout m_pipeline_layout;
   PipelineConfigInfo m_pipeline_config_info;
 
-  BaseTextureAnimationVertexUniformBufferData m_vertex_shader_data{}; //local copy of data that gets passed to uniform buffer
+  BaseTextureAnimationVertexUniformBufferData
+      m_vertex_shader_data{};  // local copy of data that gets passed to uniform buffer
   std::unique_ptr<UniformVulkanBuffer> m_vertex_uniform_buffer;
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;

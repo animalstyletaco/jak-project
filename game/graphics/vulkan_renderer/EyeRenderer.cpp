@@ -428,20 +428,19 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
   ASSERT(check == buffer_idx);
 }
 
-std::optional<u64> EyeVulkanRenderer::lookup_eye_texture(u8 eye_id) {
+VulkanTexture* EyeVulkanRenderer::lookup_eye_texture(u8 eye_id) {
   eye_id = (eye_id % 40);
   if ((s32)eye_id >= NUM_EYE_PAIRS * 2) {
     fmt::print("lookup eye failed for {} (1)\n", eye_id);
-    return {};
+    return nullptr;
   }
-  // auto* gpu_tex = m_gpu_eye_textures[eye_id].gpu_tex;
-  // if (gpu_tex) {
-  //   return gpu_tex->gpu_textures.at(0).gl;
-  // } else {
-  //   fmt::print("lookup eye failed for {}\n", eye_id);
-  //   return {};
-  // }
-  return {};
+  auto* gpu_tex = m_gpu_eye_textures[eye_id]->gpu_texture;
+  if (gpu_tex) {
+    return gpu_tex->gpu_textures.at(0);
+  }
+
+  fmt::print("lookup eye failed for {}\n", eye_id);
+  return nullptr;
 }
 
 void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,

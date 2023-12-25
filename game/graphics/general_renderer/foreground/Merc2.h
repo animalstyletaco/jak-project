@@ -40,6 +40,7 @@ struct BaseMercDebugStats {
 
 class BaseMerc2 {
  public:
+  BaseMerc2();
   void draw_debug_window(BaseMercDebugStats*);
   void render(DmaFollower& dma,
               BaseSharedRenderState* render_state,
@@ -65,6 +66,12 @@ class BaseMerc2 {
                            const u8* input_data,
                            uint32_t index,
                            const tfrag3::MercModel* model);
+  void blerc_avx(const u32* i_data,
+                 const u32* i_data_end,
+                 const tfrag3::BlercFloatData* floats,
+                 const float* weights,
+                 tfrag3::MercVertex* out,
+                 float multiplier);
 
   std::mutex g_merc_data_mutex;
   bool m_debug_mode = false;
@@ -187,6 +194,7 @@ class BaseMerc2 {
   u32 m_next_free_level_bucket = 0;
   u32 m_next_free_bone_vector = 0;
   size_t m_graphics_buffer_alignment = 0;
+  u32 m_next_mod_vtx_buffer = 0;
 
   struct PcMercFlags {
     u64 enable_mask;
@@ -196,11 +204,31 @@ class BaseMerc2 {
   };
 
   struct ModSettings {
-    uint32_t first_bone;
-    uint32_t lights;
-    bool uses_water;
-    bool model_disables_fog;
-    bool ignore_alpha;
-    bool model_uses_mod;
+    u64 first_bone = 0;
+    u64 lights = 0;
+    u64 uses_jak1_water = 0;
+    bool model_uses_mod = false;
+    bool model_disables_fog = false;
+    bool model_uses_pc_blerc = false;
+    bool model_disables_envmap = false;
+    bool ignore_alpha = false;
   };
+
+  void validate_merc_vertices(const tfrag3::MercEffect& effect);
+  void populate_normal_draw(const tfrag3::MercDraw& mdraw,
+                            const ModSettings& settings,
+                            BaseMerc2::Draw* draw);
+
+  void populate_envmap_draw(const tfrag3::MercDraw& mdraw,
+                            DrawMode envmap_mode,
+                            u32 envmap_texture,
+                            const ModSettings& settings,
+                            const u8* fade,
+                            BaseMerc2::Draw* draw);
+
+  void setup_mod_vertex_dma(const tfrag3::MercEffect& effect,
+                            const u8* input_data,
+                            const u32 index,
+                            const tfrag3::MercModel* model,
+                            const DmaTransfer& setup);
 };

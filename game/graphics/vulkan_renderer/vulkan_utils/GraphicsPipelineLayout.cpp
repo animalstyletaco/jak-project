@@ -224,7 +224,7 @@ bool PipelineConfigInfo::operator==(const PipelineConfigInfo& rhs) {
     }
   }
 
-  status &= vk_settings::areVkPipelineViewportStateCreateInfosEqual(viewportInfo, rhs.viewportInfo);
+//  status &= vk_settings::areVkPipelineViewportStateCreateInfosEqual(viewportInfo, rhs.viewportInfo);
   status &= vk_settings::areVkPipelineInputAssemblyStateCreateInfosEqual(inputAssemblyInfo,
                                                                          rhs.inputAssemblyInfo);
   status &= vk_settings::areVkPipelineRasterizationStateCreateInfosEqual(rasterizationInfo,
@@ -245,7 +245,7 @@ bool PipelineConfigInfo::operator==(const PipelineConfigInfo& rhs) {
 
 void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer,
                                                     PipelineConfigInfo& pipelineConfig) {
-  if (_graphicsPipeline) {
+  if (!_graphicsPipeline) {
     createGraphicsPipeline(pipelineConfig);
     return;
   }

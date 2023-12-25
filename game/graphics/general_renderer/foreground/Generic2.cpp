@@ -63,6 +63,7 @@ void BaseGeneric2::render_in_mode(DmaFollower& dma,
     auto p = prof.make_scoped_child("dma");
     switch (mode) {
       case Mode::NORMAL:
+      case Mode::WARP:
         process_dma(dma, render_state->next_bucket);
         break;
       case Mode::LIGHTNING:
@@ -79,10 +80,13 @@ void BaseGeneric2::render_in_mode(DmaFollower& dma,
     auto p = prof.make_scoped_child("setup");
     switch (mode) {
       case Mode::NORMAL:
-        setup_draws(true);
+        setup_draws(true, true);
         break;
       case Mode::LIGHTNING:
-        setup_draws(false);
+        setup_draws(false, true);
+        break;
+      case Mode::WARP:
+        setup_draws(true, false);
         break;
       default:
         ASSERT_NOT_REACHED();

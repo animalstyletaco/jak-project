@@ -17,6 +17,7 @@ class BaseGeneric2 {
   enum class Mode {
     NORMAL,
     LIGHTNING,
+    WARP
   };
 
   void render_in_mode(DmaFollower& dma,
@@ -37,7 +38,7 @@ class BaseGeneric2 {
   static_assert(sizeof(Vertex) == 32);
 
  protected:
-  void determine_draw_modes(bool enable_at);
+  void determine_draw_modes(bool enable_at, bool default_fog);
   void build_index_buffer();
   void link_adgifs_back_to_frags();
   void draws_to_buckets();
@@ -45,7 +46,7 @@ class BaseGeneric2 {
   void process_matrices();
   virtual void process_dma(DmaFollower& dma, u32 next_bucket) = 0;
   void process_dma_lightning(DmaFollower& dma, u32 next_bucket);
-  void setup_draws(bool enable_at);
+  void setup_draws(bool enable_at, bool default_fog);
   virtual void do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
 
   bool check_for_end_of_generic_data(DmaFollower& dma, u32 next_bucket);

@@ -38,19 +38,17 @@
  */
 
 MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
-                         VulkanInitializationInfo& vulkan_info)
+                         VulkanInitializationInfo& vulkan_info,
+                         std::vector<VulkanTexture*>* anim_slot_array)
     : m_device(device),
       m_vulkan_info(vulkan_info),
-      m_graphics_pipeline_layout(device),
-      m_emerc_pipeline_layout(device) {
-  m_vertex_push_constant.height_scale = 0.5;
-  m_vertex_push_constant.scissor_adjust = -512 / 416.f;
+      m_merc_graphics_pipeline_layout(device),
+      m_emerc_graphics_pipeline_layout(device),
+      m_anim_slot_array(anim_slot_array) {
+  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
 
-  m_tie_vertex_push_constant.height_scale = m_tie_vertex_push_constant.height_scale;
-  m_tie_vertex_push_constant.scissor_adjust = m_tie_vertex_push_constant.scissor_adjust;
-
-  m_etie_vertex_push_constant.height_scale = m_tie_vertex_push_constant.height_scale;
-  m_etie_vertex_push_constant.scissor_adjust = m_tie_vertex_push_constant.scissor_adjust;
+  m_merc_vertex_push_constant.height_scale = m_emerc_vertex_push_constant.height_scale = 0.5;
+  m_merc_vertex_push_constant.scissor_adjust = m_emerc_vertex_push_constant.scissor_adjust = -512 / 416.f;
 
   m_light_control_vertex_uniform_buffer =
       std::make_unique<MercLightControlVertexUniformBuffer>(m_device, MAX_DRAWS_PER_LEVEL, 1);
@@ -76,7 +74,6 @@ MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
       DescriptorLayout::Builder(m_device)
           .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
           .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
-          .addBinding(2, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
   m_emerc_vertex_descriptor_layout =
@@ -87,8 +84,7 @@ MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
   // Emerc fragment descriptor is the same as standard merc no need for separate object
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-          .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
   m_vertex_descriptor_writer =
@@ -98,11 +94,15 @@ MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
 
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
                                                                     m_vulkan_info.descriptor_pool);
-  m_emerc_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(
-      m_fragment_descriptor_layout, m_vulkan_info.descriptor_pool);
 
-  m_descriptor_sets.resize(2);
-  m_emerc_descriptor_sets.resize(2);
+  auto descriptorSetLayout = m_fragment_descriptor_layout->getDescriptorSetLayout();
+  m_merc_fragment_descriptor_sets.resize(MAX_DRAWS_PER_LEVEL * MAX_LEVELS);
+  m_emerc_fragment_descriptor_sets.resize(MAX_DRAWS_PER_LEVEL * MAX_LEVELS);
+  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{MAX_DRAWS_PER_LEVEL * MAX_LEVELS, descriptorSetLayout};
+
+  m_vulkan_info.descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(), m_merc_fragment_descriptor_sets.data(), m_merc_fragment_descriptor_sets.size());
+  m_vulkan_info.descriptor_pool->allocateDescriptor(
+      descriptorSetLayouts.data(), m_emerc_fragment_descriptor_sets.data(), m_emerc_fragment_descriptor_sets.size());
 
   m_light_control_vertex_buffer_descriptor_info =
       m_light_control_vertex_uniform_buffer->descriptorInfo();
@@ -110,12 +110,14 @@ MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
 
   m_vertex_descriptor_writer->writeBuffer(0, &m_light_control_vertex_buffer_descriptor_info)
       .writeBuffer(1, &m_bone_vertex_buffer_descriptor_info)
-      .build(m_descriptor_sets[0]);
+      .build(m_merc_vertex_descriptor_set);
+  m_emerc_vertex_descriptor_writer->writeBuffer(0, &m_bone_vertex_buffer_descriptor_info)
+      .build(m_emerc_vertex_descriptor_set);
 
   m_placeholder_descriptor_image_info =
       *m_vulkan_info.texture_pool->get_placeholder_descriptor_image_info();
-  m_fragment_descriptor_writer->writeImage(1, &m_placeholder_descriptor_image_info, 2);
-  m_emerc_fragment_descriptor_writer->writeImage(1, &m_placeholder_descriptor_image_info, 2);
+
+  m_fragment_descriptor_writer->writeImage(0, &m_placeholder_descriptor_image_info);
 
   create_pipeline_layout();
   for (int i = 0; i < MAX_LEVELS; i++) {
@@ -123,6 +125,7 @@ MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
     bucket.draws.resize(MAX_DRAWS_PER_LEVEL);
     bucket.envmap_draws.resize(MAX_ENVMAP_DRAWS_PER_LEVEL);
     bucket.samplers.resize(MAX_DRAWS_PER_LEVEL, m_device);
+    bucket.emerc_samplers.resize(MAX_DRAWS_PER_LEVEL, m_device);
     bucket.descriptor_image_infos.resize(MAX_DRAWS_PER_LEVEL);
   }
 
@@ -138,7 +141,15 @@ void MercVulkan2::render(DmaFollower& dma,
                          ScopedProfilerNode& prof,
                          BaseMercDebugStats* debug_stats) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+
+  m_eye_renderer = render_state->eye_renderer;
   BaseMerc2::render(dma, render_state, prof, debug_stats);
+}
+
+void MercVulkan2::reset_draw_count() {
+  merc_draw_call_count = 0;
+  emerc_draw_call_count = 0;
 }
 
 void MercVulkan2::create_pipeline_layout() {
@@ -152,7 +163,7 @@ void MercVulkan2::create_pipeline_layout() {
 
   std::array<VkPushConstantRange, 2> pushConstantRanges{};
   pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(m_tie_vertex_push_constant);
+  pushConstantRanges[0].size = sizeof(m_merc_vertex_push_constant);
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
   pushConstantRanges[1].offset = pushConstantRanges[0].size;
@@ -174,10 +185,10 @@ void MercVulkan2::create_pipeline_layout() {
 
   std::array<VkPushConstantRange, 2> emercPushConstantRanges{};
   emercPushConstantRanges[0].offset = 0;
-  emercPushConstantRanges[0].size = sizeof(m_etie_vertex_push_constant);
+  emercPushConstantRanges[0].size = sizeof(m_emerc_vertex_push_constant);
   emercPushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-  emercPushConstantRanges[1].offset = pushConstantRanges[0].size;
+  emercPushConstantRanges[1].offset = emercPushConstantRanges[0].size;
   emercPushConstantRanges[1].size = sizeof(float);
   emercPushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
@@ -185,26 +196,23 @@ void MercVulkan2::create_pipeline_layout() {
   emercPipelineLayoutInfo.pushConstantRangeCount = emercPushConstantRanges.size();
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &mercPipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
+                             &m_merc_pipeline_layout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create merc pipeline layout!");
   }
 
   if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &emercPipelineLayoutInfo, nullptr,
-                             &m_emerc_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
+                             &m_emerc_pipeline_layout) != VK_SUCCESS) {
+    throw std::runtime_error("failed to create emerc pipeline layout!");
   }
+  m_pipeline_config_info.pipelineLayout = m_merc_pipeline_layout;
 }
 
 void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
                                      ScopedProfilerNode& prof,
                                      BaseMercDebugStats* debug_stats) {
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant.height_scale),
-                     (void*)&m_vertex_push_constant.height_scale);
-
   m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
 
-  m_stats.num_draw_flush++;
+  debug_stats->num_draw_flush++;
 
   for (u32 li = 0; li < m_next_free_level_bucket; li++) {
     auto& lev_bucket = m_level_draw_buckets[li];
@@ -226,6 +234,22 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
   m_next_free_light = 0;
   m_next_free_bone_vector = 0;
   m_next_free_level_bucket = 0;
+  m_next_mod_vtx_buffer = 0;
+}
+
+VulkanTexture* MercVulkan2::get_texture_at_draw_id(const LevelDataVulkan* level, const VulkanDraw& draw) {
+  VulkanTexture* textureInfo = nullptr;
+  if (draw.texture < level->textures_map.size()) {
+    textureInfo = (VulkanTexture*)&level->textures_map.at(draw.texture);
+  } else if ((draw.texture & 0xffffff00) == 0xffffff00) {
+    textureInfo = m_eye_renderer->lookup_eye_texture(draw.texture & 0xff);
+  } else if (draw.texture < 0) {
+    int slot = -(draw.texture + 1);
+    textureInfo = m_anim_slot_array->at(slot);
+  } else {
+    fmt::print("Invalid draw.texture is {}, would have crashed.\n", draw.texture);
+  }
+  return textureInfo;
 }
 
 void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNode& prof) {
@@ -235,16 +259,21 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
   int last_light = -1;
   m_stats.num_bones_uploaded += m_next_free_bone_vector;
 
+  m_pipeline_config_info.shaderStages = m_merc_vertex_shader_stage_info;
+  m_pipeline_config_info.pipelineLayout = m_merc_pipeline_layout;
+
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_merc_vertex_push_constant),
+                     (void*)&m_merc_vertex_push_constant);
+
+  m_merc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                         m_pipeline_config_info);
+  m_merc_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+
   for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
     auto& draw = lev_bucket.draws[di];
-    auto& sampler = lev_bucket.samplers[di];
 
-    VulkanTexture* textureInfo = nullptr;
-    if (draw.texture < lev->textures_map.size()) {
-      textureInfo = &lev->textures_map.at(draw.texture);
-    } else if ((draw.texture & 0xffffff00) == 0xffffff00) {
-      // textureInfo = &render_state->eye_renderer->lookup_eye_texture(draw.texture & 0xff);
-    }
+    VulkanTexture* textureInfo = get_texture_at_draw_id(lev, draw);
 
     if ((int)draw.light_idx != last_light) {
       m_light_control_vertex_uniform_buffer->SetUniformMathVector3f(
@@ -267,7 +296,9 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);
 
-    FinalizeVulkanDraw(di, lev_bucket, textureInfo);
+    FinalizeVulkanDraw(di, lev_bucket, textureInfo,
+                       m_merc_fragment_descriptor_sets[merc_draw_call_count], true);
+    merc_draw_call_count++;
   }
 }
 
@@ -278,31 +309,56 @@ void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerN
   int last_light = -1;
   m_stats.num_bones_uploaded += m_next_free_bone_vector;
 
-  for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
-    auto& draw = lev_bucket.draws[di];
-    auto& sampler = lev_bucket.samplers[di];
+  m_pipeline_config_info.shaderStages = m_emerc_vertex_shader_stage_info;
+  m_pipeline_config_info.pipelineLayout = m_emerc_pipeline_layout;
+  
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_emerc_vertex_push_constant),
+                     (void*)&m_emerc_vertex_push_constant);
 
-    VulkanTexture& textureInfo = lev->textures_map.at(draw.texture);
+  m_emerc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                          m_pipeline_config_info);
+  m_emerc_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+
+  for (u32 di = 0; di < lev_bucket.next_free_envmap_draw; di++) {
+    auto& draw = lev_bucket.envmap_draws[di];
+
+    VulkanTexture* textureInfo = get_texture_at_draw_id(lev, draw);
 
     prof.add_draw_call();
     prof.add_tri(draw.num_triangles);
 
-    FinalizeVulkanDraw(di, lev_bucket, &textureInfo);
+    FinalizeVulkanDraw(di, lev_bucket, textureInfo, m_emerc_fragment_descriptor_sets[emerc_draw_call_count], false);
+    emerc_draw_call_count++;
   }
 }
 
 void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
                                      LevelDrawBucketVulkan& lev_bucket,
-                                     VulkanTexture* texture) {
-  auto& draw = lev_bucket.draws[drawIndex];
-  auto& sampler = lev_bucket.samplers[drawIndex];
+                                     VulkanTexture* texture,
+                                     VkDescriptorSet fragment_descriptor_set, bool isMercDraw) {
+  u32 graphics_draw_index = (isMercDraw) ? merc_draw_call_count : emerc_draw_call_count; 
+
+  auto& draw = (isMercDraw) ? lev_bucket.draws[drawIndex] : lev_bucket.envmap_draws[drawIndex];
+  auto& sampler = (isMercDraw) ? lev_bucket.samplers[graphics_draw_index]
+                               : lev_bucket.emerc_samplers[graphics_draw_index];
 
   vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, sampler, m_pipeline_config_info,
                                                         true);
 
-  m_fragment_push_constant.settings |= draw.mode.get_decal();
+  m_fragment_push_constant.settings = draw.mode.get_decal();
 
-  uint32_t dynamic_descriptors_offset = drawIndex * sizeof(MercLightControlVertexUniformBuffer);
+  u32 dynamic_descriptors_offset = drawIndex * sizeof(MercLightControlVertexUniformBuffer);
+
+  if (!isMercDraw) {
+    m_emerc_vertex_push_constant.etie_data.fade =
+        math::Vector4f(draw.fade[0], draw.fade[1], draw.fade[2], draw.fade[3]) / 255.0f;
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_emerc_vertex_push_constant),
+                       (void*)&m_emerc_vertex_push_constant);
+    auto alpha_blend = draw.mode.get_alpha_blend();
+    ASSERT(alpha_blend == DrawMode::AlphaBlend::SRC_0_DST_DST);
+  }
 
   m_bone_vertex_uniform_buffer->map();
   m_bone_vertex_uniform_buffer->writeToCpuBuffer(m_shader_bone_vector_buffer,
@@ -310,33 +366,47 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
                                                  sizeof(math::Vector4f) * draw.first_bone);
   m_bone_vertex_uniform_buffer->unmap();
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                                    m_pipeline_config_info);
-  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  if (isMercDraw) {
+    m_merc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                      m_pipeline_config_info);
+  } else {
+    m_emerc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                           m_pipeline_config_info);
+  }
 
   lev_bucket.descriptor_image_infos[drawIndex] = {sampler.GetSampler(), texture->getImageView(),
                                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-  m_fragment_descriptor_writer->writeImage(1, &lev_bucket.descriptor_image_infos[drawIndex]);
+  auto& write_descriptors_info = m_fragment_descriptor_writer->getWriteDescriptorSets();
+  write_descriptors_info[0] = m_fragment_descriptor_writer->writeImageDescriptorSet(
+      0, &lev_bucket.descriptor_image_infos[drawIndex]);
 
+  m_fragment_descriptor_writer->overwrite(fragment_descriptor_set);
+
+  VkDescriptorSet vertex_descriptor_set =
+      (isMercDraw) ? m_merc_vertex_descriptor_set : m_emerc_vertex_descriptor_set;
+  std::vector<VkDescriptorSet> descriptor_sets{vertex_descriptor_set, fragment_descriptor_set};
+
+  u32* dynamic_offsets_pointer = (isMercDraw) ? &dynamic_descriptors_offset : NULL;
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
-                          m_descriptor_sets.data(), 1, &dynamic_descriptors_offset);
+                          m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
+                          descriptor_sets.data(), isMercDraw,
+                          dynamic_offsets_pointer);
   vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, draw.index_count, 1, draw.first_index, 0,
                    0);
 }
 
 void MercVulkan2::set_merc_uniform_buffer_data(const DmaTransfer& dma) {
   memcpy(&m_low_memory, dma.data + 16, sizeof(LowMemory));
-  m_tie_vertex_push_constant.camera_control.hvdf_offset = m_low_memory.hvdf_offset;
-  m_tie_vertex_push_constant.camera_control.fog_constants = m_low_memory.fog;
-  ::memcpy(&m_tie_vertex_push_constant.perspective_matrix, &m_low_memory.perspective[0],
+  m_merc_vertex_push_constant.camera_control.hvdf_offset = m_low_memory.hvdf_offset;
+  m_merc_vertex_push_constant.camera_control.fog_constants = m_low_memory.fog;
+  ::memcpy(&m_merc_vertex_push_constant.perspective_matrix, &m_low_memory.perspective[0],
            sizeof(math::Matrix4f));
 
-  m_etie_vertex_push_constant.etie_data.hvdf_offset = m_low_memory.hvdf_offset;
-  m_etie_vertex_push_constant.etie_data.fog_constants = m_low_memory.fog;
+  m_emerc_vertex_push_constant.etie_data.hvdf_offset = m_low_memory.hvdf_offset;
+  m_emerc_vertex_push_constant.etie_data.fog_constants = m_low_memory.fog;
   // todo rm.
-  ::memcpy(&m_etie_vertex_push_constant.perspective_matrix, &m_low_memory.perspective[0],
+  ::memcpy(&m_emerc_vertex_push_constant.perspective_matrix, &m_low_memory.perspective[0],
            sizeof(math::Matrix4f));
 }
 
@@ -455,15 +525,15 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
     memcpy(&uses_water, input_data, 8);
     input_data += 16;
   }
-  settings.uses_water = uses_water;
+  settings.uses_jak1_water = uses_water;
 
   // Next part is the matrix slot string. The game sends us a bunch of bone matrices,
   // but they may not be in order, or include all bones. The matrix slot string tells
   // us which bones go where. (the game doesn't go in order because it follows the merc format)
-  ShaderMercMat skel_matrix_buffer[MAX_SKEL_BONES];
+  ShaderMercMat skel_matrix_buffer[MAX_SKEL_BONES] = {};
   auto* matrix_array = (const u32*)(input_data + 128);
-  int i;
-  for (i = 0; i < 128; i++) {
+  int i = 0;
+  for (; i < 128; i++) {
     if (input_data[i] == 0xff) {  // indicates end of string.
       break;
     }
@@ -485,11 +555,20 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
   u64 current_ignore_alpha_bits = flags->ignore_alpha_mask;  // shader settings
   u64 current_effect_enable_bits = flags->enable_mask;       // mask for game to disable an effect
   settings.model_uses_mod = flags->bitflags & 1;  // if we should update vertices from game.
-  settings.model_disables_fog = (flags->bitflags & 2);
+  settings.model_disables_fog = flags->bitflags & 2;
+  settings.model_uses_pc_blerc = flags->bitflags & 4;
+  settings.model_disables_envmap = flags->bitflags & 8;
   input_data += 32;
 
+  float blerc_weights[kMaxBlerc] = {0.f};
+  if (settings.model_uses_pc_blerc) {
+    ::memcpy(blerc_weights, input_data, kMaxBlerc * sizeof(blerc_weights[0]));
+    input_data += kMaxBlerc * sizeof(blerc_weights[0]);
+  }
+
+
   // Next is "fade data", indicating the color/intensity of envmap effect
-  u8 fade_buffer[4 * kMaxEffect];
+  u8 fade_buffer[4 * kMaxEffect] = {};
   for (int ei = 0; ei < num_effects; ei++) {
     for (int j = 0; j < 4; j++) {
       fade_buffer[ei * 4 + j] = input_data[ei * 4 + j];
@@ -499,105 +578,68 @@ void MercVulkan2::handle_pc_model(const DmaTransfer& setup,
 
   // Next is pointers to merc data, needed so we can update vertices
 
-  // will hold graphics vertex buffers for the updated vertices
-  std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>> mod_graphics_buffers;
-  if (/*settings.model_uses_mod*/ 0) {  // only if we've enabled, this path is slow.
-    auto p = profiler::scoped_prof("update-verts");
+  if (settings.model_uses_pc_blerc) {
+    model_mod_blerc_draws(num_effects, model, lev, blerc_weights, debug_stats);
+  }
+  if (settings.model_uses_mod) {
+    model_mod_draws(num_effects, model, lev, input_data, setup, debug_stats);
+  }  
 
-    // loop over effects. Mod vertices are done per effect (possibly a bad idea?)
-    for (unsigned ei = 0; ei < num_effects; ei++) {
-      const auto& effect = model_ref->model->effects[ei];
-      // some effects might have no mod draw info, and no modifiable vertices
-      if (effect.mod.mod_draw.empty()) {
-        continue;
-      }
-
-      profiler::prof().begin_event("start1");
-      std::unique_ptr<VertexBuffer> mod_vertex_buffer =
-          std::make_unique<VertexBuffer>(*model_ref->level->merc_vertices);
-      mod_graphics_buffers.insert({ei, std::move(mod_vertex_buffer)});
-
-      // check that we have enough room for the finished thing.
-      if (effect.mod.vertices.size() > MAX_MOD_VTX) {
-        fmt::print("More mod vertices than MAX_MOD_VTX. {} > {}\n", effect.mod.vertices.size(),
-                   MAX_MOD_VTX);
-        ASSERT_NOT_REACHED();
-      }
-
-      // check that we have enough room for unpack
-      if (effect.mod.expect_vidx_end > MAX_MOD_VTX) {
-        fmt::print("More mod vertices (temp) than MAX_MOD_VTX. {} > {}\n",
-                   effect.mod.expect_vidx_end, MAX_MOD_VTX);
-        ASSERT_NOT_REACHED();
-      }
-
-      handle_mod_vertices(setup, effect, input_data, ei, model);
-
-      // and upload to GPU
-      m_stats.num_uploads++;
-      m_stats.num_upload_bytes += effect.mod.vertices.size() * sizeof(tfrag3::MercVertex);
-      {
-        auto pp = profiler::scoped_prof("update-verts-upload");
-        mod_graphics_buffers.at(ei)->writeToGpuBuffer(
-            m_mod_vtx_temp.data(), effect.mod.vertices.size() * sizeof(tfrag3::MercVertex), 0);
-      }
-    }
-
-    // stats
-    m_stats.num_models++;
-    for (const auto& effect : model_ref->model->effects) {
-      bool envmap = effect.has_envmap;
-      m_stats.num_effects++;
+  // stats
+  m_stats.num_models++;
+  for (const auto& effect : model_ref->model->effects) {
+    bool envmap = effect.has_envmap;
+    m_stats.num_effects++;
+    m_stats.num_predicted_draws += effect.all_draws.size();
+    if (envmap) {
+      m_stats.num_envmap_effects++;
       m_stats.num_predicted_draws += effect.all_draws.size();
+    }
+    for (const auto& draw : effect.all_draws) {
+      m_stats.num_predicted_tris += draw.num_triangles;
       if (envmap) {
-        m_stats.num_envmap_effects++;
-        m_stats.num_predicted_draws += effect.all_draws.size();
-      }
-      for (const auto& draw : effect.all_draws) {
         m_stats.num_predicted_tris += draw.num_triangles;
-        if (envmap) {
-          m_stats.num_predicted_tris += draw.num_triangles;
-        }
       }
     }
+  }
 
-    if (m_debug_mode) {
-      auto& d = debug_stats->model_list.emplace_back();
-      d.name = model->name;
-      d.level = model_ref->level->level->level_name;
-      for (auto& e : model->effects) {
-        auto& de = d.effects.emplace_back();
-        de.envmap = e.has_envmap;
-        de.envmap_mode = e.envmap_mode;
-        for (auto& draw : e.all_draws) {
-          auto& dd = de.draws.emplace_back();
-          dd.mode = draw.mode;
-          dd.num_tris = draw.num_triangles;
-        }
+  if (m_debug_mode) {
+    auto& d = debug_stats->model_list.emplace_back();
+    d.name = model->name;
+    d.level = model_ref->level->level->level_name;
+    for (auto& e : model->effects) {
+      auto& de = d.effects.emplace_back();
+      de.envmap = e.has_envmap;
+      de.envmap_mode = e.envmap_mode;
+      for (auto& draw : e.all_draws) {
+        auto& dd = de.draws.emplace_back();
+        dd.mode = draw.mode;
+        dd.num_tris = draw.num_triangles;
       }
     }
+  }
 
-    // allocate bones in shared bone buffer to be sent to GPU at flush-time
-    settings.first_bone = alloc_bones(bone_count, skel_matrix_buffer);
+  // allocate bones in shared bone buffer to be sent to GPU at flush-time
+  settings.first_bone = alloc_bones(bone_count, skel_matrix_buffer);
 
-    // allocate lights
-    settings.lights = alloc_lights(current_lights);
+  // allocate lights
+  settings.lights = alloc_lights(current_lights);
+  m_stats.num_lights++;
 
-    // loop over effects, creating draws for each
-    for (size_t ei = 0; ei < model->effects.size(); ei++) {
-      // game has disabled it?
-      if (!(current_effect_enable_bits & (1 << ei))) {
-        continue;
-      }
-
-      // imgui menu disabled it?
-      if (!m_effect_debug_mask[ei]) {
-        continue;
-      }
-
-      bool ignore_alpha = (current_ignore_alpha_bits & (1 << ei));
-      do_mod_draws(model->effects[ei], lev_bucket, fade_buffer, ei, settings, mod_graphics_buffers);
+  // loop over effects, creating draws for each
+  for (size_t ei = 0; ei < model->effects.size(); ei++) {
+    // game has disabled it?
+    if (!(current_effect_enable_bits & (1ull << ei))) {
+      continue;
     }
+
+    // imgui menu disabled it?
+    if (!m_effect_debug_mask[ei]) {
+      continue;
+    }
+
+    bool ignore_alpha = (current_ignore_alpha_bits & (1ull << ei));
+    do_mod_draws(model->effects[ei], lev_bucket, fade_buffer, ei, settings);
   }
 }
 
@@ -606,51 +648,44 @@ void MercVulkan2::do_mod_draws(
     LevelDrawBucketVulkan* lev_bucket,
     u8* fade_buffer,
     uint32_t index,
-    ModSettings& settings,
-    std::unordered_map<uint32_t, std::unique_ptr<VertexBuffer>>& mod_graphics_buffers) {
+    ModSettings& settings) {
   bool should_envmap = effect.has_envmap;
   bool should_mod = settings.model_uses_mod && effect.has_mod_draw;
 
-  if (should_mod) {
-    // draw as two parts, fixed and mod
-
-    // do fixed draws:
-    for (auto& fdraw : effect.mod.fix_draw) {
-      alloc_normal_draw(fdraw, settings.ignore_alpha, lev_bucket, settings.first_bone,
-                        settings.lights, settings.uses_water, settings.model_disables_fog);
-      if (should_envmap) {
-        try_alloc_envmap_draw(fdraw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
-                              fade_buffer + 4 * index, settings.first_bone, settings.lights,
-                              settings.uses_water);
-      }
-    }
-
-    // do mod draws
-    for (auto& mdraw : effect.mod.mod_draw) {
-      auto normal_draw =
-          alloc_normal_draw(mdraw, settings.ignore_alpha, lev_bucket, settings.first_bone,
-                            settings.lights, settings.uses_water, settings.model_disables_fog);
-      // modify the draw, set the mod flag and point it to the opengl buffer
-      normal_draw->flags |= MOD_VTX;
-      normal_draw->mod_vtx_buffer = std::move(mod_graphics_buffers[index]);
-      if (should_envmap) {
-        auto envmap_draw = try_alloc_envmap_draw(
-            mdraw, effect.envmap_mode, effect.envmap_texture, lev_bucket, fade_buffer + 4 * index,
-            settings.first_bone, settings.lights, settings.uses_water);
-        envmap_draw->flags |= MOD_VTX;
-        envmap_draw->mod_vtx_buffer = std::move(mod_graphics_buffers[index]);
-      }
-    }
-  } else {
+  if (!should_mod) {
     // no mod, just do all_draws
     for (auto& draw : effect.all_draws) {
       if (should_envmap) {
         try_alloc_envmap_draw(draw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
-                              fade_buffer + 4 * index, settings.first_bone, settings.lights,
-                              settings.uses_water);
+                              fade_buffer + 4 * index, settings);
       }
-      alloc_normal_draw(draw, settings.ignore_alpha, lev_bucket, settings.first_bone,
-                        settings.lights, settings.uses_water, settings.model_disables_fog);
+      alloc_normal_draw(draw, lev_bucket, settings);
+    }
+    return;
+  }
+  // draw as two parts, fixed and mod
+
+  // do fixed draws:
+  for (auto& fdraw : effect.mod.fix_draw) {
+    alloc_normal_draw(fdraw, lev_bucket, settings);
+    if (should_envmap) {
+      try_alloc_envmap_draw(fdraw, effect.envmap_mode, effect.envmap_texture, lev_bucket,
+                            fade_buffer + 4 * index, settings);
+    }
+  }
+
+  // do mod draws
+  for (auto& mdraw : effect.mod.mod_draw) {
+    auto normal_draw =
+        alloc_normal_draw(mdraw, lev_bucket, settings);
+    // modify the draw, set the mod flag and point it to the opengl buffer
+    normal_draw->flags |= MOD_VTX;
+    normal_draw->mod_vtx_buffer = m_mod_vtx_buffers[index];
+    if (should_envmap) {
+      auto envmap_draw = try_alloc_envmap_draw(mdraw, effect.envmap_mode, effect.envmap_texture,
+                                               lev_bucket, fade_buffer + 4 * index, settings);
+      envmap_draw->flags |= MOD_VTX;
+      envmap_draw->mod_vtx_buffer = m_mod_vtx_buffers[index];
     }
   }
 }
@@ -659,10 +694,7 @@ MercVulkan2::VulkanDraw* MercVulkan2::try_alloc_envmap_draw(const tfrag3::MercDr
                                                             const DrawMode& envmap_mode,
                                                             u32 envmap_texture,
                                                             LevelDrawBucketVulkan* lev_bucket,
-                                                            const u8* fade,
-                                                            u32 first_bone,
-                                                            u32 lights,
-                                                            bool jak1_water_mode) {
+                                                            const u8* fade, const ModSettings& settings) {
   bool nonzero_fade = false;
   for (int i = 0; i < 4; i++) {
     if (fade[i]) {
@@ -675,57 +707,102 @@ MercVulkan2::VulkanDraw* MercVulkan2::try_alloc_envmap_draw(const tfrag3::MercDr
   }
 
   VulkanDraw* draw = &lev_bucket->envmap_draws[lev_bucket->next_free_envmap_draw++];
-  draw->flags = 0;
-  draw->first_index = mdraw.first_index;
-  draw->index_count = mdraw.index_count;
-  draw->mode = envmap_mode;
-  if (jak1_water_mode) {
-    draw->mode.set_ab(true);
-    draw->mode.disable_depth_write();
-  }
-  draw->texture = envmap_texture;
-  draw->first_bone = first_bone;
-  draw->light_idx = lights;
-  draw->num_triangles = mdraw.num_triangles;
-  for (int i = 0; i < 4; i++) {
-    draw->fade[i] = fade[i];
-  }
+  populate_envmap_draw(mdraw, envmap_mode, envmap_texture, settings, fade, draw);
   return draw;
 }
 
 MercVulkan2::VulkanDraw* MercVulkan2::alloc_normal_draw(const tfrag3::MercDraw& mdraw,
-                                                        bool ignore_alpha,
-                                                        LevelDrawBucketVulkan* lev_bucket,
-                                                        u32 first_bone,
-                                                        u32 lights,
-                                                        bool jak1_water_mode,
-                                                        bool disable_fog) {
+                                                        LevelDrawBucketVulkan* lev_bucket, const ModSettings& settings) {
   MercVulkan2::VulkanDraw* draw = &lev_bucket->draws[lev_bucket->next_free_draw++];
-  draw->flags = 0;
-  draw->first_index = mdraw.first_index;
-  draw->index_count = mdraw.index_count;
-  draw->mode = mdraw.mode;
-  if (jak1_water_mode) {
-    draw->mode.set_ab(true);
-    draw->mode.disable_depth_write();
-  }
-
-  if (disable_fog) {
-    draw->mode.set_fog(false);
-    // but don't toggle it the other way?
-  }
-
-  draw->texture = mdraw.eye_id == 0xff ? mdraw.tree_tex_id : (0xffffff00 | mdraw.eye_id);
-  draw->first_bone = first_bone;
-  draw->light_idx = lights;
-  draw->num_triangles = mdraw.num_triangles;
-  if (ignore_alpha) {
-    draw->flags |= IGNORE_ALPHA;
-  }
-  for (int i = 0; i < 4; i++) {
-    draw->fade[i] = 0;
-  }
+  populate_normal_draw(mdraw, settings, draw);
   return draw;
+}
+
+
+void MercVulkan2::model_mod_blerc_draws(int num_effects,
+                                        const tfrag3::MercModel* model,
+                                        const LevelDataVulkan* lev,
+                                        const float* blerc_weights,
+                                        BaseMercDebugStats* stats) {
+  // loop over effects.
+  for (int ei = 0; ei < num_effects; ei++) {
+    const auto& effect = model->effects[ei];
+    // some effects might have no mod draw info, and no modifiable vertices
+    if (effect.mod.mod_draw.empty()) {
+      continue;
+    }
+
+    // grab opengl buffer
+    alloc_mod_vtx_buffer(lev);
+    validate_merc_vertices(effect);
+
+    // start with the correct vertices from the model data:
+    memcpy(m_mod_vtx_temp.data(), effect.mod.vertices.data(),
+           sizeof(tfrag3::MercVertex) * effect.mod.vertices.size());
+
+    // do blerc math
+    const auto* f_data = effect.mod.blerc.float_data.data();
+    const u32* i_data = effect.mod.blerc.int_data.data();
+    const u32* i_data_end = i_data + effect.mod.blerc.int_data.size();
+    blerc_avx(i_data, i_data_end, f_data, blerc_weights, m_mod_vtx_temp.data(), 1);
+
+    // and upload to GPU
+    stats->num_uploads++;
+    unsigned size = effect.mod.vertices.size() * sizeof(tfrag3::MercVertex);
+    stats->num_upload_bytes += size;
+    {
+      m_mod_vtx_buffers[ei]->writeToGpuBuffer((void*)effect.mod.vertices.data(), size);
+    }
+  }
+}
+
+// We can run into a problem where adding a PC model would overflow the
+// preallocated draw/bone buffers.
+// So we break this part into two functions:
+// - init_pc_model, which doesn't allocate bones/draws
+
+void MercVulkan2::model_mod_draws(int num_effects,
+                                  const tfrag3::MercModel* model,
+                                  const LevelDataVulkan* lev,
+                                  const u8* input_data,
+                                  const DmaTransfer& setup,
+                                  BaseMercDebugStats* stats) {
+  auto p = profiler::scoped_prof("update-verts");
+
+  // loop over effects. Mod vertices are done per effect (possibly a bad idea?)
+  for (int ei = 0; ei < num_effects; ei++) {
+    const auto& effect = model->effects[ei];
+    // some effects might have no mod draw info, and no modifiable vertices
+    if (effect.mod.mod_draw.empty()) {
+      continue;
+    }
+
+    profiler::prof().begin_event("start1");
+    // grab opengl buffer
+    alloc_mod_vtx_buffer(lev);
+
+    validate_merc_vertices(effect);
+    setup_mod_vertex_dma(effect, input_data, ei, model, setup);
+
+    // and upload to GPU
+    stats->num_uploads++;
+    u32 size = effect.mod.vertices.size() * sizeof(tfrag3::MercVertex);
+    stats->num_upload_bytes += size;
+    {
+      auto pp = profiler::scoped_prof("update-verts-upload");
+      m_mod_vtx_buffers[ei]->writeToGpuBuffer((void*)effect.mod.vertices.data(), size);
+    }
+  }
+}
+
+void MercVulkan2::alloc_mod_vtx_buffer(const LevelDataVulkan* level) {
+  if (m_next_mod_vtx_buffer < m_mod_vtx_buffers.size()) {
+    m_mod_vtx_buffers[m_next_mod_vtx_buffer++] = level->merc_vertices.get();
+    return;
+  }
+
+  m_mod_vtx_buffers.insert(
+      std::pair<u32, VertexBuffer*>(m_next_mod_vtx_buffer++, level->merc_vertices.get()));
 }
 
 void MercVulkan2::init_shaders() {
@@ -744,7 +821,7 @@ void MercVulkan2::init_shaders() {
   mercFragShaderStageInfo.module = merc2_shader.GetFragmentShader();
   mercFragShaderStageInfo.pName = "main";
 
-  m_pipeline_config_info.shaderStages = {mercVertShaderStageInfo, mercFragShaderStageInfo};
+  m_merc_vertex_shader_stage_info = {mercVertShaderStageInfo, mercFragShaderStageInfo};
 
   VkPipelineShaderStageCreateInfo emercVertShaderStageInfo{};
   emercVertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -758,7 +835,8 @@ void MercVulkan2::init_shaders() {
   emercFragShaderStageInfo.module = emerc_shader.GetFragmentShader();
   emercFragShaderStageInfo.pName = "main";
 
-  m_emerc_pipeline_config_info.shaderStages = {mercVertShaderStageInfo, mercFragShaderStageInfo};
+  m_emerc_vertex_shader_stage_info = {emercVertShaderStageInfo, emercFragShaderStageInfo};
+  m_pipeline_config_info.shaderStages = m_merc_vertex_shader_stage_info;
 }
 
 void MercVulkan2::InitializeInputAttributes() {
@@ -767,12 +845,7 @@ void MercVulkan2::InitializeInputAttributes() {
   mercVertexBindingDescription.stride = sizeof(tfrag3::MercVertex);
   mercVertexBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-  VkVertexInputBindingDescription mercMatrixBindingDescription{};
-  mercMatrixBindingDescription.binding = 1;
-  mercMatrixBindingDescription.stride = sizeof(ShaderMercMat);
-  mercMatrixBindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-  m_pipeline_config_info.bindingDescriptions = {mercVertexBindingDescription,
-                                                mercMatrixBindingDescription};
+  m_pipeline_config_info.bindingDescriptions = {mercVertexBindingDescription};
 
   std::array<VkVertexInputAttributeDescription, 6> attributeDescriptions{};
   attributeDescriptions[0].binding = 0;
@@ -814,10 +887,6 @@ void MercVulkan2::InitializeInputAttributes() {
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;
-
-  GraphicsPipelineLayout::defaultPipelineConfigInfo(m_emerc_pipeline_config_info);
-  m_emerc_pipeline_config_info.attributeDescriptions = m_pipeline_config_info.attributeDescriptions;
-  m_emerc_pipeline_config_info.bindingDescriptions = m_pipeline_config_info.bindingDescriptions;
 }
 
 MercLightControlVertexUniformBuffer::MercLightControlVertexUniformBuffer(
@@ -843,4 +912,8 @@ MercVulkan2::MercBoneVertexUniformBuffer::MercBoneVertexUniformBuffer(
     VkDeviceSize minOffsetAlignment)
     : UniformVulkanBuffer(device, sizeof(BaseMerc2::ShaderMercMat), 128, minOffsetAlignment) {}
 
-MercVulkan2::~MercVulkan2() {}
+MercVulkan2::~MercVulkan2() {
+  m_vulkan_info.descriptor_pool->freeDescriptors(m_merc_fragment_descriptor_sets);
+  m_vulkan_info.descriptor_pool->freeDescriptors(m_emerc_fragment_descriptor_sets);
+}
+

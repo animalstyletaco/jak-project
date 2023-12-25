@@ -40,7 +40,7 @@ struct MercMatrixData {
     vec4 pad;
 };
 
-layout (std140, binding = 1) uniform ub_bones {
+layout (std140, set = 0, binding = 1) uniform ub_bones {
     MercMatrixData bones[128];
 };
 

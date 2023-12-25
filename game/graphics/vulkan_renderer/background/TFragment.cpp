@@ -235,6 +235,8 @@ void TFragmentVulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& 
 void TFragmentVulkan::render(DmaFollower& dma,
                              SharedVulkanRenderState* render_state,
                              ScopedProfilerNode& prof) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseTFragment::render(dma, render_state, prof);
 }
 

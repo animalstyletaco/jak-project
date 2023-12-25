@@ -943,6 +943,8 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
                                                      currentFrame);
 
+  m_merc2->reset_draw_count();
+
   // loop over the buckets!
   for (int bucket_id = 0; bucket_id < (int)BucketId::MAX_BUCKETS; bucket_id++) {
     auto& renderer = m_bucket_renderers[bucket_id];

@@ -122,7 +122,7 @@ void VulkanLoader::load_common(VulkanTexturePool& tex_pool, const std::string& n
 
   Timer tim;
   MercVulkanLoaderStage mls{m_device};
-  LoaderInputVulkan input;
+  LoaderInputVulkan input{};
   input.tex_pool = &tex_pool;
   input.mercs = &m_all_merc_models;
   input.lev_data = &m_common_level;
@@ -390,7 +390,7 @@ void VulkanLoader::update(VulkanTexturePool& texture_pool) {
       // we're the only place that erases, so it's okay to unlock and hold a reference
       lk.unlock();
       bool done = true;
-      LoaderInputVulkan loader_input;
+      LoaderInputVulkan loader_input{};
       loader_input.lev_data = lev.get();
       loader_input.mercs = &m_all_merc_models;
       loader_input.tex_pool = &texture_pool;

@@ -201,18 +201,18 @@ DoubleDraw vulkan_background_common::setup_vulkan_from_draw_mode(
             }
             break;
           default:
-            ASSERT(false);
+            ASSERT_MSG("Common Background Renderer - Invalid Alpha Test passed through", false);
         }
         break;
       case DrawMode::AlphaTest::NEVER:
         if (mode.get_alpha_fail() == GsTest::AlphaFail::FB_ONLY) {
           alpha_hack_to_disable_z_write = true;
         } else {
-          ASSERT(false);
+          ASSERT_MSG("Common Background Renderer - Invalid Alpha Test passed through", false);
         }
         break;
       default:
-        ASSERT(false);
+        ASSERT_MSG("Common Background Renderer - Invalid Alpha Test passed through", false);
     }
   }
 

@@ -35,9 +35,8 @@ struct LevelDataVulkan : BaseLevelData {
 struct MercRefVulkan : BaseMercRef {
   MercRefVulkan() = default;
   MercRefVulkan(const tfrag3::MercModel* model, u64 load_id, LevelDataVulkan* level)
-      : model(model), load_id(load_id), level(level) {}
+      : BaseMercRef(model), load_id(load_id), level(level) {}
 
-  const tfrag3::MercModel* model = nullptr;
   u64 load_id = 0;
   LevelDataVulkan* level = nullptr;
   bool operator==(const MercRefVulkan& other) const {

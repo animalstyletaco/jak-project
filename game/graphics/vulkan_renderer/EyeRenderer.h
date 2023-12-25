@@ -19,6 +19,8 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
               SharedVulkanRenderState* render_state,
               ScopedProfilerNode& prof) override;
 
+  VulkanTexture* lookup_eye_texture(u8 eye_id);
+
   struct EyeVulkanGraphics {
     EyeVulkanGraphics(std::shared_ptr<GraphicsDeviceVulkan> device,
                       std::unique_ptr<DescriptorLayout>& setLayout,
@@ -48,7 +50,6 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   };
 
  private:
-  std::optional<u64> lookup_eye_texture(u8 eye_id);
   void run_dma_draws_in_gpu(DmaFollower& dma, BaseSharedRenderState* render_state) override;
   void InitializeInputVertexAttribute();
   void create_pipeline_layout() override;

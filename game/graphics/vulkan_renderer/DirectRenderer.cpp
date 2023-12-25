@@ -56,6 +56,7 @@ void DirectVulkanRenderer::allocate_new_descriptor_set() {
   auto& graphics_helper = m_graphics_helper_map[totalImageCount - 1];
 
   graphics_helper.sampler = std::make_unique<VulkanSamplerHelper>(m_device);
+  graphics_helper.graphics_pipeline_layout = std::make_unique<GraphicsPipelineLayout>(m_device);
 
   m_descriptor_sets.emplace_back();
   m_vulkan_info.descriptor_pool->allocateDescriptor(&descriptorSetLayout,

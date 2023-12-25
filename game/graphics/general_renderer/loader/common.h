@@ -14,6 +14,8 @@ struct BaseLevelData {
 };
 
 struct BaseMercRef {
+  BaseMercRef(const tfrag3::MercModel* model) : model(model) {}
+
   const tfrag3::MercModel* model = nullptr;
   u64 load_id = 0;
   bool operator==(const BaseMercRef& other) const {

@@ -31,8 +31,8 @@ DescriptorLayout::DescriptorLayout(
     VkDescriptorSetLayoutCreateFlags descriptor_layout_create_flag)
     : m_device{device}, m_bindings{bindings} {
   std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings{};
-  for (auto kv : m_bindings) {
-    setLayoutBindings.push_back(kv.second);
+  for (auto& [binding_index, binding] : m_bindings) {
+    setLayoutBindings.push_back(binding);
   }
 
   VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{};
@@ -208,8 +208,7 @@ bool DescriptorWriter::allocateDescriptor(VkDescriptorSet& set) {
 }
 
 bool DescriptorWriter::build(VkDescriptorSet& set) {
-  bool success = allocateDescriptor(set);
-  if (!success) {
+  if(!allocateDescriptor(set)){
     return false;
   }
   overwrite(set);

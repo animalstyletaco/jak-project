@@ -89,8 +89,8 @@ MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
 
   m_vertex_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
-  m_emerc_vertex_descriptor_writer =
-      std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
+  m_emerc_vertex_descriptor_writer = std::make_unique<DescriptorWriter>(
+      m_emerc_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
 
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
                                                                     m_vulkan_info.descriptor_pool);

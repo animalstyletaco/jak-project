@@ -5,7 +5,9 @@
 SwapChain::SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
                      VkExtent2D extent,
                      bool vsyncEnabled)
-    : device{deviceRef}, windowExtent{extent}, m_render_pass_sample{deviceRef->getMsaaCount()} {
+    : device{deviceRef},
+      windowExtent{extent}, swapChainExtent{extent},
+      m_render_pass_sample{deviceRef->getMsaaCount()} {
   init(vsyncEnabled);
 }
 
@@ -15,6 +17,7 @@ SwapChain::SwapChain(std::shared_ptr<GraphicsDeviceVulkan> deviceRef,
                      std::shared_ptr<SwapChain> previous)
     : device{deviceRef},
       windowExtent{extent},
+      swapChainExtent{extent},
       oldSwapChain{previous},
       m_render_pass_sample{deviceRef->getMsaaCount()} {
   init(vsyncEnabled);
@@ -485,22 +488,22 @@ VkPresentModeKHR SwapChain::chooseSwapPresentMode(
 VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
   if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
     return capabilities.currentExtent;
-  } else {
-    VkExtent2D actualExtent = windowExtent;
-    actualExtent.width = std::max(capabilities.minImageExtent.width,
+  } 
+
+  VkExtent2D actualExtent = windowExtent;
+  actualExtent.width = std::max(capabilities.minImageExtent.width,
                                   std::min(capabilities.maxImageExtent.width, actualExtent.width));
-    actualExtent.height =
+  actualExtent.height =
         std::max(capabilities.minImageExtent.height,
                  std::min(capabilities.maxImageExtent.height, actualExtent.height));
 
-    return actualExtent;
-  }
+  return actualExtent;
 }
 
 VkFormat SwapChain::findDepthFormat() {
   return device->findSupportedFormat(
       {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-      VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+       VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 }
 
 void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,

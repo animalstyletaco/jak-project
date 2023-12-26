@@ -1,7 +1,7 @@
 #version 430 core
 
 layout (location = 0) out vec4 color;
-layout (location = 0) in vec3 vtx_color;
+layout (location = 0) in vec4 vtx_color;
 layout (location = 1) in vec2 vtx_st;
 layout (location = 2) in float fog;
 
@@ -21,21 +21,19 @@ void main() {
        vec4 T0 = texture(tex_T0, vtx_st);
        
        if (decal_enable == 0) {
-           color.xyz = vtx_color * T0.xyz;
+           color = vtx_color * T0 * 2;
        } else {
-           color.xyz = T0.xyz * 0.5;
+           color = T0;
        }
-       color.w = T0.w;
-       color *= 2;
+       color.a *= 2;
     } else {
-      color.rgb = vtx_color;
+      color.rgb = vtx_color.rgb;
       color.a = 1;
     }
 
-
-    if (pc.ignore_alpha == 0 && color.w < 0.128) {
-        discard;
-    }
+    //if (pc.ignore_alpha == 0 && color.w < 0.128) {
+    //    discard;
+    //}
 
     color.xyz = mix(color.xyz, pc.fog_color.rgb, clamp(pc.fog_color.a * fog, 0, 1));
 }

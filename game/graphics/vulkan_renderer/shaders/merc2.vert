@@ -13,10 +13,11 @@ layout (set = 0, binding = 0) uniform LightControlUniformBufferObject {
    vec3 light_dir0;
    vec3 light_dir1;
    vec3 light_dir2;
-   vec3 light_col0;
-   vec3 light_col1;
-   vec3 light_col2;
+   vec3 light_color0;
+   vec3 light_color1;
+   vec3 light_color2;
    vec3 light_ambient;
+   float pad0;
 }light_control;
 
 layout(push_constant) uniform PushConstant
@@ -92,9 +93,9 @@ void main() {
     vec3 light_intensity = light_control.light_dir0 * rotated_nrm.x + light_control.light_dir1 * rotated_nrm.y + light_control.light_dir2 * rotated_nrm.z;
     light_intensity = max(light_intensity, vec3(0, 0, 0));
 
-    vec3 light_color_no_ambient = light_intensity.x * light_control.light_col0
-                                  + light_intensity.y * light_control.light_col1
-                                  + light_intensity.z * light_control.light_col2;
+    vec3 light_color_no_ambient = light_intensity.x * light_control.light_color0
+                                  + light_intensity.y * light_control.light_color1
+                                  + light_intensity.z * light_control.light_color2;
 
     vec3 light_color = light_control.light_ambient + light_color_no_ambient;
 

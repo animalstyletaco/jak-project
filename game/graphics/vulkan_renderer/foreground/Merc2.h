@@ -2,13 +2,19 @@
 #include "game/graphics/general_renderer/foreground/Merc2.h"
 #include "game/graphics/vulkan_renderer/BucketRenderer.h"
 
-struct MercLightControlUniformBufferVertexData {
+struct alignas(float) MercLightControlUniformBufferVertexData {
   math::Vector3f light_dir0;
+  float pad0;
   math::Vector3f light_dir1;
+  float pad1;
   math::Vector3f light_dir2;
-  math::Vector3f light_col0;
-  math::Vector3f light_col1;
-  math::Vector3f light_col2;
+  float pad2;
+  math::Vector3f light_color0;
+  float pad3;
+  math::Vector3f light_color1;
+  float pad4;
+  math::Vector3f light_color2;
+  float pad5;
   math::Vector3f light_ambient;
 };
 

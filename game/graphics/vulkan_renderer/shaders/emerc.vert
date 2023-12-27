@@ -34,8 +34,6 @@ layout (std140, set=0, binding = 0) uniform ub_bones {
 };
 
 void main() {
-
-
     vec4 p = vec4(position_in, 1);
     vec4 vtx_pos = -bones[mats[0]].X * p * weights_in[0];
     vec3 rotated_nrm = bones[mats[0]].R * normal_in * weights_in[0];

@@ -408,11 +408,24 @@ void GenericVulkan2::do_hud_draws(BaseSharedRenderState* render_state, ScopedPro
   }
 }
 
+void GenericVulkan2::render_in_mode(DmaFollower& dma,
+                                    BaseSharedRenderState* render_state,
+                                    ScopedProfilerNode& prof,
+                                    Mode mode) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  BaseGeneric2::render_in_mode(dma, render_state, prof, mode);
+}
+
 void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   if (m_next_free_vert == 0 && m_next_free_idx == 0) {
     // Nothing to do
     return;
   }
+
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                    m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   if (m_next_free_vert > 0) {
     m_ogl.vertex_buffer->writeToGpuBuffer(m_verts.data(), m_next_free_vert * sizeof(Vertex), 0);
@@ -501,10 +514,8 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
       m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_infos[bucket]);
 
   m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[bucket]);
-
   m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
                                                     m_pipeline_config_info);
-  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
   std::vector<VkDescriptorSet> descriptor_sets = {m_fragment_descriptor_sets[bucket]};
 

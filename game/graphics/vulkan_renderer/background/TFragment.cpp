@@ -302,6 +302,26 @@ bool TFragmentVulkan::setup_for_level(const std::vector<tfrag3::TFragmentTreeKin
   return m_has_level;
 }
 
+void TFragmentVulkan::render_matching_trees(int geom,
+                           const std::vector<tfrag3::TFragmentTreeKind>& trees,
+                           const TfragRenderSettings& settings,
+                           BaseSharedRenderState* render_state,
+                           ScopedProfilerNode& prof){
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_debug_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  m_debug_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+
+  ::memcpy(&m_vertex_push_constant.camera, &settings.camera.camera, sizeof(settings.camera.camera));
+  m_vertex_push_constant.hvdf_offset =
+      math::Vector4f{settings.camera.hvdf_off[0], settings.camera.hvdf_off[1],
+                     settings.camera.hvdf_off[2], settings.camera.hvdf_off[3]};
+  m_vertex_push_constant.fog_constant = settings.camera.fog.x();
+
+  BaseTFragment::render_matching_trees(geom, trees, settings, render_state, prof);
+};
+
 void TFragmentVulkan::render_tree(int geom,
                                   const TfragRenderSettings& settings,
                                   BaseSharedRenderState* render_state,
@@ -469,35 +489,6 @@ void TFragmentVulkan::render_tree(int geom,
   }
 }
 
-void TFragmentVulkan::render_matching_trees(int geom,
-                                            const std::vector<tfrag3::TFragmentTreeKind>& trees,
-                                            const TfragRenderSettings& settings,
-                                            BaseSharedRenderState* render_state,
-                                            ScopedProfilerNode& prof) {
-  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_debug_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-
-  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
-  m_debug_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
-
-  TfragRenderSettings settings_copy = settings;
-  for (size_t i = 0; i < m_cached_trees[geom].size(); i++) {
-    auto& tree = m_cached_trees[geom][i];
-    tree.reset_stats();
-    if (!tree.allowed) {
-      continue;
-    }
-    if (std::find(trees.begin(), trees.end(), tree.kind) != trees.end() || tree.forced) {
-      tree.rendered_this_frame = true;
-      settings_copy.tree_idx = i;
-      render_tree(geom, settings_copy, render_state, prof);
-      if (tree.cull_debug) {
-        render_tree_cull_debug(settings_copy, render_state, prof);
-      }
-    }
-  }
-}
-
 void TFragmentVulkan::discard_tree_cache() {
   m_textures = nullptr;
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
@@ -521,12 +512,6 @@ void TFragmentVulkan::render_tree_cull_debug(const TfragRenderSettings& settings
 
   debug_vis_draw(tree.vis->first_root, tree.vis->first_root, tree.vis->num_roots, 1,
                  tree.vis->vis_nodes, m_debug_vert_data);
-
-  ::memcpy(&m_vertex_push_constant.camera, &settings.camera.camera, sizeof(settings.camera.camera));
-  m_vertex_push_constant.hvdf_offset =
-      math::Vector4f{settings.camera.hvdf_off[0], settings.camera.hvdf_off[1],
-                     settings.camera.hvdf_off[2], settings.camera.hvdf_off[3]};
-  m_vertex_push_constant.fog_constant = settings.camera.fog.x();
 
   m_debug_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_debug_pipeline_config_info.depthStencilInfo.depthCompareOp = VK_COMPARE_OP_EQUAL;

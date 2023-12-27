@@ -72,7 +72,7 @@ MercVulkan2::MercVulkan2(std::shared_ptr<GraphicsDeviceVulkan> device,
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
-          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT)
+          .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .addBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT)
           .build();
 
@@ -272,16 +272,26 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
   m_pipeline_config_info.shaderStages = m_merc_vertex_shader_stage_info;
   m_pipeline_config_info.pipelineLayout = m_merc_pipeline_layout;
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_merc_vertex_push_constant),
-                     (void*)&m_merc_vertex_push_constant);
-
   m_merc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
                                                          m_pipeline_config_info);
   m_merc_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_merc_vertex_push_constant),
+                     (void*)&m_merc_vertex_push_constant);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_merc_vertex_push_constant),
+                     sizeof(m_fragment_push_constant), (void*)&m_fragment_push_constant.settings);
+
+
   for (u32 di = 0; di < lev_bucket.next_free_draw; di++) {
     auto& draw = lev_bucket.draws[di];
+
+    m_fragment_push_constant.settings = draw.mode.get_decal();
+    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        sizeof(m_merc_vertex_push_constant) + offsetof(MercUniformBufferFragmentData, settings),
+        sizeof(m_fragment_push_constant.settings), (void*)&m_fragment_push_constant.settings);
 
     VulkanTexture* textureInfo = get_texture_at_draw_id(lev, draw);
 
@@ -291,18 +301,10 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
       light_buffer_data.light_dir1 = m_lights_buffer[draw.light_idx].direction1;
       light_buffer_data.light_dir2 = m_lights_buffer[draw.light_idx].direction2;
 
-      light_buffer_data.light_color0 = math::Vector3f{m_lights_buffer[draw.light_idx].color0.x(),
-                                                      m_lights_buffer[draw.light_idx].color0.y(),
-                                                      m_lights_buffer[draw.light_idx].color0.z()};
-      light_buffer_data.light_color1 = math::Vector3f{m_lights_buffer[draw.light_idx].color1.x(),
-                                                      m_lights_buffer[draw.light_idx].color1.y(),
-                                                      m_lights_buffer[draw.light_idx].color1.z()};
-      light_buffer_data.light_color2 = math::Vector3f{m_lights_buffer[draw.light_idx].color2.x(),
-                                                      m_lights_buffer[draw.light_idx].color2.y(),
-                                                      m_lights_buffer[draw.light_idx].color2.z()};
-      light_buffer_data.light_ambient = math::Vector3f{m_lights_buffer[draw.light_idx].ambient.x(),
-                                                       m_lights_buffer[draw.light_idx].ambient.y(),
-                                                       m_lights_buffer[draw.light_idx].ambient.z()};
+      light_buffer_data.light_color0 = m_lights_buffer[draw.light_idx].color0;
+      light_buffer_data.light_color1 = m_lights_buffer[draw.light_idx].color1;
+      light_buffer_data.light_color2 = m_lights_buffer[draw.light_idx].color2;
+      light_buffer_data.light_ambient = m_lights_buffer[draw.light_idx].ambient;
 
       m_light_control_vertex_uniform_buffer->SetDataInVkDeviceMemory(0, (uint8_t*)&light_buffer_data,
                                                                      sizeof(light_buffer_data), 0);
@@ -327,14 +329,18 @@ void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerN
 
   m_pipeline_config_info.shaderStages = m_emerc_vertex_shader_stage_info;
   m_pipeline_config_info.pipelineLayout = m_emerc_pipeline_layout;
-  
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_emerc_vertex_push_constant),
-                     (void*)&m_emerc_vertex_push_constant);
 
   m_emerc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
                                                           m_pipeline_config_info);
   m_emerc_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  
+  int hack_no_tex = Gfx::g_global_settings.hack_no_tex;
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_emerc_vertex_push_constant),
+                     (void*)&m_emerc_vertex_push_constant);
+  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+                     VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_emerc_vertex_push_constant),
+                     sizeof(hack_no_tex), (void*)&hack_no_tex);
 
   for (u32 di = 0; di < lev_bucket.next_free_envmap_draw; di++) {
     auto& draw = lev_bucket.envmap_draws[di];
@@ -362,8 +368,6 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
   vulkan_background_common::setup_vulkan_from_draw_mode(draw.mode, sampler, m_pipeline_config_info,
                                                         true);
 
-  u32 dynamic_descriptors_offset = drawIndex * sizeof(MercLightControlUniformBufferVertexData);
-
   if (!isMercDraw) {
     m_emerc_vertex_push_constant.etie_data.fade =
         math::Vector4f(draw.fade[0], draw.fade[1], draw.fade[2], draw.fade[3]) / 255.0f;
@@ -373,14 +377,6 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
     auto alpha_blend = draw.mode.get_alpha_blend();
     ASSERT(alpha_blend == DrawMode::AlphaBlend::SRC_0_DST_DST);
   }
-
-  u32 push_constant_offset = (isMercDraw) ? sizeof(m_merc_vertex_push_constant) : sizeof(m_emerc_vertex_push_constant);
-
-  m_fragment_push_constant.settings = draw.mode.get_decal();
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
-                     VK_SHADER_STAGE_VERTEX_BIT, push_constant_offset,
-                     sizeof(m_fragment_push_constant),
-                     (void*)&m_fragment_push_constant);
 
   m_bone_vertex_uniform_buffer->map();
   m_bone_vertex_uniform_buffer->writeToCpuBuffer(m_shader_bone_vector_buffer,
@@ -410,11 +406,9 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
       (isMercDraw) ? m_merc_vertex_descriptor_set : m_emerc_vertex_descriptor_set;
   std::vector<VkDescriptorSet> descriptor_sets{vertex_descriptor_set, fragment_descriptor_set};
 
-  u32* dynamic_offsets_pointer = (isMercDraw) ? &dynamic_descriptors_offset : NULL;
   vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
-                          descriptor_sets.data(), isMercDraw,
-                          dynamic_offsets_pointer);
+                          descriptor_sets.data(), 0, NULL);
   vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, draw.index_count, 1, draw.first_index, 0,
                    0);
 }

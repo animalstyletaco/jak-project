@@ -207,12 +207,26 @@ bool DescriptorWriter::allocateDescriptor(VkDescriptorSet& set) {
   return m_pool->allocateDescriptor(&layout, &set);
 }
 
+bool DescriptorWriter::build(std::vector<VkDescriptorSet>& sets) {
+  bool success = true;
+  for (auto& set : sets) {
+    success &= build(set);
+  }
+  return success;
+}
+
 bool DescriptorWriter::build(VkDescriptorSet& set) {
   if(!allocateDescriptor(set)){
     return false;
   }
   overwrite(set);
   return true;
+}
+
+void DescriptorWriter::overwrite(std::vector<VkDescriptorSet>& sets) {
+  for (auto& set : sets) {
+    overwrite(set);
+  }
 }
 
 void DescriptorWriter::overwrite(VkDescriptorSet& set) {

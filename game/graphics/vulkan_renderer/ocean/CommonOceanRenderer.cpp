@@ -106,15 +106,12 @@ void CommonOceanVulkanRenderer::InitializeVertexInputAttributes() {
 
 void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state,
                                            ScopedProfilerNode& prof) {
-  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  setup_graphics_draw(render_state);
 
   VkPipelineInputAssemblyStateCreateInfo& inputAssembly = m_pipeline_config_info.inputAssemblyInfo;
   inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
   inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   inputAssembly.primitiveRestartEnable = VK_TRUE;
-
-  vertex_buffer->writeToGpuBuffer(m_vertices.data(), m_next_free_vertex * sizeof(Vertex), 0);
 
   m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
@@ -137,18 +134,11 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state,
   m_pipeline_config_info.colorBlendInfo.pAttachments = &m_pipeline_config_info.colorBlendAttachment;
 
   for (int bucket = 0; bucket < NUM_BUCKETS; bucket++) {
-    m_fragment_push_constant.fog_color =
-        math::Vector4f{render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
-                       render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255};
-
     VulkanTexture* tex = nullptr;
 
     auto& sampler_create_info = m_ocean_near->ocean_samplers[bucket]->GetSamplerCreateInfo();
     switch (bucket) {
       case 0: {
-        // glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ZERO);
-        // glBlendEquation(GL_FUNC_ADD);
-
         m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
         m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
 
@@ -168,8 +158,6 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state,
       }
 
       case 1: {
-        // glBlendFuncSeparate(GL_ZERO, GL_ONE, GL_ONE, GL_ZERO);
-
         m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
         m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
@@ -192,10 +180,6 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state,
         if (!tex) {
           tex = m_vulkan_info.texture_pool->get_placeholder_vulkan_texture();
         }
-
-        // glBlendFuncSeparate(GL_DST_ALPHA, GL_ONE, GL_ONE, GL_ZERO);
-        // glBlendEquation(GL_FUNC_ADD);
-
         m_pipeline_config_info.colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;
         m_pipeline_config_info.colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE;
 
@@ -213,7 +197,6 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state,
 
     FinalizeVulkanDraw(m_ocean_near, tex, bucket);
 
-    // glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
     prof.add_draw_call();
     prof.add_tri(m_next_free_index[bucket]);
   }
@@ -221,13 +204,6 @@ void CommonOceanVulkanRenderer::flush_near(BaseSharedRenderState* render_state,
 
 void CommonOceanVulkanRenderer::flush_mid(BaseSharedRenderState* render_state,
                                           ScopedProfilerNode& prof) {
-  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
-
-  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
-
-  vertex_buffer->writeToGpuBuffer(m_vertices.data(), m_next_free_vertex * sizeof(Vertex), 0);
-
   // note:
   // there are some places where the game draws the same section of ocean twice, in this order:
   // - low poly mesh with ocean texture
@@ -243,6 +219,7 @@ void CommonOceanVulkanRenderer::flush_mid(BaseSharedRenderState* render_state,
   // - second, we'll modify the shader to set alpha = 0 of the destination. when the low poly
   //    version is drawn on top, it won't draw at all because of the blending mode
   //    (s_factor = DST_ALPHA, d_factor = 1)
+  setup_graphics_draw(render_state);
 
   // draw it in reverse
   reverse_indices(m_indices[1].data(), m_next_free_index[1]);
@@ -271,10 +248,6 @@ void CommonOceanVulkanRenderer::flush_mid(BaseSharedRenderState* render_state,
 
   for (int bucket = 0; bucket < 2; bucket++) {
     VulkanTexture* tex = nullptr;
-
-    m_fragment_push_constant.fog_color =
-        math::Vector4f{render_state->fog_color[0] / 255.f, render_state->fog_color[1] / 255.f,
-                       render_state->fog_color[2] / 255.f, render_state->fog_intensity / 255};
 
     auto& sampler_create_info = m_ocean_mid->ocean_samplers[bucket]->GetSamplerCreateInfo();
     switch (bucket) {
@@ -322,11 +295,32 @@ void CommonOceanVulkanRenderer::flush_mid(BaseSharedRenderState* render_state,
     }
 
     FinalizeVulkanDraw(m_ocean_mid, tex, bucket);
-    // glDrawElements(GL_TRIANGLE_STRIP, m_next_free_index[bucket], GL_UNSIGNED_INT, nullptr);
 
     prof.add_draw_call();
     prof.add_tri(m_next_free_index[bucket]);
   }
+}
+
+void CommonOceanVulkanRenderer::setup_graphics_draw(BaseSharedRenderState* render_state) {
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+
+  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                    m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+
+  m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
+
+  vertex_buffer->writeToGpuBuffer(m_vertices.data(), m_next_free_vertex * sizeof(Vertex), 0);
+
+  m_fragment_push_constant.fog_color =
+  math::Vector4f{render_state->fog_color[0], render_state->fog_color[1],
+                 render_state->fog_color[2], render_state->fog_intensity} / 255.f;
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 }
 
 CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::OceanVulkanGraphicsHelper(
@@ -341,12 +335,8 @@ CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::OceanVulkanGraphicsHelper(
     index_buffers[i] = std::make_unique<IndexBuffer>(device, sizeof(u32), index_count, 1);
 
     fragment_descriptor_writers[i] = std::make_unique<DescriptorWriter>(setLayout, descriptor_pool);
-
-    fragment_descriptor_writers[i]->writeImage(0, defaultImageInfo);
+    fragment_descriptor_writers[i]->writeImage(0, defaultImageInfo).build(descriptor_sets[i]);
   }
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{NUM_BUCKETS,
-                                                          setLayout->getDescriptorSetLayout()};
-  descriptor_pool->allocateDescriptor(descriptorSetLayouts.data(), descriptor_sets, NUM_BUCKETS);
 }
 
 CommonOceanVulkanRenderer::OceanVulkanGraphicsHelper::~OceanVulkanGraphicsHelper() {
@@ -390,12 +380,6 @@ void CommonOceanVulkanRenderer::FinalizeVulkanDraw(
   vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
                      sizeof(m_fragment_push_constant), (void*)&m_fragment_push_constant);
-
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
-
-  VkDeviceSize offsets[] = {0};
-  VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
   vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
                        ocean_graphics->index_buffers[bucket]->getBuffer(), 0, VK_INDEX_TYPE_UINT32);

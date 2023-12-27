@@ -57,6 +57,7 @@ void ShrubVulkan::render(DmaFollower& dma,
                          SharedVulkanRenderState* render_state,
                          ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
   BaseShrub::render(dma, render_state, prof);
 }
 
@@ -365,6 +366,9 @@ void ShrubVulkan::render_tree(int idx,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_shrub_push_constant),
                      sizeof(m_time_of_day_push_constant), (void*)&m_time_of_day_push_constant);
 
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+
   // Attach images here
   tree.time_of_day_descriptor_image_info = VkDescriptorImageInfo{
       tree.time_of_day_sampler_helper->GetSampler(), tree.time_of_day_texture->getImageView(),
@@ -435,9 +439,10 @@ void ShrubVulkan::render_tree(int idx,
         m_time_of_day_push_constant.alpha_min = -10.f;
         m_time_of_day_push_constant.alpha_max = double_draw.aref_second;
 
-        m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                                          m_pipeline_config_info);
-        m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+        vkCmdPushConstants(
+            m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+            VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_shrub_push_constant),
+            sizeof(m_time_of_day_push_constant), (void*)&m_time_of_day_push_constant);
 
         if (render_state->no_multidraw) {
           vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,
@@ -467,6 +472,9 @@ void ShrubVulkan::render_tree(int idx,
 }
 
 void ShrubVulkan::PrepareVulkanDraw(TreeVulkan& tree, unsigned index) {
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+                                                    m_pipeline_config_info);
+
   auto& fragment_write_descriptors_sets = m_fragment_descriptor_writer->getWriteDescriptorSets();
 
   fragment_write_descriptors_sets[0] =

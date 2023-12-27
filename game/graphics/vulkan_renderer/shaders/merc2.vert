@@ -5,7 +5,7 @@ layout (location = 0) in vec3 position_in;
 layout (location = 1) in vec3 normal_in;
 layout (location = 2) in vec3 weights_in;
 layout (location = 3) in vec2 st_in;
-layout (location = 4) in vec3 rgba;
+layout (location = 4) in vec4 rgba;
 layout (location = 5) in uvec3 mats;
 
 // light control
@@ -13,12 +13,11 @@ layout (set = 0, binding = 0) uniform LightControlUniformBufferObject {
    vec3 light_dir0;
    vec3 light_dir1;
    vec3 light_dir2;
-   vec3 light_color0;
-   vec3 light_color1;
-   vec3 light_color2;
-   vec3 light_ambient;
-   float pad0;
-}light_control;
+   vec4 light_color0;
+   vec4 light_color1;
+   vec4 light_color2;
+   vec4 light_ambient;
+} light_control;
 
 layout(push_constant) uniform PushConstant
 {
@@ -30,7 +29,7 @@ layout(push_constant) uniform PushConstant
 }pc;
 
 // output
-layout (location = 0) out vec3 vtx_color;
+layout (location = 0) out vec4 vtx_color;
 layout (location = 1) out vec2 vtx_st;
 
 layout (location = 2) out float fog;
@@ -93,12 +92,12 @@ void main() {
     vec3 light_intensity = light_control.light_dir0 * rotated_nrm.x + light_control.light_dir1 * rotated_nrm.y + light_control.light_dir2 * rotated_nrm.z;
     light_intensity = max(light_intensity, vec3(0, 0, 0));
 
-    vec3 light_color_no_ambient = light_intensity.x * light_control.light_color0
-                                  + light_intensity.y * light_control.light_color1
-                                  + light_intensity.z * light_control.light_color2;
-
-    vec3 light_color = light_control.light_ambient + light_color_no_ambient;
-
+    vec4 light_color = light_control.light_ambient
+                     + light_intensity.x * light_control.light_color0
+                     + light_intensity.y * light_control.light_color1
+                     + light_intensity.z * light_control.light_color2;
+    
+    
     float Q = pc.fog_constants.x / transformed[3];
     fog = 255 - clamp(-transformed.w + pc.hvdf_offset.w, pc.fog_constants.y, pc.fog_constants.z);
 

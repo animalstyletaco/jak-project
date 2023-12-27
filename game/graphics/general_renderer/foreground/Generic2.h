@@ -20,10 +20,10 @@ class BaseGeneric2 {
     WARP
   };
 
-  void render_in_mode(DmaFollower& dma,
-                      BaseSharedRenderState* render_state,
-                      ScopedProfilerNode& prof,
-                      Mode mode);
+  virtual void render_in_mode(DmaFollower& dma,
+                              BaseSharedRenderState* render_state,
+                              ScopedProfilerNode& prof,
+                              Mode mode);
 
   struct Vertex {
     math::Vector<float, 3> xyz;

@@ -128,6 +128,7 @@ void BaseTFragment::render(DmaFollower& dma,
     for (int i = 0; i < 4; i++) {
       settings.camera.planes[i] = m_pc_port_data.camera.planes[i];
       settings.camera.itimes[i] = m_pc_port_data.camera.itimes[i];
+      settings.camera.camera[i] = m_pc_port_data.camera.camera[i];
     }
 
     auto t3prof = prof.make_scoped_child("t3");

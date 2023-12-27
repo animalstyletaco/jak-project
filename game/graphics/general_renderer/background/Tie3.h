@@ -126,6 +126,7 @@ class BaseTie3 : public BaseBucketRenderer {
   u64 m_load_id = -1;
 
   std::vector<math::Vector<u8, 4>> m_color_result;
+  ShaderId selected_shader_id = ShaderId::TFRAG3;
 
   bool m_has_level = false;
   char m_user_level[255] = "vi1";

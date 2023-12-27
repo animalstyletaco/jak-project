@@ -9,13 +9,10 @@ struct alignas(float) MercLightControlUniformBufferVertexData {
   float pad1;
   math::Vector3f light_dir2;
   float pad2;
-  math::Vector3f light_color0;
-  float pad3;
-  math::Vector3f light_color1;
-  float pad4;
-  math::Vector3f light_color2;
-  float pad5;
-  math::Vector3f light_ambient;
+  math::Vector4f light_color0;
+  math::Vector4f light_color1;
+  math::Vector4f light_color2;
+  math::Vector4f light_ambient;
 };
 
 struct MercUniformBufferVertexData {

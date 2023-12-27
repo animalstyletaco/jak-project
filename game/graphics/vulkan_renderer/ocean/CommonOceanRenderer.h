@@ -26,6 +26,7 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
   void InitializeVertexInputAttributes();
   void CreatePipelineLayout();
   void InitializeShaders();
+  void setup_graphics_draw(BaseSharedRenderState* render_state);
 
   virtual u32 GetOceanTextureId() = 0;
 

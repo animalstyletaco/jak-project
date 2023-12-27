@@ -56,7 +56,7 @@ class VulkanTexture {
                               m_image_create_info.extent.height, mipLevels);
   }
   void SetImageLayout(VkImageLayout imageLayout) {
-    m_image_create_info.initialLayout = imageLayout;
+    m_current_image_layout = imageLayout;
   }
 
   unsigned long GetTextureId() { return m_image_id; }
@@ -74,6 +74,8 @@ class VulkanTexture {
 
   VkImageCreateInfo m_image_create_info{};
   VkImageViewCreateInfo m_image_view_create_info{};
+
+  VkImageLayout m_current_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 
   bool m_initialized = false;
   uint32_t m_image_id = 0;

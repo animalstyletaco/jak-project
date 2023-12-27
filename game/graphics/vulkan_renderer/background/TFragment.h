@@ -26,7 +26,7 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,
                              BaseSharedRenderState* render_state,
-                             ScopedProfilerNode& prof);
+                             ScopedProfilerNode& prof) override;
 
   void render_tree(int geom,
                    const TfragRenderSettings& settings,

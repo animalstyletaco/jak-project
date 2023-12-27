@@ -37,6 +37,10 @@ class GenericVulkan2 : public virtual BaseGeneric2 {
                           ScopedProfilerNode& prof,
                           DrawMode::AlphaBlend alpha,
                           bool hud);
+  void render_in_mode(DmaFollower& dma,
+                      BaseSharedRenderState* render_state,
+                      ScopedProfilerNode& prof,
+                      Mode mode) override;
 
   struct Vertex {
     math::Vector<float, 3> xyz;

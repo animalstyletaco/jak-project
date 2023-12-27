@@ -24,6 +24,7 @@ class VulkanSamplerHelper {
   void DestroySampler() {
     if (m_sampler) {
       vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
+      m_sampler = VK_NULL_HANDLE;
     }
   }
 

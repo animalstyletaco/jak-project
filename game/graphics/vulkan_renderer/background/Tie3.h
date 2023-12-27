@@ -89,9 +89,10 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     std::vector<std::vector<VkMultiDrawIndexedInfoEXT>> multi_draw_indexed_infos_collection;
   };
 
-  void AllocateDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets,
+  void PrepareDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets,
                               VkDescriptorSetLayout& layout,
-                              u32 descriptorSetCount);
+                              u32 descriptorSetCount,
+                              DescriptorWriter* writer);
   void envmap_second_pass_draw(TreeVulkan& tree,
                                const TfragRenderSettings& settings,
                                BaseSharedRenderState* render_state,
@@ -124,6 +125,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   size_t get_tree_count(int geom) override { return m_trees[geom].size(); }
   void init_etie_cam_uniforms(GoalBackgroundCameraData& render_state);
+  GraphicsPipelineLayout* GetSelectedGraphicsPipelineLayout();
 
   std::array<std::vector<TreeVulkan>, 4> m_trees;  // includes 4 lods!
   std::unordered_map<u32, VulkanTexture>* m_textures;
@@ -135,6 +137,10 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
 
   std::unique_ptr<DescriptorWriter> m_etie_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_etie_base_vertex_descriptor_writer;
+
+    GraphicsPipelineLayout m_tfrag3_no_tex_graphics_pipeline_layout{m_device};
+  GraphicsPipelineLayout m_etie_base_graphics_pipeline_layout{m_device};
+  GraphicsPipelineLayout m_etie_graphics_pipeline_layout{m_device};
 
   VkPipelineLayout m_tie_pipeline_layout;
   VkPipelineLayout m_etie_pipeline_layout;

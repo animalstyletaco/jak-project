@@ -84,6 +84,9 @@ class BucketVulkanRenderer {
   };
 
   GraphicsPipelineLayout m_graphics_pipeline_layout{m_device};
+  GraphicsPipelineLayout m_etie_base_graphics_pipeline_layout{m_device};
+  GraphicsPipelineLayout m_etie_graphics_pipeline_layout{m_device};
+
   PipelineConfigInfo m_pipeline_config_info;
 
   std::unique_ptr<DescriptorLayout> m_vertex_descriptor_layout;

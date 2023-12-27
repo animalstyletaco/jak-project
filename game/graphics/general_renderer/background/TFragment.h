@@ -51,7 +51,7 @@ class BaseTFragment : public BaseBucketRenderer {
                         BaseSharedRenderState* render_state,
                         ScopedProfilerNode& prof);
 
-  void render_matching_trees(int geom,
+  virtual void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,
                              BaseSharedRenderState* render_state,

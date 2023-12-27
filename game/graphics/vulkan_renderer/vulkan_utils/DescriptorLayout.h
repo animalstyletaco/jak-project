@@ -106,7 +106,11 @@ class DescriptorWriter {
                                     uint32_t bufferViewCount = 1);
 
   bool build(VkDescriptorSet& set);
+  bool build(std::vector<VkDescriptorSet>& set);
+
   void overwrite(VkDescriptorSet& set);
+  void overwrite(std::vector<VkDescriptorSet>& sets);
+
   bool allocateDescriptor(VkDescriptorSet& set);
 
   std::vector<VkWriteDescriptorSet>& getWriteDescriptorSets() { return m_writes; };

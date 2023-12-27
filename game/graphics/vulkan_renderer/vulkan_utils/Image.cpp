@@ -23,6 +23,7 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
   if (texture.m_image_create_info.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED) {
     transitionImageLayout(texture.m_image_create_info.initialLayout);
   }
+  m_current_image_layout = texture.m_image_create_info.initialLayout;
 
   m_image_view_create_info = texture.m_image_view_create_info;
   if (m_image_view) {
@@ -159,8 +160,7 @@ void VulkanTexture::transitionImageLayout(VkImageLayout imageLayout,
                                           unsigned levelCount) {
   m_device->transitionImageLayout(m_image, m_image_create_info.initialLayout, imageLayout,
                                   baseMipLevel, levelCount);
-  m_image_create_info.initialLayout =
-      imageLayout;  // TODO: Should there be a separate variable to keep track of image layout is
+  m_current_image_layout = imageLayout;
 }
 
 /**
@@ -202,7 +202,7 @@ void VulkanTexture::getImageData(VkBuffer buffer,
                                  uint32_t height,
                                  double x_offset,
                                  double y_offset) {
-  VkImageLayout originalLayout = m_image_create_info.initialLayout;
+  VkImageLayout originalLayout = m_current_image_layout;
   bool needsToTransitionImageLayout = originalLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
   if (needsToTransitionImageLayout) {
     transitionImageLayout(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);

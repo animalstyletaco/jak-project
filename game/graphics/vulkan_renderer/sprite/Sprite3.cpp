@@ -140,9 +140,9 @@ void SpriteVulkan3Jak2::render(DmaFollower& dma,
 void SpriteVulkan3::graphics_setup_normal() {
   BaseSprite3::graphics_setup_normal();
   m_ogl.index_buffer =
-      std::make_unique<IndexBuffer>(m_device, sizeof(u32), m_index_buffer_data.size(), 1);
+      std::make_unique<IndexBuffer>(m_device, m_index_buffer_data.size() * sizeof(u32), 1, 1);
   m_ogl.vertex_buffer =
-      std::make_unique<VertexBuffer>(m_device, m_vertices_3d.size(), sizeof(SpriteVertex3D), 1);
+      std::make_unique<VertexBuffer>(m_device, m_vertices_3d.size() * sizeof(SpriteVertex3D), 1, 1);
 
   m_vertex_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -365,8 +365,6 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
                              &m_sprite_fragment_push_constant);
 
           // glDepthMask(GL_FALSE);
-          // glDrawElements(GL_TRIANGLE_STRIP, bucket->ids.size(), GL_UNSIGNED_INT,
-          //                (void*)(bucket->offset_in_idx_buffer * sizeof(u32)));
           vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, bucket->ids.size(), 1,
                            bucket->offset_in_idx_buffer, 0, 0);
           break;

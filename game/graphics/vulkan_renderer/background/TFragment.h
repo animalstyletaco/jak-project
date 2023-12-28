@@ -75,7 +75,7 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
     std::vector<VkDescriptorSet> vertex_shader_descriptor_sets;
     std::vector<VkDescriptorSet> fragment_shader_descriptor_sets;
 
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>> multi_draw_indexed_infos_collection;
+    std::vector<VulkanDrawIndirectCommandSet> multi_draw_indexed_infos_collection;
   };
 
   struct alignas(float) TiePushConstant : BackgroundCommonVertexUniformShaderData {
@@ -113,8 +113,10 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
 
   std::unique_ptr<VulkanTexture> m_placeholder_texture;
   std::unique_ptr<VulkanSamplerHelper> m_placeholder_sampler;
+  std::unique_ptr<MultiDrawVulkanBuffer> m_multi_draw_buffer;
 
   const std::vector<VulkanTexture*>* m_anim_slot_array = nullptr;
+  static constexpr unsigned kMaxVulkanIndirectDraw = 30000;
 };
 
 class TFragmentVulkanJak1 : public TFragmentVulkan {

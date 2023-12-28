@@ -25,6 +25,11 @@ struct BackgroundCommonEtieVertexUniformShaderData
   math::Vector4f envmap_tod_tint;
 };
 
+struct VulkanDrawIndirectCommandSet {
+  std::vector<VkDrawIndexedIndirectCommand> commands;
+  unsigned offset = 0;
+};
+
 class BackgroundCommonEtieBaseVertexUniformBuffer : public UniformVulkanBuffer {
  public:
   BackgroundCommonEtieBaseVertexUniformBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
@@ -46,16 +51,17 @@ struct BackgroundCommonFragmentPushConstantShaderData {
 };
 
 namespace vulkan_background_common {
-void make_all_visible_multidraws(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+void make_all_visible_multidraws(std::vector<VulkanDrawIndirectCommandSet>& indexedIndirectCommands,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::ShrubDraw>& draws);
 
-u32 make_all_visible_multidraws(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+u32 make_all_visible_multidraws(std::vector<VulkanDrawIndirectCommandSet>& indexedIndirectCommands,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::StripDraw>& draws);
 
 u32 make_multidraws_from_vis_string(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    std::vector<VulkanDrawIndirectCommandSet>& indexedIndirectCommands,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::StripDraw>& draws,
     const std::vector<u8>& vis_data);
 
@@ -78,7 +84,8 @@ u32 make_all_visible_index_list(background_common::DrawSettings* group_out,
                                 const u32* idx_in);
 
 u32 make_multidraws_from_vis_and_proto_string(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    std::vector<VulkanDrawIndirectCommandSet>& indexedIndirectCommands,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::StripDraw>& draws,
     const std::vector<u8>& vis_data,
     const std::vector<u8>& proto_vis_data);

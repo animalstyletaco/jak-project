@@ -40,7 +40,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
 
   struct TreeVulkan : Tree {
     std::unique_ptr<VulkanTexture> time_of_day_texture;
-    std::vector<MultiDrawVulkanBuffer> multidraw_buffers;
+    std::vector<std::unique_ptr<MultiDrawVulkanBuffer>> multidraw_buffers;
 
     VertexBuffer* vertex_buffer;
     IndexBuffer* index_buffer;
@@ -55,7 +55,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
     VkDescriptorImageInfo time_of_day_descriptor_image_info;
     VkDescriptorImageInfo descriptor_image_info;
 
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>> multi_draw_indexed_infos_collection;
+    std::vector<VulkanDrawIndirectCommandSet> multi_draw_indexed_infos_collection;
   };
 
   void PrepareVulkanDraw(TreeVulkan& tree, unsigned index);
@@ -82,6 +82,9 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   BackgroundCommonFragmentPushConstantShaderData m_time_of_day_push_constant;
 
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
+  std::unique_ptr<MultiDrawVulkanBuffer> m_multi_draw_buffer;
+
+  static constexpr unsigned kMaxVulkanIndirectDraw = 10000;
 };
 
 class ShrubVulkanJak1 : public ShrubVulkan {

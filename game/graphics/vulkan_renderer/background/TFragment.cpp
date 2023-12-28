@@ -34,6 +34,8 @@ TFragmentVulkan::TFragmentVulkan(const std::string& name,
           .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
           .build();
 
+  m_multi_draw_buffer = std::make_unique<MultiDrawVulkanBuffer>(m_device, kMaxVulkanIndirectDraw);
+
   create_pipeline_layout();
   m_vertex_descriptor_writer =
       std::make_unique<DescriptorWriter>(m_vertex_descriptor_layout, m_vulkan_info.descriptor_pool);
@@ -61,6 +63,7 @@ TFragmentVulkan::TFragmentVulkan(const std::string& name,
 
   m_placeholder_texture = std::make_unique<VulkanTexture>(m_device);
   m_placeholder_sampler = std::make_unique<VulkanSamplerHelper>(m_device);
+
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 }
 
@@ -237,6 +240,8 @@ void TFragmentVulkan::render(DmaFollower& dma,
                              ScopedProfilerNode& prof) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+
+  m_multi_draw_buffer->Reset();
   BaseTFragment::render(dma, render_state, prof);
 }
 
@@ -372,7 +377,7 @@ void TFragmentVulkan::render_tree(int geom,
     tree.index_buffer->writeToGpuBuffer(m_cache.index_temp.data(), idx_buffer_size, 0);
   } else {
     total_tris = vulkan_background_common::make_multidraws_from_vis_string(
-        tree.multi_draw_indexed_infos_collection, *tree.draws, m_cache.vis_temp);
+        tree.multi_draw_indexed_infos_collection, m_multi_draw_buffer, *tree.draws, m_cache.vis_temp);
   }
   tree.time_of_day_texture->writeToImage((tfrag3::TimeOfDayColor*)tree.colors->data(),
                                          tree.colors->size() * sizeof(tfrag3::TimeOfDayColor));
@@ -393,7 +398,7 @@ void TFragmentVulkan::render_tree(int geom,
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->at(draw_idx);
-    const auto& multidraw_indices = tree.multi_draw_indexed_infos_collection[draw_idx];
+    const auto& multidraw_settings = tree.multi_draw_indexed_infos_collection[draw_idx];
     const auto& singledraw_indices = m_cache.draw_idx_temp[draw_idx];
 
     if (render_state->no_multidraw) {
@@ -401,7 +406,7 @@ void TFragmentVulkan::render_tree(int geom,
         continue;
       }
     } else {
-      if (multidraw_indices.empty()) {
+      if (multidraw_settings.commands.empty()) {
         continue;
       }
     }
@@ -437,18 +442,10 @@ void TFragmentVulkan::render_tree(int geom,
       vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
                        singledraw_indices.draw_index, 0, 0);
     } else {
-      // Checks to see if Multi draw module is loaded otherwise run vkCmdDrawIndexed multiple
-      // times
-      if (vkCmdDrawMultiIndexedEXT) {
-        vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.size(),
-                                 multidraw_indices.data(), 1, 0, sizeof(VkMultiDrawIndexedInfoEXT),
-                                 NULL);
-      } else {
-        for (const auto& indexInfo : multidraw_indices) {
-          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexInfo.indexCount, 1,
-                           indexInfo.firstIndex, 0, 0);
-        }
-      }
+      vkCmdDrawIndexedIndirect(
+          m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+          multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
+          multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
     }
 
     switch (double_draw.kind) {
@@ -469,18 +466,10 @@ void TFragmentVulkan::render_tree(int geom,
           vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,
                            1, singledraw_indices.draw_index, 0, 0);
         } else {
-          // Checks to see if Multi draw module is loaded otherwise run vkCmdDrawIndexed multiple
-          // times
-          if (vkCmdDrawMultiIndexedEXT) {
-            vkCmdDrawMultiIndexedEXT(m_vulkan_info.render_command_buffer, multidraw_indices.size(),
-                                     multidraw_indices.data(), 1, 0,
-                                     sizeof(VkMultiDrawIndexedInfoEXT), NULL);
-          } else {
-            for (const auto& indexInfo : multidraw_indices) {
-              vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexInfo.indexCount, 1,
-                               indexInfo.firstIndex, 0, 0);
-            }
-          }
+          vkCmdDrawIndexedIndirect(
+              m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+              multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
+              multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
         }
         break;
       default:

@@ -81,7 +81,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
 
   if (vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &bufferMemory) !=
       VK_SUCCESS) {
-    throw std::runtime_error("failed to allocate vertex buffer memory!");
+    throw std::runtime_error("failed to allocate vulkan buffer memory!");
   }
 
   vkBindBufferMemory(m_device->getLogicalDevice(), buffer, bufferMemory, 0);
@@ -432,4 +432,29 @@ void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandAtInstanceIndex(
   stagingBuffer.unmap();
 
   m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, instanceSize, 0, instanceSize * index);
+}
+
+void MultiDrawVulkanBuffer::AppendDrawIndexIndirectCommands(
+    const std::vector<VkDrawIndexedIndirectCommand>& commands) {
+  SetDrawIndexIndirectCommandsAt(commands.data(), commands.size(), m_command_count * instanceSize);
+  m_command_count += commands.size();
+}
+
+void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandsAt(
+    const std::vector<VkDrawIndexedIndirectCommand>& commands, unsigned memoryOffset) {
+  SetDrawIndexIndirectCommandsAt(commands.data(), commands.size(), memoryOffset);
+}
+
+void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandsAt(
+    const VkDrawIndexedIndirectCommand* commands, unsigned size, unsigned memoryOffset) {
+  StagingBuffer stagingBuffer(m_device, instanceSize, size,
+                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                              alignmentSize);
+  stagingBuffer.map();
+  VkDrawIndexedIndirectCommand* stagingMappedMemory =
+      (VkDrawIndexedIndirectCommand*)stagingBuffer.getMappedMemory();
+  for (unsigned i = 0; i < size; i++) {
+    ::memcpy(stagingMappedMemory + i, &commands[i], instanceSize);
+  }
+  stagingBuffer.unmap();
 }

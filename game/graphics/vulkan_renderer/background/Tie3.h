@@ -86,7 +86,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
     std::vector<VkDescriptorSet> instanced_wind_vertex_shader_descriptor_sets;
     std::vector<VkDescriptorSet> instanced_wind_fragment_shader_descriptor_sets;
 
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>> multi_draw_indexed_infos_collection;
+    std::vector<VulkanDrawIndirectCommandSet> multi_draw_indexed_infos_collection;
   };
 
   void PrepareDescriptorSets(std::vector<VkDescriptorSet>& descriptorSets,
@@ -138,9 +138,11 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::unique_ptr<DescriptorWriter> m_etie_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_etie_base_vertex_descriptor_writer;
 
-    GraphicsPipelineLayout m_tfrag3_no_tex_graphics_pipeline_layout{m_device};
+  GraphicsPipelineLayout m_tfrag3_no_tex_graphics_pipeline_layout{m_device};
   GraphicsPipelineLayout m_etie_base_graphics_pipeline_layout{m_device};
   GraphicsPipelineLayout m_etie_graphics_pipeline_layout{m_device};
+
+  std::unique_ptr<MultiDrawVulkanBuffer> m_multi_draw_buffer;
 
   VkPipelineLayout m_tie_pipeline_layout;
   VkPipelineLayout m_etie_pipeline_layout;
@@ -167,6 +169,8 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
   std::vector<VkDescriptorSet> m_global_fragment_shader_descriptor_sets;
   std::vector<VkDescriptorSet> m_global_instanced_wind_vertex_shader_descriptor_sets;
   std::vector<VkDescriptorSet> m_global_instanced_wind_fragment_shader_descriptor_sets;
+
+  static constexpr unsigned kMaxVulkanIndirectDraw = 30000;
 };
 
 class Tie3VulkanJak1 : public Tie3Vulkan {

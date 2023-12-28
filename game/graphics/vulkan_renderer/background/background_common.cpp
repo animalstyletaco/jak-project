@@ -254,28 +254,34 @@ void vulkan_background_common::first_tfrag_draw_setup(
 }
 
 void vulkan_background_common::make_all_visible_multidraws(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfos,
+    std::vector<VulkanDrawIndirectCommandSet>& multiDrawSettings,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::ShrubDraw>& draws) {
-  multiDrawIndexedInfos.clear();
-  multiDrawIndexedInfos.resize(draws.size());
+  multiDrawSettings.clear();
+  multiDrawSettings.resize(draws.size());
+
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
     u64 iidx = draw.first_index_index;
     // Assumes Vertex offset is not used
-    VkMultiDrawIndexedInfoEXT multiDrawIndexedInfo{};
-    multiDrawIndexedInfo.indexCount = draw.num_indices;
-    multiDrawIndexedInfo.firstIndex = iidx;
-    multiDrawIndexedInfos[i].push_back(multiDrawIndexedInfo);
+    VkDrawIndexedIndirectCommand command{};
+    command.indexCount = draw.num_indices;
+    command.firstIndex = iidx;
+    command.instanceCount = 1;
+    multiDrawSettings[i].commands.push_back(command);
+
+    multiDrawSettings[i].offset = multiDrawBuffer->GetDrawIndexIndirectCommandCount();
+    multiDrawBuffer->AppendDrawIndexIndirectCommands(multiDrawSettings[i].commands);
   }
 }
 
 u32 vulkan_background_common::make_all_visible_multidraws(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
+    std::vector<VulkanDrawIndirectCommandSet>& multiDrawSettings,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::StripDraw>& draws) {
   u32 num_tris = 0;
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
-    auto& multiDrawIndexedInfos = multiDrawIndexedInfosCollection[i];
     u64 iidx = draw.unpacked.idx_of_first_idx_in_full_buffer;
     int num_inds = 0;
     for (auto& grp : draw.vis_groups) {
@@ -283,10 +289,14 @@ u32 vulkan_background_common::make_all_visible_multidraws(
       num_inds += grp.num_inds;
     }
     // Assumes Vertex offset is not used
-    VkMultiDrawIndexedInfoEXT multiDrawIndexedInfo{};
-    multiDrawIndexedInfo.indexCount = num_inds;
-    multiDrawIndexedInfo.firstIndex = iidx;
-    multiDrawIndexedInfos.push_back(multiDrawIndexedInfo);
+    VkDrawIndexedIndirectCommand command{};
+    command.indexCount = num_inds;
+    command.firstIndex = iidx;
+    command.instanceCount = 1;
+    multiDrawSettings[i].commands.push_back(command);
+
+    multiDrawSettings[i].offset = multiDrawBuffer->GetDrawIndexIndirectCommandCount();
+    multiDrawBuffer->AppendDrawIndexIndirectCommands(multiDrawSettings[i].commands);
   }
   return num_tris;
 }
@@ -311,16 +321,19 @@ u32 vulkan_background_common::make_all_visible_index_list(
 }
 
 u32 vulkan_background_common::make_multidraws_from_vis_string(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
+    std::vector<VulkanDrawIndirectCommandSet>& multiDrawSettings,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::StripDraw>& draws,
     const std::vector<u8>& vis_data) {
   u32 num_tris = 0;
   u32 sanity_check = 0;
-  multiDrawIndexedInfosCollection.clear();
-  multiDrawIndexedInfosCollection.resize(draws.size());
+
+  multiDrawSettings.clear();
+  multiDrawSettings.resize(draws.size());
+
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
-    auto& multidrawInfoVector = multiDrawIndexedInfosCollection[i];
+    auto& multiDrawSetting = multiDrawSettings[i];
     u64 iidx = draw.unpacked.idx_of_first_idx_in_full_buffer;
     ASSERT(sanity_check == iidx);
     bool building_run = false;
@@ -336,10 +349,11 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(
       if (building_run) {
         if (!vis) {
           building_run = false;
-          VkMultiDrawIndexedInfoEXT multidrawInfo{};
-          multidrawInfo.indexCount = iidx - run_start;
-          multidrawInfo.firstIndex = run_start;
-          multidrawInfoVector.push_back(multidrawInfo);
+          VkDrawIndexedIndirectCommand command{};
+          command.indexCount = iidx - run_start;
+          command.firstIndex = run_start;
+          command.instanceCount = 1;
+          multiDrawSetting.commands.push_back(command);
         }
       } else {
         if (vis) {
@@ -353,29 +367,37 @@ u32 vulkan_background_common::make_multidraws_from_vis_string(
 
     if (building_run) {
       building_run = false;
-      VkMultiDrawIndexedInfoEXT multidrawInfo{};
-      multidrawInfo.indexCount = iidx - run_start;
-      multidrawInfo.firstIndex = run_start;
-      multidrawInfoVector.push_back(multidrawInfo);
+      VkDrawIndexedIndirectCommand command{};
+      command.indexCount = iidx - run_start;
+      command.firstIndex = run_start;
+      command.instanceCount = 1;
+      multiDrawSetting.commands.push_back(command);
+    }
+
+    multiDrawSetting.offset = multiDrawBuffer->GetDrawIndexIndirectCommandCount();
+    if (!multiDrawSetting.commands.empty()) {
+      multiDrawBuffer->AppendDrawIndexIndirectCommands(multiDrawSetting.commands);
     }
   }
   return num_tris;
 }
 
 u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
-    std::vector<std::vector<VkMultiDrawIndexedInfoEXT>>& multiDrawIndexedInfosCollection,
+    std::vector<VulkanDrawIndirectCommandSet>& multiDrawSettings,
+    std::unique_ptr<MultiDrawVulkanBuffer>& multiDrawBuffer,
     const std::vector<tfrag3::StripDraw>& draws,
     const std::vector<u8>& vis_data,
     const std::vector<u8>& proto_vis_data) {
   u32 num_tris = 0;
   u32 sanity_check = 0;
-  multiDrawIndexedInfosCollection.clear();
-  multiDrawIndexedInfosCollection.resize(draws.size());
+  multiDrawSettings.clear();
+  multiDrawSettings.resize(draws.size());
+
   for (size_t i = 0; i < draws.size(); i++) {
     const auto& draw = draws[i];
     u64 iidx = draw.unpacked.idx_of_first_idx_in_full_buffer;
     ASSERT(sanity_check == iidx);
-    auto& multiDrawIndexedInfo = multiDrawIndexedInfosCollection[i];
+    auto& multiDrawSetting = multiDrawSettings[i];
     bool building_run = false;
     u64 run_start = 0;
     for (auto& grp : draw.vis_groups) {
@@ -389,10 +411,11 @@ u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
       if (building_run) {
         if (!vis) {
           building_run = false;
-          VkMultiDrawIndexedInfoEXT indexInfo{};
+          VkDrawIndexedIndirectCommand indexInfo{};
           indexInfo.indexCount = iidx - run_start;
           indexInfo.firstIndex = run_start;
-          multiDrawIndexedInfo.push_back(indexInfo);
+          indexInfo.instanceCount = 1;
+          multiDrawSetting.commands.push_back(indexInfo);
         }
       } else {
         if (vis) {
@@ -406,10 +429,16 @@ u32 vulkan_background_common::make_multidraws_from_vis_and_proto_string(
 
     if (building_run) {
       building_run = false;
-      VkMultiDrawIndexedInfoEXT indexInfo{};
+      VkDrawIndexedIndirectCommand indexInfo{};
       indexInfo.indexCount = iidx - run_start;
       indexInfo.firstIndex = run_start;
-      multiDrawIndexedInfo.push_back(indexInfo);
+      indexInfo.instanceCount = 1;
+      multiDrawSetting.commands.push_back(indexInfo);
+    }
+
+    multiDrawSetting.offset = multiDrawBuffer->GetDrawIndexIndirectCommandCount();
+    if (!multiDrawSetting.commands.empty()) {
+      multiDrawBuffer->AppendDrawIndexIndirectCommands(multiDrawSetting.commands);
     }
   }
   return num_tris;

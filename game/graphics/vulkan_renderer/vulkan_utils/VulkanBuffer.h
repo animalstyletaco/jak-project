@@ -154,4 +154,20 @@ class MultiDrawVulkanBuffer : public UniformBuffer, public VulkanBuffer {
 
   VkDrawIndexedIndirectCommand GetDrawIndexIndirectCommandAtInstanceIndex(unsigned);
   void SetDrawIndexIndirectCommandAtInstanceIndex(unsigned, VkDrawIndexedIndirectCommand);
+
+  void SetDrawIndexIndirectCommandsAt(const std::vector<VkDrawIndexedIndirectCommand>& commands,
+                                      unsigned memoryOffset = 0);
+
+  void AppendDrawIndexIndirectCommands(const std::vector<VkDrawIndexedIndirectCommand>& commands);
+
+  void SetDrawIndexIndirectCommandsAt(const VkDrawIndexedIndirectCommand* commands,
+                                      unsigned size,
+                                      unsigned memoryOffset = 0);
+
+  void Reset() { m_command_count = 0; }
+  void SetDrawIndexIndirectCommandCount(unsigned command_count) { m_command_count = command_count; }
+  unsigned GetDrawIndexIndirectCommandCount() { return m_command_count; }
+
+private:
+  unsigned m_command_count = 0;
 };

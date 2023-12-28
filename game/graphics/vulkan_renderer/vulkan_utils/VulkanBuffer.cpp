@@ -395,10 +395,11 @@ StorageTexelVulkanBuffer::StorageTexelVulkanBuffer(std::shared_ptr<GraphicsDevic
                         device->getMinimumBufferOffsetAlignment(minOffsetAlignment)){};
 
 MultiDrawVulkanBuffer::MultiDrawVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
+                                             uint32_t commandCount,
                                              uint32_t instanceCount,
                                              VkDeviceSize minOffsetAlignment)
     : VulkanBuffer(device,
-                   sizeof(VkDrawIndexedIndirectCommand),
+                   sizeof(VkDrawIndexedIndirectCommand) * commandCount,
                    instanceCount,
                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
@@ -436,7 +437,8 @@ void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandAtInstanceIndex(
 
 void MultiDrawVulkanBuffer::AppendDrawIndexIndirectCommands(
     const std::vector<VkDrawIndexedIndirectCommand>& commands) {
-  SetDrawIndexIndirectCommandsAt(commands.data(), commands.size(), m_command_count * instanceSize);
+  SetDrawIndexIndirectCommandsAt(commands.data(), commands.size(),
+                                 m_command_count * sizeof(VkDrawIndexedIndirectCommand));
   m_command_count += commands.size();
 }
 
@@ -446,15 +448,15 @@ void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandsAt(
 }
 
 void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandsAt(
-    const VkDrawIndexedIndirectCommand* commands, unsigned size, unsigned memoryOffset) {
-  StagingBuffer stagingBuffer(m_device, instanceSize, size,
+    const VkDrawIndexedIndirectCommand* commands, unsigned count, unsigned memoryOffset) {
+  StagingBuffer stagingBuffer(m_device, count * sizeof(VkDrawIndexedIndirectCommand), 1,
                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                               alignmentSize);
   stagingBuffer.map();
-  VkDrawIndexedIndirectCommand* stagingMappedMemory =
-      (VkDrawIndexedIndirectCommand*)stagingBuffer.getMappedMemory();
-  for (unsigned i = 0; i < size; i++) {
-    ::memcpy(stagingMappedMemory + i, &commands[i], instanceSize);
-  }
+  void* stagingMappedMemory = stagingBuffer.getMappedMemory();
+  ::memcpy(stagingMappedMemory, commands, count * sizeof(VkDrawIndexedIndirectCommand));
   stagingBuffer.unmap();
+
+  m_device->copyBuffer(stagingBuffer.getBuffer(), buffer,
+                       count * sizeof(VkDrawIndexedIndirectCommand), 0, memoryOffset);
 }

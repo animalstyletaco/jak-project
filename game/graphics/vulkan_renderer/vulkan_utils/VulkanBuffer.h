@@ -149,7 +149,8 @@ class StorageTexelVulkanBuffer : public TexelVulkanBuffer {
 class MultiDrawVulkanBuffer : public UniformBuffer, public VulkanBuffer {
  public:
   MultiDrawVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,
-                        uint32_t instanceCount,
+                        uint32_t commandCount,
+                        uint32_t instanceCount = 1,
                         VkDeviceSize minOffsetAlignment = 1);
 
   VkDrawIndexedIndirectCommand GetDrawIndexIndirectCommandAtInstanceIndex(unsigned);

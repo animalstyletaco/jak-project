@@ -55,7 +55,7 @@ void SpriteVulkan3::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_layout),
       "failed to create pipeline layout!");
@@ -77,7 +77,7 @@ void SpriteVulkan3::create_pipeline_layout() {
   spriteDistortPipelineLayoutInfo.pPushConstantRanges = &spriteDistortPushConstantRange;
   spriteDistortPipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &spriteDistortPipelineLayoutInfo,
                              nullptr, &m_sprite_distort_pipeline_layout),
       "failed to create pipeline layout!");

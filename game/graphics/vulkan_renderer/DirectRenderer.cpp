@@ -194,7 +194,7 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_layout),
       "failed to create pipeline layout!");
@@ -216,7 +216,7 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   texturedPipelineLayoutInfo.pPushConstantRanges = texturedPushConstantRanges.data();
   texturedPipelineLayoutInfo.pushConstantRangeCount = texturedPushConstantRanges.size();
 
-  vulkan_utils::check_results(vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr,
+  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr,
                              &m_textured_pipeline_layout), "failed to create pipeline layout!");
 
   VkPipelineLayoutCreateInfo debugRedPipelineLayoutInfo{};
@@ -232,7 +232,7 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   debugRedPipelineLayoutInfo.pPushConstantRanges = &debugRedPushConstantRange;
   debugRedPipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &debugRedPipelineLayoutInfo, nullptr,
                              &m_debug_red_pipeline_layout),
       "failed to create pipeline layout!");

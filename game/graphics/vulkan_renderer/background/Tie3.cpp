@@ -161,7 +161,7 @@ void Tie3Vulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_tie_pipeline_layout),
       "failed to create pipeline layout!");
@@ -173,7 +173,7 @@ void Tie3Vulkan::create_pipeline_layout() {
 
   etieBasePipelineLayoutInfo.pSetLayouts = etieBaseDescriptorSetLayouts.data();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &etieBasePipelineLayoutInfo, nullptr,
                              &m_etie_base_pipeline_layout),
       "failed to create pipeline layout!");
@@ -185,7 +185,7 @@ void Tie3Vulkan::create_pipeline_layout() {
 
   etiePipelineLayoutInfo.pSetLayouts = etieDescriptorSetLayouts.data();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &etiePipelineLayoutInfo, nullptr,
                              &m_etie_pipeline_layout),
       "failed to create pipeline layout!");
@@ -361,7 +361,7 @@ void Tie3Vulkan::PrepareDescriptorSets(std::vector<VkDescriptorSet>& descriptorS
   descriptorSetAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
   descriptorSetAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkAllocateDescriptorSets(m_device->getLogicalDevice(), &descriptorSetAllocInfo,
                                descriptorSets.data()),
       "Failed to allocated descriptor set in Tie3");

@@ -67,7 +67,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
   bufferInfo.usage = usage;
   bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreateBuffer(m_device->getLogicalDevice(), &bufferInfo, nullptr, &buffer),
       "failed to create vertex buffer!");
 
@@ -79,7 +79,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
   allocInfo.allocationSize = memRequirements.size;
   allocInfo.memoryTypeIndex = m_device->findMemoryType(memRequirements.memoryTypeBits, properties);
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &bufferMemory),
       "failed to allocate vulkan buffer memory!");
 
@@ -402,21 +402,16 @@ MultiDrawVulkanBuffer::MultiDrawVulkanBuffer(std::shared_ptr<GraphicsDeviceVulka
                    instanceCount,
                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
-                   VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                   minOffsetAlignment) {}
+                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+                   minOffsetAlignment) {
+  map();
+}
 
 VkDrawIndexedIndirectCommand MultiDrawVulkanBuffer::GetDrawIndexIndirectCommandAtInstanceIndex(
     unsigned index) {
-  VkDrawIndexedIndirectCommand command;
-  StagingBuffer stagingBuffer(m_device, instanceSize, 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                              alignmentSize);
-
-  m_device->copyBuffer(buffer, stagingBuffer.getBuffer(), instanceSize, index * instanceCount, 0);
-
-  stagingBuffer.map();
-  void* stagingMappedMemory = stagingBuffer.getMappedMemory();
-  ::memcpy(&command, stagingMappedMemory, sizeof(command));
-  stagingBuffer.unmap();
+  VkDrawIndexedIndirectCommand command{};
+  unsigned char* memory_pointer = reinterpret_cast<unsigned char*>(mapped);
+  ::memcpy(&command, memory_pointer + (index * sizeof(command)), sizeof(command));
 
   return command;
 }
@@ -424,14 +419,8 @@ VkDrawIndexedIndirectCommand MultiDrawVulkanBuffer::GetDrawIndexIndirectCommandA
 void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandAtInstanceIndex(
     unsigned index,
     VkDrawIndexedIndirectCommand command) {
-  StagingBuffer stagingBuffer(m_device, instanceSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              alignmentSize);
-  stagingBuffer.map();
-  void* stagingMappedMemory = stagingBuffer.getMappedMemory();
-  ::memcpy(stagingMappedMemory, &command, sizeof(command));
-  stagingBuffer.unmap();
-
-  m_device->copyBuffer(stagingBuffer.getBuffer(), buffer, instanceSize, 0, instanceSize * index);
+  unsigned char* memory_pointer = reinterpret_cast<unsigned char*>(mapped);
+  ::memcpy(memory_pointer + (index * sizeof(command)), &command, sizeof(command));
 }
 
 void MultiDrawVulkanBuffer::AppendDrawIndexIndirectCommands(
@@ -448,14 +437,6 @@ void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandsAt(
 
 void MultiDrawVulkanBuffer::SetDrawIndexIndirectCommandsAt(
     const VkDrawIndexedIndirectCommand* commands, unsigned count, unsigned memoryOffset) {
-  StagingBuffer stagingBuffer(m_device, count * sizeof(VkDrawIndexedIndirectCommand), 1,
-                              VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                              alignmentSize);
-  stagingBuffer.map();
-  void* stagingMappedMemory = stagingBuffer.getMappedMemory();
-  ::memcpy(stagingMappedMemory, commands, count * sizeof(VkDrawIndexedIndirectCommand));
-  stagingBuffer.unmap();
-
-  m_device->copyBuffer(stagingBuffer.getBuffer(), buffer,
-                       count * sizeof(VkDrawIndexedIndirectCommand), 0, memoryOffset);
+  unsigned char* memoryPointer = reinterpret_cast<unsigned char*>(mapped);
+  ::memcpy(memoryPointer + memoryOffset, commands, count * sizeof(VkDrawIndexedIndirectCommand));
 }

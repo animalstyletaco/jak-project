@@ -61,7 +61,7 @@ void FramebufferVulkan::createFramebuffer() {
   framebufferInfo.height = extents.height;
   framebufferInfo.layers = 1;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreateFramebuffer(m_device->getLogicalDevice(), &framebufferInfo, nullptr, &framebuffer),
       "failed to create framebuffer!");
 }
@@ -236,7 +236,7 @@ void FramebufferVulkan::createRenderPass() {
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreateRenderPass(m_device->getLogicalDevice(), &renderPassInfo, nullptr, &render_pass),
       "failed to create render pass!");
 }

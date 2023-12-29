@@ -3,6 +3,8 @@
 #include <array>
 #include <optional>
 #include <vector>
+#include <iostream>
+#include <cassert>
 
 #include "common/log/log.h"
 
@@ -11,10 +13,21 @@
 #define SDL_INCLUDE_VULKAN
 #include "third-party/SDL/include/SDL.h"
 
-namespace vulkan_utils{
-   std::string error_string(VkResult result);
-   void check_results(VkResult res, const std::string& failureMessage);                                                                                
+namespace vulkan_utils {
+std::string error_string(VkResult result);
 }
+
+#define VK_CHECK_RESULT(f, s)                                                                 \
+  {                                                                                           \
+    VkResult res = (f);                                                                       \
+    if (res != VK_SUCCESS) {                                                                  \
+      std::cout << "Fatal : VkResult is \"" << vulkan_utils::error_string(res) << "\" in "    \
+                << __FILE__ << " at line " << __LINE__ << ", Failure Message: " << s << "\n"; \
+                                                                                              \
+      assert(res == VK_SUCCESS);                                                              \
+    }                                                                                         \
+  }
+
 
 struct SwapChainSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;

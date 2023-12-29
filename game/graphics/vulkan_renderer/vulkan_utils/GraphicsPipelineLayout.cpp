@@ -384,7 +384,7 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
   pipelineInfo.basePipelineIndex = -1;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreateGraphicsPipelines(_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo,
                                 nullptr, &_graphicsPipeline),
       "failed to create graphics pipeline");

@@ -27,7 +27,7 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
 
   m_image_view_create_info = texture.m_image_view_create_info;
   if (m_image_view) {
-    vulkan_utils::check_results(
+    VK_CHECK_RESULT(
         vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
                           &m_image_view),
         "failed to create texture image view!");
@@ -38,7 +38,7 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
 
 void VulkanTexture::AllocateVulkanImageMemory() {
   VkImageFormatProperties image_format_properties;
-  vulkan_utils::check_results(vkGetPhysicalDeviceImageFormatProperties(
+  VK_CHECK_RESULT(vkGetPhysicalDeviceImageFormatProperties(
       m_device->getPhysicalDevice(), m_image_create_info.format, m_image_create_info.imageType,
       m_image_create_info.tiling, m_image_create_info.usage, m_image_create_info.flags,
       &image_format_properties), " failed to get proper physical device image format properties");
@@ -51,7 +51,7 @@ void VulkanTexture::AllocateVulkanImageMemory() {
     m_image_create_info.extent.height = image_format_properties.maxExtent.height;
   }
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreateImage(m_device->getLogicalDevice(), &m_image_create_info, nullptr, &m_image),
       "failed to create image!");
 
@@ -64,7 +64,7 @@ void VulkanTexture::AllocateVulkanImageMemory() {
   allocInfo.memoryTypeIndex =
       m_device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &m_device_memory),
       "failed to allocate image memory!");
 
@@ -128,7 +128,7 @@ void VulkanTexture::createImageView(VkImageViewType image_view_type,
   m_image_view_create_info.subresourceRange.baseArrayLayer = 0;
   m_image_view_create_info.subresourceRange.layerCount = 1;
 
-  vulkan_utils::check_results(vkCreateImageView(m_device->getLogicalDevice(),
+  VK_CHECK_RESULT(vkCreateImageView(m_device->getLogicalDevice(),
                                                 &m_image_view_create_info, nullptr, &m_image_view),
                               "failed to create texture image view!");
 }

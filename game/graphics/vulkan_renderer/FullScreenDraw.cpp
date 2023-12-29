@@ -51,7 +51,7 @@ void FullScreenDrawVulkan::create_command_buffers() {
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo, commandBuffers.data()),
       "failed to allocate command buffers!");
 }
@@ -86,7 +86,7 @@ void FullScreenDrawVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pushConstantRangeCount = 1;
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout),
       "failed to create pipeline layout!");
@@ -110,7 +110,7 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-  vulkan_utils::check_results(vkBeginCommandBuffer(commandBuffer, &beginInfo),
+  VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &beginInfo),
                               "failed to begin recording command buffer!");
 
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(commandBuffer, currentImageIndex);
@@ -125,18 +125,14 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   VkBuffer vertex_buffer_vulkan = m_vertex_buffer->getBuffer();
   vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
-                          m_descriptor_sets.data(), 0, nullptr);
-
   vkCmdDraw(commandBuffer, m_vertex_buffer->getBufferSize(), 0, 0, 0);
 
   m_vulkan_info.swap_chain->endSwapChainRenderPass(commandBuffer);
-  vulkan_utils::check_results(vkEndCommandBuffer(commandBuffer),
+  VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer),
                               "failed to record command buffer!");
 
   m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
-  vulkan_utils::check_results(vkQueueWaitIdle(m_device->graphicsQueue()), "Graphics queue failed to wait");
+  VK_CHECK_RESULT(vkQueueWaitIdle(m_device->graphicsQueue()), "Graphics queue failed to wait");
 }
 
 FullScreenDrawVulkan::~FullScreenDrawVulkan() {

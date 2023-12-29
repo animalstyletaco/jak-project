@@ -45,6 +45,4 @@ class FullScreenDrawVulkan {
   PipelineConfigInfo m_pipeline_config_info;
 
   VkDescriptorBufferInfo m_fragment_buffer_descriptor_info;
-
-  std::vector<VkDescriptorSet> m_descriptor_sets;
 };

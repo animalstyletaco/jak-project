@@ -82,7 +82,7 @@ void ShrubVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  vulkan_utils::check_results(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
 }
 
@@ -157,7 +157,7 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
       vertexAllocInfo.pSetLayouts = &vertexDescriptorSetLayout;
       vertexAllocInfo.descriptorSetCount = 1;
 
-      vulkan_utils::check_results(
+      VK_CHECK_RESULT(
           vkAllocateDescriptorSets(m_device->getLogicalDevice(), &vertexAllocInfo,
                                    &m_trees[l_tree].vertex_shader_descriptor_set),
           "Failed to allocated descriptor set in Shrub");
@@ -168,7 +168,7 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
       fragmentAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
       fragmentAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
 
-      vulkan_utils::check_results(
+      VK_CHECK_RESULT(
           vkAllocateDescriptorSets(m_device->getLogicalDevice(), &fragmentAllocInfo,
                                    m_trees[l_tree].fragment_shader_descriptor_sets.data()),
           "Failed to allocated descriptor set in Shrub");

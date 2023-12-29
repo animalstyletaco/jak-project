@@ -57,7 +57,7 @@ SwapChain::~SwapChain() {
 }
 
 VkResult SwapChain::acquireNextImage(uint32_t* imageIndex) {
-  vulkan_utils::check_results(vkWaitForFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame], VK_TRUE,
+  VK_CHECK_RESULT(vkWaitForFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame], VK_TRUE,
                   std::numeric_limits<uint64_t>::max()), "failed to wait for fences");
 
   VkResult result = vkAcquireNextImageKHR(
@@ -68,7 +68,7 @@ VkResult SwapChain::acquireNextImage(uint32_t* imageIndex) {
   return result;
 }
 
-void SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex) {
+VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex) {
   if (imagesInFlight[*imageIndex] != VK_NULL_HANDLE) {
     vkWaitForFences(device->getLogicalDevice(), 1, &imagesInFlight[*imageIndex], VK_TRUE,
                     UINT64_MAX);
@@ -91,11 +91,11 @@ void SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* i
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = signalSemaphores;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkResetFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame]),
       "failed to reset fences");
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkQueueSubmit(device->graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]),
       "failed to submit draw command buffer!");
 
@@ -110,10 +110,9 @@ void SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* i
   presentInfo.pSwapchains = swapChains;
   presentInfo.pImageIndices = imageIndex;
 
-  vulkan_utils::check_results(vkQueuePresentKHR(device->presentQueue(), &presentInfo),
-                              "Failed to get create present queue");
-
   currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+
+  return vkQueuePresentKHR(device->presentQueue(), &presentInfo);
 }
 
 void SwapChain::createSwapChain(bool vsyncEnabled) {
@@ -170,7 +169,7 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
 
   createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain),
       "failed to create swap chain");
 
@@ -178,11 +177,11 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
   // allowed to create a swap chain with more. That's why we'll first query the final number of
   // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
   // retrieve the handles.
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, nullptr),
       "failed to get swapchin image count");
   swapChainImages.resize(imageCount);
-  vulkan_utils::check_results(vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain,
+  VK_CHECK_RESULT(vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain,
                                                       &imageCount, swapChainImages.data()),
                               "failed to allocate swap chain images");
 
@@ -208,7 +207,7 @@ void SwapChain::createImageViews() {
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    vulkan_utils::check_results(
+    VK_CHECK_RESULT(
         vkCreateImageView(device->getLogicalDevice(), &viewInfo, nullptr, &swapChainImageViews[i]),
         "failed to create texture image view!");
   }
@@ -329,14 +328,14 @@ void SwapChain::createRenderPass() {
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreateRenderPass(device->getLogicalDevice(), &renderPassInfo, nullptr, &renderPass),
       "failed to create render pass!");
 
   VkRenderPassCreateInfo noClearRenderPassInfo = renderPassInfo;
   noClearRenderPassInfo.pAttachments = noClearAttachments.data();
 
-  vulkan_utils::check_results(vkCreateRenderPass(device->getLogicalDevice(), &noClearRenderPassInfo,
+  VK_CHECK_RESULT(vkCreateRenderPass(device->getLogicalDevice(), &noClearRenderPassInfo,
                                                  nullptr, &noClearRenderPass),
                               "failed to create render pass!");
 }
@@ -368,7 +367,7 @@ void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
     framebufferInfo.height = swapChainExtent.height;
     framebufferInfo.layers = 1;
 
-    vulkan_utils::check_results(vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo,
+    VK_CHECK_RESULT(vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo,
                                                     nullptr, &swapChainFramebuffers[i]),
                                 "failed to create framebuffer!");
   }
@@ -446,13 +445,13 @@ void SwapChain::createSyncObjects() {
   fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    vulkan_utils::check_results(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
+    VK_CHECK_RESULT(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
                                                   nullptr, &imageAvailableSemaphores[i]),
                                 "failed to create to vulkan image semaphores");
-    vulkan_utils::check_results(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
+    VK_CHECK_RESULT(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
                                                   nullptr, &renderFinishedSemaphores[i]),
                                 "failed to create vulkan render semaphores");
-    vulkan_utils::check_results(
+    VK_CHECK_RESULT(
         vkCreateFence(device->getLogicalDevice(), &fenceInfo, nullptr, &inFlightFences[i]),
         "failed to create vulkan fences");
   }

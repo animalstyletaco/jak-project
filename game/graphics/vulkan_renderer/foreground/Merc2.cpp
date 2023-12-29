@@ -205,12 +205,12 @@ void MercVulkan2::create_pipeline_layout() {
   emercPipelineLayoutInfo.pPushConstantRanges = emercPushConstantRanges.data();
   emercPipelineLayoutInfo.pushConstantRangeCount = emercPushConstantRanges.size();
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &mercPipelineLayoutInfo, nullptr,
                              &m_merc_pipeline_layout),
       "failed to create merc pipeline layout!");
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &emercPipelineLayoutInfo, nullptr,
                              &m_emerc_pipeline_layout),
       "failed to create emerc pipeline layout!");

@@ -81,14 +81,6 @@ std::string vulkan_utils::error_string(VkResult errorCode) {
   }
 }
 
-void vulkan_utils::check_results(VkResult result, const std::string& failureMessage){
-  if (result != VK_SUCCESS) {
-    std::cout << "Fatal : VkResult is \"" << vulkan_utils::error_string(result) << "\" in " << __FILE__
-              << " at line " << __LINE__ << "Failure Message: " << failureMessage <<"\n";
-    assert(result == VK_SUCCESS);
-  }
-}   
-
 GraphicsDeviceVulkan::GraphicsDeviceVulkan(SDL_Window* window) : m_window(window) {
   if (!vulkan_device::is_vulkan_loaded) {
     gladLoaderLoadVulkan(nullptr, nullptr, nullptr);  // Initial load to get vulkan function loaded

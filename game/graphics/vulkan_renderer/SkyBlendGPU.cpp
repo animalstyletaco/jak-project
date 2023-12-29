@@ -107,7 +107,7 @@ void SkyBlendVulkanGPU::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantVertexRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  vulkan_utils::check_results(
+  VK_CHECK_RESULT(
       vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
                              &m_pipeline_config_info.pipelineLayout),
       "failed to create pipeline layout!");

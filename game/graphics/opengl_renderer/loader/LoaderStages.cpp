@@ -4,7 +4,7 @@
 
 #include "common/global_profiler/GlobalProfiler.h"
 
-constexpr float LOAD_BUDGET = 2.5f;
+constexpr float LOAD_BUDGET = 4.5f;
 
 using namespace profiler;
 
@@ -42,7 +42,7 @@ class TextureLoaderStage : public LoaderStage {
  public:
   TextureLoaderStage() : LoaderStage("texture") {}
   bool run(Timer& timer, LoaderInput& data) override {
-    constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 512;
+    constexpr int MAX_TEX_BYTES_PER_FRAME = 1024 * 1024;
 
     int bytes_this_run = 0;
     int tex_this_run = 0;
@@ -86,7 +86,6 @@ class TfragLoadStage : public LoaderStage {
           GLuint& tree_out = data.lev_data->tfrag_vertex_data[geo].emplace_back();
           glGenBuffers(1, &tree_out);
           glBindBuffer(GL_ARRAY_BUFFER, tree_out);
-
           glBufferData(GL_ARRAY_BUFFER,
                        in_tree.unpacked.vertices.size() * sizeof(tfrag3::PreloadedVertex), nullptr,
                        GL_STATIC_DRAW);
@@ -151,7 +150,6 @@ class TfragLoadStage : public LoaderStage {
             return true;
           }
         }
-
         return false;
       }
 

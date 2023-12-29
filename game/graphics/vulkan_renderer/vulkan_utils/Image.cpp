@@ -27,10 +27,10 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
 
   m_image_view_create_info = texture.m_image_view_create_info;
   if (m_image_view) {
-    if (vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
-                          &m_image_view) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create texture image view!");
-    }
+    vulkan_utils::check_results(
+        vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
+                          &m_image_view),
+        "failed to create texture image view!");
   }
 
   m_device_size = texture.m_device_size;
@@ -38,14 +38,10 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
 
 void VulkanTexture::AllocateVulkanImageMemory() {
   VkImageFormatProperties image_format_properties;
-  VkResult results = vkGetPhysicalDeviceImageFormatProperties(
+  vulkan_utils::check_results(vkGetPhysicalDeviceImageFormatProperties(
       m_device->getPhysicalDevice(), m_image_create_info.format, m_image_create_info.imageType,
       m_image_create_info.tiling, m_image_create_info.usage, m_image_create_info.flags,
-      &image_format_properties);
-
-  if (results != VK_SUCCESS) {
-    throw std::runtime_error("failed to create image! Error code: " + std::to_string(results));
-  }
+      &image_format_properties), " failed to get proper physical device image format properties");
 
   if (m_image_create_info.extent.width > image_format_properties.maxExtent.width) {
     m_image_create_info.extent.width = image_format_properties.maxExtent.width;
@@ -55,10 +51,9 @@ void VulkanTexture::AllocateVulkanImageMemory() {
     m_image_create_info.extent.height = image_format_properties.maxExtent.height;
   }
 
-  if (vkCreateImage(m_device->getLogicalDevice(), &m_image_create_info, nullptr, &m_image) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create image!");
-  }
+  vulkan_utils::check_results(
+      vkCreateImage(m_device->getLogicalDevice(), &m_image_create_info, nullptr, &m_image),
+      "failed to create image!");
 
   VkMemoryRequirements memRequirements;
   vkGetImageMemoryRequirements(m_device->getLogicalDevice(), m_image, &memRequirements);
@@ -69,10 +64,9 @@ void VulkanTexture::AllocateVulkanImageMemory() {
   allocInfo.memoryTypeIndex =
       m_device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-  if (vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &m_device_memory) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to allocate image memory!");
-  }
+  vulkan_utils::check_results(
+      vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &m_device_memory),
+      "failed to allocate image memory!");
 
   vkBindImageMemory(m_device->getLogicalDevice(), m_image, m_device_memory, 0);
   m_initialized = true;
@@ -134,10 +128,9 @@ void VulkanTexture::createImageView(VkImageViewType image_view_type,
   m_image_view_create_info.subresourceRange.baseArrayLayer = 0;
   m_image_view_create_info.subresourceRange.layerCount = 1;
 
-  if (vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
-                        &m_image_view) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create texture image view!");
-  }
+  vulkan_utils::check_results(vkCreateImageView(m_device->getLogicalDevice(),
+                                                &m_image_view_create_info, nullptr, &m_image_view),
+                              "failed to create texture image view!");
 }
 
 void VulkanTexture::destroyTexture() {

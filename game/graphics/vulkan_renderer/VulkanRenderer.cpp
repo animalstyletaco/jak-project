@@ -726,8 +726,10 @@ void VulkanRenderer::render(DmaFollower dma, const RenderOptions& settings) {
     auto prof = m_profiler.root()->make_scoped_child("pcrtc");
     do_pcrtc_effects(settings.pmode_alp_register, &render_state, prof);
     if (settings.gpu_sync) {
-      // glFinish();
-      vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
+      // TODO: Verify that this is correct
+      vulkan_utils::check_results(
+          vkQueueWaitIdle(m_device->graphicsQueue()),
+          "Graphics queue failed to wait");
     }
   }
 
@@ -737,7 +739,10 @@ void VulkanRenderer::render(DmaFollower dma, const RenderOptions& settings) {
     // add a profile bar for the imgui stuff
     // vif_interrupt_callback(0);
     if (settings.gpu_sync) {
-      vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
+      // TODO: Verify that this is correct
+      vulkan_utils::check_results(
+          vkQueueWaitIdle(m_device->graphicsQueue()),
+          "Graphics Queue failed to wait");  
     }
   }
 
@@ -956,7 +961,11 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
     graphics_renderer->render(dma, &m_render_state, bucket_prof);
     if (sync_after_buckets) {
       auto pp = profiler::scoped_prof("finish");
-      vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
+
+      // TODO: Verify that this is correct
+      vulkan_utils::check_results(
+          vkQueueWaitIdle(m_device->graphicsQueue()),
+          "Graphics queue failed to wait");  
     }
 
     // lg::info("Render: {} end", g_current_render);
@@ -979,7 +988,8 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
   m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
   endFrame();
 
-  vkDeviceWaitIdle(m_device->getLogicalDevice());
+  vulkan_utils::check_results(vkDeviceWaitIdle(m_device->getLogicalDevice()),
+                              "Vulkan logical device failed to wait");
 }
 
 void VulkanRendererJak2::dispatch_buckets(DmaFollower dma,
@@ -1009,8 +1019,10 @@ void VulkanRendererJak2::dispatch_buckets(DmaFollower dma,
     graphics_renderer->render(dma, &m_render_state, bucket_prof);
     if (sync_after_buckets) {
       auto pp = profiler::scoped_prof("finish");
-      // glFinish();
-      vkQueueWaitIdle(m_device->graphicsQueue());  // TODO: Verify that this is correct
+      // TODO: Verify that this is correct
+      vulkan_utils::check_results(
+          vkQueueWaitIdle(m_device->graphicsQueue()),
+          "Graphics queue failed to wait");  
     }
 
     // lg::info("Render: {} end", g_current_render);
@@ -1129,25 +1141,26 @@ void VulkanRenderer::createCommandBuffers() {
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-  if (vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo, commandBuffers.data()) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to allocate command buffers!");
-  }
+  vulkan_utils::check_results(
+      vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo, commandBuffers.data()),
+      "failed to allocate command buffers!");
 }
 
 void VulkanRenderer::recreateSwapChain(bool vsyncEnabled) {
-  vkDeviceWaitIdle(m_device->getLogicalDevice());
+  vulkan_utils::check_results(vkDeviceWaitIdle(m_device->getLogicalDevice()),
+                              "Vulkan logical device failed to wait");
 
   if (m_vulkan_info.swap_chain == nullptr) {
     m_vulkan_info.swap_chain = std::make_unique<SwapChain>(m_device, m_extents, vsyncEnabled);
-  } else {
-    std::shared_ptr<SwapChain> oldSwapChain = std::move(m_vulkan_info.swap_chain);
-    m_vulkan_info.swap_chain =
-        std::make_unique<SwapChain>(m_device, m_extents, vsyncEnabled, oldSwapChain);
+    return;
+  }
 
-    if (!oldSwapChain->compareSwapFormats(*m_vulkan_info.swap_chain.get())) {
-      throw std::runtime_error("Swap chain image(or depth) format has changed!");
-    }
+  std::shared_ptr<SwapChain> oldSwapChain = std::move(m_vulkan_info.swap_chain);
+  m_vulkan_info.swap_chain =
+      std::make_unique<SwapChain>(m_device, m_extents, vsyncEnabled, oldSwapChain);
+
+  if (!oldSwapChain->compareSwapFormats(*m_vulkan_info.swap_chain.get())) {
+    throw std::runtime_error("Swap chain image(or depth) format has changed!");
   }
 }
 
@@ -1171,23 +1184,17 @@ VkCommandBuffer VulkanRenderer::beginFrame() {
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-  if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-    throw std::runtime_error("failed to begin recording command buffer!");
-  }
+  vulkan_utils::check_results(vkBeginCommandBuffer(commandBuffer, &beginInfo),
+                              "failed to begin recording command buffer!");
   return commandBuffer;
 }
 
 void VulkanRenderer::endFrame() {
   assert(isFrameStarted && "Can't call endFrame while frame is not in progress");
   auto commandBuffer = getCurrentCommandBuffer();
-  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-    throw std::runtime_error("failed to record command buffer!");
-  }
 
-  if (m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to present swap chain image!");
-  }
+  vulkan_utils::check_results(vkEndCommandBuffer(commandBuffer), "failed to record command buffer!");
+  m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
 
   isFrameStarted = false;
   currentFrame = (currentFrame + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;

@@ -11,6 +11,11 @@
 #define SDL_INCLUDE_VULKAN
 #include "third-party/SDL/include/SDL.h"
 
+namespace vulkan_utils{
+   std::string error_string(VkResult result);
+   void check_results(VkResult res, const std::string& failureMessage);                                                                                
+}
+
 struct SwapChainSupportDetails {
   VkSurfaceCapabilitiesKHR capabilities;
   std::vector<VkSurfaceFormatKHR> formats;

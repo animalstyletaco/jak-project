@@ -41,10 +41,10 @@ DescriptorLayout::DescriptorLayout(
   descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
   descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
 
-  if (vkCreateDescriptorSetLayout(m_device->getLogicalDevice(), &descriptorSetLayoutInfo, nullptr,
-                                  &m_descriptor_set_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create descriptor set layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreateDescriptorSetLayout(m_device->getLogicalDevice(), &descriptorSetLayoutInfo, nullptr,
+                                  &m_descriptor_set_layout),
+      "failed to create descriptor set layout!");
 }
 
 DescriptorLayout::~DescriptorLayout() {
@@ -86,10 +86,8 @@ DescriptorPool::DescriptorPool(std::shared_ptr<GraphicsDeviceVulkan> device,
   descriptorPoolInfo.maxSets = maxSets;
   descriptorPoolInfo.flags = poolFlags;
 
-  if (vkCreateDescriptorPool(m_device->getLogicalDevice(), &descriptorPoolInfo, nullptr,
-                             &m_descriptor_pool) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create descriptor pool!");
-  }
+  vulkan_utils::check_results(vkCreateDescriptorPool(m_device->getLogicalDevice(), &descriptorPoolInfo, nullptr,
+                             &m_descriptor_pool), "failed to create descriptor pool!");
 }
 
 DescriptorPool::~DescriptorPool() {

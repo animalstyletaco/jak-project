@@ -67,9 +67,9 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
   bufferInfo.usage = usage;
   bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-  if (vkCreateBuffer(m_device->getLogicalDevice(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create vertex buffer!");
-  }
+  vulkan_utils::check_results(
+      vkCreateBuffer(m_device->getLogicalDevice(), &bufferInfo, nullptr, &buffer),
+      "failed to create vertex buffer!");
 
   VkMemoryRequirements memRequirements;
   vkGetBufferMemoryRequirements(m_device->getLogicalDevice(), buffer, &memRequirements);
@@ -79,10 +79,9 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
   allocInfo.allocationSize = memRequirements.size;
   allocInfo.memoryTypeIndex = m_device->findMemoryType(memRequirements.memoryTypeBits, properties);
 
-  if (vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &bufferMemory) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to allocate vulkan buffer memory!");
-  }
+  vulkan_utils::check_results(
+      vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &bufferMemory),
+      "failed to allocate vulkan buffer memory!");
 
   vkBindBufferMemory(m_device->getLogicalDevice(), buffer, bufferMemory, 0);
 }

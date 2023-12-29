@@ -268,10 +268,10 @@ void OceanVulkanTexture::CreatePipelineLayout() {
       static_cast<uint32_t>(descriptorSetLayouts.size());
   oceanTexturePipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &oceanTexturePipelineLayoutInfo, nullptr,
-                             &m_ocean_texture_pipeline_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &oceanTexturePipelineLayoutInfo, nullptr,
+                             &m_ocean_texture_pipeline_layout),
+      "failed to create pipeline layout!");
 
   VkPipelineLayoutCreateInfo oceanTextureMipmapPipelineLayoutInfo{};
   oceanTextureMipmapPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -295,10 +295,10 @@ void OceanVulkanTexture::CreatePipelineLayout() {
   oceanTextureMipmapPipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   oceanTextureMipmapPipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &oceanTextureMipmapPipelineLayoutInfo,
-                             nullptr, &m_ocean_texture_mipmap_pipeline_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &oceanTextureMipmapPipelineLayoutInfo,
+                             nullptr, &m_ocean_texture_mipmap_pipeline_layout),
+      "failed to create pipeline layout!");
 }
 
 void OceanVulkanTexture::SetupShader(ShaderId shaderId) {

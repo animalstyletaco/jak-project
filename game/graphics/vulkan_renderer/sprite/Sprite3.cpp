@@ -55,10 +55,10 @@ void SpriteVulkan3::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_layout),
+      "failed to create pipeline layout!");
 
   std::vector<VkDescriptorSetLayout> spriteDistortDescriptorSetLayouts{
       m_sprite_distort_fragment_descriptor_layout->getDescriptorSetLayout()};
@@ -77,10 +77,10 @@ void SpriteVulkan3::create_pipeline_layout() {
   spriteDistortPipelineLayoutInfo.pPushConstantRanges = &spriteDistortPushConstantRange;
   spriteDistortPipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &spriteDistortPipelineLayoutInfo,
-                             nullptr, &m_sprite_distort_pipeline_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &spriteDistortPipelineLayoutInfo,
+                             nullptr, &m_sprite_distort_pipeline_layout),
+      "failed to create pipeline layout!");
 }
 
 void SpriteVulkan3::SetupShader(ShaderId shaderId) {

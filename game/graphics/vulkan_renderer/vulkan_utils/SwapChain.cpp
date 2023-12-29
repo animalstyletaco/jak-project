@@ -57,8 +57,8 @@ SwapChain::~SwapChain() {
 }
 
 VkResult SwapChain::acquireNextImage(uint32_t* imageIndex) {
-  vkWaitForFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame], VK_TRUE,
-                  std::numeric_limits<uint64_t>::max());
+  vulkan_utils::check_results(vkWaitForFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame], VK_TRUE,
+                  std::numeric_limits<uint64_t>::max()), "failed to wait for fences");
 
   VkResult result = vkAcquireNextImageKHR(
       device->getLogicalDevice(), swapChain, std::numeric_limits<uint64_t>::max(),
@@ -68,7 +68,7 @@ VkResult SwapChain::acquireNextImage(uint32_t* imageIndex) {
   return result;
 }
 
-VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex) {
+void SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex) {
   if (imagesInFlight[*imageIndex] != VK_NULL_HANDLE) {
     vkWaitForFences(device->getLogicalDevice(), 1, &imagesInFlight[*imageIndex], VK_TRUE,
                     UINT64_MAX);
@@ -91,11 +91,13 @@ VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = signalSemaphores;
 
-  vkResetFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame]);
-  if (vkQueueSubmit(device->graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to submit draw command buffer!");
-  }
+  vulkan_utils::check_results(
+      vkResetFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame]),
+      "failed to reset fences");
+
+  vulkan_utils::check_results(
+      vkQueueSubmit(device->graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]),
+      "failed to submit draw command buffer!");
 
   VkPresentInfoKHR presentInfo = {};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -106,14 +108,12 @@ VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_
   VkSwapchainKHR swapChains[] = {swapChain};
   presentInfo.swapchainCount = 1;
   presentInfo.pSwapchains = swapChains;
-
   presentInfo.pImageIndices = imageIndex;
 
-  auto result = vkQueuePresentKHR(device->presentQueue(), &presentInfo);
+  vulkan_utils::check_results(vkQueuePresentKHR(device->presentQueue(), &presentInfo),
+                              "Failed to get create present queue");
 
   currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
-
-  return result;
 }
 
 void SwapChain::createSwapChain(bool vsyncEnabled) {
@@ -170,19 +170,21 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
 
   createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain;
 
-  if (vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create swap chain");
-  }
+  vulkan_utils::check_results(
+      vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain),
+      "failed to create swap chain");
 
   // we only specified a minimum number of images in the swap chain, so the implementation is
   // allowed to create a swap chain with more. That's why we'll first query the final number of
   // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
   // retrieve the handles.
-  vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, nullptr);
+  vulkan_utils::check_results(
+      vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, nullptr),
+      "failed to get swapchin image count");
   swapChainImages.resize(imageCount);
-  vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount,
-                          swapChainImages.data());
+  vulkan_utils::check_results(vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain,
+                                                      &imageCount, swapChainImages.data()),
+                              "failed to allocate swap chain images");
 
   swapChainImageFormat = surfaceFormat.format;
 }
@@ -206,10 +208,9 @@ void SwapChain::createImageViews() {
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(device->getLogicalDevice(), &viewInfo, nullptr,
-                          &swapChainImageViews[i]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create texture image view!");
-    }
+    vulkan_utils::check_results(
+        vkCreateImageView(device->getLogicalDevice(), &viewInfo, nullptr, &swapChainImageViews[i]),
+        "failed to create texture image view!");
   }
 }
 
@@ -328,18 +329,16 @@ void SwapChain::createRenderPass() {
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  if (vkCreateRenderPass(device->getLogicalDevice(), &renderPassInfo, nullptr, &renderPass) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create render pass!");
-  }
+  vulkan_utils::check_results(
+      vkCreateRenderPass(device->getLogicalDevice(), &renderPassInfo, nullptr, &renderPass),
+      "failed to create render pass!");
 
   VkRenderPassCreateInfo noClearRenderPassInfo = renderPassInfo;
   noClearRenderPassInfo.pAttachments = noClearAttachments.data();
 
-  if (vkCreateRenderPass(device->getLogicalDevice(), &noClearRenderPassInfo, nullptr,
-                         &noClearRenderPass) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create render pass!");
-  }
+  vulkan_utils::check_results(vkCreateRenderPass(device->getLogicalDevice(), &noClearRenderPassInfo,
+                                                 nullptr, &noClearRenderPass),
+                              "failed to create render pass!");
 }
 
 void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
@@ -369,10 +368,9 @@ void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
     framebufferInfo.height = swapChainExtent.height;
     framebufferInfo.layers = 1;
 
-    if (vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo, nullptr,
-                            &swapChainFramebuffers[i]) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create framebuffer!");
-    }
+    vulkan_utils::check_results(vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo,
+                                                    nullptr, &swapChainFramebuffers[i]),
+                                "failed to create framebuffer!");
   }
 }
 
@@ -448,14 +446,15 @@ void SwapChain::createSyncObjects() {
   fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    if (vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo, nullptr,
-                          &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-        vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo, nullptr,
-                          &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-        vkCreateFence(device->getLogicalDevice(), &fenceInfo, nullptr, &inFlightFences[i]) !=
-            VK_SUCCESS) {
-      throw std::runtime_error("failed to create synchronization objects for a frame!");
-    }
+    vulkan_utils::check_results(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
+                                                  nullptr, &imageAvailableSemaphores[i]),
+                                "failed to create to vulkan image semaphores");
+    vulkan_utils::check_results(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
+                                                  nullptr, &renderFinishedSemaphores[i]),
+                                "failed to create vulkan render semaphores");
+    vulkan_utils::check_results(
+        vkCreateFence(device->getLogicalDevice(), &fenceInfo, nullptr, &inFlightFences[i]),
+        "failed to create vulkan fences");
   }
 }
 
@@ -504,79 +503,6 @@ VkFormat SwapChain::findDepthFormat() {
   return device->findSupportedFormat(
       {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
        VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
-}
-
-void SwapChain::drawCommandBuffer(VkCommandBuffer commandBuffer,
-                                  std::unique_ptr<VertexBuffer>& vertex_buffer,
-                                  VkPipelineLayout& pipeline_layout,
-                                  std::vector<VkDescriptorSet>& descriptors) {
-  setViewportScissor(commandBuffer);
-
-  VkDeviceSize offsets[] = {0};
-  VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
-
-  if (!descriptors.empty()) {
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
-                            descriptors.size(), descriptors.data(), 0, nullptr);
-  }
-  vkCmdDraw(commandBuffer, vertex_buffer->getBufferSize(), 0, 0, 0);
-}
-
-void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                         std::unique_ptr<VertexBuffer>& vertex_buffer,
-                                         std::unique_ptr<IndexBuffer>& index_buffer,
-                                         VkPipelineLayout& pipeline_layout,
-                                         std::vector<VkDescriptorSet>& descriptors,
-                                         uint32_t dynamicDescriptorCount,
-                                         uint32_t* dynamicDescriptorOffsets) {
-  drawIndexedCommandBuffer(commandBuffer, vertex_buffer.get(), index_buffer.get(), pipeline_layout,
-                           descriptors, dynamicDescriptorCount, dynamicDescriptorOffsets);
-}
-
-void SwapChain::drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                         VertexBuffer* vertex_buffer,
-                                         IndexBuffer* index_buffer,
-                                         VkPipelineLayout& pipeline_layout,
-                                         std::vector<VkDescriptorSet>& descriptors,
-                                         uint32_t dynamicDescriptorCount,
-                                         uint32_t* dynamicDescriptorOffsets) {
-  setupForDrawIndexedCommand(commandBuffer, vertex_buffer, index_buffer, pipeline_layout,
-                             descriptors, dynamicDescriptorCount, dynamicDescriptorOffsets);
-  vkCmdDrawIndexed(commandBuffer, index_buffer->getBufferSize() / sizeof(unsigned), 1, 0, 0, 0);
-}
-
-void SwapChain::setupForDrawIndexedCommand(VkCommandBuffer commandBuffer,
-                                           VertexBuffer* vertex_buffer,
-                                           IndexBuffer* index_buffer,
-                                           VkPipelineLayout& pipeline_layout,
-                                           std::vector<VkDescriptorSet>& descriptors,
-                                           uint32_t dynamicDescriptorCount,
-                                           uint32_t* dynamicDescriptorOffsets) {
-  setViewportScissor(commandBuffer);
-
-  VkDeviceSize offsets[] = {0};
-  VkBuffer vertex_buffer_vulkan = vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
-
-  vkCmdBindIndexBuffer(commandBuffer, index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout, 0,
-                          descriptors.size(), descriptors.data(), dynamicDescriptorCount,
-                          dynamicDescriptorOffsets);
-}
-
-void SwapChain::multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                              VertexBuffer* vertex_buffer,
-                                              IndexBuffer* index_buffer,
-                                              VkPipelineLayout& pipeline_layout,
-                                              std::vector<VkDescriptorSet>& descriptors,
-                                              MultiDrawVulkanBuffer* multiDrawCommand) {
-  setupForDrawIndexedCommand(commandBuffer, vertex_buffer, index_buffer, pipeline_layout,
-                             descriptors, 0, nullptr);
-  vkCmdDrawIndexedIndirect(commandBuffer, multiDrawCommand->getBuffer(), 0,
-                           multiDrawCommand->getInstanceCount(),
-                           sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void SwapChain::clearFramebufferImage(uint32_t currentImageIndex) {

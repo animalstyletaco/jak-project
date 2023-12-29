@@ -144,10 +144,8 @@ void DepthCueVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
 }
 
 void DepthCueVulkan::render(DmaFollower& dma,

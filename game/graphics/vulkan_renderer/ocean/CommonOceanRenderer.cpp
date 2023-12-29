@@ -48,10 +48,10 @@ void CommonOceanVulkanRenderer::CreatePipelineLayout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout),
+      "failed to create pipeline layout!");
 }
 
 void CommonOceanVulkanRenderer::InitializeShaders() {

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <set>
 #include <stdexcept>
+#include <cassert>
 
 #include "third-party/SDL/include/SDL_vulkan.h"
 
@@ -45,6 +46,48 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance,
     func(instance, debugMessenger, pAllocator);
   }
 }
+
+std::string vulkan_utils::error_string(VkResult errorCode) {
+  switch (errorCode) {
+#define STR(r) \
+  case VK_##r: \
+    return #r
+    STR(NOT_READY);
+    STR(TIMEOUT);
+    STR(EVENT_SET);
+    STR(EVENT_RESET);
+    STR(INCOMPLETE);
+    STR(ERROR_OUT_OF_HOST_MEMORY);
+    STR(ERROR_OUT_OF_DEVICE_MEMORY);
+    STR(ERROR_INITIALIZATION_FAILED);
+    STR(ERROR_DEVICE_LOST);
+    STR(ERROR_MEMORY_MAP_FAILED);
+    STR(ERROR_LAYER_NOT_PRESENT);
+    STR(ERROR_EXTENSION_NOT_PRESENT);
+    STR(ERROR_FEATURE_NOT_PRESENT);
+    STR(ERROR_INCOMPATIBLE_DRIVER);
+    STR(ERROR_TOO_MANY_OBJECTS);
+    STR(ERROR_FORMAT_NOT_SUPPORTED);
+    STR(ERROR_SURFACE_LOST_KHR);
+    STR(ERROR_NATIVE_WINDOW_IN_USE_KHR);
+    STR(SUBOPTIMAL_KHR);
+    STR(ERROR_OUT_OF_DATE_KHR);
+    STR(ERROR_INCOMPATIBLE_DISPLAY_KHR);
+    STR(ERROR_VALIDATION_FAILED_EXT);
+    STR(ERROR_INVALID_SHADER_NV);
+#undef STR
+    default:
+      return "UNKNOWN_ERROR";
+  }
+}
+
+void vulkan_utils::check_results(VkResult result, const std::string& failureMessage){
+  if (result != VK_SUCCESS) {
+    std::cout << "Fatal : VkResult is \"" << vulkan_utils::error_string(result) << "\" in " << __FILE__
+              << " at line " << __LINE__ << "Failure Message: " << failureMessage <<"\n";
+    assert(result == VK_SUCCESS);
+  }
+}   
 
 GraphicsDeviceVulkan::GraphicsDeviceVulkan(SDL_Window* window) : m_window(window) {
   if (!vulkan_device::is_vulkan_loaded) {
@@ -139,7 +182,7 @@ void GraphicsDeviceVulkan::populateDebugMessengerCreateInfo(
 
 void GraphicsDeviceVulkan::createSurface() {
   if (SDL_Vulkan_CreateSurface(m_window, m_instance, &m_surface) == SDL_FALSE) {
-    throw new std::exception("failed to create window surface!");
+    throw new std::runtime_error("failed to create window surface!");
   }
 }
 

@@ -261,10 +261,8 @@ void TFragmentVulkan::AllocateDescriptorSets(std::vector<VkDescriptorSet>& descr
   descriptorSetAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
   descriptorSetAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
 
-  if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &descriptorSetAllocInfo,
-                               descriptorSets.data())) {
-    throw std::exception("Failed to allocated descriptor set in Shrub");
-  }
+  vulkan_utils::check_results(vkAllocateDescriptorSets(m_device->getLogicalDevice(), &descriptorSetAllocInfo,
+                               descriptorSets.data()), "Failed to allocated descriptor set in Shrub");
 }
 
 bool TFragmentVulkan::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
@@ -591,10 +589,8 @@ void TFragmentVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
 }
 
 void TFragmentVulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, VulkanTexture& texture, int index) {

@@ -82,10 +82,8 @@ void ShrubVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
 }
 
 void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
@@ -159,21 +157,21 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
       vertexAllocInfo.pSetLayouts = &vertexDescriptorSetLayout;
       vertexAllocInfo.descriptorSetCount = 1;
 
-      if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &vertexAllocInfo,
-                                   &m_trees[l_tree].vertex_shader_descriptor_set)) {
-        throw std::exception("Failed to allocated descriptor set in Shrub");
-      }
-
+      vulkan_utils::check_results(
+          vkAllocateDescriptorSets(m_device->getLogicalDevice(), &vertexAllocInfo,
+                                   &m_trees[l_tree].vertex_shader_descriptor_set),
+          "Failed to allocated descriptor set in Shrub");
+      
       m_trees[l_tree].fragment_shader_descriptor_sets.resize(tree.static_draws.size());
       std::vector<VkDescriptorSetLayout> fragmentDescriptorSetLayouts{tree.static_draws.size(),
                                                                       fragmentDescriptorSetLayout};
       fragmentAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
       fragmentAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
 
-      if (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &fragmentAllocInfo,
-                                   m_trees[l_tree].fragment_shader_descriptor_sets.data())) {
-        throw std::exception("Failed to allocated descriptor set in Shrub");
-      }
+      vulkan_utils::check_results(
+          vkAllocateDescriptorSets(m_device->getLogicalDevice(), &fragmentAllocInfo,
+                                   m_trees[l_tree].fragment_shader_descriptor_sets.data()),
+          "Failed to allocated descriptor set in Shrub");
     }
 
     total_shrub_vertices.insert(total_shrub_vertices.end(), tree.unpacked.vertices.begin(),

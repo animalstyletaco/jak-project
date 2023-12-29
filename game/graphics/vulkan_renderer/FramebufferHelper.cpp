@@ -61,10 +61,9 @@ void FramebufferVulkan::createFramebuffer() {
   framebufferInfo.height = extents.height;
   framebufferInfo.layers = 1;
 
-  if (vkCreateFramebuffer(m_device->getLogicalDevice(), &framebufferInfo, nullptr, &framebuffer) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create framebuffer!");
-  }
+  vulkan_utils::check_results(
+      vkCreateFramebuffer(m_device->getLogicalDevice(), &framebufferInfo, nullptr, &framebuffer),
+      "failed to create framebuffer!");
 }
 
 FramebufferVulkan::~FramebufferVulkan() {
@@ -237,10 +236,9 @@ void FramebufferVulkan::createRenderPass() {
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  if (vkCreateRenderPass(m_device->getLogicalDevice(), &renderPassInfo, nullptr, &render_pass) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create render pass!");
-  }
+  vulkan_utils::check_results(
+      vkCreateRenderPass(m_device->getLogicalDevice(), &renderPassInfo, nullptr, &render_pass),
+      "failed to create render pass!");
 }
 
 void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer,

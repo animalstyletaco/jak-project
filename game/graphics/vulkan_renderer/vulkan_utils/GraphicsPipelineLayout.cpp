@@ -384,10 +384,10 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
   pipelineInfo.basePipelineIndex = -1;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-  if (vkCreateGraphicsPipelines(_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo,
-                                nullptr, &_graphicsPipeline) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create graphics pipeline");
-  }
+  vulkan_utils::check_results(
+      vkCreateGraphicsPipelines(_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo,
+                                nullptr, &_graphicsPipeline),
+      "failed to create graphics pipeline");
   _currentPipelineConfig = configInfo;
 }
 

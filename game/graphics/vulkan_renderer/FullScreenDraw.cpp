@@ -51,10 +51,9 @@ void FullScreenDrawVulkan::create_command_buffers() {
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-  if (vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo, commandBuffers.data()) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to allocate command buffers!");
-  }
+  vulkan_utils::check_results(
+      vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo, commandBuffers.data()),
+      "failed to allocate command buffers!");
 }
 
 void FullScreenDrawVulkan::init_shaders() {
@@ -87,10 +86,10 @@ void FullScreenDrawVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pushConstantRangeCount = 1;
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout),
+      "failed to create pipeline layout!");
 }
 
 void FullScreenDrawVulkan::draw(const math::Vector4f& color,
@@ -106,15 +105,13 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_layout.updateGraphicsPipeline(commandBuffer, m_pipeline_config_info);
 
-  // TODO: Check for swap chain error
-  auto result = m_vulkan_info.swap_chain->acquireNextImage(&currentImageIndex);
+  m_vulkan_info.swap_chain->acquireNextImage(&currentImageIndex);
 
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
-  if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-    throw std::runtime_error("failed to begin recording command buffer!");
-  }
+  vulkan_utils::check_results(vkBeginCommandBuffer(commandBuffer, &beginInfo),
+                              "failed to begin recording command buffer!");
 
   m_vulkan_info.swap_chain->beginSwapChainRenderPass(commandBuffer, currentImageIndex);
   m_pipeline_layout.bind(commandBuffer);
@@ -122,19 +119,24 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   vkCmdPushConstants(commandBuffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(color), &color);
 
-  m_vulkan_info.swap_chain->drawCommandBuffer(
-      commandBuffer, m_vertex_buffer, m_pipeline_config_info.pipelineLayout, m_descriptor_sets);
+  m_vulkan_info.swap_chain->setViewportScissor(commandBuffer);
+
+  VkDeviceSize offsets[] = {0};
+  VkBuffer vertex_buffer_vulkan = m_vertex_buffer->getBuffer();
+  vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertex_buffer_vulkan, offsets);
+
+  vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
+                          m_descriptor_sets.data(), 0, nullptr);
+
+  vkCmdDraw(commandBuffer, m_vertex_buffer->getBufferSize(), 0, 0, 0);
 
   m_vulkan_info.swap_chain->endSwapChainRenderPass(commandBuffer);
-  if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-    throw std::runtime_error("failed to record command buffer!");
-  }
+  vulkan_utils::check_results(vkEndCommandBuffer(commandBuffer),
+                              "failed to record command buffer!");
 
-  if (m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to present swap chain image!");
-  }
-  vkQueueWaitIdle(m_device->graphicsQueue());
+  m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
+  vulkan_utils::check_results(vkQueueWaitIdle(m_device->graphicsQueue()), "Graphics queue failed to wait");
 }
 
 FullScreenDrawVulkan::~FullScreenDrawVulkan() {

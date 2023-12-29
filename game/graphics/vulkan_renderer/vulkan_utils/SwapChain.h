@@ -37,42 +37,6 @@ class SwapChain {
   uint32_t height() { return swapChainExtent.height; }
   std::shared_ptr<GraphicsDeviceVulkan> getLogicalDevice() { return device; };
 
-  void drawCommandBuffer(VkCommandBuffer commandBuffer,
-                         std::unique_ptr<VertexBuffer>& vertex_buffer,
-                         VkPipelineLayout& pipeline_layout,
-                         std::vector<VkDescriptorSet>& descriptors);
-
-  void setupForDrawIndexedCommand(VkCommandBuffer commandBuffer,
-                                  VertexBuffer* vertex_buffer,
-                                  IndexBuffer* index_buffer,
-                                  VkPipelineLayout& pipeline_layout,
-                                  std::vector<VkDescriptorSet>& descriptors,
-                                  uint32_t dynamicDescriptorCount = 0,
-                                  uint32_t* dynamicDescriptorOffsets = nullptr);
-
-  void drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                std::unique_ptr<VertexBuffer>& vertex_buffer,
-                                std::unique_ptr<IndexBuffer>& index_buffer,
-                                VkPipelineLayout& pipeline_layout,
-                                std::vector<VkDescriptorSet>& descriptors,
-                                uint32_t dynamicDescriptorCount = 0,
-                                uint32_t* dynamicDescriptorOffsets = nullptr);
-
-  void drawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                VertexBuffer* vertex_buffer,
-                                IndexBuffer* index_buffer,
-                                VkPipelineLayout& pipeline_layout,
-                                std::vector<VkDescriptorSet>& descriptors,
-                                uint32_t dynamicDescriptorCount = 0,
-                                uint32_t* dynamicDescriptorOffsets = nullptr);
-
-  void multiDrawIndexedCommandBuffer(VkCommandBuffer commandBuffer,
-                                     VertexBuffer* vertex_buffer,
-                                     IndexBuffer* index_buffer,
-                                     VkPipelineLayout& pipeline_layout,
-                                     std::vector<VkDescriptorSet>& descriptors,
-                                     MultiDrawVulkanBuffer* multiDrawBuffer);
-
   void setViewportScissor(VkCommandBuffer commandBuffer);
   void clearFramebufferImage(uint32_t currentImageIndex);
   void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);
@@ -84,7 +48,7 @@ class SwapChain {
   VkFormat findDepthFormat();
 
   VkResult acquireNextImage(uint32_t* imageIndex);
-  VkResult submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex);
+  void submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex);
 
   bool compareSwapFormats(const SwapChain& swapChain) const {
     return swapChain.swapChainDepthFormat == swapChainDepthFormat &&

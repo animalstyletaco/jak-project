@@ -194,10 +194,10 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
+                             &m_pipeline_layout),
+      "failed to create pipeline layout!");
 
   VkPipelineLayoutCreateInfo texturedPipelineLayoutInfo{};
   texturedPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -216,10 +216,8 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   texturedPipelineLayoutInfo.pPushConstantRanges = texturedPushConstantRanges.data();
   texturedPipelineLayoutInfo.pushConstantRangeCount = texturedPushConstantRanges.size();
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr,
-                             &m_textured_pipeline_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr,
+                             &m_textured_pipeline_layout), "failed to create pipeline layout!");
 
   VkPipelineLayoutCreateInfo debugRedPipelineLayoutInfo{};
   debugRedPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -234,10 +232,10 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   debugRedPipelineLayoutInfo.pPushConstantRanges = &debugRedPushConstantRange;
   debugRedPipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  if (vkCreatePipelineLayout(m_device->getLogicalDevice(), &debugRedPipelineLayoutInfo, nullptr,
-                             &m_debug_red_pipeline_layout) != VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
-  }
+  vulkan_utils::check_results(
+      vkCreatePipelineLayout(m_device->getLogicalDevice(), &debugRedPipelineLayoutInfo, nullptr,
+                             &m_debug_red_pipeline_layout),
+      "failed to create pipeline layout!");
 }
 
 DirectVulkanRenderer::~DirectVulkanRenderer() {

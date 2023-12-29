@@ -14,11 +14,8 @@ VkShaderModule VulkanShader::PopulateShader(const std::vector<u8>& code) {
   create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
   VkShaderModule shader_module = VK_NULL_HANDLE;
-  if (vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module) != VK_SUCCESS) {
-    lg::error("failed to create shader module!");
-    m_is_okay = false;
-    throw std::runtime_error("failed to create shader module!");
-  }
+  vulkan_utils::check_results(vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module),
+                              "failed to create shader module!");
 
   return shader_module;
 }

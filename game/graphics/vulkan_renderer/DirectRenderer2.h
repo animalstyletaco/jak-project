@@ -20,7 +20,7 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
   void reset_state();
   void render_gif_data(const u8* data,
                        SharedVulkanRenderState* render_state,
-                       ScopedProfilerNode& prof);
+                       ScopedProfilerNode& prof, VkCommandBuffer command_buffer);
   void flush_pending(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
   ~DirectVulkanRenderer2();
 
@@ -57,19 +57,23 @@ class DirectVulkanRenderer2 : public BaseDirectRenderer2 {
                                ScopedProfilerNode& prof);
 
   std::shared_ptr<GraphicsDeviceVulkan> m_device;
-  std::vector<GraphicsPipelineLayout> m_pipeline_layouts;
+
   PipelineConfigInfo m_pipeline_config_info;
   VulkanInitializationInfo& m_vulkan_info;
-  VulkanSamplerHelper m_sampler_helper;
+
+  GraphicsPipelineLayout m_graphics_pipeline_layout{m_device};
+  VulkanSamplerHelper m_sampler_helper{m_device};
 
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
 
-  std::unique_ptr<VkDescriptorImageInfo> m_descriptor_image_info;
+  VkDescriptorImageInfo m_descriptor_image_info{};
 
   struct PushConstant {
     math::Vector4f fog_colors;
     float alpha_reject;
     float color_mult;
   } m_push_constant;
+
+  VkCommandBuffer m_command_buffer = VK_NULL_HANDLE;
 };

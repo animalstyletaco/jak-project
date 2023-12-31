@@ -11,7 +11,7 @@ MercVulkan2BucketRenderer::MercVulkan2BucketRenderer(const std::string& name,
 
 void MercVulkan2BucketRenderer::render(DmaFollower& dma,
                                        SharedVulkanRenderState* render_state,
-                                       ScopedProfilerNode& prof) {
+                                       ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   // skip if disabled
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {
@@ -20,6 +20,7 @@ void MercVulkan2BucketRenderer::render(DmaFollower& dma,
     return;
   }
 
+  m_merc2->set_command_buffer(command_buffer);
   m_merc2->render(dma, render_state, prof, &m_debug_stats);
 }
 
@@ -39,7 +40,7 @@ MercVulkan2BucketRendererJak1::MercVulkan2BucketRendererJak1(
 
 void MercVulkan2BucketRendererJak1::render(DmaFollower& dma,
                                            SharedVulkanRenderState* render_state,
-                                           ScopedProfilerNode& prof) {
+                                           ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   // skip if disabled
   if (!m_enabled) {
     while (dma.current_tag_offset() != render_state->next_bucket) {

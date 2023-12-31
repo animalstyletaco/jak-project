@@ -28,7 +28,8 @@ void WarpVulkan::generic_draw_debug_window() {
 
 void WarpVulkan::render(DmaFollower& dma,
                         SharedVulkanRenderState* render_state,
-                        ScopedProfilerNode& prof) {
+                        ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
   // m_fb_copier.copy_now(render_state->render_fb_w, render_state->render_fb_h,
   //                      render_state->render_fb_x, render_state->render_fb_y,
   //                      render_state->render_fb);

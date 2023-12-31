@@ -13,7 +13,7 @@ class BlitDisplaysVulkan : public BaseBucketRenderer, public BucketVulkanRendere
                      VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void render(DmaFollower& dma,
               BaseSharedRenderState* render_state,
               ScopedProfilerNode& prof) override {}

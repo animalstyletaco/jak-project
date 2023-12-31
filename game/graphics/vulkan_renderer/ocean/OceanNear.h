@@ -22,7 +22,7 @@ class OceanNearVulkanJak1 : public BaseOceanNearJak1, public BucketVulkanRendere
   }
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void init_textures(VulkanTexturePool& pool) override;
 
  private:
@@ -55,7 +55,7 @@ class OceanNearVulkanJak2 : public BaseOceanNearJak2, public BucketVulkanRendere
   }
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void init_textures(VulkanTexturePool& pool) override;
 
  private:

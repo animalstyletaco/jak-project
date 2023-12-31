@@ -22,17 +22,21 @@ void OceanVulkanMidAndFarJak2::draw_debug_window() {
 
 void OceanVulkanMidAndFarJak1::render(DmaFollower& dma,
                                       SharedVulkanRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
+                                      ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
   m_direct_renderer_call_count = 0;
   m_direct.set_current_index(m_direct_renderer_call_count);
+  m_direct.set_command_buffer(command_buffer);
   BaseOceanMidAndFarJak1::render(dma, render_state, prof);
 }
 
 void OceanVulkanMidAndFarJak2::render(DmaFollower& dma,
                                       SharedVulkanRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
+                                      ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
   m_direct_renderer_call_count = 0;
   m_direct.set_current_index(m_direct_renderer_call_count);
+  m_direct.set_command_buffer(command_buffer);
   BaseOceanMidAndFarJak2::render(dma, render_state, prof);
 }
 
@@ -47,12 +51,12 @@ void OceanVulkanMidAndFarJak2::init_textures(VulkanTexturePool& pool) {
 void OceanVulkanMidAndFarJak1::ocean_mid_renderer_run(DmaFollower& dma,
                                                       BaseSharedRenderState* render_state,
                                                       ScopedProfilerNode& prof) {
-  m_mid_renderer.run(dma, render_state, prof);
+  m_mid_renderer.run(dma, render_state, prof, m_command_buffer);
 }
 void OceanVulkanMidAndFarJak2::ocean_mid_renderer_run(DmaFollower& dma,
                                                       BaseSharedRenderState* render_state,
                                                       ScopedProfilerNode& prof) {
-  m_mid_renderer.run(dma, render_state, prof);
+  m_mid_renderer.run(dma, render_state, prof, m_command_buffer);
 }
 void OceanVulkanMidAndFar::direct_renderer_render_gif(const u8* data,
                                                       u32 size,

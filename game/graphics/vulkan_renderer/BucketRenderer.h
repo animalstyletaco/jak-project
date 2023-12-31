@@ -50,7 +50,6 @@ struct VulkanInitializationInfo {
   VulkanShaderLibrary shaders;
   std::shared_ptr<VulkanTexturePool> texture_pool;
   std::shared_ptr<VulkanLoader> loader;
-  VkCommandBuffer render_command_buffer;
   uint64_t currentFrame = 0;
 };
 
@@ -68,7 +67,7 @@ class BucketVulkanRenderer {
 
   virtual void render(DmaFollower& dma,
                       SharedVulkanRenderState* render_state,
-                      ScopedProfilerNode& prof) = 0;
+                      ScopedProfilerNode& prof, VkCommandBuffer commandBuffer) = 0;
   virtual void init_textures(VulkanTexturePool& pool){};
   virtual void init_shaders(VulkanShaderLibrary& pool){};
   virtual void create_pipeline_layout(){};
@@ -92,6 +91,8 @@ class BucketVulkanRenderer {
 
   std::unique_ptr<DescriptorWriter> m_vertex_descriptor_writer;
   std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+
+  VkCommandBuffer m_command_buffer = VK_NULL_HANDLE;
 };
 
 class RenderVulkanMux : public BucketVulkanRenderer, public BaseRenderMux {
@@ -104,7 +105,7 @@ class RenderVulkanMux : public BucketVulkanRenderer, public BaseRenderMux {
                   std::vector<std::shared_ptr<BaseBucketRenderer>> bucket_renderers);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer commandBuffer) override;
   void init_textures(VulkanTexturePool& tp) override;
 
  private:
@@ -123,7 +124,7 @@ class EmptyBucketVulkanRenderer : public BucketVulkanRenderer, public BaseEmptyB
                             VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer commandBuffer) override;
 };
 
 class SkipVulkanRenderer : public BucketVulkanRenderer, public BaseSkipRenderer {
@@ -134,5 +135,5 @@ class SkipVulkanRenderer : public BucketVulkanRenderer, public BaseSkipRenderer 
                      VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer commandBuffer) override;
 };

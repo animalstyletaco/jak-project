@@ -59,16 +59,15 @@ void ShadowVulkan2::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void ShadowVulkan2::render(DmaFollower& dma,
                            SharedVulkanRenderState* render_state,
-                           ScopedProfilerNode& prof) {
+                           ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_command_buffer = command_buffer;
   BaseShadow2::render(dma, render_state, prof);
 }
 
@@ -154,7 +153,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
     m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
     PrepareVulkanDraw(m_ogl.front_graphics_pipeline_layout);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_front_index_buffer_used - 6, 1, 0, 0,
+    vkCmdDrawIndexed(m_command_buffer, m_front_index_buffer_used - 6, 1, 0, 0,
                      0);
 
     if (m_debug_draw_volume) {
@@ -164,7 +163,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
 
       PrepareVulkanDraw(m_ogl.front_debug_graphics_pipeline_layout);
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_front_index_buffer_used - 6, 1, 0, 0,
+      vkCmdDrawIndexed(m_command_buffer, m_front_index_buffer_used - 6, 1, 0, 0,
                        0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
@@ -191,14 +190,14 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
     m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
     PrepareVulkanDraw(m_ogl.back_graphics_pipeline_layout);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_back_index_buffer_used, 1, 0, 0, 0);
+    vkCmdDrawIndexed(m_command_buffer, m_back_index_buffer_used, 1, 0, 0, 0);
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_ogl.fragment_push_constant = math::Vector4f{0., 0.0, 0., 0.5};
       // m_pipeline_config_info.rasterizationInfo.cullMode = VK_CULL_MODE_FRONT_AND_BACK;
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       PrepareVulkanDraw(m_ogl.back_debug_graphics_pipeline_layout);
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_back_index_buffer_used, 1, 0, 0, 0);
+      vkCmdDrawIndexed(m_command_buffer, m_back_index_buffer_used, 1, 0, 0, 0);
 
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
@@ -256,7 +255,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
     m_pipeline_config_info.colorBlendAttachment.alphaBlendOp =
         VK_BLEND_OP_REVERSE_SUBTRACT;  // Optional
     PrepareVulkanDraw(m_ogl.lighten_graphics_pipeline_layout);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 6, 1, m_front_index_buffer_used - 6, 0,
+    vkCmdDrawIndexed(m_command_buffer, 6, 1, m_front_index_buffer_used - 6, 0,
                      0);
   }
 
@@ -268,7 +267,7 @@ void ShadowVulkan2::draw_buffers(BaseSharedRenderState* render_state,
     m_pipeline_config_info.colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;  // Optional
     m_pipeline_config_info.colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;  // Optional
     PrepareVulkanDraw(m_ogl.darken_graphics_pipeline_layout);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 6, 1, m_front_index_buffer_used - 6, 0,
+    vkCmdDrawIndexed(m_command_buffer, 6, 1, m_front_index_buffer_used - 6, 0,
                      0);
   }
 
@@ -300,14 +299,14 @@ void ShadowVulkan2::InitializeInputAttributes() {
 
 void ShadowVulkan2::PrepareVulkanDraw(
     std::unique_ptr<GraphicsPipelineLayout>& graphics_pipeline_layout) {
-  graphics_pipeline_layout->updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  graphics_pipeline_layout->updateGraphicsPipeline(m_command_buffer,
                                                    m_pipeline_config_info);
-  graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
+  graphics_pipeline_layout->bind(m_command_buffer);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_ogl.vertex_push_constant),
                      &m_ogl.vertex_push_constant);
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(m_ogl.fragment_push_constant),
                      &m_ogl.fragment_push_constant);
 }

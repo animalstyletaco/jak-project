@@ -46,39 +46,36 @@ void VulkanTexturePool::upload_to_gpu(const u8* data, u16 w, u16 h, VulkanTextur
   // samplerInfo.maxLod = static_cast<float>(mipLevels);
   samplerInfo.mipLodBias = 0.0f;
 
-  if (vkCreateSampler(m_device->getLogicalDevice(), &samplerInfo, nullptr,
-                      &m_placeholder_sampler) != VK_SUCCESS) {
-    throw std::runtime_error("Failed to create place holder sampler");
-  }
+  m_device->createSampler(&samplerInfo, nullptr, &m_placeholder_sampler);
 
   m_placeholder_descriptor_image_info = VkDescriptorImageInfo{
       m_placeholder_sampler, texture.getImageView(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 }
 
 VulkanGpuTextureMap* VulkanTexturePool::give_texture(const VulkanTextureInput& in) {
-  const auto [textureMap, doesTextureExist] = lookup_or_insert_loaded_textures(in.id);
-  if (!doesTextureExist) {
+  const auto [texture_map, does_texture_exist] = lookup_or_insert_loaded_textures(in.id);
+  if (!does_texture_exist) {
     // nothing references this texture yet.
-    textureMap->tex_id = in.id;
-    textureMap->is_common = in.common;
-    textureMap->gpu_textures.push_back(in.texture);
-    textureMap->is_placeholder = false;
+    texture_map->set_texture_id(in.id);
+    texture_map->set_common_texture_status(in.common);
+    texture_map->gpu_textures.push_back(in.texture);
+    texture_map->set_placeholder_status(false);
     *lookup_or_insert_id_to_name(in.id).first =
         fmt::format("{}/{}", in.debug_page_name, in.debug_name);
-    return textureMap;
-  } else {
-    if (!textureMap->is_placeholder) {
-      // two sources for texture. this is fine.
-      ASSERT(!textureMap->gpu_textures.empty());
-    } else {
-      ASSERT(textureMap->gpu_textures.empty());
-    }
-    textureMap->is_placeholder = false;
-    textureMap->gpu_textures.push_back(in.texture);
-    textureMap->is_common = in.common;
-    refresh_links(*textureMap);
-    return textureMap;
+    return texture_map;
   }
+
+  if (!texture_map->get_placeholder_status()) {
+    // two sources for texture. this is fine.
+    ASSERT(!texture_map->gpu_textures.empty());
+  } else {
+    ASSERT(texture_map->gpu_textures.empty());
+  }
+  texture_map->set_placeholder_status(false);
+  texture_map->gpu_textures.push_back(in.texture);
+  texture_map->set_common_texture_status(in.common);
+  refresh_links(*texture_map);
+  return texture_map;
 }
 
 VulkanGpuTextureMap* VulkanTexturePool::give_texture_and_load_to_vram(const VulkanTextureInput& in,
@@ -89,37 +86,34 @@ VulkanGpuTextureMap* VulkanTexturePool::give_texture_and_load_to_vram(const Vulk
 }
 
 void VulkanTexturePool::move_existing_to_vram(VulkanGpuTextureMap* tex, u32 slot_addr) {
-  ASSERT(!tex->is_placeholder);
+  ASSERT(!tex->get_placeholder_status());
   ASSERT(!tex->gpu_textures.empty());
   auto& slot = m_textures[slot_addr];
-  if (std::find(tex->slots.begin(), tex->slots.end(), slot_addr) == tex->slots.end()) {
-    tex->slots.push_back(slot_addr);
-  }
-  if (slot.source) {
-    if (slot.source == tex) {
-      // we already have it, no need to do anything
-    } else {
-      slot.source->remove_slot(slot_addr);
-      slot.source = tex;
-      slot.texture = tex->get_selected_texture();
-    }
-  } else {
+  tex->add_slot_if_not_found(slot_addr);
+
+  if (!slot.source) {
+    slot.source = tex;
+    slot.texture = tex->get_selected_texture();
+  } else if (slot.source != tex) {
+    slot.source->remove_slot(slot_addr);
     slot.source = tex;
     slot.texture = tex->get_selected_texture();
   }
 }
 
-void VulkanTexturePool::refresh_links(VulkanGpuTextureMap& texture) {
+void VulkanTexturePool::refresh_links(VulkanGpuTextureMap& texture_map) {
   VulkanTexture* tex_to_use =
-      texture.is_placeholder ? &m_placeholder_texture : texture.get_selected_texture();
+      texture_map.get_placeholder_status() ? &m_placeholder_texture : texture_map.get_selected_texture();
 
-  for (auto slot : texture.slots) {
+  auto slots = texture_map.get_slots();
+  for (const auto& slot : slots) {
     auto& t = m_textures[slot];
-    ASSERT(t.source == &texture);
+    ASSERT(t.source == &texture_map);
     t.texture = tex_to_use;
   }
 
-  for (auto slot : texture.mt4hh_slots) {
+  auto mt4hh_slots = texture_map.get_mt4hh_slots();
+  for (const auto& slot : mt4hh_slots) {
     for (auto& tex : m_mt4hh_textures) {
       if (tex.slot == slot) {
         tex.ref.texture = tex_to_use;
@@ -131,11 +125,11 @@ void VulkanTexturePool::refresh_links(VulkanGpuTextureMap& texture) {
 void VulkanTexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
   auto* tex = lookup_existing_loaded_textures(tex_id);
   ASSERT(tex);
-  if (tex->is_common) {
+  if (tex->get_common_texture_status()) {
     ASSERT(false);
     return;
   }
-  ASSERT_MSG(!tex->is_placeholder,
+  ASSERT_MSG(!tex->get_common_texture_status(),
              fmt::format("trying to unload something that was already placholdered: {} {}\n",
                          get_debug_texture_name(tex_id), tex->gpu_textures.size()));
   auto it = std::find_if(tex->gpu_textures.begin(), tex->gpu_textures.end(),
@@ -144,20 +138,9 @@ void VulkanTexturePool::unload_texture(PcTextureId tex_id, u64 gpu_id) {
 
   tex->gpu_textures.erase(it);
   if (tex->gpu_textures.empty()) {
-    tex->is_placeholder = true;
+    tex->set_placeholder_status(true);
   }
   refresh_links(*tex);
-}
-
-void VulkanGpuTextureMap::remove_slot(u32 slot) {
-  auto it = std::find(slots.begin(), slots.end(), slot);
-  ASSERT(it != slots.end());
-  slots.erase(it);
-}
-
-void VulkanGpuTextureMap::add_slot(u32 slot) {
-  ASSERT(std::find(slots.begin(), slots.end(), slot) == slots.end());
-  slots.push_back(slot);
 }
 
 /*!
@@ -202,36 +185,34 @@ void VulkanTexturePool::handle_upload_now(const u8* tpage,
   // loop over all texture in the tpage and download them.
   for (int tex_idx = 0; tex_idx < texture_page.length; tex_idx++) {
     GoalTexture tex;
-    if (texture_page.try_copy_texture_description(&tex, tex_idx, memory_base, tpage, s7_ptr)) {
-      // each texture may have multiple mip levels.
-      for (int mip_idx = 0; mip_idx < tex.num_mips; mip_idx++) {
-        if (has_segment[tex.segment_of_mip(mip_idx)]) {
-          PcTextureId current_id(texture_page.id, tex_idx);
-          if (!lookup_existing_id_to_name(current_id)) {
-            auto name = std::string(texture_pool::goal_string(texture_page.name_ptr, memory_base)) +
-                        texture_pool::goal_string(tex.name_ptr, memory_base);
-            *lookup_or_insert_id_to_name(current_id).first = name;
-            set_name_to_id(name, current_id);
-          }
-
-          auto& slot = m_textures[tex.dest[mip_idx]];
-
-          if (slot.source) {
-            if (slot.source->tex_id == current_id) {
-              // we already have it, no need to do anything
-            } else {
-              slot.source->remove_slot(tex.dest[mip_idx]);
-              slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
-              ASSERT(slot.texture);
-            }
-          } else {
-            slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
-            ASSERT(slot.texture);
-          }
-        }
-      }
-    } else {
+    if (!texture_page.try_copy_texture_description(&tex, tex_idx, memory_base, tpage, s7_ptr)) {
       // texture was #f, skip it.
+      continue;
+    }
+      // each texture may have multiple mip levels.
+    for (int mip_idx = 0; mip_idx < tex.num_mips; mip_idx++) {
+      if (has_segment[tex.segment_of_mip(mip_idx)]) {
+        PcTextureId current_id(texture_page.id, tex_idx);
+        if (!lookup_existing_id_to_name(current_id)) {
+          auto name = std::string(texture_pool::goal_string(texture_page.name_ptr, memory_base)) +
+                      texture_pool::goal_string(tex.name_ptr, memory_base);
+          *lookup_or_insert_id_to_name(current_id).first = name;
+          set_name_to_id(name, current_id);
+        }
+
+        auto& slot = m_textures[tex.dest[mip_idx]];
+
+        if (!slot.source) {
+          slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
+          ASSERT(slot.texture);
+          continue;
+        }
+        if (slot.source->get_texture_id() != current_id) {
+          slot.source->remove_slot(tex.dest[mip_idx]);
+          slot.source = get_gpu_texture_for_slot(current_id, tex.dest[mip_idx]);
+          ASSERT(slot.texture);
+        }  
+      }
     }
   }
 }
@@ -245,53 +226,49 @@ void VulkanTexturePool::relocate(u32 destination, u32 source, u32 format) {
     m_mt4hh_textures.back().slot = destination;
     m_mt4hh_textures.back().ref.source = src;
     m_mt4hh_textures.back().ref.texture = src->get_selected_texture();
-    src->mt4hh_slots.push_back(destination);
+    src->force_add_mt4hh_slot(destination);
   } else {
     move_existing_to_vram(src, destination);
   }
 }
 
 VulkanGpuTextureMap* VulkanTexturePool::get_gpu_texture_for_slot(PcTextureId id, u32 slot) {
-  auto it = lookup_or_insert_loaded_textures(id);
-  if (!it.second) {
-    VulkanGpuTextureMap& placeholder = *it.first;
-    placeholder.tex_id = id;
-    placeholder.is_placeholder = true;
-    placeholder.slots.push_back(slot);
+  auto [texture_map, is_placeholder] = lookup_or_insert_loaded_textures(id);
+  if (!is_placeholder) {
+    texture_map->set_texture_id(id);
+    texture_map->set_placeholder_status(true);
+    texture_map->force_add_slot(slot);
 
-    // auto r = m_loaded_textures.insert({name, placeholder});
     m_textures[slot].texture = &m_placeholder_texture;
-    return it.first;
-  } else {
-    auto result = it.first;
-    result->add_slot(slot);
-    m_textures[slot].texture =
-        result->is_placeholder ? &m_placeholder_texture : result->get_selected_texture();
-    return result;
+    return texture_map;
   }
+
+  texture_map->add_slot(slot);
+  m_textures[slot].texture =
+      texture_map->get_placeholder_status() ? &m_placeholder_texture : texture_map->get_selected_texture();
+  return texture_map;
 }
 
 VulkanTexture* VulkanTexturePool::lookup_vulkan_texture(u32 location) {
   auto& t = m_textures[location];
-  if (t.source) {
-    if constexpr (EXTRA_TEX_DEBUG) {
-      if (t.source->is_placeholder) {
-        ASSERT(t.texture == &m_placeholder_texture);
-      } else {
-        bool fnd = false;
-        for (auto& tt : t.source->gpu_textures) {
-          if (tt->GetTextureId() == t.texture->GetTextureId()) {
-            fnd = true;
-            break;
-          }
-        }
-        ASSERT(fnd);
-      }
-    }
-    return t.texture;
-  } else {
+  if (!t.source) {
     return nullptr;
   }
+  if constexpr (EXTRA_TEX_DEBUG) {
+    if (t.source->get_placeholder_status()) {
+      ASSERT(t.texture == &m_placeholder_texture);
+    } else {
+      bool fnd = false;
+      for (auto& tt : t.source->gpu_textures) {
+        if (tt->GetTextureId() == t.texture->GetTextureId()) {
+          fnd = true;
+          break;
+        }
+      }
+      ASSERT(fnd);
+    }
+  }
+  return t.texture;
 }
 
 VulkanTexture* VulkanTexturePool::lookup_mt4hh_vulkan_texture(u32 location) {
@@ -333,9 +310,9 @@ void VulkanTexturePool::draw_debug_window() {
     auto& record = m_textures[i];
     total_textures++;
     if (record.source) {
-      if (std::regex_search(get_debug_texture_name(record.source->tex_id), regex)) {
+      if (std::regex_search(get_debug_texture_name(record.source->get_texture_id()), regex)) {
         ImGui::PushID(id++);
-        draw_debug_for_tex(get_debug_texture_name(record.source->tex_id), record.source, i);
+        draw_debug_for_tex(get_debug_texture_name(record.source->get_texture_id()), record.source, i);
         ImGui::PopID();
         total_displayed_textures++;
       }
@@ -358,7 +335,7 @@ void VulkanTexturePool::draw_debug_window() {
 void VulkanTexturePool::draw_debug_for_tex(const std::string& name,
                                            VulkanGpuTextureMap* tex,
                                            u32 slot) {
-  if (tex->is_placeholder) {
+  if (tex->get_placeholder_status()) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8, 0.3, 0.3, 1.0));
   } else if (tex->gpu_textures.size() == 1) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3, 0.8, 0.3, 1.0));
@@ -367,9 +344,9 @@ void VulkanTexturePool::draw_debug_for_tex(const std::string& name,
   }
   if (ImGui::TreeNode(fmt::format("{} {}", name, slot).c_str())) {
     VulkanTexture* vulkan_texture = tex->get_selected_texture();
-    ImGui::Text("P: %s sz: %d x %d", get_debug_texture_name(tex->tex_id).c_str(),
+    ImGui::Text("P: %s sz: %d x %d", get_debug_texture_name(tex->get_texture_id()).c_str(),
                 vulkan_texture->getWidth(), vulkan_texture->getHeight());
-    if (!tex->is_placeholder) {
+    if (!tex->get_placeholder_status()) {
       VulkanTexture* selected_texture = tex->get_selected_texture();
       ImGui::Image((void*)selected_texture->GetTextureId(),
                    ImVec2(selected_texture->getWidth(), selected_texture->getHeight()));
@@ -402,22 +379,22 @@ std::string VulkanTexturePool::get_debug_texture_name(PcTextureId id) {
 }
 
 VulkanTexturePool::~VulkanTexturePool() {
-  if (m_placeholder_sampler) {
-    vkDestroySampler(m_device->getLogicalDevice(), m_placeholder_sampler, nullptr);
-  }
+   m_device->destroySampler(m_placeholder_sampler, nullptr);
 }
 
 VulkanTexturePoolJak1::VulkanTexturePoolJak1(std::shared_ptr<GraphicsDeviceVulkan> device)
     : VulkanTexturePool(device),
       m_loaded_textures(get_jak1_tpage_dir()),
-      m_id_to_name(get_jak1_tpage_dir()),
-      m_tpage_dir_size(get_jak1_tpage_dir().size()) {}
+      m_id_to_name(get_jak1_tpage_dir()) {
+  m_tpage_dir_size = get_jak1_tpage_dir().size();
+}
 
 VulkanTexturePoolJak2::VulkanTexturePoolJak2(std::shared_ptr<GraphicsDeviceVulkan> device)
     : VulkanTexturePool(device),
       m_loaded_textures(get_jak2_tpage_dir()),
-      m_id_to_name(get_jak2_tpage_dir()),
-      m_tpage_dir_size(get_jak2_tpage_dir().size()) {}
+      m_id_to_name(get_jak2_tpage_dir()) {
+  m_tpage_dir_size = get_jak2_tpage_dir().size();
+}
 
 VulkanGpuTextureMap* VulkanTexturePoolJak1::lookup_existing_loaded_textures(PcTextureId tex_id) {
   return m_loaded_textures.lookup_existing(tex_id);

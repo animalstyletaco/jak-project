@@ -51,9 +51,7 @@ void FullScreenDrawVulkan::create_command_buffers() {
   allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
   allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
 
-  VK_CHECK_RESULT(
-      vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo, commandBuffers.data()),
-      "failed to allocate command buffers!");
+  m_device->allocateCommandBuffers(&allocInfo, commandBuffers.data());
 }
 
 void FullScreenDrawVulkan::init_shaders() {
@@ -86,10 +84,8 @@ void FullScreenDrawVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pushConstantRangeCount = 1;
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void FullScreenDrawVulkan::draw(const math::Vector4f& color,
@@ -113,7 +109,8 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
   VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &beginInfo),
                               "failed to begin recording command buffer!");
 
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(commandBuffer, currentImageIndex);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(commandBuffer, currentImageIndex,
+                                                     VK_SUBPASS_CONTENTS_INLINE);
   m_pipeline_layout.bind(commandBuffer);
 
   vkCmdPushConstants(commandBuffer, m_pipeline_config_info.pipelineLayout,
@@ -136,7 +133,7 @@ void FullScreenDrawVulkan::draw(const math::Vector4f& color,
 }
 
 FullScreenDrawVulkan::~FullScreenDrawVulkan() {
-  vkFreeCommandBuffers(m_device->getLogicalDevice(), m_device->getCommandPool(),
-                       static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+  m_device->freeCommandBuffers(m_device->getCommandPool(),
+                               static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
   commandBuffers.clear();
 }

@@ -26,12 +26,7 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
   m_current_image_layout = texture.m_image_create_info.initialLayout;
 
   m_image_view_create_info = texture.m_image_view_create_info;
-  if (m_image_view) {
-    VK_CHECK_RESULT(
-        vkCreateImageView(m_device->getLogicalDevice(), &m_image_view_create_info, nullptr,
-                          &m_image_view),
-        "failed to create texture image view!");
-  }
+  m_device->createImageView(&m_image_view_create_info, nullptr, &m_image_view);
 
   m_device_size = texture.m_device_size;
 }
@@ -51,9 +46,7 @@ void VulkanTexture::AllocateVulkanImageMemory() {
     m_image_create_info.extent.height = image_format_properties.maxExtent.height;
   }
 
-  VK_CHECK_RESULT(
-      vkCreateImage(m_device->getLogicalDevice(), &m_image_create_info, nullptr, &m_image),
-      "failed to create image!");
+  m_device->createImage(&m_image_create_info, nullptr, &m_image);
 
   VkMemoryRequirements memRequirements;
   vkGetImageMemoryRequirements(m_device->getLogicalDevice(), m_image, &memRequirements);
@@ -63,12 +56,9 @@ void VulkanTexture::AllocateVulkanImageMemory() {
   allocInfo.allocationSize = memRequirements.size;
   allocInfo.memoryTypeIndex =
       m_device->findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  m_device->allocateMemory(&allocInfo, nullptr, &m_device_memory);
+  m_device->bindImageMemory(m_image, m_device_memory);
 
-  VK_CHECK_RESULT(
-      vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &m_device_memory),
-      "failed to allocate image memory!");
-
-  vkBindImageMemory(m_device->getLogicalDevice(), m_image, m_device_memory, 0);
   m_initialized = true;
 }
 
@@ -128,23 +118,18 @@ void VulkanTexture::createImageView(VkImageViewType image_view_type,
   m_image_view_create_info.subresourceRange.baseArrayLayer = 0;
   m_image_view_create_info.subresourceRange.layerCount = 1;
 
-  VK_CHECK_RESULT(vkCreateImageView(m_device->getLogicalDevice(),
-                                                &m_image_view_create_info, nullptr, &m_image_view),
-                              "failed to create texture image view!");
+  m_device->createImageView(&m_image_view_create_info, nullptr, &m_image_view);
 }
 
 void VulkanTexture::destroyTexture() {
   if (m_image_view) {
-    vkDestroyImageView(m_device->getLogicalDevice(), m_image_view, nullptr);
-    m_image_view = VK_NULL_HANDLE;
+    m_device->destroyImageView(m_image_view, nullptr);
   }
   if (m_image) {
-    vkDestroyImage(m_device->getLogicalDevice(), m_image, nullptr);
-    m_image_view = VK_NULL_HANDLE;
+    m_device->destroyImage(m_image, nullptr);
   }
   if (m_device_memory) {
-    vkFreeMemory(m_device->getLogicalDevice(), m_device_memory, nullptr);
-    m_device_memory = VK_NULL_HANDLE;
+    m_device->freeMemory(m_device_memory, nullptr);
   }
 };
 

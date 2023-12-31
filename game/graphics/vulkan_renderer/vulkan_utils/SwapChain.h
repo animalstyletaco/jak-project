@@ -39,7 +39,9 @@ class SwapChain {
 
   void setViewportScissor(VkCommandBuffer commandBuffer);
   void clearFramebufferImage(uint32_t currentImageIndex);
-  void beginSwapChainRenderPass(VkCommandBuffer commandBuffer, uint32_t currentImageIndex);
+  void beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
+                                uint32_t currentImageIndex,
+                                VkSubpassContents contents = VK_SUBPASS_CONTENTS_INLINE);
   void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
 
   float extentAspectRatio() {

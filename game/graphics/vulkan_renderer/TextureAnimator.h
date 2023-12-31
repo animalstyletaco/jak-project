@@ -94,13 +94,11 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
 
  private:
   void copy_private_to_public();
-  void setup_texture_anims();
   void setup_sky();
   void handle_upload_clut_16_16(const DmaTransfer& tf, const u8* ee_mem);
   void handle_generic_upload(const DmaTransfer& tf, const u8* ee_mem) override;
   void handle_clouds_and_fog(const DmaTransfer& tf) override;
   void handle_slime(const DmaTransfer& tf) override;
-  void handle_erase_dest(DmaFollower& dma);
   void handle_set_shader(DmaFollower& dma);
   void handle_draw(DmaFollower& dma, VulkanTexturePool& texture_pool);
 
@@ -112,7 +110,6 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   VulkanTexture* make_temp_gpu_texture(const u32* data, u32 width, u32 height);
 
   VulkanTexture* make_or_get_gpu_texture_for_current_shader(VulkanTexturePool& texture_pool);
-  const u32* get_clut_16_16_psm32(int cbp);
   void load_clut_to_converter();
   void force_to_gpu(int tbp);
 
@@ -120,10 +117,6 @@ class VulkanTextureAnimator : public BaseTextureAnimator {
   void run_fixed_animation_array(int idx,
                                  const DmaTransfer& transfer,
                                  VulkanTexturePool* texture_pool);
-  void run_fixed_animation(BaseFixedAnim& anim, float time);
-
-  void set_uniforms_from_draw_data(const DrawData& dd, int dest_w, int dest_h);
-  void set_draw_data_from_interpolated(DrawData* result, const BaseLayerVals& vals, int w, int h);
 
   PcTextureId get_id_for_tbp(VulkanTexturePool* pool, u64 tbp, u64 other_id);
   void create_pipeline_layout();

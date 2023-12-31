@@ -18,7 +18,7 @@ class BaseDirectRenderer2 {
   void render_gif_data(const u8* data,
                        BaseSharedRenderState* render_state,
                        ScopedProfilerNode& prof);
-  void flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  virtual void flush_pending(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
   void draw_debug_window();
   virtual ~BaseDirectRenderer2();
 
@@ -27,8 +27,8 @@ class BaseDirectRenderer2 {
 
   void reset_buffers();
 
-  void draw_call_loop_simple(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-  void draw_call_loop_grouped(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  virtual void draw_call_loop_simple(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
+  virtual void draw_call_loop_grouped(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) = 0;
 
   // the GsState is the state of all Gs Registers.
   struct GsState {

@@ -17,6 +17,8 @@ class OceanVulkanTexture : public virtual BaseOceanTexture {
                                     ScopedProfilerNode& prof) = 0;
   void init_textures(VulkanTexturePool& pool);
   void draw_debug_window();
+  void set_command_buffer(VkCommandBuffer command_buffer) { m_command_buffer = command_buffer; }
+
   ~OceanVulkanTexture();
 
  private:
@@ -36,11 +38,9 @@ class OceanVulkanTexture : public virtual BaseOceanTexture {
   VulkanGpuTextureMap* m_tex0_gpu = nullptr;
   virtual u32 GetOceanTextureId() = 0;
 
-  struct PcDataVulkan {
-    std::unique_ptr<VertexBuffer> static_vertex_buffer;
-    std::unique_ptr<VertexBuffer> dynamic_vertex_buffer;
-    std::unique_ptr<IndexBuffer> graphics_index_buffer;
-  } m_vulkan_pc;
+  std::unique_ptr<VertexBuffer> static_vertex_buffer;
+  std::unique_ptr<VertexBuffer> dynamic_vertex_buffer;
+  std::unique_ptr<IndexBuffer> graphics_index_buffer;
 
   std::shared_ptr<GraphicsDeviceVulkan> m_device;
 
@@ -72,6 +72,8 @@ class OceanVulkanTexture : public virtual BaseOceanTexture {
   VkDescriptorSet m_ocean_texture_descriptor_set;
   std::array<VkDescriptorSet, NUM_MIPS> m_ocean_mipmap_texture_descriptor_sets;
   VulkanSamplerHelper m_sampler_helper{m_device};
+
+  VkCommandBuffer m_command_buffer = VK_NULL_HANDLE;
 };
 
 class OceanVulkanTextureJak1 : public BaseOceanTextureJak1, public OceanVulkanTexture {

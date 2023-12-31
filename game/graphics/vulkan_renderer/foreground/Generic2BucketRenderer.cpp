@@ -13,7 +13,8 @@ GenericVulkan2BucketRenderer::GenericVulkan2BucketRenderer(
 
 void GenericVulkan2BucketRenderer::render(DmaFollower& dma,
                                           SharedVulkanRenderState* render_state,
-                                          ScopedProfilerNode& prof) {
+                                          ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_generic->set_command_buffer(command_buffer);
   m_generic->render_in_mode(dma, render_state, prof, m_mode);
 }
 

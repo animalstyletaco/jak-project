@@ -11,7 +11,10 @@ class OceanMidVulkanJak1 : public BaseOceanMidJak1 {
   OceanMidVulkanJak1(std::shared_ptr<GraphicsDeviceVulkan> device,
                      VulkanInitializationInfo& vulkan_info);
 
-  void run(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void run(DmaFollower& dma,
+           BaseSharedRenderState* render_state,
+           ScopedProfilerNode& prof,
+           VkCommandBuffer command_buffer);
 
  private:
   void common_ocean_renderer_init_for_mid() override;
@@ -27,7 +30,10 @@ class OceanMidVulkanJak2 : public BaseOceanMidJak2 {
   OceanMidVulkanJak2(std::shared_ptr<GraphicsDeviceVulkan> device,
                      VulkanInitializationInfo& vulkan_info);
 
-  void run(DmaFollower& dma, BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void run(DmaFollower& dma,
+           BaseSharedRenderState* render_state,
+           ScopedProfilerNode& prof,
+           VkCommandBuffer command_buffer);
 
  private:
   void common_ocean_renderer_init_for_mid() override;

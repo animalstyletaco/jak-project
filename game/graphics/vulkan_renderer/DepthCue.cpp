@@ -144,16 +144,17 @@ void DepthCueVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout);
 }
 
 void DepthCueVulkan::render(DmaFollower& dma,
                             SharedVulkanRenderState* render_state,
-                            ScopedProfilerNode& prof) {
+                            ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples =
       m_vulkan_info.swap_chain->get_render_pass_sample_count();
+  m_command_buffer = command_buffer;
   BaseDepthCue::render(dma, render_state, prof);
 }
 
@@ -380,6 +381,9 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
 }
 
 void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_command_buffer);
+
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;
   m_pipeline_config_info.depthStencilInfo.depthWriteEnable = VK_FALSE;
   m_pipeline_config_info.depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
@@ -423,7 +427,7 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
   VulkanTexture& color_texture =
       m_vulkan_info.swap_chain->GetColorAttachmentImageAtIndex(m_vulkan_info.currentFrame);
   vkCmdResolveImage(
-      m_vulkan_info.render_command_buffer, color_texture.getImage(),
+      m_command_buffer, color_texture.getImage(),
       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, m_ogl.fbo->ColorAttachmentTexture().getImage(),
       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, imageResolves.size(), imageResolves.data());
 
@@ -451,33 +455,32 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                       m_pipeline_config_info);
-    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
-    VkViewport viewport;
+    VkViewport viewport{};
     viewport.x = 0;
     viewport.y = 0;
     viewport.width = m_ogl.fbo_width;
     viewport.height = m_ogl.fbo_height;
     VkRect2D extents = {{0, 0}, m_vulkan_info.swap_chain->getSwapChainExtent()};
 
-    vkCmdSetViewport(m_vulkan_info.render_command_buffer, 0, 1, &viewport);
-    vkCmdSetScissor(m_vulkan_info.render_command_buffer, 0, 1, &extents);
+    vkCmdSetViewport(m_command_buffer, 0, 1, &viewport);
+    vkCmdSetScissor(m_command_buffer, 0, 1, &extents);
 
     VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffers[] = {m_ogl.depth_cue_page_vertex_buffer->getBuffer()};
-    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
+    vkCmdBindVertexBuffers(m_command_buffer, 0, 1, vertex_buffers, offsets);
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_depth_cue_push_constant),
                        (void*)&m_depth_cue_push_constant);
 
-    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, 1, &m_descriptor_sets[0], 0,
                             NULL);
 
-    vkCmdDraw(m_vulkan_info.render_command_buffer, 6 * TOTAL_DRAW_SLICES, 1, 0, 0);
+    vkCmdDraw(m_command_buffer, 6 * TOTAL_DRAW_SLICES, 1, 0, 0);
   }
 
   // Finally, the contents of depth-cue-base-page need to be overlayed onto the on-screen
@@ -512,11 +515,10 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     prof.add_draw_call();
     prof.add_tri(2 * TOTAL_DRAW_SLICES);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                       m_pipeline_config_info);
-    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
-    VkViewport viewport;
+    VkViewport viewport{};
     viewport.x = render_state->draw_offset_x;
     viewport.y = render_state->draw_offset_y;
     viewport.width = render_state->draw_region_w;
@@ -524,22 +526,22 @@ void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNod
     VkRect2D extents = {{render_state->draw_offset_x, render_state->draw_offset_y},
                         m_vulkan_info.swap_chain->getSwapChainExtent()};
 
-    vkCmdSetViewport(m_vulkan_info.render_command_buffer, 0, 1, &viewport);
-    vkCmdSetScissor(m_vulkan_info.render_command_buffer, 0, 1, &extents);
+    vkCmdSetViewport(m_command_buffer, 0, 1, &viewport);
+    vkCmdSetScissor(m_command_buffer, 0, 1, &extents);
 
     VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffers[] = {m_ogl.on_screen_vertex_buffer->getBuffer()};
-    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
+    vkCmdBindVertexBuffers(m_command_buffer, 0, 1, vertex_buffers, offsets);
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_depth_cue_push_constant),
                        (void*)&m_depth_cue_push_constant);
 
-    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, 1, &m_descriptor_sets[1], 0,
                             NULL);
 
-    vkCmdDraw(m_vulkan_info.render_command_buffer, 6 * TOTAL_DRAW_SLICES, 1, 0, 0);
+    vkCmdDraw(m_command_buffer, 6 * TOTAL_DRAW_SLICES, 1, 0, 0);
   }
 
   // Done

@@ -27,18 +27,10 @@ struct VulkanTextureInput : BaseTextureInput {
  * This represents a unique in-game texture, including any instances of it that are loaded.
  * It's possible for there to be 0 instances of the texture loaded yet.
  */
-class VulkanGpuTextureMap {
+class VulkanGpuTextureMap : public VramTextureSlotSet {
  public:
-  VulkanGpuTextureMap(PcTextureId id) : tex_id(id) {}
+  VulkanGpuTextureMap(PcTextureId id) : VramTextureSlotSet(id) {}
   VulkanGpuTextureMap() = default;
-  PcTextureId tex_id;
-
-  // set to true if we have no copies of the texture, and we should use a placeholder
-  bool is_placeholder = false;
-
-  // set to true if we are part of the textures in GAME.CGO that are always loaded.
-  // for these textures, the pool can assume that we are never a placeholder.
-  bool is_common = false;
 
   bool are_textures_available() { return !gpu_textures.empty(); }
   u32 get_selected_slot() const { return (!slots.empty()) ? slots.at(0) : 0; }
@@ -48,15 +40,8 @@ class VulkanGpuTextureMap {
     return (!gpu_textures.empty()) ? gpu_textures.front() : nullptr;
   }
 
-  // add or remove a VRAM reference to this texture
-  void remove_slot(u32 slot);
-  void add_slot(u32 slot);
-
   // all the currently loaded copies of this texture
   std::vector<VulkanTexture*> gpu_textures;
-
-  std::vector<u32> slots;
-  std::vector<u32> mt4hh_slots;
 };
 
 /*!
@@ -157,7 +142,9 @@ class VulkanTexturePool {
   VkDescriptorImageInfo m_placeholder_descriptor_image_info;
 
   u32 m_next_pc_texture_to_allocate = 0;
+  u32 m_tpage_dir_size = 0;
 
+  std::unordered_map<std::string, PcTextureId> m_name_to_id;
   std::mutex m_mutex;
 };
 
@@ -173,9 +160,6 @@ class VulkanTexturePoolJak1 : public VulkanTexturePool {
   // we maintain a mapping of all textures/ids we've seen so far.
   // this is only used for debug.
   TextureMap<std::string> m_id_to_name;
-  std::unordered_map<std::string, PcTextureId> m_name_to_id;
-
-  u32 m_tpage_dir_size = 0;
 
   VulkanGpuTextureMap* lookup_existing_loaded_textures(PcTextureId tex_id) override;
   std::string* lookup_existing_id_to_name(PcTextureId tex_id) override;
@@ -197,9 +181,6 @@ class VulkanTexturePoolJak2 : public VulkanTexturePool {
   // we maintain a mapping of all textures/ids we've seen so far.
   // this is only used for debug.
   TextureMap<std::string> m_id_to_name;
-  std::unordered_map<std::string, PcTextureId> m_name_to_id;
-
-  u32 m_tpage_dir_size = 0;
 
   VulkanGpuTextureMap* lookup_existing_loaded_textures(PcTextureId tex_id) override;
   std::string* lookup_existing_id_to_name(PcTextureId tex_id) override;

@@ -15,7 +15,7 @@ class GenericVulkan2BucketRenderer : public BaseGeneric2BucketRenderer,
                                std::shared_ptr<GenericVulkan2> generic_renderer);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void draw_debug_window() override;
 
  protected:

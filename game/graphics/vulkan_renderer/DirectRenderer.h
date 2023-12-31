@@ -38,9 +38,10 @@ class DirectVulkanRenderer : public BaseDirectRenderer, public BucketVulkanRende
                        VulkanInitializationInfo& vulkan_info,
                        int batch_size);
   virtual ~DirectVulkanRenderer();
+  void set_command_buffer(VkCommandBuffer command_buffer) { m_command_buffer = command_buffer; }
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer) override;
 
   /*!
    * If you don't use the render interface, call this at the very end.

@@ -82,10 +82,8 @@ void EyeVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
@@ -107,7 +105,8 @@ void EyeVulkanRenderer::init_textures(VulkanTexturePool& texture_pool) {
 
 void EyeVulkanRenderer::render(DmaFollower& dma,
                                SharedVulkanRenderState* render_state,
-                               ScopedProfilerNode& prof) {
+                               ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
   BaseEyeRenderer::render(dma, render_state, prof);
 };
 
@@ -342,7 +341,7 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
 
   m_gpu_vertex_buffer->writeToGpuBuffer(m_gpu_vertex_buffer_data);
 
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  vkCmdEndRenderPass(m_command_buffer);
 
   buffer_idx = 0;
   for (size_t draw_idx = 0; draw_idx < m_eye_draw_map.size(); draw_idx++) {
@@ -360,10 +359,10 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
     }
     clearValues[1].depthStencil = {1.0f, 0};
 
-    frame_buffer_texture_pair.beginRenderPass(m_vulkan_info.render_command_buffer, clearValues);
+    frame_buffer_texture_pair.beginRenderPass(m_command_buffer, clearValues);
     m_pipeline_config_info.renderPass = frame_buffer_texture_pair.GetRenderPass();
 
-    frame_buffer_texture_pair.setViewportScissor(m_vulkan_info.render_command_buffer);
+    frame_buffer_texture_pair.setViewportScissor(m_command_buffer);
 
     // iris
     if (draw.iris_vulkan_graphics.texture) {
@@ -376,7 +375,7 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
           frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
           draw.iris_vulkan_graphics.texture->get_selected_texture()->getImageView(),
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.iris_vulkan_graphics,
+      ExecuteVulkanDraw(m_command_buffer, draw.iris_vulkan_graphics,
                         buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
@@ -399,7 +398,7 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
           frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
           draw.pupil_vulkan_graphics.texture->get_selected_texture()->getImageView(),
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.pupil_vulkan_graphics,
+      ExecuteVulkanDraw(m_command_buffer, draw.pupil_vulkan_graphics,
                         buffer_idx / 4, 4);
     }
     buffer_idx += 4 * 4;
@@ -411,7 +410,7 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
           frame_buffer_texture_pair.GetSamplerHelper().GetSampler(),
           draw.lid_vulkan_graphics.texture->get_selected_texture()->getImageView(),
           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-      ExecuteVulkanDraw(m_vulkan_info.render_command_buffer, draw.lid_vulkan_graphics,
+      ExecuteVulkanDraw(m_command_buffer, draw.lid_vulkan_graphics,
                         buffer_idx / 4, 4);
       // glDrawArrays(GL_TRIANGLE_STRIP, buffer_idx / 4, 4);
     }
@@ -419,11 +418,10 @@ void EyeVulkanRenderer::run_gpu(BaseSharedRenderState* render_state) {
 
     // finally, give to "vram"
     m_vulkan_info.texture_pool->move_existing_to_vram(out_tex->gpu_texture, out_tex->tbp);
-    vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+    vkCmdEndRenderPass(m_command_buffer);
   }
 
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
-                                                     m_vulkan_info.currentFrame);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_command_buffer, m_vulkan_info.currentFrame);
 
   ASSERT(check == buffer_idx);
 }
@@ -453,7 +451,7 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
 
   eye.descriptor_writer.overwrite(eye.descriptor_set);
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                     m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(commandBuffer);
 

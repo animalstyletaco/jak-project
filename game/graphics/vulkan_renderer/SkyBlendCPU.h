@@ -15,12 +15,17 @@ class SkyBlendCPU : public BaseSkyBlendCPU {
 
  private:
   void setup_gpu_texture(u32, bool, u32, u32, int, SkyBlendStats&) override;
+  void populate_texture_data(VulkanTexture* vulkan_texture,
+                             bool is_first_draw,
+                             u32 intensity,
+                             int buffer_idx);
+
   static constexpr int m_sizes[2] = {32, 64};
 
   struct TexInfo {
     std::unique_ptr<VulkanTexture> texture;
     u32 tbp;
-    VulkanGpuTextureMap* tex;
+    VulkanGpuTextureMap* texture_map_ref;
   } m_textures[2];
 
   std::shared_ptr<GraphicsDeviceVulkan> m_device;

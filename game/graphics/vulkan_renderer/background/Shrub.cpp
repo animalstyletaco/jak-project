@@ -51,9 +51,10 @@ ShrubVulkan::~ShrubVulkan() {
 
 void ShrubVulkan::render(DmaFollower& dma,
                          SharedVulkanRenderState* render_state,
-                         ScopedProfilerNode& prof) {
+                         ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  m_command_buffer = command_buffer; 
 
   m_multi_draw_buffer->Reset();
   BaseShrub::render(dma, render_state, prof);
@@ -82,8 +83,8 @@ void ShrubVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
@@ -350,21 +351,21 @@ void ShrubVulkan::render_tree(int idx,
 
   tree.perf.index_time.add(index_timer.getSeconds());
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = tree.vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
+  vkCmdBindIndexBuffer(m_command_buffer, tree.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_shrub_push_constant),
                      sizeof(m_time_of_day_push_constant), (void*)&m_time_of_day_push_constant);
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer, m_pipeline_config_info);
-  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_command_buffer);
 
   // Attach images here
   tree.time_of_day_descriptor_image_info = VkDescriptorImageInfo{
@@ -405,11 +406,11 @@ void ShrubVulkan::render_tree(int idx,
     PrepareVulkanDraw(tree, draw_idx);
 
     if (render_state->no_multidraw) {
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
+      vkCmdDrawIndexed(m_command_buffer, singledraw_indices.number_of_draws, 1,
                        singledraw_indices.draw_index, 0, 0);
     } else {
       vkCmdDrawIndexedIndirect(
-          m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+          m_command_buffer, m_multi_draw_buffer->getBuffer(),
           multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
           multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
     }
@@ -429,16 +430,16 @@ void ShrubVulkan::render_tree(int idx,
         m_time_of_day_push_constant.alpha_max = double_draw.aref_second;
 
         vkCmdPushConstants(
-            m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+            m_command_buffer, m_pipeline_config_info.pipelineLayout,
             VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_shrub_push_constant),
             sizeof(m_time_of_day_push_constant), (void*)&m_time_of_day_push_constant);
 
         if (render_state->no_multidraw) {
-          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,
+          vkCmdDrawIndexed(m_command_buffer, singledraw_indices.number_of_draws,
                            1, singledraw_indices.draw_index, 0, 0);
         } else {
           vkCmdDrawIndexedIndirect(
-              m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+              m_command_buffer, m_multi_draw_buffer->getBuffer(),
               multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
               multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
         }
@@ -453,7 +454,7 @@ void ShrubVulkan::render_tree(int idx,
 }
 
 void ShrubVulkan::PrepareVulkanDraw(TreeVulkan& tree, unsigned index) {
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                     m_pipeline_config_info);
 
   auto& fragment_write_descriptors_sets = m_fragment_descriptor_writer->getWriteDescriptorSets();
@@ -463,14 +464,14 @@ void ShrubVulkan::PrepareVulkanDraw(TreeVulkan& tree, unsigned index) {
 
   m_fragment_descriptor_writer->overwrite(tree.fragment_shader_descriptor_sets[index]);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_shrub_push_constant),
                      (void*)&m_vertex_shrub_push_constant);
 
   std::vector<VkDescriptorSet> descriptor_sets{tree.vertex_shader_descriptor_set,
                                                tree.fragment_shader_descriptor_sets[index]};
 
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                           descriptor_sets.data(), 0, NULL);
 }

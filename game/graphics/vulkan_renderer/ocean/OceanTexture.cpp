@@ -16,7 +16,7 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
 
   m_result_texture = std::make_unique<FramebufferVulkanHelper>(
       TEX0_SIZE, TEX0_SIZE, VK_FORMAT_R8G8B8A8_UNORM, device, VK_SAMPLE_COUNT_1_BIT,
-      m_generate_mipmaps ? NUM_MIPS : 1);
+      1);  // m_generate_mipmaps ? NUM_MIPS : 1);
   m_temp_texture = std::make_unique<FramebufferVulkanHelper>(TEX0_SIZE, TEX0_SIZE,
                                                              VK_FORMAT_R8G8B8A8_UNORM, device);
 
@@ -27,13 +27,14 @@ OceanVulkanTexture::OceanVulkanTexture(bool generate_mipmaps,
   init_pc();
   SetupShader(ShaderId::OCEAN_TEXTURE);
 
-  m_vulkan_pc.static_vertex_buffer =
-      std::make_unique<VertexBuffer>(m_device, sizeof(math::Vector2f), NUM_VERTS);
-  m_vulkan_pc.dynamic_vertex_buffer =
-      std::make_unique<VertexBuffer>(m_device, sizeof(Vertex), NUM_VERTS, 1);
-  m_vulkan_pc.graphics_index_buffer = std::make_unique<IndexBuffer>(
-      m_device, sizeof(u32), NUM_VERTS * 2,
-      1);  // Allocated extra size to account for primitive restarts in index buffer
+  static_vertex_buffer =
+      std::make_unique<VertexBuffer>(m_device, sizeof(math::Vector2f) * NUM_VERTS, 1, 1);
+  dynamic_vertex_buffer =
+      std::make_unique<VertexBuffer>(m_device, sizeof(Vertex) * NUM_VERTS, 1, 1);
+
+  // Allocated extra size to account for primitive restarts in index buffer
+  graphics_index_buffer =
+      std::make_unique<IndexBuffer>(m_device, sizeof(u32) * NUM_VERTS * 2, 1, 1);  
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -104,7 +105,7 @@ void OceanVulkanTextureJak2::handle_ocean_texture(DmaFollower& dma,
  */
 void OceanVulkanTexture::make_texture_with_mipmaps(BaseSharedRenderState* render_state,
                                                    ScopedProfilerNode& prof) {
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  vkCmdEndRenderPass(m_command_buffer);
   // FIXME: image layout is to VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL at this point but
   // texture.initialLayout is set to VK_IMAGE_LAYOUT_UNDEFINED
   // m_temp_texture->ColorAttachmentTexture().SetImageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -135,7 +136,7 @@ void OceanVulkanTexture::make_texture_with_mipmaps(BaseSharedRenderState* render
   m_device->endSingleTimeCommands(commandBuffer);
 
   m_result_texture->GenerateMipmaps();
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_command_buffer,
                                                      m_vulkan_info.currentFrame);
   // m_result_texture->TransitionImageLayout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, NUM_MIPS);
 }
@@ -143,7 +144,7 @@ void OceanVulkanTexture::make_texture_with_mipmaps(BaseSharedRenderState* render
 void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
   ASSERT(m_pc.vtx_idx == 2112);
 
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  vkCmdEndRenderPass(m_command_buffer);
   if (m_result_texture->GetCurrentSampleCount() != m_device->getMsaaCount()) {
     if (!m_generate_mipmaps) {
       m_result_texture->initializeFramebufferAtLevel(m_device->getMsaaCount(), 1);
@@ -155,27 +156,30 @@ void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfil
   auto& framebuffer_helper = (m_generate_mipmaps) ? m_temp_texture : m_result_texture;
   m_pipeline_info.renderPass = framebuffer_helper->GetRenderPass();
   m_pipeline_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
-  framebuffer_helper->beginRenderPass(m_vulkan_info.render_command_buffer);
+  framebuffer_helper->beginRenderPass(m_command_buffer);
 
-  m_vulkan_pc.static_vertex_buffer->writeToGpuBuffer(m_pc.vertex_positions.data());
-  m_vulkan_pc.dynamic_vertex_buffer->writeToGpuBuffer(m_pc.vertex_dynamic.data());
-  m_vulkan_pc.graphics_index_buffer->writeToGpuBuffer(m_pc.index_buffer.data(),
-                                                      m_pc.index_buffer.size());
+  static_vertex_buffer->writeToGpuBuffer(
+      m_pc.vertex_positions.data(),
+      m_pc.vertex_positions.size() * sizeof(m_pc.vertex_positions[0]));
+  dynamic_vertex_buffer->writeToGpuBuffer(
+      m_pc.vertex_dynamic.data(), m_pc.vertex_dynamic.size() * sizeof(m_pc.vertex_dynamic[0]));
+  graphics_index_buffer->writeToGpuBuffer(m_pc.index_buffer.data(),
+                                          m_pc.index_buffer.size() * sizeof(m_pc.index_buffer[0]));
 
   VkDeviceSize offsets[] = {0, 0};
-  std::array<VkBuffer, 2> vertex_buffers = {m_vulkan_pc.dynamic_vertex_buffer->getBuffer(),
-                                            m_vulkan_pc.static_vertex_buffer->getBuffer()};
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, vertex_buffers.size(),
+  std::array<VkBuffer, 2> vertex_buffers = {static_vertex_buffer->getBuffer(),
+                                            dynamic_vertex_buffer->getBuffer()};
+  vkCmdBindVertexBuffers(m_command_buffer, 0, vertex_buffers.size(),
                          vertex_buffers.data(), offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
-                       m_vulkan_pc.graphics_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+  vkCmdBindIndexBuffer(m_command_buffer,
+                       graphics_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
   SetupShader(ShaderId::OCEAN_TEXTURE);
 
   m_ocean_texture_graphics_pipeline_layout->updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_info);
-  m_ocean_texture_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
+      m_command_buffer, m_pipeline_info);
+  m_ocean_texture_graphics_pipeline_layout->bind(m_command_buffer);
 
   GsTex0 tex0(m_envmap_adgif.tex0_data);
   auto lookup = m_vulkan_info.texture_pool->lookup_vulkan_texture(tex0.tbp0());
@@ -199,46 +203,48 @@ void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfil
       m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_info);
 
   m_fragment_descriptor_writer->overwrite(m_ocean_texture_descriptor_set);
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_info.pipelineLayout, 0, 1, &m_ocean_texture_descriptor_set, 0,
                           NULL);
 
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_pc.index_buffer.size(), 1, 0, 0, 0);
+  vkCmdDrawIndexed(m_command_buffer, m_pc.index_buffer.size(), 1, 0, 0, 0);
 
   prof.add_draw_call();
   prof.add_tri(NUM_STRIPS * NUM_STRIPS * 2);
 
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
-                                                     m_vulkan_info.currentFrame);
+  vkCmdEndRenderPass(m_command_buffer);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_command_buffer, m_vulkan_info.currentFrame,
+                                                     VK_SUBPASS_CONTENTS_INLINE);
 }
 
 void OceanVulkanTexture::InitializeMipmapVertexInputAttributes() {
   // Ocean Texture
   m_ocean_texture_input_binding_attribute_descriptions.resize(2);
   m_ocean_texture_input_binding_attribute_descriptions[0].binding = 0;
-  m_ocean_texture_input_binding_attribute_descriptions[0].stride = sizeof(BaseOceanTexture::Vertex);
+  m_ocean_texture_input_binding_attribute_descriptions[0].stride = sizeof(math::Vector2f);
   m_ocean_texture_input_binding_attribute_descriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
   m_ocean_texture_input_binding_attribute_descriptions[1].binding = 1;
-  m_ocean_texture_input_binding_attribute_descriptions[1].stride = sizeof(math::Vector2f);
+  m_ocean_texture_input_binding_attribute_descriptions[1].stride = sizeof(BaseOceanTexture::Vertex);
   m_ocean_texture_input_binding_attribute_descriptions[1].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
 
   m_ocean_texture_input_attribute_descriptions.resize(3);
   m_ocean_texture_input_attribute_descriptions[0].binding = 0;
   m_ocean_texture_input_attribute_descriptions[0].location = 0;
   m_ocean_texture_input_attribute_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-  m_ocean_texture_input_attribute_descriptions[0].offset = offsetof(BaseOceanTexture::Vertex, s);
-
-  m_ocean_texture_input_attribute_descriptions[1].binding = 0;
-  m_ocean_texture_input_attribute_descriptions[1].location = 1;
-  m_ocean_texture_input_attribute_descriptions[1].format = VK_FORMAT_R8G8B8A8_UNORM;
-  m_ocean_texture_input_attribute_descriptions[1].offset = offsetof(BaseOceanTexture::Vertex, rgba);
+  m_ocean_texture_input_attribute_descriptions[0].offset = 0;
 
   m_ocean_texture_input_attribute_descriptions[2].binding = 1;
-  m_ocean_texture_input_attribute_descriptions[2].location = 2;
-  m_ocean_texture_input_attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-  m_ocean_texture_input_attribute_descriptions[2].offset = 0;
+  m_ocean_texture_input_attribute_descriptions[2].location = 1;
+  m_ocean_texture_input_attribute_descriptions[2].format = VK_FORMAT_R8G8B8A8_UNORM;
+  m_ocean_texture_input_attribute_descriptions[2].offset = offsetof(BaseOceanTexture::Vertex, rgba);
+
+  m_ocean_texture_input_attribute_descriptions[1].binding = 1;
+  m_ocean_texture_input_attribute_descriptions[1].location = 2;
+  m_ocean_texture_input_attribute_descriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+  m_ocean_texture_input_attribute_descriptions[1].offset = offsetof(BaseOceanTexture::Vertex, s);
+
 
   // Mipmap
   m_ocean_texture_mipmap_input_binding_attribute_description.binding = 0;
@@ -268,10 +274,8 @@ void OceanVulkanTexture::CreatePipelineLayout() {
       static_cast<uint32_t>(descriptorSetLayouts.size());
   oceanTexturePipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &oceanTexturePipelineLayoutInfo, nullptr,
-                             &m_ocean_texture_pipeline_layout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&oceanTexturePipelineLayoutInfo, nullptr,
+                                 &m_ocean_texture_pipeline_layout);
 
   VkPipelineLayoutCreateInfo oceanTextureMipmapPipelineLayoutInfo{};
   oceanTextureMipmapPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -295,10 +299,8 @@ void OceanVulkanTexture::CreatePipelineLayout() {
   oceanTextureMipmapPipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   oceanTextureMipmapPipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &oceanTextureMipmapPipelineLayoutInfo,
-                             nullptr, &m_ocean_texture_mipmap_pipeline_layout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&oceanTextureMipmapPipelineLayoutInfo, nullptr,
+                                 &m_ocean_texture_mipmap_pipeline_layout);
 }
 
 void OceanVulkanTexture::SetupShader(ShaderId shaderId) {

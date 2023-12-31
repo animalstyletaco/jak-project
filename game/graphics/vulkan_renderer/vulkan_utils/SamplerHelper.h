@@ -13,20 +13,15 @@ class VulkanSamplerHelper {
   };
   VkSamplerCreateInfo& GetSamplerCreateInfo() { return m_create_info; }
   VkSampler GetSampler() { return m_sampler; };
-  VkResult CreateSampler() {
+  void CreateSampler() {
     DestroySampler();
-    return vkCreateSampler(m_device->getLogicalDevice(), &m_create_info, nullptr, &m_sampler);
+    m_device->createSampler(&m_create_info, nullptr, &m_sampler);
   }
 
   ~VulkanSamplerHelper() { DestroySampler(); }
 
  private:
-  void DestroySampler() {
-    if (m_sampler) {
-      vkDestroySampler(m_device->getLogicalDevice(), m_sampler, nullptr);
-      m_sampler = VK_NULL_HANDLE;
-    }
-  }
+  void DestroySampler() { m_device->destroySampler(m_sampler, nullptr); }
 
   std::shared_ptr<GraphicsDeviceVulkan> m_device;
 

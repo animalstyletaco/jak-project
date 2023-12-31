@@ -540,7 +540,8 @@ void SwapChain::clearFramebufferImage(uint32_t currentImageIndex) {
 }
 
 void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
-                                         uint32_t currentImageIndex) {
+                                         uint32_t currentImageIndex,
+                                         VkSubpassContents contents) {
   VkRenderPassBeginInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
   renderPassInfo.renderPass = noClearRenderPass;
@@ -549,7 +550,7 @@ void SwapChain::beginSwapChainRenderPass(VkCommandBuffer commandBuffer,
   renderPassInfo.renderArea.offset = {0, 0};
   renderPassInfo.renderArea.extent = getSwapChainExtent();
 
-  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+  vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, contents);
 }
 
 void SwapChain::setViewportScissor(VkCommandBuffer commandBuffer) {

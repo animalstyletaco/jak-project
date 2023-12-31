@@ -20,11 +20,8 @@ DirectVulkanRenderer2::DirectVulkanRenderer2(std::shared_ptr<GraphicsDeviceVulka
   m_vertices.indices.resize(max_inds);
   m_draw_buffer.resize(max_draws);
 
-  m_pipeline_layouts.resize(10, m_device);
-
-  m_ogl.index_buffer = std::make_unique<IndexBuffer>(device, sizeof(u32), max_inds, 1);
-
-  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, sizeof(Vertex), max_verts, 1);
+  m_ogl.index_buffer = std::make_unique<IndexBuffer>(device, sizeof(u32) * max_inds, 1, 1);
+  m_ogl.vertex_buffer = std::make_unique<VertexBuffer>(device, sizeof(Vertex) * max_verts, 1, 1);
 
   m_fragment_descriptor_layout =
       DescriptorLayout::Builder(m_device)
@@ -32,7 +29,6 @@ DirectVulkanRenderer2::DirectVulkanRenderer2(std::shared_ptr<GraphicsDeviceVulka
           .build();
 
   CreatePipelineLayout();
-
   m_fragment_descriptor_writer = std::make_unique<DescriptorWriter>(m_fragment_descriptor_layout,
                                                                     m_vulkan_info.descriptor_pool);
   InitializeShaderModule();
@@ -59,10 +55,8 @@ void DirectVulkanRenderer2::CreatePipelineLayout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void DirectVulkanRenderer2::InitializeInputVertexAttribute() {
@@ -138,6 +132,14 @@ void DirectVulkanRenderer2::reset_state() {
   reset_buffers();
 }
 
+void DirectVulkanRenderer2::render_gif_data(const u8* data,
+                                            SharedVulkanRenderState* render_state,
+                                            ScopedProfilerNode& prof,
+                                            VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
+  BaseDirectRenderer2::render_gif_data(data, render_state, prof);
+}
+
 void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
                                           ScopedProfilerNode& prof) {
   // skip, if we're empty.
@@ -154,15 +156,18 @@ void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffers[] = {m_ogl.index_buffer->getBuffer()};
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, vertex_buffers, offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_ogl.index_buffer->getBuffer(), 0,
+  vkCmdBindIndexBuffer(m_command_buffer, m_ogl.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
   m_stats.upload_wait += upload_timer.getSeconds();
   m_stats.num_uploads++;
   m_stats.upload_bytes +=
       (m_vertices.next_vertex * sizeof(Vertex)) + (m_vertices.next_index * sizeof(u32));
+
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_graphics_pipeline_layout.bind(m_command_buffer);
 
   // draw call loop
   // draw_call_loop_simple(render_state, prof);
@@ -181,13 +186,15 @@ void DirectVulkanRenderer2::draw_call_loop_simple(SharedVulkanRenderState* rende
     setup_vulkan_tex(0, draw.tbp, draw.mode.get_filt_enable(), draw.mode.get_clamp_s_enable(),
                      draw.mode.get_clamp_t_enable(), render_state);
 
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer, m_pipeline_config_info);
+
     int end_idx;
     if (draw_idx == m_next_free_draw - 1) {
       end_idx = m_vertices.next_index;
     } else {
       end_idx = m_draw_buffer[draw_idx + 1].start_index;
     }
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1,
+    vkCmdDrawIndexed(m_command_buffer, end_idx - draw.start_index, 1,
                      draw.start_index, 0, 0);
     // glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT,
     // (void*)offset);
@@ -232,12 +239,7 @@ void DirectVulkanRenderer2::draw_call_loop_grouped(SharedVulkanRenderState* rend
       end_idx = m_draw_buffer[end_of_draw_group + 1].start_index;
     }
 
-    // fmt::print("drawing {:4d} with abe {} tex {} {}", end_idx - draw.start_index,
-    // (int)draw.mode.get_ab_enable(), end_of_draw_group - draw_idx, draw.to_single_line_string() );
-    // fmt::print("{}\n", draw.mode.to_string());
-    // glDrawElements(GL_TRIANGLE_STRIP, end_idx - draw.start_index, GL_UNSIGNED_INT,
-    // (void*)offset);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, end_idx - draw.start_index, 1,
+    vkCmdDrawIndexed(m_command_buffer, end_idx - draw.start_index, 1,
                      draw.start_index, 0, 0);
     prof.add_draw_call();
     prof.add_tri((end_idx - draw.start_index) / 3);
@@ -413,7 +415,7 @@ void DirectVulkanRenderer2::setup_vulkan_for_draw_mode(const Draw& draw,
     ASSERT(false);
   }
   // yes using a texture
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float), sizeof(m_push_constant),
                      (void*)&m_push_constant);
 }
@@ -425,7 +427,7 @@ void DirectVulkanRenderer2::setup_vulkan_tex(u16 unit,
                                              bool clamp_t,
                                              SharedVulkanRenderState* render_state) {
   // look up the texture
-  VulkanTexture* tex;
+  VulkanTexture* tex = nullptr;
   u32 tbp_to_lookup = tbp & 0x7fff;
   bool use_mt4hh = tbp & 0x8000;
 

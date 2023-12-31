@@ -209,7 +209,7 @@ class SpriteVulkan3Jak1 : public BaseSprite3Jak1, public SpriteVulkan3 {
 
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
 };
 
 class SpriteVulkan3Jak2 : public BaseSprite3Jak2, public SpriteVulkan3 {
@@ -230,5 +230,5 @@ class SpriteVulkan3Jak2 : public BaseSprite3Jak2, public SpriteVulkan3 {
 
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
 };

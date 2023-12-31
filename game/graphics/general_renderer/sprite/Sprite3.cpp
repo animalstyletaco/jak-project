@@ -10,10 +10,6 @@
 #include "third-party/fmt/core.h"
 #include "third-party/imgui/imgui.h"
 
-constexpr int SPRITE_RENDERER_MAX_SPRITES = 1920 * 10;
-constexpr int SPRITE_RENDERER_MAX_DISTORT_SPRITES =
-    256 * 12;  // size of sprite-aux-list in GOAL code * SPRITE_MAX_AMOUNT_MULT
-
 BaseSprite3::BaseSprite3(const std::string& name, int my_id) : BaseBucketRenderer(name, my_id) {}
 
 void BaseSprite3::graphics_setup() {

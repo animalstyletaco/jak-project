@@ -85,7 +85,8 @@ SkyBlendVulkanHandlerJak2::SkyBlendVulkanHandlerJak2(
 
 void SkyBlendVulkanHandler::render(DmaFollower& dma,
                                    SharedVulkanRenderState* render_state,
-                                   ScopedProfilerNode& prof) {
+                                   ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
   BaseSkyBlendHandler::render(dma, render_state, prof);
 }
 
@@ -103,7 +104,7 @@ void SkyBlendVulkanHandler::handle_sky_copies(DmaFollower& dma,
       m_gpu_stats = m_shared_cpu_blender->do_sky_blends(dma, render_state, prof);
 
     } else {
-      m_gpu_stats = m_shared_gpu_blender->do_sky_blends(dma, render_state, prof);
+      m_gpu_stats = m_shared_gpu_blender->do_sky_blends(dma, render_state, prof, m_command_buffer);
     }
   }
 }
@@ -117,13 +118,13 @@ SkyBlendStats SkyBlendVulkanHandler::cpu_blender_do_sky_blends(DmaFollower& dma,
 SkyBlendStats SkyBlendVulkanHandler::gpu_blender_do_sky_blends(DmaFollower& dma,
                                                                BaseSharedRenderState* render_state,
                                                                ScopedProfilerNode& prof) {
-  return m_shared_gpu_blender->do_sky_blends(dma, render_state, prof);
+  return m_shared_gpu_blender->do_sky_blends(dma, render_state, prof, m_command_buffer);
 }
 
 void SkyBlendVulkanHandler::tfrag_renderer_render(DmaFollower& dma,
                                                   BaseSharedRenderState* render_state,
                                                   ScopedProfilerNode& tfrag_prof) {
-  GetTFragmentRenderer().render(dma, (SharedVulkanRenderState*)render_state, tfrag_prof);
+  GetTFragmentRenderer().render(dma, (SharedVulkanRenderState*)render_state, tfrag_prof, m_command_buffer);
 }
 
 void SkyBlendVulkanHandler::tfrag_renderer_draw_debug_window() {
@@ -152,8 +153,9 @@ SkyVulkanRendererJak2::SkyVulkanRendererJak2(const std::string& name,
 
 void SkyVulkanRenderer::render(DmaFollower& dma,
                                SharedVulkanRenderState* render_state,
-                               ScopedProfilerNode& prof) {
+                               ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_direct_renderer_call_count = 0;
+  GetDirectRenderer().set_command_buffer(command_buffer);
   GetDirectRenderer().set_current_index(m_direct_renderer_call_count);
   BaseSkyRenderer::render(dma, render_state, prof);
 }

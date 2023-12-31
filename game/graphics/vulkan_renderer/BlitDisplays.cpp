@@ -43,7 +43,8 @@ BlitDisplaysVulkan::BlitDisplaysVulkan(const std::string& name,
 
 void BlitDisplaysVulkan::render(DmaFollower& dma,
                                 SharedVulkanRenderState* render_state,
-                                ScopedProfilerNode& prof) {
+                                ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
   auto& back = render_state->back_fbo;
   bool valid = back && render_state->isFramebufferValid;
 
@@ -56,39 +57,40 @@ void BlitDisplaysVulkan::render(DmaFollower& dma,
         case 0x10: {  // copy buffer->texture (tbp in vif1)
           u32 tbp = data.vifcode1().immediate;
           ASSERT_MSG(tbp == m_tbp, fmt::format("unexpected tbp {}", tbp));
-          if (valid) {
-            // copy buffer texture -> custom texture
-            auto my_tex_id = m_gpu_tex->gpu_textures.at(0);
-
-            VkImageCopy imageCopy{};
-            imageCopy.srcOffset.x = my_tex_id->getWidth();
-            imageCopy.srcOffset.y = my_tex_id->getHeight();
-            imageCopy.srcOffset.z = my_tex_id->getDepth();
-
-            imageCopy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageCopy.srcSubresource.baseArrayLayer = 0;
-            imageCopy.srcSubresource.layerCount = 1;
-            imageCopy.srcSubresource.mipLevel = 0;
-
-            imageCopy.dstOffset.x = back->ColorAttachmentTexture().getWidth();
-            imageCopy.dstOffset.x = back->ColorAttachmentTexture().getHeight();
-            imageCopy.dstOffset.x = back->ColorAttachmentTexture().getDepth();
-
-            imageCopy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-            imageCopy.dstSubresource.baseArrayLayer = 0;
-            imageCopy.dstSubresource.layerCount = 1;
-            imageCopy.dstSubresource.mipLevel = 0;
-
-            vkCmdCopyImage(m_vulkan_info.render_command_buffer, my_tex_id->getImage(),
-                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                           back->ColorAttachmentTexture().getImage(),
-                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, &imageCopy);
-
-            m_vulkan_info.texture_pool->move_existing_to_vram(m_gpu_tex, m_tbp);
-          } else {
+          if (!valid) {
             lg::error("no valid back buffer to blit!");
+            break;
           }
-        } break;
+          // copy buffer texture -> custom texture
+          auto my_tex_id = m_gpu_tex->gpu_textures.at(0);
+
+          VkImageCopy imageCopy{};
+          imageCopy.srcOffset.x = my_tex_id->getWidth();
+          imageCopy.srcOffset.y = my_tex_id->getHeight();
+          imageCopy.srcOffset.z = my_tex_id->getDepth();
+
+          imageCopy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+          imageCopy.srcSubresource.baseArrayLayer = 0;
+          imageCopy.srcSubresource.layerCount = 1;
+          imageCopy.srcSubresource.mipLevel = 0;
+
+          imageCopy.dstOffset.x = back->ColorAttachmentTexture().getWidth();
+          imageCopy.dstOffset.x = back->ColorAttachmentTexture().getHeight();
+          imageCopy.dstOffset.x = back->ColorAttachmentTexture().getDepth();
+
+          imageCopy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+          imageCopy.dstSubresource.baseArrayLayer = 0;
+          imageCopy.dstSubresource.layerCount = 1;
+          imageCopy.dstSubresource.mipLevel = 0;
+
+          vkCmdCopyImage(m_command_buffer, my_tex_id->getImage(),
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                         back->ColorAttachmentTexture().getImage(),
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, &imageCopy);
+
+          m_vulkan_info.texture_pool->move_existing_to_vram(m_gpu_tex, m_tbp);
+          break;
+        }
       }
     }
   }

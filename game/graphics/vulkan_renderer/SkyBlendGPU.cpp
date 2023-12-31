@@ -107,10 +107,8 @@ void SkyBlendVulkanGPU::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantVertexRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 SkyBlendVulkanGPU::~SkyBlendVulkanGPU() {}
@@ -128,7 +126,7 @@ void SkyBlendVulkanGPU::init_textures(VulkanTexturePool& tex_pool) {
 
 SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
                                                BaseSharedRenderState* render_state,
-                                               ScopedProfilerNode& prof) {
+                                               ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   SkyBlendStats stats;
 
   m_pipeline_config_info.colorBlendAttachment.colorWriteMask =
@@ -152,7 +150,7 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
   m_pipeline_config_info.colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
-  m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->endSwapChainRenderPass(command_buffer);
 
   while (dma.current_tag().qwc == 6) {
     // assuming that the vif and gif-tag is correct
@@ -203,8 +201,8 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
     }
 
     // TODO: Are there different clear values for other draw calls
-    m_framebuffers[buffer_idx]->beginRenderPass(m_vulkan_info.render_command_buffer);
-    m_framebuffers[buffer_idx]->setViewportScissor(m_vulkan_info.render_command_buffer);
+    m_framebuffers[buffer_idx]->beginRenderPass(command_buffer);
+    m_framebuffers[buffer_idx]->setViewportScissor(command_buffer);
 
     // intensities should be 0-128 (maybe higher is okay, but I don't see how this could be
     // generated with the GOAL code.)
@@ -221,7 +219,7 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
 
     VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffers = m_vertex_buffer->getBuffer();
-    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffers, offsets);
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffers, offsets);
 
     m_descriptor_image_infos[buffer_idx] =
         VkDescriptorImageInfo{m_sampler_helpers[buffer_idx]->GetSampler(), tex->getImageView(),
@@ -233,16 +231,16 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
 
     m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[buffer_idx]);
 
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+    m_graphics_pipeline_layout.updateGraphicsPipeline(command_buffer,
                                                       m_pipeline_config_info);
-    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.bind(command_buffer);
 
-    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, 1,
                             &m_fragment_descriptor_sets[buffer_idx], 0, NULL);
 
     // Draw a sqaure
-    vkCmdDraw(m_vulkan_info.render_command_buffer, 6, 1, 0, 0);
+    vkCmdDraw(command_buffer, 6, 1, 0, 0);
 
     // 1 draw, 2 triangles
     prof.add_draw_call(1);
@@ -265,10 +263,10 @@ SkyBlendStats SkyBlendVulkanGPU::do_sky_blends(DmaFollower& dma,
       }
     }
 
-    vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+    vkCmdEndRenderPass(command_buffer);
   }
 
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(command_buffer,
                                                      m_vulkan_info.currentFrame);
 
   return stats;

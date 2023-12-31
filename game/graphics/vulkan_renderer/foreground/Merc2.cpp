@@ -205,15 +205,8 @@ void MercVulkan2::create_pipeline_layout() {
   emercPipelineLayoutInfo.pPushConstantRanges = emercPushConstantRanges.data();
   emercPipelineLayoutInfo.pushConstantRangeCount = emercPushConstantRanges.size();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &mercPipelineLayoutInfo, nullptr,
-                             &m_merc_pipeline_layout),
-      "failed to create merc pipeline layout!");
-
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &emercPipelineLayoutInfo, nullptr,
-                             &m_emerc_pipeline_layout),
-      "failed to create emerc pipeline layout!");
+  m_device->createPipelineLayout(&mercPipelineLayoutInfo, nullptr, &m_merc_pipeline_layout);
+  m_device->createPipelineLayout(&emercPipelineLayoutInfo, nullptr, &m_emerc_pipeline_layout);
 
   m_pipeline_config_info.pipelineLayout = m_merc_pipeline_layout;
 }
@@ -221,7 +214,7 @@ void MercVulkan2::create_pipeline_layout() {
 void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
                                      ScopedProfilerNode& prof,
                                      BaseMercDebugStats* debug_stats) {
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   debug_stats->num_draw_flush++;
 
@@ -230,10 +223,10 @@ void MercVulkan2::flush_draw_buckets(BaseSharedRenderState* render_state,
 
     VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffer_vulkan = lev_bucket.level->merc_vertices->getBuffer();
-    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan,
+    vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer_vulkan,
                            offsets);
 
-    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+    vkCmdBindIndexBuffer(m_command_buffer,
                          lev_bucket.level->merc_indices->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
     draw_merc2(lev_bucket, prof);
@@ -273,14 +266,14 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
   m_pipeline_config_info.shaderStages = m_merc_vertex_shader_stage_info;
   m_pipeline_config_info.pipelineLayout = m_merc_pipeline_layout;
 
-  m_merc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_merc_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                          m_pipeline_config_info);
-  m_merc_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_merc_graphics_pipeline_layout.bind(m_command_buffer);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_merc_vertex_push_constant),
                      (void*)&m_merc_vertex_push_constant);
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_merc_vertex_push_constant),
                      sizeof(m_fragment_push_constant), (void*)&m_fragment_push_constant.settings);
 
@@ -289,7 +282,7 @@ void MercVulkan2::draw_merc2(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerNo
     auto& draw = lev_bucket.draws[di];
 
     m_fragment_push_constant.settings = draw.mode.get_decal();
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
         VK_SHADER_STAGE_FRAGMENT_BIT,
         sizeof(m_merc_vertex_push_constant) + offsetof(MercUniformBufferFragmentData, settings),
         sizeof(m_fragment_push_constant.settings), (void*)&m_fragment_push_constant.settings);
@@ -331,15 +324,15 @@ void MercVulkan2::draw_emercs(LevelDrawBucketVulkan& lev_bucket, ScopedProfilerN
   m_pipeline_config_info.shaderStages = m_emerc_vertex_shader_stage_info;
   m_pipeline_config_info.pipelineLayout = m_emerc_pipeline_layout;
 
-  m_emerc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_emerc_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                           m_pipeline_config_info);
-  m_emerc_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_emerc_graphics_pipeline_layout.bind(m_command_buffer);
   
   int hack_no_tex = Gfx::g_global_settings.hack_no_tex;
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_emerc_vertex_push_constant),
                      (void*)&m_emerc_vertex_push_constant);
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_emerc_vertex_push_constant),
                      sizeof(hack_no_tex), (void*)&hack_no_tex);
 
@@ -372,7 +365,7 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
   if (!isMercDraw) {
     m_emerc_vertex_push_constant.etie_data.fade =
         math::Vector4f(draw.fade[0], draw.fade[1], draw.fade[2], draw.fade[3]) / 255.0f;
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_emerc_vertex_push_constant),
                        (void*)&m_emerc_vertex_push_constant);
     auto alpha_blend = draw.mode.get_alpha_blend();
@@ -387,10 +380,10 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
   m_bone_vertex_uniform_buffer->unmap();
 
   if (isMercDraw) {
-    m_merc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+    m_merc_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                       m_pipeline_config_info);
   } else {
-    m_emerc_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+    m_emerc_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                            m_pipeline_config_info);
   }
 
@@ -407,10 +400,10 @@ void MercVulkan2::FinalizeVulkanDraw(uint32_t drawIndex,
       (isMercDraw) ? m_merc_vertex_descriptor_set : m_emerc_vertex_descriptor_set;
   std::vector<VkDescriptorSet> descriptor_sets{vertex_descriptor_set, fragment_descriptor_set};
 
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                           descriptor_sets.data(), 0, NULL);
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, draw.index_count, 1, draw.first_index, 0,
+  vkCmdDrawIndexed(m_command_buffer, draw.index_count, 1, draw.first_index, 0,
                    0);
 }
 

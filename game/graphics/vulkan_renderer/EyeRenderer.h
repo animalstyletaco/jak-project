@@ -17,7 +17,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   void init_textures(VulkanTexturePool& texture_pool) override;
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer) override;
 
   VulkanTexture* lookup_eye_texture(u8 eye_id);
 

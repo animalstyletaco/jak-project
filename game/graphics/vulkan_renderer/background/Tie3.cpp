@@ -133,7 +133,8 @@ Tie3Vulkan::~Tie3Vulkan() {
 
 void Tie3Vulkan::render(DmaFollower& dma,
                         SharedVulkanRenderState* render_state,
-                        ScopedProfilerNode& prof) {
+                        ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
   m_multi_draw_buffer->Reset();
   BaseTie3::render(dma, render_state, prof);
 }
@@ -161,10 +162,7 @@ void Tie3Vulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_tie_pipeline_layout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_tie_pipeline_layout);
 
   VkPipelineLayoutCreateInfo etieBasePipelineLayoutInfo = pipelineLayoutInfo;
   std::vector<VkDescriptorSetLayout> etieBaseDescriptorSetLayouts{
@@ -173,10 +171,8 @@ void Tie3Vulkan::create_pipeline_layout() {
 
   etieBasePipelineLayoutInfo.pSetLayouts = etieBaseDescriptorSetLayouts.data();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &etieBasePipelineLayoutInfo, nullptr,
-                             &m_etie_base_pipeline_layout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&etieBasePipelineLayoutInfo, nullptr,
+                                 &m_etie_base_pipeline_layout);
 
   VkPipelineLayoutCreateInfo etiePipelineLayoutInfo = pipelineLayoutInfo;
   std::vector<VkDescriptorSetLayout> etieDescriptorSetLayouts{
@@ -185,10 +181,7 @@ void Tie3Vulkan::create_pipeline_layout() {
 
   etiePipelineLayoutInfo.pSetLayouts = etieDescriptorSetLayouts.data();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &etiePipelineLayoutInfo, nullptr,
-                             &m_etie_pipeline_layout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&etiePipelineLayoutInfo, nullptr, &m_etie_pipeline_layout);
 }
 
 void Tie3Vulkan::load_from_fr3_data(const LevelDataVulkan* loader_data) {
@@ -472,14 +465,17 @@ void Tie3Vulkan::render_tree_wind(int idx,
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffers[] = {tree.vertex_buffer->getBuffer()};
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.wind_index_buffer->getBuffer(), 0,
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, vertex_buffers, offsets);
+  vkCmdBindIndexBuffer(m_command_buffer, tree.wind_index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
   GraphicsPipelineLayout* selected_graphics_pipeline_layout = GetSelectedGraphicsPipelineLayout();
   if (!selected_graphics_pipeline_layout) {
     lg::error("Invalid Shader selected\n");
   }
+
+  selected_graphics_pipeline_layout->createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  selected_graphics_pipeline_layout->bind(m_command_buffer);
 
   for (size_t draw_idx = 0; draw_idx < tree.wind_draws->size(); draw_idx++) {
     const auto& draw = tree.wind_draws->at(draw_idx);
@@ -491,14 +487,13 @@ void Tie3Vulkan::render_tree_wind(int idx,
         render_state, draw.mode, sampler_helper, m_pipeline_config_info,
         m_time_of_day_color_push_constant);
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_tie_vertex_push_constant),
                        sizeof(m_time_of_day_color_push_constant),
                        (void*)&m_time_of_day_color_push_constant);
 
-    selected_graphics_pipeline_layout->updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+    selected_graphics_pipeline_layout->updateGraphicsPipeline(m_command_buffer,
                                                       m_pipeline_config_info);
-    selected_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
 
     PrepareVulkanDraw(tree, time_of_day_texture.getImageView(), sampler_helper.GetSampler(),
                       tree.time_of_day_instanced_wind_descriptor_image_infos[draw_idx],
@@ -524,11 +519,11 @@ void Tie3Vulkan::render_tree_wind(int idx,
       tree.perf.wind_draws++;
 
       // TODO: See if we need to update descriptor set if values of same uniform buffer has changed
-      vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+      vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                          VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_tie_vertex_push_constant),
                          &m_tie_vertex_push_constant);
 
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, grp.num, 1,
+      vkCmdDrawIndexed(m_command_buffer, grp.num, 1,
                        tree.wind_vertex_index_offsets.at(draw_idx), 0, 0);
       off += grp.num;
 
@@ -545,11 +540,11 @@ void Tie3Vulkan::render_tree_wind(int idx,
           m_time_of_day_color_push_constant.alpha_max = double_draw.aref_second;
 
           vkCmdPushConstants(
-              m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+              m_command_buffer, m_pipeline_config_info.pipelineLayout,
               VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_tie_vertex_push_constant),
               sizeof(m_time_of_day_color_push_constant), (void*)&m_time_of_day_color_push_constant);
           // glDepthMask(GL_FALSE);
-          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, draw.vertex_index_stream.size(), 1,
+          vkCmdDrawIndexed(m_command_buffer, draw.vertex_index_stream.size(), 1,
                            0, 0, 0);
           break;
         default:
@@ -583,30 +578,29 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
   }
 
   if (render_state->no_multidraw) {
-    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+    vkCmdBindIndexBuffer(m_command_buffer,
                          tree.single_draw_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
   } else {
-    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
+    vkCmdBindIndexBuffer(m_command_buffer, tree.index_buffer->getBuffer(), 0,
                          VK_INDEX_TYPE_UINT32);
   }
 
   m_pipeline_config_info.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = VK_TRUE;
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = tree.vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
   GraphicsPipelineLayout* selected_graphics_pipeline_layout = GetSelectedGraphicsPipelineLayout();
   if (!selected_graphics_pipeline_layout) {
     lg::error("Invalid Shader selected\n");
   }
 
-  selected_graphics_pipeline_layout->updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                                            m_pipeline_config_info);
-  selected_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
+  selected_graphics_pipeline_layout->createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  selected_graphics_pipeline_layout->bind(m_command_buffer);
 
   int last_texture = -1;
   for (size_t draw_idx = tree.category_draw_indices[(int)category];
@@ -631,6 +625,9 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
         render_state, draw.mode, time_of_day_sampler, m_pipeline_config_info,
         m_time_of_day_color_push_constant);
+ 
+    selected_graphics_pipeline_layout->updateGraphicsPipeline(m_command_buffer,
+                                                              m_pipeline_config_info);
 
     // Hack to make sure we don't exceed 128 push constant memory limit
     if (draw.mode.get_decal()) {
@@ -638,7 +635,7 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
     } else {
       m_tie_vertex_push_constant.settings &= ~0x1;
     }
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_tie_vertex_push_constant),
                        (void*)&m_tie_vertex_push_constant);
 
@@ -656,17 +653,14 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
                       tree.fragment_shader_descriptor_sets[draw_idx], vertex_descriptor_writer,
                       m_fragment_descriptor_writer);
 
-    selected_graphics_pipeline_layout->updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                                      m_pipeline_config_info);
-
     prof.add_draw_call();
 
     if (render_state->no_multidraw) {
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
+      vkCmdDrawIndexed(m_command_buffer, singledraw_indices.number_of_draws, 1,
                        singledraw_indices.draw_index, 0, 0);
     } else {
       vkCmdDrawIndexedIndirect(
-          m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+          m_command_buffer, m_multi_draw_buffer->getBuffer(),
           multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
           multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
     }
@@ -680,16 +674,16 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
         m_time_of_day_color_push_constant.alpha_max = double_draw.aref_second;
 
         vkCmdPushConstants(
-            m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+            m_command_buffer, m_pipeline_config_info.pipelineLayout,
             VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_tie_vertex_push_constant),
             sizeof(m_time_of_day_color_push_constant), (void*)&m_time_of_day_color_push_constant);
 
         if (render_state->no_multidraw) {
-          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,
+          vkCmdDrawIndexed(m_command_buffer, singledraw_indices.number_of_draws,
                            1, singledraw_indices.draw_index, 0, 0);
         } else {
           vkCmdDrawIndexedIndirect(
-              m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+              m_command_buffer, m_multi_draw_buffer->getBuffer(),
               multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
               multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
         }
@@ -809,10 +803,10 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
                                          int geom) {
   setup_shader(ShaderId::ETIE);
   if (render_state->no_multidraw) {
-    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer,
+    vkCmdBindIndexBuffer(m_command_buffer,
                          tree.single_draw_index_buffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
   } else {
-    vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
+    vkCmdBindIndexBuffer(m_command_buffer, tree.index_buffer->getBuffer(), 0,
                          VK_INDEX_TYPE_UINT32);
   }
 
@@ -824,9 +818,8 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
     lg::error("Invalid Shader selected\n");
   }
 
-  selected_graphics_pipeline_layout->updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                                            m_pipeline_config_info);
-  selected_graphics_pipeline_layout->bind(m_vulkan_info.render_command_buffer);
+  selected_graphics_pipeline_layout->createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  selected_graphics_pipeline_layout->bind(m_command_buffer);
 
   int last_texture = -1;
   for (size_t draw_idx = tree.category_draw_indices[(int)category];
@@ -864,11 +857,11 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
     prof.add_draw_call();
 
     if (render_state->no_multidraw) {
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
+      vkCmdDrawIndexed(m_command_buffer, singledraw_indices.number_of_draws, 1,
                        singledraw_indices.draw_index, 0, 0);
     } else {
       vkCmdDrawIndexedIndirect(
-          m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+          m_command_buffer, m_multi_draw_buffer->getBuffer(),
           multidraw_indices.offset * sizeof(VkDrawIndexedIndirectCommand),
           multidraw_indices.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
     }
@@ -1044,7 +1037,7 @@ void Tie3Vulkan::PrepareVulkanDraw(TreeVulkan& tree,
 
   std::vector<VkDescriptorSet> descriptor_sets{vertex_descriptor_set, fragment_descriptor_set};
 
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                           descriptor_sets.data(), 0, NULL);
 }
@@ -1067,7 +1060,8 @@ void Tie3VulkanAnotherCategory::draw_debug_window() {
 
 void Tie3VulkanAnotherCategory::render(DmaFollower& dma,
                                        SharedVulkanRenderState* render_state,
-                                       ScopedProfilerNode& prof) {
+                                       ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
+  //TODO: Set command buffer here
   render(dma, reinterpret_cast<BaseSharedRenderState*>(render_state), prof);
 }
 
@@ -1089,11 +1083,14 @@ Tie3VulkanWithEnvmapJak1::Tie3VulkanWithEnvmapJak1(const std::string& name,
                                                    VulkanInitializationInfo& vulkan_info,
                                                    int level_id)
     : Tie3Vulkan(name, my_id, device, vulkan_info, level_id, tfrag3::TieCategory::NORMAL) {}
+
 void Tie3VulkanWithEnvmapJak1::render(DmaFollower& dma,
                                       SharedVulkanRenderState* render_state,
-                                      ScopedProfilerNode& prof) {
+                                      ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  //TODO: Set commad buffer here
+
   setup_shader(ShaderId::TFRAG3);
   BaseTie3::render(dma, render_state, prof);
   if (m_enable_envmap) {

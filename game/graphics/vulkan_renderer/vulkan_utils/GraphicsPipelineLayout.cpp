@@ -13,10 +13,7 @@ GraphicsPipelineLayout::~GraphicsPipelineLayout() {
 }
 
 void GraphicsPipelineLayout::destroyPipeline() {
-  if (_graphicsPipeline) {
-    vkDestroyPipeline(_device->getLogicalDevice(), _graphicsPipeline, nullptr);
-    _graphicsPipeline = nullptr;
-  }
+  _device->destroyPipeline(_graphicsPipeline, nullptr);
 }
 
 namespace vk_settings {
@@ -243,13 +240,14 @@ bool PipelineConfigInfo::operator==(const PipelineConfigInfo& rhs) {
   return status;
 }
 
-void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer,
-                                                    PipelineConfigInfo& pipelineConfig) {
+void GraphicsPipelineLayout::createGraphicsPipelineIfNotAvailable(PipelineConfigInfo& pipelineConfig) {
   if (!_graphicsPipeline) {
     createGraphicsPipeline(pipelineConfig);
-    return;
   }
+}
 
+void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer,
+                                                    PipelineConfigInfo& pipelineConfig) {
   if (pipelineConfig == _currentPipelineConfig) {
     return;
   }
@@ -384,10 +382,7 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
   pipelineInfo.basePipelineIndex = -1;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-  VK_CHECK_RESULT(
-      vkCreateGraphicsPipelines(_device->getLogicalDevice(), VK_NULL_HANDLE, 1, &pipelineInfo,
-                                nullptr, &_graphicsPipeline),
-      "failed to create graphics pipeline");
+  _device->createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_graphicsPipeline);
   _currentPipelineConfig = configInfo;
 }
 

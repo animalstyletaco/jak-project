@@ -12,6 +12,7 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
  public:
   GlowVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device,
                      VulkanInitializationInfo& vulkan_info);
+  void set_command_buffer(VkCommandBuffer command_buffer) { m_command_buffer = command_buffer; }
 
   FramebufferVulkanHelper* render_fb = NULL;
 
@@ -100,4 +101,6 @@ class GlowVulkanRenderer : public BaseGlowRenderer {
   VulkanGraphicsInputData m_glow_probe_read_debug_vulkan_inputs;
   VulkanGraphicsInputData m_glow_probe_downsample_vulkan_inputs;
   VulkanGraphicsInputData m_glow_draw_vulkan_inputs;
+
+  VkCommandBuffer m_command_buffer = VK_NULL_HANDLE;
 };

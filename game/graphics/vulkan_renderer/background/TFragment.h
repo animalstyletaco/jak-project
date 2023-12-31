@@ -21,7 +21,7 @@ class TFragmentVulkan : public BaseTFragment, public BucketVulkanRenderer {
   virtual ~TFragmentVulkan();
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void render_matching_trees(int geom,
                              const std::vector<tfrag3::TFragmentTreeKind>& trees,
                              const TfragRenderSettings& settings,

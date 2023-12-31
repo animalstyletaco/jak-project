@@ -45,7 +45,7 @@ class VulkanTextureUploadHandler : public BaseTextureUploadHandler, public Bucke
       : BaseTextureUploadHandler(name, my_id), BucketVulkanRenderer(device, vulkan_info){};
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override {
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override {
     m_eye_renderer = render_state->eye_renderer;
     BaseTextureUploadHandler::render(dma, render_state, prof);
   };
@@ -75,7 +75,7 @@ class VisDataVulkanHandler : public BaseVisDataHandler, public BucketVulkanRende
       : BaseVisDataHandler(name, my_id), BucketVulkanRenderer(device, vulkan_info){};
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override {
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override {
     BaseVisDataHandler::render(dma, render_state, prof);
   };
 };
@@ -942,11 +942,19 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
   ASSERT(dma.current_tag_offset() == m_render_state.next_bucket);
   m_render_state.next_bucket += 16;
 
-  m_vulkan_info.render_command_buffer = beginFrame();
-  m_vulkan_info.currentFrame = currentFrame;
-  m_vulkan_info.swap_chain->clearFramebufferImage(currentFrame);
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
-                                                     currentFrame);
+  if (!beginFrame()) {
+    lg::error("Failed to start frame {}. Skipping\n", currentFrame++);
+    return;
+  }
+  auto primaryCommandBuffer = primaryCommandBuffers[currentSwapchainFrameImageIndex];
+  auto& graphicsRendererInputSet = graphicsRendererInputSets[currentSwapchainFrameImageIndex];
+
+  m_vulkan_info.currentFrame = currentSwapchainFrameImageIndex;
+  m_vulkan_info.swap_chain->clearFramebufferImage(currentSwapchainFrameImageIndex);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(primaryCommandBuffer,
+                                                     currentSwapchainFrameImageIndex,
+                                                     VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+  updateSecondaryCommandBuffers();
 
   m_merc2->reset_draw_count();
 
@@ -958,11 +966,10 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
     auto bucket_prof = prof.make_scoped_child(renderer->name_and_id());
     g_current_render = renderer->name_and_id();
     // lg::info("Render: %s start\n", g_current_render.c_str());
-    graphics_renderer->render(dma, &m_render_state, bucket_prof);
+    graphics_renderer->render(dma, &m_render_state, bucket_prof, graphicsRendererInputSet[0].secondaryCommandBuffer);
     if (sync_after_buckets) {
       auto pp = profiler::scoped_prof("finish");
 
-      // TODO: Verify that this is correct
       VK_CHECK_RESULT(
           vkQueueWaitIdle(m_device->graphicsQueue()),
           "Graphics queue failed to wait");  
@@ -979,13 +986,22 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
     if (bucket_id == (int)BucketId::ALPHA_TEX_LEVEL0 - 1 &&
         Gfx::g_global_settings.collision_enable) {
       auto p = prof.make_scoped_child("collision-draw");
-      m_collide_renderer->render(&m_render_state, p);
+      m_collide_renderer->render(&m_render_state, p,
+                                 graphicsRendererInputSet[0].secondaryCommandBuffer);
     }
   }
   g_current_render = "";
 
+  std::vector<VkCommandBuffer> secondaryCommandBuffers;
+  for (const auto& graphicsRendererInput : graphicsRendererInputSets[currentSwapchainFrameImageIndex]) {
+    secondaryCommandBuffers.push_back(graphicsRendererInput.secondaryCommandBuffer);
+  }
+
+  vkCmdExecuteCommands(primaryCommandBuffer, secondaryCommandBuffers.size(),
+                       secondaryCommandBuffers.data());
+
   // TODO ending data.
-  m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->endSwapChainRenderPass(primaryCommandBuffer);
   endFrame();
 
   VK_CHECK_RESULT(vkDeviceWaitIdle(m_device->getLogicalDevice()),
@@ -1005,9 +1021,19 @@ void VulkanRendererJak2::dispatch_buckets(DmaFollower dma,
   m_render_state.bucket_for_vis_copy = (int)jak2::BucketId::BUCKET_2;
   m_render_state.num_vis_to_copy = 6;
 
-  m_vulkan_info.render_command_buffer = beginFrame();
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
-                                                     currentFrame);
+  if (!beginFrame()) {
+    lg::error("Failed to start frame {}. Skipping\n", currentFrame++);
+    return;
+  }
+  auto primaryCommandBuffer = primaryCommandBuffers[currentSwapchainFrameImageIndex];
+  auto& graphicsRendererInputSet = graphicsRendererInputSets[currentSwapchainFrameImageIndex];
+
+  m_vulkan_info.currentFrame = currentFrame;
+  m_vulkan_info.swap_chain->clearFramebufferImage(currentSwapchainFrameImageIndex);
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(primaryCommandBuffer,
+                                                     currentSwapchainFrameImageIndex,
+                                                     VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
+  updateSecondaryCommandBuffers();
 
   for (size_t bucket_id = 0; bucket_id < m_bucket_renderers.size(); bucket_id++) {
     auto& renderer = m_bucket_renderers[bucket_id];
@@ -1016,7 +1042,8 @@ void VulkanRendererJak2::dispatch_buckets(DmaFollower dma,
     auto bucket_prof = prof.make_scoped_child(renderer->name_and_id());
     g_current_render = renderer->name_and_id();
     // lg::info("Render: {} start", g_current_render);
-    graphics_renderer->render(dma, &m_render_state, bucket_prof);
+    graphics_renderer->render(dma, &m_render_state, bucket_prof,
+                              graphicsRendererInputSet[0].secondaryCommandBuffer);
     if (sync_after_buckets) {
       auto pp = profiler::scoped_prof("finish");
       // TODO: Verify that this is correct
@@ -1034,7 +1061,16 @@ void VulkanRendererJak2::dispatch_buckets(DmaFollower dma,
   }
   vif_interrupt_callback(m_bucket_renderers.size());
 
-  m_vulkan_info.swap_chain->endSwapChainRenderPass(m_vulkan_info.render_command_buffer);
+  std::vector<VkCommandBuffer> secondaryCommandBuffers;
+  for (const auto& graphicsRendererInput :
+       graphicsRendererInputSets[currentSwapchainFrameImageIndex]) {
+    secondaryCommandBuffers.push_back(graphicsRendererInput.secondaryCommandBuffer);
+  }
+
+  vkCmdExecuteCommands(primaryCommandBuffer, secondaryCommandBuffers.size(),
+                       secondaryCommandBuffers.data());
+
+  m_vulkan_info.swap_chain->endSwapChainRenderPass(primaryCommandBuffer);
   endFrame();
 
   // TODO ending data.
@@ -1049,13 +1085,11 @@ void VulkanRenderer::finish_screenshot(const std::string& output_name,
   VkDeviceSize device_memory_size = sizeof(u32) * width * height;
   std::vector<u32> buffer(width * height);
 
-  VkImage srcImage = m_vulkan_info.swap_chain->getImage(currentImageIndex);
+  VkImage srcImage = m_vulkan_info.swap_chain->getImage(currentSwapchainFrameImageIndex);
 
   StagingBuffer screenshotBuffer(m_device, device_memory_size, 1, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-  if (screenshotBuffer.map() != VK_SUCCESS) {
-    lg::error("Error can't get screenshot memory buffer");
-  }
+  screenshotBuffer.map();
 
   m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
@@ -1133,17 +1167,59 @@ void VulkanRenderer::do_pcrtc_effects(float alp,
 }
 
 void VulkanRenderer::createCommandBuffers() {
-  commandBuffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
+  primaryCommandBuffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
+  graphicsRendererInputSets.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
 
-  VkCommandBufferAllocateInfo allocInfo{};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.commandPool = m_device->getCommandPool();
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
+  VkCommandBufferAllocateInfo primaryCommandBufferAllocInfo{};
+  primaryCommandBufferAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+  primaryCommandBufferAllocInfo.commandPool = m_device->getCommandPool();
+  primaryCommandBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+  primaryCommandBufferAllocInfo.commandBufferCount = (uint32_t)primaryCommandBuffers.size();
 
-  VK_CHECK_RESULT(
-      vkAllocateCommandBuffers(m_device->getLogicalDevice(), &allocInfo, commandBuffers.data()),
-      "failed to allocate command buffers!");
+  m_device->allocateCommandBuffers(&primaryCommandBufferAllocInfo, primaryCommandBuffers.data());
+
+  // TODO: implement feature to check how many thread groups we can use for rendering. For now just use one
+  const unsigned graphicsRendererInputsNeeded = 1;
+
+  VkCommandBufferAllocateInfo secondaryCommandBufferAllocInfo = primaryCommandBufferAllocInfo;
+  secondaryCommandBufferAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
+  secondaryCommandBufferAllocInfo.commandBufferCount = graphicsRendererInputsNeeded;
+
+  for (auto& graphicsRendererInputSet : graphicsRendererInputSets) {
+    graphicsRendererInputSet.resize(graphicsRendererInputsNeeded);
+
+    std::vector<VkCommandBuffer> secondaryCommandBuffers;
+    for (const auto& graphicsRendererInput : graphicsRendererInputSet) {
+      secondaryCommandBuffers.push_back(graphicsRendererInput.secondaryCommandBuffer);
+    }
+
+    m_device->allocateCommandBuffers(&secondaryCommandBufferAllocInfo, secondaryCommandBuffers.data());
+    for (unsigned i = 0; i < graphicsRendererInputsNeeded; ++i) {
+      graphicsRendererInputSet[i].secondaryCommandBuffer = secondaryCommandBuffers[i];
+    }
+  }
+}
+
+void VulkanRenderer::updateSecondaryCommandBuffers() {
+  // Inheritance info for the secondary command buffers
+  VkCommandBufferInheritanceInfo inheritanceInfo{};
+  inheritanceInfo.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  // Secondary command buffer also use the currently active framebuffer
+  inheritanceInfo.framebuffer =
+      m_vulkan_info.swap_chain->getFrameBuffer(currentSwapchainFrameImageIndex);
+
+  // Secondary command buffer for the sky sphere
+  VkCommandBufferBeginInfo commandBufferBeginInfo{};
+  commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT;
+  commandBufferBeginInfo.pInheritanceInfo = &inheritanceInfo;
+
+  auto& graphicsRendererInputSet = graphicsRendererInputSets[currentSwapchainFrameImageIndex];
+  for (auto& graphicsRendererInput : graphicsRendererInputSet) {
+    VK_CHECK_RESULT(
+        vkBeginCommandBuffer(graphicsRendererInput.secondaryCommandBuffer, &commandBufferBeginInfo),
+        "Failed to begin secondary command buffer");
+  }
 }
 
 void VulkanRenderer::recreateSwapChain(bool vsyncEnabled) {
@@ -1164,14 +1240,14 @@ void VulkanRenderer::recreateSwapChain(bool vsyncEnabled) {
   }
 }
 
-// TODO: Implement secondary command buffer so existing framebuffer doesn't get overriden
-VkCommandBuffer VulkanRenderer::beginFrame() {
+bool VulkanRenderer::beginFrame() {
   assert(!isFrameStarted && "Can't call beginFrame while already in progress");
 
+  uint32_t currentImageIndex = 0;
   auto result = m_vulkan_info.swap_chain->acquireNextImage(&currentImageIndex);
   if (result == VK_ERROR_OUT_OF_DATE_KHR) {
     recreateSwapChain(false);
-    return nullptr;
+    return false;
   }
 
   if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
@@ -1185,8 +1261,8 @@ VkCommandBuffer VulkanRenderer::beginFrame() {
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(commandBuffer, &beginInfo),
-                              "failed to begin recording command buffer!");
-  return commandBuffer;
+                  "failed to begin recording primary command buffer!");
+  return true;
 }
 
 void VulkanRenderer::endFrame() {
@@ -1194,14 +1270,16 @@ void VulkanRenderer::endFrame() {
   auto commandBuffer = getCurrentCommandBuffer();
 
   VK_CHECK_RESULT(vkEndCommandBuffer(commandBuffer), "failed to record command buffer!");
-  m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
+  m_vulkan_info.swap_chain->submitCommandBuffers(&commandBuffer, &currentSwapchainFrameImageIndex);
 
   isFrameStarted = false;
-  currentFrame = (currentFrame + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;
+  currentSwapchainFrameImageIndex =
+      (currentSwapchainFrameImageIndex + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;
+  currentFrame++;
 }
 
 void VulkanRenderer::freeCommandBuffers() {
-  vkFreeCommandBuffers(m_device->getLogicalDevice(), m_device->getCommandPool(),
-                       static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
-  commandBuffers.clear();
+  m_device->freeCommandBuffers(m_device->getCommandPool(),
+                               static_cast<VkDeviceSize>(primaryCommandBuffers.size()), primaryCommandBuffers.data());
+  primaryCommandBuffers.clear();
 }

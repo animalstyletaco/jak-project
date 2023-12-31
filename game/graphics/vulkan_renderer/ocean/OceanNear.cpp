@@ -4,15 +4,17 @@
 
 void OceanNearVulkanJak1::render(DmaFollower& dma,
                                  SharedVulkanRenderState* render_state,
-                                 ScopedProfilerNode& prof) {
+                                 ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_common_ocean_renderer.set_command_buffer(command_buffer);
   BaseOceanNearJak1::render(dma, render_state, prof);
 }
 
 void OceanNearVulkanJak2::render(DmaFollower& dma,
                                  SharedVulkanRenderState* render_state,
-                                 ScopedProfilerNode& prof) {
+                                 ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_common_ocean_renderer.set_command_buffer(command_buffer);
   BaseOceanNearJak2::render(dma, render_state, prof);
 }
 

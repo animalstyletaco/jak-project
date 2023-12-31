@@ -4,10 +4,14 @@
 #include <set>
 #include <stdexcept>
 #include <cassert>
+#include <mutex>
 
 #include "third-party/SDL/include/SDL_vulkan.h"
 
 namespace vulkan_device {
+static std::mutex device_mutex;
+static std::mutex physical_device_mutex;
+
 static bool is_vulkan_loaded = false;
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL
@@ -285,7 +289,7 @@ VkCommandBuffer GraphicsDeviceVulkan::allocateCommandBuffers(VkCommandBufferUsag
   allocInfo.commandBufferCount = 1;
 
   VkCommandBuffer commandBuffer;
-  vkAllocateCommandBuffers(m_device, &allocInfo, &commandBuffer);
+  allocateCommandBuffers(&allocInfo, &commandBuffer);
 
   VkCommandBufferBeginInfo beginInfo{};
   beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -314,7 +318,7 @@ void GraphicsDeviceVulkan::submitCommandsBufferToQueue(std::vector<VkCommandBuff
   vkQueueSubmit(m_graphics_queue, 1, &submitInfo, VK_NULL_HANDLE);
   vkQueueWaitIdle(m_graphics_queue);
 
-  vkFreeCommandBuffers(m_device, m_command_pool, 1, commandBuffer.data());
+  freeCommandBuffers(m_command_pool, 1, commandBuffer.data());
 }
 
 void GraphicsDeviceVulkan::copyBuffer(VkBuffer srcBuffer,
@@ -802,7 +806,230 @@ uint32_t GraphicsDeviceVulkan::getMinimumMemoryNeedFor(uint32_t memorySize,
 }
 
 VkFormatProperties GraphicsDeviceVulkan::getPhysicalDeviceFormatProperties(VkFormat format) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
   VkFormatProperties formatProperties;
   vkGetPhysicalDeviceFormatProperties(m_physical_device, format, &formatProperties);
   return formatProperties;
+}
+
+void GraphicsDeviceVulkan::createRenderPass(const VkRenderPassCreateInfo* createInfo,
+                                            const VkAllocationCallbacks* callbacks,
+                                            VkRenderPass* renderPass) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  VK_CHECK_RESULT(vkCreateRenderPass(m_device, createInfo, callbacks, renderPass),
+                  "Failed to create render pass");
+}
+
+void GraphicsDeviceVulkan::destroyRenderPass(VkRenderPass& renderPass, const VkAllocationCallbacks* callbacks) {
+  if (!renderPass) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  vkDestroyRenderPass(m_device, renderPass, callbacks);
+  renderPass = VK_NULL_HANDLE;
+}
+
+void GraphicsDeviceVulkan::createFramebuffer(const VkFramebufferCreateInfo* createInfo,
+                                             const VkAllocationCallbacks* callbacks,
+                                             VkFramebuffer* framebuffer) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  VK_CHECK_RESULT(vkCreateFramebuffer(m_device, createInfo, callbacks, framebuffer),
+                  "Failed to create framebuffers");
+}
+
+void GraphicsDeviceVulkan::destroyFramebuffer(VkFramebuffer& framebuffer, const VkAllocationCallbacks* callbacks) {
+  if (!framebuffer) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  vkDestroyFramebuffer(m_device, framebuffer, callbacks);
+  framebuffer = VK_NULL_HANDLE;
+}
+
+void GraphicsDeviceVulkan::allocateCommandBuffers(
+    const VkCommandBufferAllocateInfo* commandBufferCreateInfo,
+    VkCommandBuffer* commandBuffers) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkAllocateCommandBuffers(m_device, commandBufferCreateInfo, commandBuffers),
+                  "Failed to create command buffers");
+}
+
+void GraphicsDeviceVulkan::freeCommandBuffers(
+    VkCommandPool commandPool, unsigned commandBufferCount, const VkCommandBuffer* commandBuffers) {
+  if (!commandBuffers) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkFreeCommandBuffers(m_device, commandPool, commandBufferCount, commandBuffers);
+}
+
+void GraphicsDeviceVulkan::allocateMemory(const VkMemoryAllocateInfo* alloc_info,
+                                          const VkAllocationCallbacks* callbacks,
+                                          VkDeviceMemory* device_memory) {
+  std::lock_guard<std::mutex> lock_gaurd(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkAllocateMemory(m_device, alloc_info, callbacks, device_memory),
+                  "failed to allocate image memory!");
+}
+
+void GraphicsDeviceVulkan::mapMemory(VkDeviceMemory device_memory, VkDeviceSize offset, VkDeviceSize size, VkMemoryMapFlags flags, void** mappedMemory) {
+  std::lock_guard<std::mutex> lock_gaurd(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkMapMemory(m_device, device_memory, offset, size, 0, mappedMemory),
+                  "Failed to map memory");
+}
+
+void GraphicsDeviceVulkan::unmapMemory(VkDeviceMemory device_memory) {
+  if (!device_memory) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_gaurd(vulkan_device::device_mutex);
+  vkUnmapMemory(m_device, device_memory);
+}
+
+void GraphicsDeviceVulkan::freeMemory(VkDeviceMemory& device_memory,
+                                      const VkAllocationCallbacks* callbacks) {
+  if (!device_memory) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkFreeMemory(m_device, device_memory, callbacks);
+  device_memory = VK_NULL_HANDLE;
+}
+
+void GraphicsDeviceVulkan::createBuffer(const VkBufferCreateInfo* buffer_create_info,
+                                        const VkAllocationCallbacks* callbacks,
+                                        VkBuffer* buffer) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateBuffer(m_device, buffer_create_info, callbacks, buffer), "Failed to create buffer");
+}
+
+void GraphicsDeviceVulkan::bindBufferMemory(VkBuffer buffer,
+                                            VkDeviceMemory device_memory,
+                                            unsigned flags) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkBindBufferMemory(m_device, buffer, device_memory, flags),
+                  "Failed to bind buffer memory");
+}
+
+void GraphicsDeviceVulkan::destroyBuffer(VkBuffer& buffer, const VkAllocationCallbacks* callbacks) {
+  if (!buffer) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyBuffer(m_device, buffer, callbacks);
+  buffer = VK_NULL_HANDLE;
+}
+
+void GraphicsDeviceVulkan::createBufferView(const VkBufferViewCreateInfo* createInfo,
+                                            const VkAllocationCallbacks* callbacks,
+                                            VkBufferView* bufferView) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateBufferView(m_device, createInfo, callbacks, bufferView),
+                  "Failed to create buffer view");
+}
+
+void GraphicsDeviceVulkan::destroyBufferView(VkBufferView& bufferView, const VkAllocationCallbacks* callbacks) {
+  if (!bufferView) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyBufferView(m_device, bufferView, callbacks);
+  bufferView = VK_NULL_HANDLE;
+}
+
+void GraphicsDeviceVulkan::createImage(const VkImageCreateInfo* image_create_info,
+                                       const VkAllocationCallbacks* callbacks,
+                                       VkImage* image) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateImage(m_device, image_create_info, callbacks, image),
+                  "failed to create texture image!");
+}
+
+void GraphicsDeviceVulkan::bindImageMemory(VkImage image,
+                                           VkDeviceMemory device_memory,
+                                           unsigned flags) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkBindImageMemory(m_device, image, device_memory, flags),
+                  "Failed to bind image memory");
+}
+
+void GraphicsDeviceVulkan::destroyImage(VkImage& image, const VkAllocationCallbacks* callbacks) {
+  if (!image) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyImage(m_device, image, callbacks);
+  image = VK_NULL_HANDLE;
+}
+
+
+void GraphicsDeviceVulkan::createImageView(const VkImageViewCreateInfo* image_view_create_info,
+                                       const VkAllocationCallbacks* callbacks,
+                                       VkImageView* image_view) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateImageView(m_device, image_view_create_info, callbacks, image_view),
+                  "failed to create texture image view!");
+}
+
+void GraphicsDeviceVulkan::destroyImageView(
+    VkImageView& image_view, const VkAllocationCallbacks* callbacks) {
+  if (!image_view) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyImageView(m_device, image_view, callbacks);
+  image_view = VK_NULL_HANDLE;
+}
+
+void GraphicsDeviceVulkan::createSampler(const VkSamplerCreateInfo* createInfo,
+                                         const VkAllocationCallbacks* callbacks,
+                                         VkSampler* sampler) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateSampler(m_device, createInfo, callbacks, sampler),
+                  "Failed to create sampler");
+}
+
+void GraphicsDeviceVulkan::destroySampler(VkSampler& sampler, const VkAllocationCallbacks* callbacks) {
+  if (!sampler) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroySampler(m_device, sampler, callbacks);
+  sampler = VK_NULL_HANDLE;
+}
+
+void GraphicsDeviceVulkan::createPipelineLayout(const VkPipelineLayoutCreateInfo* createInfo,
+                                                const VkAllocationCallbacks* callbacks,
+                                                VkPipelineLayout* pipelineLayout) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device, createInfo, callbacks, pipelineLayout),
+                  "Failed to create pipeline layout");
+}
+
+void GraphicsDeviceVulkan::destroyPipelineLayout(VkPipelineLayout& pipelineLayout, const VkAllocationCallbacks* callbacks) {
+  if (!pipelineLayout) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyPipelineLayout(m_device, pipelineLayout, callbacks);
+  pipelineLayout = VK_NULL_HANDLE;
+}
+     
+void GraphicsDeviceVulkan::createGraphicsPipelines(VkPipelineCache pipelineCache,
+                                                   VkDeviceSize graphicsPipelineCreateCount,
+                                                   const VkGraphicsPipelineCreateInfo* createInfo,
+                                                   const VkAllocationCallbacks* callbacks,
+                                                   VkPipeline* pipelines) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateGraphicsPipelines(m_device, pipelineCache, graphicsPipelineCreateCount,
+                                            createInfo, callbacks, pipelines),
+                  "Failed to create graphic pipelines");
+}
+
+void GraphicsDeviceVulkan::destroyPipeline(VkPipeline& pipeline, const VkAllocationCallbacks* callbacks) {
+  if (!pipeline) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyPipeline(m_device, pipeline, callbacks);
+  pipeline = VK_NULL_HANDLE;
 }

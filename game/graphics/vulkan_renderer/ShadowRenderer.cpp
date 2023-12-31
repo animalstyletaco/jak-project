@@ -26,8 +26,9 @@ ShadowVulkanRenderer::ShadowVulkanRenderer(const std::string& name,
 
 void ShadowVulkanRenderer::render(DmaFollower& dma,
                                   SharedVulkanRenderState* render_state,
-                                  ScopedProfilerNode& prof) {
+                                  ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  m_command_buffer = command_buffer;
   BaseShadowRenderer::render(dma, render_state, prof);
 }
 
@@ -66,10 +67,8 @@ void ShadowVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void ShadowVulkanRenderer::InitializeInputVertexAttribute() {
@@ -95,7 +94,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   u32 draw_idx = 0;
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.scissor_adjust),
                      (void*)&m_push_constant.scissor_adjust);
 
@@ -115,7 +114,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = m_ogl.vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
   m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
   m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
@@ -181,14 +180,14 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
     PrepareVulkanDraw(draw_idx, 0);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
+    vkCmdDrawIndexed(m_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
 
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_color_uniform = math::Vector4f{0.0, 0.0, 0.0, 0.5};
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       PrepareVulkanDraw(draw_idx, 0);
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
+      vkCmdDrawIndexed(m_command_buffer, m_next_front_index - 6, 1, 0, 0, 0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -213,14 +212,14 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
     m_pipeline_config_info.depthStencilInfo.back = m_pipeline_config_info.depthStencilInfo.front;
 
     PrepareVulkanDraw(draw_idx, 1);
-    vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
+    vkCmdDrawIndexed(m_command_buffer, m_next_back_index, 1, 0, 0, 0);
 
     if (m_debug_draw_volume) {
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
       m_color_uniform = math::Vector4f{0.0, 0.0, 0.0, 0.5};
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
       PrepareVulkanDraw(draw_idx, 1);
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_next_back_index, 1, 0, 0, 0);
+      vkCmdDrawIndexed(m_command_buffer, m_next_back_index, 1, 0, 0, 0);
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
     }
@@ -260,7 +259,7 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
   m_pipeline_config_info.colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
   PrepareVulkanDraw(draw_idx, 0);
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, 6, 1, m_next_front_index - 6, 0, 0);
+  vkCmdDrawIndexed(m_command_buffer, 6, 1, m_next_front_index - 6, 0, 0);
 
   prof.add_draw_call();
   prof.add_tri(2);
@@ -273,19 +272,19 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 }
 
 void ShadowVulkanRenderer::PrepareVulkanDraw(uint32_t& pipeline_layout_id, uint32_t indexBufferId) {
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_color_uniform), sizeof(m_color_uniform),
                      (void*)&m_color_uniform);
 
   auto& index_buffer = m_ogl.index_buffers[indexBufferId % 2];
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                     m_pipeline_config_info);
-  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.bind(m_command_buffer);
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, index_buffer->getBuffer(), 0,
+  vkCmdBindIndexBuffer(m_command_buffer, index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
   pipeline_layout_id++;

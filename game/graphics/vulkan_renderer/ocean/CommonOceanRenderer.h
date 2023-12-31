@@ -9,8 +9,8 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
   virtual ~CommonOceanVulkanRenderer();
 
   void flush_near(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
-
   void flush_mid(BaseSharedRenderState* render_state, ScopedProfilerNode& prof);
+  void set_command_buffer(VkCommandBuffer command_buffer) { m_command_buffer = command_buffer; };
 
   // Move to public since neither Vulkan or DX12 have a getUniformLocation API like OpenGL does.
   // They'll need to know the memory offset of each member in the shader structure
@@ -79,6 +79,8 @@ class CommonOceanVulkanRenderer : public BaseCommonOceanRenderer {
 
   std::unique_ptr<DescriptorLayout> m_fragment_descriptor_layout;
   GraphicsPipelineLayout m_graphics_pipeline_layout{m_device};
+
+  VkCommandBuffer m_command_buffer = VK_NULL_HANDLE;
 };
 
 class CommonOceanVulkanRendererJak1 : public CommonOceanVulkanRenderer {

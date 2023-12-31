@@ -36,7 +36,7 @@ class CollideMeshVulkanRenderer {
  public:
   CollideMeshVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device,
                             VulkanInitializationInfo& vulkan_info);
-  void render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof);
+  void render(SharedVulkanRenderState* render_state, ScopedProfilerNode& prof, VkCommandBuffer commandBuffer);
   virtual ~CollideMeshVulkanRenderer();
 
  protected:

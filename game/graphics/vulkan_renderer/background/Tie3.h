@@ -19,7 +19,7 @@ class Tie3Vulkan : public BaseTie3, public BucketVulkanRenderer {
              tfrag3::TieCategory category = tfrag3::TieCategory::NORMAL);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   virtual ~Tie3Vulkan();
 
   bool try_loading_level(const std::string& str, BaseSharedRenderState* render_state) override;
@@ -198,7 +198,7 @@ class Tie3VulkanAnotherCategory : public BaseBucketRenderer, public BucketVulkan
                             tfrag3::TieCategory category);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void render(DmaFollower& dma,
               BaseSharedRenderState* render_state,
               ScopedProfilerNode& prof) override;
@@ -221,7 +221,7 @@ class Tie3VulkanWithEnvmapJak1 : public Tie3Vulkan {
                            int level_id);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void draw_debug_window() override;
 
  private:

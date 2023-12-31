@@ -49,7 +49,7 @@ class OceanVulkanMidAndFarJak1 : public BaseOceanMidAndFarJak1, public OceanVulk
         m_mid_renderer(device, vulkan_info){};
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void texture_renderer_handle_ocean_texture(DmaFollower& dma,
                                              BaseSharedRenderState* render_state,
                                              ScopedProfilerNode& prof) override;
@@ -78,7 +78,7 @@ class OceanVulkanMidAndFarJak2 : public BaseOceanMidAndFarJak2, public OceanVulk
         m_mid_renderer(device, vulkan_info){};
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void texture_renderer_handle_ocean_texture(DmaFollower& dma,
                                              BaseSharedRenderState* render_state,
                                              ScopedProfilerNode& prof) override;

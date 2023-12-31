@@ -40,9 +40,7 @@ FramebufferVulkan::FramebufferVulkan(std::shared_ptr<GraphicsDeviceVulkan> devic
 }
 
 void FramebufferVulkan::createFramebuffer() {
-  if (framebuffer) {
-    vkDestroyFramebuffer(m_device->getLogicalDevice(), framebuffer, nullptr);
-  }
+  m_device->destroyFramebuffer(framebuffer, nullptr);
 
   std::vector<VkImageView> attachments;
   if (m_current_msaa != VK_SAMPLE_COUNT_1_BIT) {
@@ -61,15 +59,11 @@ void FramebufferVulkan::createFramebuffer() {
   framebufferInfo.height = extents.height;
   framebufferInfo.layers = 1;
 
-  VK_CHECK_RESULT(
-      vkCreateFramebuffer(m_device->getLogicalDevice(), &framebufferInfo, nullptr, &framebuffer),
-      "failed to create framebuffer!");
+  m_device->createFramebuffer(&framebufferInfo, nullptr, &framebuffer);
 }
 
 FramebufferVulkan::~FramebufferVulkan() {
-  if (framebuffer) {
-    vkDestroyFramebuffer(m_device->getLogicalDevice(), framebuffer, nullptr);
-  }
+  m_device->destroyFramebuffer(framebuffer, nullptr);
 }
 
 FramebufferVulkanHelper::FramebufferVulkanHelper(unsigned w,
@@ -134,12 +128,9 @@ void FramebufferVulkan::initializeFramebufferAtLevel(VkSampleCountFlagBits sampl
 }
 
 void FramebufferVulkan::createRenderPass() {
-  if (render_pass) {
-    vkDestroyRenderPass(m_device->getLogicalDevice(), render_pass, nullptr);
-    render_pass = VK_NULL_HANDLE;
-  }
+  m_device->destroyRenderPass(render_pass, nullptr);
 
-  VkAttachmentDescription colorAttachment = {};
+  VkAttachmentDescription colorAttachment{};
   colorAttachment.format = m_format;
   colorAttachment.samples = m_current_msaa;
   colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -171,7 +162,7 @@ void FramebufferVulkan::createRenderPass() {
   depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
   depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-  VkAttachmentReference colorAttachmentRef = {};
+  VkAttachmentReference colorAttachmentRef{};
   colorAttachmentRef.attachment = 0;
   colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
@@ -189,7 +180,7 @@ void FramebufferVulkan::createRenderPass() {
     depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
   }
 
-  VkSubpassDescription subpass = {};
+  VkSubpassDescription subpass{};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
   subpass.colorAttachmentCount = 1;
   subpass.pColorAttachments = &colorAttachmentRef;
@@ -197,7 +188,7 @@ void FramebufferVulkan::createRenderPass() {
       (m_current_msaa != VK_SAMPLE_COUNT_1_BIT) ? &colorAttachmentResolveRef : nullptr;
   subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
-  std::array<VkSubpassDependency, 2> dependencies = {};
+  std::array<VkSubpassDependency, 2> dependencies{};
 
   // Depth attachment
   dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -227,7 +218,7 @@ void FramebufferVulkan::createRenderPass() {
     attachments = {colorAttachment, depthAttachment};
   }
 
-  VkRenderPassCreateInfo renderPassInfo = {};
+  VkRenderPassCreateInfo renderPassInfo{};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
   renderPassInfo.pAttachments = attachments.data();
@@ -236,9 +227,7 @@ void FramebufferVulkan::createRenderPass() {
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  VK_CHECK_RESULT(
-      vkCreateRenderPass(m_device->getLogicalDevice(), &renderPassInfo, nullptr, &render_pass),
-      "failed to create render pass!");
+  m_device->createRenderPass(&renderPassInfo, nullptr, &render_pass);
 }
 
 void FramebufferVulkan::beginRenderPass(VkCommandBuffer commandBuffer,

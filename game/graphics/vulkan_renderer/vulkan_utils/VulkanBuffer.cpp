@@ -67,9 +67,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
   bufferInfo.usage = usage;
   bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-  VK_CHECK_RESULT(
-      vkCreateBuffer(m_device->getLogicalDevice(), &bufferInfo, nullptr, &buffer),
-      "failed to create vertex buffer!");
+  m_device->createBuffer(&bufferInfo, nullptr, &buffer);
 
   VkMemoryRequirements memRequirements;
   vkGetBufferMemoryRequirements(m_device->getLogicalDevice(), buffer, &memRequirements);
@@ -79,17 +77,14 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
   allocInfo.allocationSize = memRequirements.size;
   allocInfo.memoryTypeIndex = m_device->findMemoryType(memRequirements.memoryTypeBits, properties);
 
-  VK_CHECK_RESULT(
-      vkAllocateMemory(m_device->getLogicalDevice(), &allocInfo, nullptr, &bufferMemory),
-      "failed to allocate vulkan buffer memory!");
-
-  vkBindBufferMemory(m_device->getLogicalDevice(), buffer, bufferMemory, 0);
+  m_device->allocateMemory(&allocInfo, nullptr, &bufferMemory);
+  m_device->bindBufferMemory(buffer, bufferMemory);
 }
 
 VulkanBuffer::~VulkanBuffer() {
   unmap();
-  vkDestroyBuffer(m_device->getLogicalDevice(), buffer, nullptr);
-  vkFreeMemory(m_device->getLogicalDevice(), memory, nullptr);
+  m_device->destroyBuffer(buffer, nullptr);
+  m_device->freeMemory(memory, nullptr);
 }
 
 /**
@@ -101,9 +96,9 @@ VulkanBuffer::~VulkanBuffer() {
  *
  * @return VkResult of the buffer mapping call
  */
-VkResult VulkanBuffer::map(VkDeviceSize size, VkDeviceSize offset) {
+void VulkanBuffer::map(VkDeviceSize size, VkDeviceSize offset) {
   assert(buffer && memory && "Called map on buffer before create");
-  return vkMapMemory(m_device->getLogicalDevice(), memory, offset, size, 0, &mapped);
+  m_device->mapMemory(memory, offset, size, 0, &mapped);
 }
 
 /**
@@ -112,10 +107,7 @@ VkResult VulkanBuffer::map(VkDeviceSize size, VkDeviceSize offset) {
  * @note Does not return a result as vkUnmapMemory can't fail
  */
 void VulkanBuffer::unmap() {
-  if (mapped) {
-    vkUnmapMemory(m_device->getLogicalDevice(), memory);
-    mapped = nullptr;
-  }
+   m_device->unmapMemory(memory);
 }
 
 /**
@@ -362,15 +354,11 @@ TexelVulkanBuffer::TexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> devic
 }
 
 void TexelVulkanBuffer::CreateBufferView() {
-  vkCreateBufferView(m_device->getLogicalDevice(), &m_buffer_view_create_info, nullptr,
-                     &m_buffer_view);
+  m_device->createBufferView(&m_buffer_view_create_info, nullptr, &m_buffer_view);
 }
 
 TexelVulkanBuffer::~TexelVulkanBuffer() {
-  if (m_buffer_view) {
-    vkDestroyBufferView(m_device->getLogicalDevice(), m_buffer_view, nullptr);
-    m_buffer_view = VK_NULL_HANDLE;
-  }
+  m_device->destroyBufferView(m_buffer_view, nullptr);
 }
 
 UniformTexelVulkanBuffer::UniformTexelVulkanBuffer(std::shared_ptr<GraphicsDeviceVulkan> device,

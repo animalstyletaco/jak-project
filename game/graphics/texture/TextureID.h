@@ -12,4 +12,5 @@ struct PcTextureId {
   static PcTextureId from_combo_id(u32 val) { return PcTextureId(val >> 16, val & 0xffff); }
 
   bool operator==(const PcTextureId& other) const { return page == other.page && tex == other.tex; }
+  bool operator!=(const PcTextureId& other) const { return !operator==(other); }
 };

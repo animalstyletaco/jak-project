@@ -16,7 +16,7 @@ class WarpVulkan : public BaseWarp, public BucketVulkanRenderer {
   ~WarpVulkan();
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void generic_draw_debug_window() override;
 
  private:

@@ -15,7 +15,7 @@ class DepthCueVulkan : public BaseDepthCue, public BucketVulkanRenderer {
                  VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
 
  protected:
   struct {

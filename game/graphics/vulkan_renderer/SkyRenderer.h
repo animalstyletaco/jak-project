@@ -24,7 +24,7 @@ class SkyBlendVulkanHandler : public BaseSkyBlendHandler, public BucketVulkanRen
                         std::shared_ptr<SkyBlendCPU> shared_cpu_blender);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer) override;
 
  protected:
   void tfrag_renderer_draw_debug_window() override;
@@ -98,7 +98,7 @@ class SkyVulkanRenderer : public BaseSkyRenderer, public BucketVulkanRenderer {
                     VulkanInitializationInfo& vulkan_info);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
 
  protected:
   void direct_renderer_reset_state() override;

@@ -18,7 +18,7 @@ class ShrubVulkan : public BaseShrub, public BucketVulkanRenderer {
   ~ShrubVulkan();
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
 
  protected:
   void render_all_trees(const TfragRenderSettings& settings,

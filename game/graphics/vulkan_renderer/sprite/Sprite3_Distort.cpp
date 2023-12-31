@@ -150,10 +150,10 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
     return;
   }
 
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  vkCmdEndRenderPass(m_command_buffer);
   // Do common distort drawing logic
   distort_draw_common(render_state, prof);
-  m_distort_ogl.fbo->beginRenderPass(m_vulkan_info.render_command_buffer);
+  m_distort_ogl.fbo->beginRenderPass(m_command_buffer);
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   m_pipeline_config_info.renderPass = m_distort_ogl.fbo->GetRenderPass();
 
@@ -166,11 +166,11 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
                m_sprite_distorter_sine_tables.color.z() / 255.0f,
                m_sprite_distorter_sine_tables.color.w() / 255.0f);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_sprite_distort_push_constant),
                      &m_sprite_distort_push_constant);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant),
                      sizeof(float), &m_sprite_distort_push_constant.height_scale);
 
@@ -195,17 +195,17 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   m_pipeline_config_info.pipelineLayout = m_sprite_distort_pipeline_layout;
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-  m_distorted_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_distorted_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                      m_pipeline_config_info);
-  m_distorted_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_distorted_pipeline_layout.bind(m_command_buffer);
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffers[] = {m_distort_ogl.vertex_buffer->getBuffer()};
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, vertex_buffers, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, vertex_buffers, offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_distort_ogl.index_buffer->getBuffer(),
+  vkCmdBindIndexBuffer(m_command_buffer, m_distort_ogl.index_buffer->getBuffer(),
                        0, VK_INDEX_TYPE_UINT32);
 
   m_sprite_distort_descriptor_image_info =
@@ -221,17 +221,17 @@ void SpriteVulkan3::distort_draw(BaseSharedRenderState* render_state, ScopedProf
   m_sprite_distort_fragment_descriptor_writer->overwrite(m_sprite_distort_fragment_descriptor_set);
   std::vector<VkDescriptorSet> descriptorSets{m_sprite_distort_fragment_descriptor_set};
 
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptorSets.size(),
                           descriptorSets.data(), 0, NULL);
 
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, m_sprite_distorter_indices.size(), 1, 0, 0,
+  vkCmdDrawIndexed(m_command_buffer, m_sprite_distorter_indices.size(), 1, 0, 0,
                    0);
 
   // Done
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  vkCmdEndRenderPass(m_command_buffer);
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_command_buffer,
                                                      m_vulkan_info.currentFrame);
 }
 
@@ -249,10 +249,10 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
     return;
   }
 
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  vkCmdEndRenderPass(m_command_buffer);
   // Do common distort drawing logic
   distort_draw_common(render_state, prof);
-  m_distort_ogl.fbo->beginRenderPass(m_vulkan_info.render_command_buffer);
+  m_distort_ogl.fbo->beginRenderPass(m_command_buffer);
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
   m_pipeline_config_info.renderPass = m_distort_ogl.fbo->GetRenderPass();
 
@@ -265,19 +265,19 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
                m_sprite_distorter_sine_tables.color.z() / 255.0f,
                m_sprite_distorter_sine_tables.color.w() / 255.0f);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_sprite_distort_push_constant),
                      &m_sprite_distort_push_constant);
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_sprite_distort_push_constant),
                      sizeof(float), &m_sprite_distort_push_constant.height_scale);
 
-  m_distorted_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_distorted_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                      m_pipeline_config_info);
-  m_distorted_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_distorted_pipeline_layout.bind(m_command_buffer);
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   // TODO: update descriptor set here
   m_sprite_distort_descriptor_image_info =
@@ -292,7 +292,7 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
   m_fragment_descriptor_writer->overwrite(m_sprite_distort_fragment_descriptor_set);
   std::vector<VkDescriptorSet> descriptorSets{m_sprite_distort_fragment_descriptor_set};
 
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptorSets.size(),
                           descriptorSets.data(), 0, NULL);
 
@@ -322,21 +322,21 @@ void SpriteVulkan3::distort_draw_instanced(BaseSharedRenderState* render_state,
       std::array<VkBuffer, 2> vertex_buffers = {
           m_vulkan_distort_instanced_ogl.vertex_buffer->getBuffer(),
           m_vulkan_distort_instanced_ogl.instance_buffer->getBuffer()};
-      vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, vertex_buffers.size(),
+      vkCmdBindVertexBuffers(m_command_buffer, 0, vertex_buffers.size(),
                              vertex_buffers.data(), offsets);
 
       // Draw
       prof.add_draw_call();
 
       // glDrawArraysInstanced(GL_TRIANGLE_STRIP, vert_offset, num_verts, instances.size());
-      vkCmdDraw(m_vulkan_info.render_command_buffer, num_verts, instances.size(), vert_offset, 0);
+      vkCmdDraw(m_command_buffer, num_verts, instances.size(), vert_offset, 0);
     }
 
     vert_offset += num_verts;
   }
-  vkCmdEndRenderPass(m_vulkan_info.render_command_buffer);
+  vkCmdEndRenderPass(m_command_buffer);
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
-  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_vulkan_info.render_command_buffer,
+  m_vulkan_info.swap_chain->beginSwapChainRenderPass(m_command_buffer,
                                                      m_vulkan_info.currentFrame);
 }
 
@@ -366,7 +366,7 @@ void SpriteVulkan3::distort_draw_common(BaseSharedRenderState* render_state,
   VkImage srcImage = m_vulkan_info.swap_chain->GetSwapChainImageAtIndex(m_vulkan_info.currentFrame);
   m_device->transitionImageLayout(srcImage, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-  vkCmdBlitImage(m_vulkan_info.render_command_buffer, srcImage,
+  vkCmdBlitImage(m_command_buffer, srcImage,
                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                  m_distort_ogl.fbo->ColorAttachmentTexture().getImage(),
                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_NEAREST);

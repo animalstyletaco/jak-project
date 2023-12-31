@@ -11,7 +11,7 @@ EmptyBucketVulkanRenderer::EmptyBucketVulkanRenderer(const std::string& name,
 
 void EmptyBucketVulkanRenderer::render(DmaFollower& dma,
                                        SharedVulkanRenderState* render_state,
-                                       ScopedProfilerNode& prof) {
+                                       ScopedProfilerNode& prof, VkCommandBuffer commandBuffer) {
   BaseEmptyBucketRenderer::render(dma, render_state, prof);
 }
 
@@ -23,7 +23,7 @@ SkipVulkanRenderer::SkipVulkanRenderer(const std::string& name,
 
 void SkipVulkanRenderer::render(DmaFollower& dma,
                                 SharedVulkanRenderState* render_state,
-                                ScopedProfilerNode& prof) {
+                                ScopedProfilerNode& prof, VkCommandBuffer commandBuffer) {
   BaseSkipRenderer::render(dma, render_state, prof);
 }
 
@@ -40,9 +40,9 @@ RenderVulkanMux::RenderVulkanMux(const std::string& name,
 
 void RenderVulkanMux::render(DmaFollower& dma,
                              SharedVulkanRenderState* render_state,
-                             ScopedProfilerNode& prof) {
+                             ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_bucket_renderers[m_render_idx]->enabled() = m_enabled;
-  m_graphics_renderers[m_render_idx]->render(dma, render_state, prof);
+  m_graphics_renderers[m_render_idx]->render(dma, render_state, prof, command_buffer);
 }
 
 void RenderVulkanMux::init_textures(VulkanTexturePool& tp) {

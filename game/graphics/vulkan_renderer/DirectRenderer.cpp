@@ -87,7 +87,7 @@ void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
         debugRedAttributeDescriptions.end());
     m_pipeline_config_info.pipelineLayout = m_pipeline_layout;
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.scissor_adjust),
                        (void*)&m_push_constant.scissor_adjust);
   } else if (shaderId == ShaderId::DIRECT_BASIC) {
@@ -96,7 +96,7 @@ void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
         directBasicAttributeDescriptions.begin(), directBasicAttributeDescriptions.end());
     m_pipeline_config_info.pipelineLayout = m_pipeline_layout;
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant),
                        (void*)&m_push_constant);
   } else {
@@ -110,7 +110,7 @@ void DirectVulkanRenderer::SetShaderModule(ShaderId shaderId) {
     m_textured_pipeline_push_constant.scissor_adjust = m_push_constant.scissor_adjust;
     m_textured_pipeline_push_constant.offscreen_mode = m_offscreen_mode;
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_textured_pipeline_push_constant),
                        (void*)&m_textured_pipeline_push_constant);
   }
@@ -170,10 +170,11 @@ void DirectVulkanRenderer::InitializeInputVertexAttribute() {
 
 void DirectVulkanRenderer::render(DmaFollower& dma,
                                   SharedVulkanRenderState* render_state,
-                                  ScopedProfilerNode& prof) {
+                                  ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples =
       m_vulkan_info.swap_chain->get_render_pass_sample_count();
+  m_command_buffer = command_buffer;
   BaseDirectRenderer::render(dma, render_state, prof);
 }
 
@@ -194,10 +195,7 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_layout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr, &m_pipeline_layout);
 
   VkPipelineLayoutCreateInfo texturedPipelineLayoutInfo{};
   texturedPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -216,8 +214,7 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   texturedPipelineLayoutInfo.pPushConstantRanges = texturedPushConstantRanges.data();
   texturedPipelineLayoutInfo.pushConstantRangeCount = texturedPushConstantRanges.size();
 
-  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &texturedPipelineLayoutInfo, nullptr,
-                             &m_textured_pipeline_layout), "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&texturedPipelineLayoutInfo, nullptr, &m_textured_pipeline_layout);
 
   VkPipelineLayoutCreateInfo debugRedPipelineLayoutInfo{};
   debugRedPipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -232,22 +229,14 @@ void DirectVulkanRenderer::create_pipeline_layout() {
   debugRedPipelineLayoutInfo.pPushConstantRanges = &debugRedPushConstantRange;
   debugRedPipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  VK_CHECK_RESULT(
-      vkCreatePipelineLayout(m_device->getLogicalDevice(), &debugRedPipelineLayoutInfo, nullptr,
-                             &m_debug_red_pipeline_layout),
-      "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&debugRedPipelineLayoutInfo, nullptr,
+                                 &m_debug_red_pipeline_layout);
 }
 
 DirectVulkanRenderer::~DirectVulkanRenderer() {
-  if (m_pipeline_layout) {
-    vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_pipeline_layout, nullptr);
-  }
-  if (m_textured_pipeline_layout) {
-    vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_textured_pipeline_layout, nullptr);
-  }
-  if (m_debug_red_pipeline_layout) {
-    vkDestroyPipelineLayout(m_device->getLogicalDevice(), m_debug_red_pipeline_layout, nullptr);
-  }
+  m_device->destroyPipelineLayout(m_pipeline_layout, nullptr);
+  m_device->destroyPipelineLayout(m_textured_pipeline_layout, nullptr);
+  m_device->destroyPipelineLayout(m_debug_red_pipeline_layout, nullptr);
   m_vulkan_info.descriptor_pool->freeDescriptors(m_descriptor_sets);
 }
 
@@ -297,7 +286,7 @@ void DirectVulkanRenderer::update_graphics_prim(BaseSharedRenderState* render_st
     m_direct_basic_fragment_push_constant.game_sizes = math::Vector4f{
         512.0f, render_state->GetHeightScale(), swapchain_extents.width, swapchain_extents.height};
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(math::Vector4f),
                        sizeof(m_direct_basic_fragment_push_constant),
                        &m_direct_basic_fragment_push_constant);
@@ -599,17 +588,17 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
   int draw_count = 0;
 
   m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->updateGraphicsPipeline(
-      m_vulkan_info.render_command_buffer, m_pipeline_config_info);
+      m_command_buffer, m_pipeline_config_info);
   m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->bind(
-      m_vulkan_info.render_command_buffer);
+      m_command_buffer);
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = m_ogl.vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, 1,
                           &m_descriptor_sets[currentImageIndex], 0, nullptr);
   // Hack OpenGL and Vulkan Y-Axis are inverted in VkCmdDraw(...) (OpenGL equivalent -
@@ -618,7 +607,7 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
   for (unsigned i = 0; i < m_prim_buffer.vert_count; i++) {
     m_prim_buffer.vertices[i].xyzf[1] *= -1;
   }
-  vkCmdDraw(m_vulkan_info.render_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
+  vkCmdDraw(m_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
 
   draw_count++;
 
@@ -627,14 +616,13 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 
-    m_debug_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                                            m_pipeline_config_info);
-    m_debug_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+    m_debug_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+    m_debug_graphics_pipeline_layout.bind(m_command_buffer);
 
-    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, 1,
                             &m_descriptor_sets[currentImageIndex], 0, nullptr);
-    vkCmdDraw(m_vulkan_info.render_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
+    vkCmdDraw(m_command_buffer, m_prim_buffer.vert_count, 1, 0, 0);
 
     m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
     m_pipeline_config_info.rasterizationInfo.lineWidth = 1.0f;

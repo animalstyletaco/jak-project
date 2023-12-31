@@ -42,15 +42,15 @@ class VulkanRenderer {
 
   VkCommandBuffer getCurrentCommandBuffer() const {
     assert(isFrameStarted && "Cannot get command buffer when frame not in progress");
-    return commandBuffers[currentFrame];
+    return primaryCommandBuffers[currentSwapchainFrameImageIndex];
   }
 
   int getFrameIndex() const {
     assert(isFrameStarted && "Cannot get frame index when frame not in progress");
-    return currentFrame;
+    return currentSwapchainFrameImageIndex;
   }
 
-  VkCommandBuffer beginFrame();
+  bool beginFrame();
   void endFrame();
 
  protected:
@@ -89,7 +89,8 @@ class VulkanRenderer {
     return m_texture_animator ? m_texture_animator->slots() : nullptr;
   }
 
-  uint32_t currentFrame = 0;
+  uint32_t currentSwapchainFrameImageIndex = 0;
+  uint64_t currentFrame = 0;
 
   Profiler m_profiler;
   SmallProfiler m_small_profiler;
@@ -105,18 +106,25 @@ class VulkanRenderer {
   bool m_enable_fast_blackout_loads = true;
 
   void createCommandBuffers();
+  void updateSecondaryCommandBuffers();
   void freeCommandBuffers();
   void recreateSwapChain(bool vsyncEnabled);
 
   std::shared_ptr<GraphicsDeviceVulkan> m_device;
-  std::vector<VkCommandBuffer> commandBuffers;
+  std::vector<VkCommandBuffer> primaryCommandBuffers;
+
+  struct GraphicsRendererInput {
+    VkCommandBuffer secondaryCommandBuffer;
+    DmaFollower dma;
+  };
+
+  std::vector<std::vector<GraphicsRendererInput>> graphicsRendererInputSets;
 
   VulkanInitializationInfo m_vulkan_info;
   std::unique_ptr<FullScreenDrawVulkan> m_blackout_renderer;
 
   std::unique_ptr<CollideMeshVulkanRenderer> m_collide_renderer;
 
-  uint32_t currentImageIndex;
   bool isFrameStarted = false;
 
   VkExtent2D m_extents = {640, 480};

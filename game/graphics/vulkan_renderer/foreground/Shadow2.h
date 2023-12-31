@@ -12,7 +12,7 @@ class ShadowVulkan2 : public BucketVulkanRenderer, public BaseShadow2 {
   ~ShadowVulkan2();
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
 
  private:
   void init_shaders(VulkanShaderLibrary&) override;

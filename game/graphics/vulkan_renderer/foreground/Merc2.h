@@ -48,6 +48,7 @@ class MercVulkan2 : public BaseMerc2 {
               SharedVulkanRenderState* render_state,
               ScopedProfilerNode& prof,
               BaseMercDebugStats* debug_stats);
+  void set_command_buffer(VkCommandBuffer command_buffer) { m_command_buffer = command_buffer; }
   void reset_draw_count();
 
  protected:
@@ -101,6 +102,8 @@ class MercVulkan2 : public BaseMerc2 {
       next_free_envmap_draw = 0;
     }
   };
+
+  VkCommandBuffer m_command_buffer = VK_NULL_HANDLE;
 
  private:
   void create_pipeline_layout();

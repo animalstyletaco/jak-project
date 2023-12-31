@@ -14,7 +14,7 @@ class SkyBlendVulkanGPU : BaseSkyBlendGPU {
   void init_textures(VulkanTexturePool& tex_pool);
   SkyBlendStats do_sky_blends(DmaFollower& dma,
                               BaseSharedRenderState* render_state,
-                              ScopedProfilerNode& prof);
+                              ScopedProfilerNode& prof, VkCommandBuffer);
 
  protected:
   void create_pipeline_layout();

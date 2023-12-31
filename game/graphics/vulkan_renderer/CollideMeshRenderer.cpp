@@ -84,8 +84,8 @@ void CollideMeshVulkanRenderer::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = &pushConstantVertexRange;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
 
-  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void CollideMeshVulkanRenderer::init_shaders() {
@@ -108,7 +108,7 @@ void CollideMeshVulkanRenderer::init_shaders() {
 CollideMeshVulkanRenderer::~CollideMeshVulkanRenderer() {}
 
 void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
-                                       ScopedProfilerNode& prof) {
+                                       ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   if (!render_state->has_pc_data) {
     return;
@@ -146,7 +146,9 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
   m_pipeline_config_info.colorBlendInfo.blendConstants[2] = 1.0f;
   m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(command_buffer);
+  m_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_pipeline_layout.bind(command_buffer);
 
   for (LevelDataVulkan* level : levels) {
     m_push_constant.wireframe = 0;
@@ -161,29 +163,27 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
     m_push_constant.collision_skip_mask = Gfx::g_global_settings.collision_skip_mask;
     m_push_constant.mode = Gfx::g_global_settings.collision_mode;
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
                        &m_push_constant);
 
-    m_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+    m_pipeline_layout.updateGraphicsPipeline(command_buffer,
                                              m_pipeline_config_info);
-    m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
 
     VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffer_vulkan = level->collide_vertices->getBuffer();
-    vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan,
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer_vulkan,
                            offsets);
 
-    vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
                             m_descriptor_sets.data(), 0, nullptr);
 
-    vkCmdDraw(m_vulkan_info.render_command_buffer, level->collide_vertices->getBufferSize(), 0, 0,
-              0);
+    vkCmdDraw(command_buffer, level->collide_vertices->getBufferSize(), 0, 0, 0);
 
     if (Gfx::g_global_settings.collision_wireframe) {
       m_push_constant.wireframe = 1;
-      vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+      vkCmdPushConstants(command_buffer, m_pipeline_config_info.pipelineLayout,
                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
                          &m_push_constant);
 
@@ -205,12 +205,9 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
           VK_FRONT_FACE_COUNTER_CLOCKWISE;  // TODO: Verify that this is correct
       m_pipeline_config_info.rasterizationInfo.depthBiasEnable = VK_FALSE;
 
-      m_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                               m_pipeline_config_info);
-      m_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+      m_pipeline_layout.updateGraphicsPipeline(command_buffer, m_pipeline_config_info);
 
-      vkCmdDraw(m_vulkan_info.render_command_buffer, level->collide_vertices->getBufferSize(), 0, 0,
-                0);
+      vkCmdDraw(command_buffer, level->collide_vertices->getBufferSize(), 0, 0, 0);
 
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
       colorBlendAttachment.blendEnable = VK_TRUE;

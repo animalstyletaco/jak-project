@@ -13,7 +13,7 @@ class MercVulkan2BucketRenderer : public BaseMerc2BucketRenderer, public BucketV
                             std::shared_ptr<MercVulkan2>);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void draw_debug_window() override;
 
  protected:
@@ -29,7 +29,7 @@ class MercVulkan2BucketRendererJak1 : public BaseMerc2BucketRenderer, public Buc
                                 std::shared_ptr<MercVulkan2Jak1>);
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
-              ScopedProfilerNode& prof) override;
+              ScopedProfilerNode& prof, VkCommandBuffer command_buffer) override;
   void draw_debug_window() override;
 
  protected:

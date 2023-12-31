@@ -99,8 +99,8 @@ void GenericVulkan2::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                                 &m_pipeline_config_info.pipelineLayout);
 }
 
 void GenericVulkan2::graphics_cleanup() {
@@ -375,7 +375,7 @@ void GenericVulkan2::setup_graphics_tex(u16 unit,
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
   }
 
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant),
                      (void*)&m_vertex_push_constant);
 
@@ -421,9 +421,9 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
     return;
   }
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                     m_pipeline_config_info);
-  m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+  m_graphics_pipeline_layout.bind(m_command_buffer);
 
   if (m_next_free_vert > 0) {
     m_ogl.vertex_buffer->writeToGpuBuffer(m_verts.data(), m_next_free_vert * sizeof(Vertex), 0);
@@ -434,17 +434,17 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
   }
 
   m_fragment_push_constant.hack_no_tex = Gfx::g_global_settings.hack_no_tex;
-  vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+  vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
                      sizeof(m_fragment_push_constant), (void*)&m_fragment_push_constant);
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = m_ogl.vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, m_ogl.index_buffer->getBuffer(), 0,
+  vkCmdBindIndexBuffer(m_command_buffer, m_ogl.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
   m_pipeline_config_info.inputAssemblyInfo.primitiveRestartEnable = true;
@@ -471,7 +471,7 @@ void GenericVulkan2::do_draws(BaseSharedRenderState* render_state, ScopedProfile
     m_vertex_push_constant.mat_32 = m_drawing_config.hud_mat_32;
     m_vertex_push_constant.mat_33 = m_drawing_config.hud_mat_33;
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant),
                        &m_vertex_push_constant);
 
@@ -512,16 +512,16 @@ void GenericVulkan2::FinalizeVulkanDraws(u32 bucket, u32 indexCount, u32 firstIn
       m_fragment_descriptor_writer->writeImageDescriptorSet(0, &m_descriptor_image_infos[bucket]);
 
   m_fragment_descriptor_writer->overwrite(m_fragment_descriptor_sets[bucket]);
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
+  m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                     m_pipeline_config_info);
 
   std::vector<VkDescriptorSet> descriptor_sets = {m_fragment_descriptor_sets[bucket]};
 
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                           descriptor_sets.data(), 0, NULL);
 
-  vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, indexCount, 1, firstIndex, 0, 0);
+  vkCmdDrawIndexed(m_command_buffer, indexCount, 1, firstIndex, 0, 0);
 }
 
 void GenericVulkan2::InitializeInputAttributes() {

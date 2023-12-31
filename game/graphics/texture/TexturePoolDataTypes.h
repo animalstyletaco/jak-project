@@ -204,3 +204,47 @@ struct GoalTexturePage {
 namespace texture_pool {
 const char* goal_string(u32 ptr, const u8* memory_base);
 }  // namespace texture_pool
+
+/*!
+ * This represents a unique in-game texture, including any instances of it that are loaded.
+ * It's possible for there to be 0 instances of the texture loaded yet.
+ */
+class VramTextureSlotSet {
+ public:
+  VramTextureSlotSet(PcTextureId id) : tex_id(id) {}
+  VramTextureSlotSet() = default;
+  virtual ~VramTextureSlotSet() = default;
+
+  bool get_placeholder_status() { return is_placeholder; }
+  void set_placeholder_status(bool placeholder_status) { is_placeholder = placeholder_status; }
+
+  bool get_common_texture_status() { return is_common; }
+  void set_common_texture_status(bool common_status) { is_placeholder = common_status; }
+
+  PcTextureId get_texture_id() { return tex_id; }
+  void set_texture_id(PcTextureId id) { id = tex_id; }
+
+  std::vector<u32> get_slots() { return slots; }
+  std::vector<u32> get_mt4hh_slots() { return mt4hh_slots; }
+
+  // add or remove a VRAM reference to this texture
+  void remove_slot(u32 slot);
+  void add_slot(u32 slot);
+  void add_slot_if_not_found(u32 slot);
+
+  void force_add_slot(u32 slot);
+  void force_add_mt4hh_slot(u32 slot);
+
+  protected:
+  PcTextureId tex_id;
+
+  // set to true if we have no copies of the texture, and we should use a placeholder
+  bool is_placeholder = false;
+
+  // set to true if we are part of the textures in GAME.CGO that are always loaded.
+  // for these textures, the pool can assume that we are never a placeholder.
+  bool is_common = false;
+
+  std::vector<u32> slots;
+  std::vector<u32> mt4hh_slots;
+};

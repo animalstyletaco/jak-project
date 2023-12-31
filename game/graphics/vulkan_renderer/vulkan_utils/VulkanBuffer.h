@@ -27,7 +27,7 @@ class VulkanBuffer {
                     VkBuffer& buffer,
                     VkDeviceMemory& bufferMemory);
 
-  VkResult map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
+  void map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   void unmap();
 
   void writeToCpuBuffer(void* data, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);

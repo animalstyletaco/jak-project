@@ -154,6 +154,55 @@ class GraphicsDeviceVulkan {
                              unsigned levelCount = 1);
 
   VkFormatProperties getPhysicalDeviceFormatProperties(VkFormat format);
+  void createRenderPass(const VkRenderPassCreateInfo*, const VkAllocationCallbacks*, VkRenderPass*);
+  void destroyRenderPass(VkRenderPass&, const VkAllocationCallbacks*);
+  void createFramebuffer(const VkFramebufferCreateInfo*, const VkAllocationCallbacks*, VkFramebuffer*);
+  void destroyFramebuffer(VkFramebuffer&, const VkAllocationCallbacks*);
+
+  void allocateCommandBuffers(const VkCommandBufferAllocateInfo* commandBufferCreateInfo,
+                              VkCommandBuffer* commandBuffers);
+  void freeCommandBuffers(VkCommandPool commandPool,
+                          unsigned commandBufferCount,
+                          const VkCommandBuffer* commandBuffers);
+
+  void allocateMemory(const VkMemoryAllocateInfo* alloc_info,
+                      const VkAllocationCallbacks* callbacks,
+                      VkDeviceMemory* device_memory);
+  void mapMemory(VkDeviceMemory device_memory,
+                 VkDeviceSize offset,
+                 VkDeviceSize size,
+                 VkMemoryMapFlags flags,
+                 void** mappedMemory);
+  void unmapMemory(VkDeviceMemory);
+  void freeMemory(VkDeviceMemory& device_memory, const VkAllocationCallbacks* callbacks);
+
+  void createBuffer(const VkBufferCreateInfo*, const VkAllocationCallbacks*, VkBuffer*);
+  void bindBufferMemory(VkBuffer image, VkDeviceMemory device_memory, unsigned flags = 0);
+  void destroyBuffer(VkBuffer&, const VkAllocationCallbacks*);
+
+  void createBufferView(const VkBufferViewCreateInfo*, const VkAllocationCallbacks*, VkBufferView*);
+  void destroyBufferView(VkBufferView&, const VkAllocationCallbacks*);
+
+  void createImage(const VkImageCreateInfo*,
+                   const VkAllocationCallbacks*, VkImage*);
+  void bindImageMemory(VkImage image, VkDeviceMemory device_memory, unsigned flags = 0);
+  void destroyImage(VkImage&, const VkAllocationCallbacks*);
+
+  void createImageView(const VkImageViewCreateInfo*, const VkAllocationCallbacks*, VkImageView*);
+  void destroyImageView(VkImageView&, const VkAllocationCallbacks*);
+
+  void createSampler(const VkSamplerCreateInfo*, const VkAllocationCallbacks*, VkSampler*);
+  void destroySampler(VkSampler&, const VkAllocationCallbacks*);
+
+  void createPipelineLayout(const VkPipelineLayoutCreateInfo*, const VkAllocationCallbacks*, VkPipelineLayout*);
+  void destroyPipelineLayout(VkPipelineLayout&, const VkAllocationCallbacks*);
+
+  void createGraphicsPipelines(VkPipelineCache pipelineCache,
+                               VkDeviceSize graphicsPipelineCreateCount,
+                               const VkGraphicsPipelineCreateInfo* createInfo,
+                               const VkAllocationCallbacks* callbacks,
+                               VkPipeline* pipelines);
+  void destroyPipeline(VkPipeline&, const VkAllocationCallbacks*);
 
  private:
   void createInstance();

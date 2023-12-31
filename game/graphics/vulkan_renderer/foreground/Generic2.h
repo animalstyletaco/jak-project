@@ -41,6 +41,7 @@ class GenericVulkan2 : public virtual BaseGeneric2 {
                       BaseSharedRenderState* render_state,
                       ScopedProfilerNode& prof,
                       Mode mode) override;
+  void set_command_buffer(VkCommandBuffer command_buffer) { m_command_buffer = command_buffer; }
 
   struct Vertex {
     math::Vector<float, 3> xyz;
@@ -106,6 +107,7 @@ class GenericVulkan2 : public virtual BaseGeneric2 {
   std::vector<VkDescriptorSet> m_fragment_descriptor_sets;
 
   GenericCommonFragmentPushConstantData m_fragment_push_constant;
+  VkCommandBuffer m_command_buffer = VK_NULL_HANDLE;
 };
 
 class GenericVulkan2Jak1 : public BaseGeneric2Jak1, public GenericVulkan2 {

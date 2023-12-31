@@ -237,9 +237,12 @@ void TFragmentVulkan::update_load(const std::vector<tfrag3::TFragmentTreeKind>& 
 
 void TFragmentVulkan::render(DmaFollower& dma,
                              SharedVulkanRenderState* render_state,
-                             ScopedProfilerNode& prof) {
+                             ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  m_command_buffer = command_buffer;
+
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
 
   m_multi_draw_buffer->Reset();
   BaseTFragment::render(dma, render_state, prof);
@@ -382,17 +385,19 @@ void TFragmentVulkan::render_tree(int geom,
 
   prof.add_tri(total_tris);
 
-  m_vulkan_info.swap_chain->setViewportScissor(m_vulkan_info.render_command_buffer);
+  m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = tree.vertex_buffer->getBuffer();
-  vkCmdBindVertexBuffers(m_vulkan_info.render_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
+  vkCmdBindVertexBuffers(m_command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
-  vkCmdBindIndexBuffer(m_vulkan_info.render_command_buffer, tree.index_buffer->getBuffer(), 0,
+  vkCmdBindIndexBuffer(m_command_buffer, tree.index_buffer->getBuffer(), 0,
                        VK_INDEX_TYPE_UINT32);
 
   int32_t lastIndex = -1;
   int32_t lastDrawCount = -1;
+
+  m_graphics_pipeline_layout.bind(m_command_buffer);
 
   for (size_t draw_idx = 0; draw_idx < tree.draws->size(); draw_idx++) {
     const auto& draw = tree.draws->at(draw_idx);
@@ -415,17 +420,14 @@ void TFragmentVulkan::render_tree(int geom,
     auto double_draw = vulkan_background_common::setup_tfrag_shader(
         render_state, draw.mode, tree.sampler_helpers[draw_idx], m_pipeline_config_info,
         m_time_of_day_color_push_constant);
-
-    m_graphics_pipeline_layout.updateGraphicsPipeline(m_vulkan_info.render_command_buffer,
-                                                      m_pipeline_config_info);
-    m_graphics_pipeline_layout.bind(m_vulkan_info.render_command_buffer);
+    m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer, m_pipeline_config_info);
 
     m_vertex_push_constant.decal_mode = (draw.mode.get_decal()) ? 1 : 0;
 
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_vertex_push_constant),
                        (void*)&m_vertex_push_constant);
-    vkCmdPushConstants(m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+    vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
                        sizeof(m_time_of_day_color_push_constant),
                        (void*)&m_time_of_day_color_push_constant);
@@ -437,11 +439,11 @@ void TFragmentVulkan::render_tree(int geom,
 
     prof.add_draw_call();
     if (render_state->no_multidraw) {
-      vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws, 1,
+      vkCmdDrawIndexed(m_command_buffer, singledraw_indices.number_of_draws, 1,
                        singledraw_indices.draw_index, 0, 0);
     } else {
       vkCmdDrawIndexedIndirect(
-          m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+          m_command_buffer, m_multi_draw_buffer->getBuffer(),
           multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
           multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
     }
@@ -455,17 +457,17 @@ void TFragmentVulkan::render_tree(int geom,
         m_time_of_day_color_push_constant.alpha_max = double_draw.aref_second;
 
         vkCmdPushConstants(
-            m_vulkan_info.render_command_buffer, m_pipeline_config_info.pipelineLayout,
+            m_command_buffer, m_pipeline_config_info.pipelineLayout,
             VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_push_constant),
             sizeof(m_time_of_day_color_push_constant), (void*)&m_time_of_day_color_push_constant);
 
         // glDepthMask(GL_FALSE);
         if (render_state->no_multidraw) {
-          vkCmdDrawIndexed(m_vulkan_info.render_command_buffer, singledraw_indices.number_of_draws,
+          vkCmdDrawIndexed(m_command_buffer, singledraw_indices.number_of_draws,
                            1, singledraw_indices.draw_index, 0, 0);
         } else {
           vkCmdDrawIndexedIndirect(
-              m_vulkan_info.render_command_buffer, m_multi_draw_buffer->getBuffer(),
+              m_command_buffer, m_multi_draw_buffer->getBuffer(),
               multidraw_settings.offset * sizeof(VkDrawIndexedIndirectCommand),
               multidraw_settings.commands.size(), sizeof(VkDrawIndexedIndirectCommand));
         }
@@ -589,8 +591,8 @@ void TFragmentVulkan::create_pipeline_layout() {
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges.data();
   pipelineLayoutInfo.pushConstantRangeCount = pushConstantRanges.size();
 
-  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device->getLogicalDevice(), &pipelineLayoutInfo, nullptr,
-                             &m_pipeline_config_info.pipelineLayout), "failed to create pipeline layout!");
+  m_device->createPipelineLayout(&pipelineLayoutInfo, nullptr,
+                             &m_pipeline_config_info.pipelineLayout);
 }
 
 void TFragmentVulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, VulkanTexture& texture, int index) {
@@ -616,7 +618,7 @@ void TFragmentVulkan::PrepareVulkanDraw(TreeCacheVulkan& tree, VulkanTexture& te
 
   std::vector<VkDescriptorSet> descriptor_sets{tree.vertex_shader_descriptor_sets[index],
                                                tree.fragment_shader_descriptor_sets[index]};
-  vkCmdBindDescriptorSets(m_vulkan_info.render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+  vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_pipeline_config_info.pipelineLayout, 0, descriptor_sets.size(),
                           descriptor_sets.data(), 0, NULL);
 }

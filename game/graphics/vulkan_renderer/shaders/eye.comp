@@ -1,0 +1,25 @@
+#version 450
+
+layout(binding = 0) readonly buffer TextureInfo {
+   int row_size;
+   int col_size;
+}
+
+layout(std140, binding = 1) readonly buffer ImageSSBOIn {
+   vec4 pixels[];
+};
+
+layout(std140, binding = 2) buffer ImageSSBOOut {
+   vec4 pixels[];
+};
+
+layout (local_size_x = 1, local_size_y = 1) in;
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;  
+
+    vec4 position = vec4((ImageSSBOIn.pixels[index].x - 768.f) / 256.f, -1 * ((ImageSSBOIn.pixels[index].y - 768.f) / 256.f), 0, 1);
+    int textureIndex = ImageSSBOIn.pixels[index].z * TextureInfo.row_size + ImageSSBOIn.pixels[index].w;
+
+    ImageSSBOOut.pixels[textureIndex].w *= 2;
+}

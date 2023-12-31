@@ -69,8 +69,7 @@ void VulkanBuffer::createBuffer(VkDeviceSize size,
 
   m_device->createBuffer(&bufferInfo, nullptr, &buffer);
 
-  VkMemoryRequirements memRequirements;
-  vkGetBufferMemoryRequirements(m_device->getLogicalDevice(), buffer, &memRequirements);
+  VkMemoryRequirements memRequirements = m_device->getBufferMemoryRequirements(buffer);
 
   VkMemoryAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;

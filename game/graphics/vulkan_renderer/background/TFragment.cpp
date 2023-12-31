@@ -138,13 +138,12 @@ void TFragmentVulkan::InitializeInputVertexAttribute() {
 TFragmentVulkan::~TFragmentVulkan() {
   discard_tree_cache();
 
-  vkFreeDescriptorSets(
-      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
-      m_global_vertex_shader_descriptor_sets.size(), m_global_vertex_shader_descriptor_sets.data());
-  vkFreeDescriptorSets(m_device->getLogicalDevice(),
-                       m_vulkan_info.descriptor_pool->getDescriptorPool(),
-                       m_global_fragment_shader_descriptor_sets.size(),
-                       m_global_fragment_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_vertex_shader_descriptor_sets.size(),
+                               m_global_vertex_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_fragment_shader_descriptor_sets.size(),
+                               m_global_fragment_shader_descriptor_sets.data());
 }
 
 BaseTFragment::TreeCache& TFragmentVulkan::get_cached_tree(int bucket_index, int cache_index) {
@@ -264,8 +263,7 @@ void TFragmentVulkan::AllocateDescriptorSets(std::vector<VkDescriptorSet>& descr
   descriptorSetAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
   descriptorSetAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
 
-  VK_CHECK_RESULT(vkAllocateDescriptorSets(m_device->getLogicalDevice(), &descriptorSetAllocInfo,
-                               descriptorSets.data()), "Failed to allocated descriptor set in Shrub");
+  m_device->allocateDescriptorSets(&descriptorSetAllocInfo, descriptorSets.data());
 }
 
 bool TFragmentVulkan::setup_for_level(const std::vector<tfrag3::TFragmentTreeKind>& tree_kinds,
@@ -482,12 +480,12 @@ void TFragmentVulkan::discard_tree_cache() {
   m_textures = nullptr;
   for (int geom = 0; geom < GEOM_MAX; ++geom) {
     for (auto& tree : m_cached_trees[geom]) {
-      vkFreeDescriptorSets(
-          m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
-          tree.vertex_shader_descriptor_sets.size(), tree.vertex_shader_descriptor_sets.data());
-      vkFreeDescriptorSets(
-          m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
-          tree.fragment_shader_descriptor_sets.size(), tree.fragment_shader_descriptor_sets.data());
+      m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                                   tree.vertex_shader_descriptor_sets.size(),
+                                   tree.vertex_shader_descriptor_sets.data());
+      m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                                   tree.fragment_shader_descriptor_sets.size(),
+                                   tree.fragment_shader_descriptor_sets.data());
     }
   }
 }

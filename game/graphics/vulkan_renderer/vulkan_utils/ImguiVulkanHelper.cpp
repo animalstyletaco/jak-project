@@ -105,7 +105,7 @@ void ImguiVulkanHelper::Render(uint32_t width,
   ImGui::Render();
   VkCommandBuffer commandBuffer = swapChain->getLogicalDevice()->beginSingleTimeCommands();
   swapChain->beginSwapChainRenderPass(
-      commandBuffer, m_current_image_index++ % swapChain->imageCount(), VK_SUBPASS_CONTENTS_INLINE);
+      commandBuffer, m_current_image_index++ % swapChain->imageCount());
   ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer, m_pipeline);
   swapChain->endSwapChainRenderPass(commandBuffer);
   swapChain->getLogicalDevice()->endSingleTimeCommands(commandBuffer);
@@ -214,9 +214,7 @@ void ImguiVulkanHelper::recreateGraphicsPipeline(ImGui_ImplVulkan_Data* bd,
 
 void ImguiVulkanHelper::Shutdown() {
   _isActive = false;
-  if (m_pipeline) {
-    vkDestroyPipeline(m_device->getLogicalDevice(), m_pipeline, nullptr);
-  }
+  m_device->destroyPipeline(m_pipeline, nullptr);
 }
 
 ImguiVulkanHelper::~ImguiVulkanHelper() {

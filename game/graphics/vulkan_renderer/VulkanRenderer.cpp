@@ -33,7 +33,7 @@
 
 namespace vulkan_renderer {
 std::string g_current_render;
-
+static const unsigned bucketSizeInBytes = 16; //size of one quad word
 }
 
 class VulkanTextureUploadHandler : public BaseTextureUploadHandler, public BucketVulkanRenderer {
@@ -940,7 +940,7 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
 
   // now we should point to the first bucket!
   ASSERT(dma.current_tag_offset() == m_render_state.next_bucket);
-  m_render_state.next_bucket += 16;
+  m_render_state.next_bucket += bucketSizeInBytes;
 
   if (!beginFrame()) {
     lg::error("Failed to start frame {}. Skipping\n", currentFrame++);
@@ -955,6 +955,18 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
                                                      currentSwapchainFrameImageIndex,
                                                      VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS);
   updateSecondaryCommandBuffers();
+
+  DmaFollower copyDma = dma; //FIXME: shallow instead of deep copy so pointer both dma pointers are the same
+  DmaTransfer transfer = copyDma.read_and_advance();
+  u8* startingData = (u8*)transfer.data - bucketSizeInBytes; //Hack since there is no read only function in DmaFollower
+
+  std::vector<DmaFollower> dmaFollowers;
+  for (unsigned bucketId = 0; bucketId < (unsigned)BucketId::MAX_BUCKETS; ++bucketId) {
+    while (copyDma.current_tag_offset() !=
+           m_render_state.next_bucket + (bucketId * vulkan_renderer::bucketSizeInBytes)) {
+      auto transfer = copyDma.read_and_advance();
+    }
+  }
 
   m_merc2->reset_draw_count();
 
@@ -978,7 +990,7 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
     // lg::info("Render: {} end", g_current_render);
     //  should have ended at the start of the next chain
     ASSERT(dma.current_tag_offset() == m_render_state.next_bucket);
-    m_render_state.next_bucket += 16;
+    m_render_state.next_bucket += bucketSizeInBytes;
     vif_interrupt_callback(bucket_id);
     m_category_times[(int)m_bucket_categories[bucket_id]] += bucket_prof.get_elapsed_time();
 
@@ -1017,7 +1029,7 @@ void VulkanRendererJak2::dispatch_buckets(DmaFollower dma,
   m_category_times.fill(0);
 
   m_render_state.buckets_base = dma.current_tag_offset();  // starts at 0 in jak 2
-  m_render_state.next_bucket = m_render_state.buckets_base + 16;
+  m_render_state.next_bucket = m_render_state.buckets_base + bucketSizeInBytes;
   m_render_state.bucket_for_vis_copy = (int)jak2::BucketId::BUCKET_2;
   m_render_state.num_vis_to_copy = 6;
 
@@ -1055,7 +1067,7 @@ void VulkanRendererJak2::dispatch_buckets(DmaFollower dma,
     // lg::info("Render: {} end", g_current_render);
     //  should have ended at the start of the next chain
     ASSERT(dma.current_tag_offset() == m_render_state.next_bucket);
-    m_render_state.next_bucket += 16;
+    m_render_state.next_bucket += bucketSizeInBytes;
     vif_interrupt_callback(bucket_id + 1);
     m_category_times[(int)m_bucket_categories[bucket_id]] += bucket_prof.get_elapsed_time();
   }

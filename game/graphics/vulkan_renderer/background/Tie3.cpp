@@ -106,29 +106,24 @@ Tie3Vulkan::Tie3Vulkan(const std::string& name,
 Tie3Vulkan::~Tie3Vulkan() {
   discard_tree_cache();
 
-  vkFreeDescriptorSets(
-      m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
-      m_global_vertex_shader_descriptor_sets.size(), m_global_vertex_shader_descriptor_sets.data());
-  vkFreeDescriptorSets(m_device->getLogicalDevice(),
-                       m_vulkan_info.descriptor_pool->getDescriptorPool(),
-                       m_global_fragment_shader_descriptor_sets.size(),
-                       m_global_fragment_shader_descriptor_sets.data());
-  vkFreeDescriptorSets(m_device->getLogicalDevice(),
-                       m_vulkan_info.descriptor_pool->getDescriptorPool(),
-                       m_global_etie_base_vertex_shader_descriptor_sets.size(),
-                       m_global_etie_base_vertex_shader_descriptor_sets.data());
-  vkFreeDescriptorSets(m_device->getLogicalDevice(),
-                       m_vulkan_info.descriptor_pool->getDescriptorPool(),
-                       m_global_etie_vertex_shader_descriptor_sets.size(),
-                       m_global_etie_vertex_shader_descriptor_sets.data());
-  vkFreeDescriptorSets(m_device->getLogicalDevice(),
-                       m_vulkan_info.descriptor_pool->getDescriptorPool(),
-                       m_global_instanced_wind_vertex_shader_descriptor_sets.size(),
-                       m_global_instanced_wind_vertex_shader_descriptor_sets.data());
-  vkFreeDescriptorSets(m_device->getLogicalDevice(),
-                       m_vulkan_info.descriptor_pool->getDescriptorPool(),
-                       m_global_instanced_wind_fragment_shader_descriptor_sets.size(),
-                       m_global_instanced_wind_fragment_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_vertex_shader_descriptor_sets.size(),
+                               m_global_vertex_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_fragment_shader_descriptor_sets.size(),
+                               m_global_fragment_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_etie_base_vertex_shader_descriptor_sets.size(),
+                               m_global_etie_base_vertex_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_etie_vertex_shader_descriptor_sets.size(),
+                               m_global_etie_vertex_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_instanced_wind_vertex_shader_descriptor_sets.size(),
+                               m_global_instanced_wind_vertex_shader_descriptor_sets.data());
+  m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
+                               m_global_instanced_wind_fragment_shader_descriptor_sets.size(),
+                               m_global_instanced_wind_fragment_shader_descriptor_sets.data());
 }
 
 void Tie3Vulkan::render(DmaFollower& dma,
@@ -354,10 +349,7 @@ void Tie3Vulkan::PrepareDescriptorSets(std::vector<VkDescriptorSet>& descriptorS
   descriptorSetAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
   descriptorSetAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
 
-  VK_CHECK_RESULT(
-      vkAllocateDescriptorSets(m_device->getLogicalDevice(), &descriptorSetAllocInfo,
-                               descriptorSets.data()),
-      "Failed to allocated descriptor set in Tie3");
+  m_device->allocateDescriptorSets(&descriptorSetAllocInfo, descriptorSets.data());
 
   writer->overwrite(descriptorSets);
 }

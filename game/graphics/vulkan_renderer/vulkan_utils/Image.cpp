@@ -48,8 +48,7 @@ void VulkanTexture::AllocateVulkanImageMemory() {
 
   m_device->createImage(&m_image_create_info, nullptr, &m_image);
 
-  VkMemoryRequirements memRequirements;
-  vkGetImageMemoryRequirements(m_device->getLogicalDevice(), m_image, &memRequirements);
+  VkMemoryRequirements memRequirements = m_device->getImageMemoryRequirements(m_image);
 
   VkMemoryAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;

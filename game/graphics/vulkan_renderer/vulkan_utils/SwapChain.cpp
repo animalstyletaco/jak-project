@@ -43,22 +43,21 @@ SwapChain::~SwapChain() {
 
   swapChainImages.clear();
   for (auto framebuffer : swapChainFramebuffers) {
-    vkDestroyFramebuffer(device->getLogicalDevice(), framebuffer, nullptr);
+    device->destroyFramebuffer(framebuffer, nullptr);
   }
 
-  vkDestroyRenderPass(device->getLogicalDevice(), renderPass, nullptr);
+  device->destroyRenderPass(renderPass, nullptr);
 
   // cleanup synchronization objects
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    vkDestroySemaphore(device->getLogicalDevice(), renderFinishedSemaphores[i], nullptr);
-    vkDestroySemaphore(device->getLogicalDevice(), imageAvailableSemaphores[i], nullptr);
-    vkDestroyFence(device->getLogicalDevice(), inFlightFences[i], nullptr);
+    device->destroySemaphore(renderFinishedSemaphores[i], nullptr);
+    device->destroySemaphore(imageAvailableSemaphores[i], nullptr);
+    device->destroyFence(inFlightFences[i], nullptr);
   }
 }
 
 VkResult SwapChain::acquireNextImage(uint32_t* imageIndex) {
-  VK_CHECK_RESULT(vkWaitForFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame], VK_TRUE,
-                  std::numeric_limits<uint64_t>::max()), "failed to wait for fences");
+  device->waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
   VkResult result = vkAcquireNextImageKHR(
       device->getLogicalDevice(), swapChain, std::numeric_limits<uint64_t>::max(),
@@ -70,8 +69,7 @@ VkResult SwapChain::acquireNextImage(uint32_t* imageIndex) {
 
 VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_t* imageIndex) {
   if (imagesInFlight[*imageIndex] != VK_NULL_HANDLE) {
-    vkWaitForFences(device->getLogicalDevice(), 1, &imagesInFlight[*imageIndex], VK_TRUE,
-                    UINT64_MAX);
+    device->waitForFences(1, &imagesInFlight[*imageIndex], VK_TRUE, UINT64_MAX);
   }
   imagesInFlight[*imageIndex] = inFlightFences[currentFrame];
 
@@ -91,13 +89,8 @@ VkResult SwapChain::submitCommandBuffers(const VkCommandBuffer* buffers, uint32_
   submitInfo.signalSemaphoreCount = 1;
   submitInfo.pSignalSemaphores = signalSemaphores;
 
-  VK_CHECK_RESULT(
-      vkResetFences(device->getLogicalDevice(), 1, &inFlightFences[currentFrame]),
-      "failed to reset fences");
-
-  VK_CHECK_RESULT(
-      vkQueueSubmit(device->graphicsQueue(), 1, &submitInfo, inFlightFences[currentFrame]),
-      "failed to submit draw command buffer!");
+  device->resetFences(1, &inFlightFences[currentFrame]);
+  device->submitGraphicsQueue(1, &submitInfo, inFlightFences[currentFrame]);
 
   VkPresentInfoKHR presentInfo = {};
   presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -149,9 +142,9 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
     lg::error("Failed to initialize physical device");
     return;
   }
-  uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+  uint32_t queueFamilyIndices[] = {indices.graphicsAndComputeFamily.value(), indices.presentFamily.value()};
 
-  if (indices.graphicsFamily.value() != indices.presentFamily.value()) {
+  if (indices.graphicsAndComputeFamily.value() != indices.presentFamily.value()) {
     createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
     createInfo.queueFamilyIndexCount = 2;
     createInfo.pQueueFamilyIndices = queueFamilyIndices;
@@ -190,7 +183,7 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
 
 void SwapChain::createImageViews() {
   for (auto& swapChainImageView : swapChainImageViews) {
-    vkDestroyImageView(device->getLogicalDevice(), swapChainImageView, nullptr);
+    device->destroyImageView(swapChainImageView, nullptr);
   }
   swapChainImageViews.clear();
 
@@ -207,17 +200,12 @@ void SwapChain::createImageViews() {
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
 
-    VK_CHECK_RESULT(
-        vkCreateImageView(device->getLogicalDevice(), &viewInfo, nullptr, &swapChainImageViews[i]),
-        "failed to create texture image view!");
+    device->createImageView(&viewInfo, nullptr, &swapChainImageViews[i]);
   }
 }
 
 void SwapChain::createRenderPass() {
-  if (renderPass) {
-    vkDestroyRenderPass(device->getLogicalDevice(), renderPass, nullptr);
-    renderPass = VK_NULL_HANDLE;
-  }
+  device->destroyRenderPass(renderPass, nullptr);  
 
   VkSampleCountFlagBits sampleCount = device->getMsaaCount();
   VkAttachmentDescription colorAttachment = {};
@@ -260,7 +248,7 @@ void SwapChain::createRenderPass() {
   noClearDepthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
   noClearDepthAttachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-  VkAttachmentReference colorAttachmentRef = {};
+  VkAttachmentReference colorAttachmentRef{};
   colorAttachmentRef.attachment = 0;
   colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
@@ -278,7 +266,7 @@ void SwapChain::createRenderPass() {
     depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
   }
 
-  VkSubpassDescription subpass = {};
+  VkSubpassDescription subpass{};
   subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
   subpass.colorAttachmentCount = 1;
   subpass.pColorAttachments = &colorAttachmentRef;
@@ -328,21 +316,17 @@ void SwapChain::createRenderPass() {
   renderPassInfo.dependencyCount = dependencies.size();
   renderPassInfo.pDependencies = dependencies.data();
 
-  VK_CHECK_RESULT(
-      vkCreateRenderPass(device->getLogicalDevice(), &renderPassInfo, nullptr, &renderPass),
-      "failed to create render pass!");
+  device->createRenderPass(&renderPassInfo, nullptr, &renderPass);
 
   VkRenderPassCreateInfo noClearRenderPassInfo = renderPassInfo;
   noClearRenderPassInfo.pAttachments = noClearAttachments.data();
 
-  VK_CHECK_RESULT(vkCreateRenderPass(device->getLogicalDevice(), &noClearRenderPassInfo,
-                                                 nullptr, &noClearRenderPass),
-                              "failed to create render pass!");
+  device->createRenderPass(&noClearRenderPassInfo, nullptr, &noClearRenderPass);
 }
 
 void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
   for (auto& framebuffer : swapChainFramebuffers) {
-    vkDestroyFramebuffer(device->getLogicalDevice(), framebuffer, nullptr);
+    device->destroyFramebuffer(framebuffer, nullptr);
   }
   swapChainFramebuffers.clear();
   VkSampleCountFlagBits sampleCount = device->getMsaaCount();
@@ -367,9 +351,7 @@ void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
     framebufferInfo.height = swapChainExtent.height;
     framebufferInfo.layers = 1;
 
-    VK_CHECK_RESULT(vkCreateFramebuffer(device->getLogicalDevice(), &framebufferInfo,
-                                                    nullptr, &swapChainFramebuffers[i]),
-                                "failed to create framebuffer!");
+    device->createFramebuffer(&framebufferInfo, nullptr, &swapChainFramebuffers[i]);
   }
 }
 
@@ -417,14 +399,10 @@ void SwapChain::createDepthResources() {
 }
 
 void SwapChain::createSyncObjects() {
-  for (auto& imageAvailableSemaphore : imageAvailableSemaphores) {
-    vkDestroySemaphore(device->getLogicalDevice(), imageAvailableSemaphore, nullptr);
-  }
-  for (auto& renderFinishedSemaphore : renderFinishedSemaphores) {
-    vkDestroySemaphore(device->getLogicalDevice(), renderFinishedSemaphore, nullptr);
-  }
-  for (auto& inFlightFence : inFlightFences) {
-    vkDestroyFence(device->getLogicalDevice(), inFlightFence, nullptr);
+  for (unsigned i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+    device->destroySemaphore(imageAvailableSemaphores[i], nullptr);
+    device->destroySemaphore(renderFinishedSemaphores[i], nullptr);
+    device->destroyFence(inFlightFences[i], nullptr);
   }
 
   imageAvailableSemaphores.clear();
@@ -445,15 +423,9 @@ void SwapChain::createSyncObjects() {
   fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
   for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-    VK_CHECK_RESULT(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
-                                                  nullptr, &imageAvailableSemaphores[i]),
-                                "failed to create to vulkan image semaphores");
-    VK_CHECK_RESULT(vkCreateSemaphore(device->getLogicalDevice(), &semaphoreInfo,
-                                                  nullptr, &renderFinishedSemaphores[i]),
-                                "failed to create vulkan render semaphores");
-    VK_CHECK_RESULT(
-        vkCreateFence(device->getLogicalDevice(), &fenceInfo, nullptr, &inFlightFences[i]),
-        "failed to create vulkan fences");
+    device->createSemaphore(&semaphoreInfo, nullptr, &imageAvailableSemaphores[i]);
+    device->createSemaphore(&semaphoreInfo, nullptr, &renderFinishedSemaphores[i]);
+    device->createFences(&fenceInfo, nullptr, &inFlightFences[i]);
   }
 }
 

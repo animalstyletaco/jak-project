@@ -103,19 +103,16 @@ bool DescriptorPool::allocateDescriptor(const VkDescriptorSetLayout* descriptorS
   allocInfo.pSetLayouts = descriptorSetLayout;
   allocInfo.descriptorSetCount = descriptorSetCount;
 
-  // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
-  // a new pool whenever an old pool fills up. But this is beyond our current scope
-  return (vkAllocateDescriptorSets(m_device->getLogicalDevice(), &allocInfo, descriptors) ==
-          VK_SUCCESS);
+  m_device->allocateDescriptorSets(&allocInfo, descriptors);
 }
 
 void DescriptorPool::freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const {
-  vkFreeDescriptorSets(m_device->getLogicalDevice(), m_descriptor_pool,
-                       static_cast<uint32_t>(descriptors.size()), descriptors.data());
+  m_device->freeDescriptorSets(m_descriptor_pool, static_cast<uint32_t>(descriptors.size()),
+                               descriptors.data());
 }
 
 void DescriptorPool::resetPool() {
-  vkResetDescriptorPool(m_device->getLogicalDevice(), m_descriptor_pool, 0);
+  m_device->resetDescriptorPool(m_descriptor_pool);
 }
 
 // *************** Descriptor Writer *********************
@@ -231,6 +228,5 @@ void DescriptorWriter::overwrite(VkDescriptorSet& set) {
   for (auto& write : m_writes) {
     write.dstSet = set;
   }
-  vkUpdateDescriptorSets(m_pool->m_device->getLogicalDevice(), m_writes.size(), m_writes.data(), 0,
-                         nullptr);
+  m_pool->m_device->updateDescriptorSets(m_writes.size(), m_writes.data(), 0, nullptr);
 }

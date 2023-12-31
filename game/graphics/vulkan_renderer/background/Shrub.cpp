@@ -158,10 +158,8 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
       vertexAllocInfo.pSetLayouts = &vertexDescriptorSetLayout;
       vertexAllocInfo.descriptorSetCount = 1;
 
-      VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(m_device->getLogicalDevice(), &vertexAllocInfo,
-                                   &m_trees[l_tree].vertex_shader_descriptor_set),
-          "Failed to allocated descriptor set in Shrub");
+      m_device->allocateDescriptorSets(&vertexAllocInfo,
+                                   &m_trees[l_tree].vertex_shader_descriptor_set);
       
       m_trees[l_tree].fragment_shader_descriptor_sets.resize(tree.static_draws.size());
       std::vector<VkDescriptorSetLayout> fragmentDescriptorSetLayouts{tree.static_draws.size(),
@@ -169,10 +167,8 @@ void ShrubVulkan::update_load(const LevelDataVulkan* loader_data) {
       fragmentAllocInfo.pSetLayouts = fragmentDescriptorSetLayouts.data();
       fragmentAllocInfo.descriptorSetCount = fragmentDescriptorSetLayouts.size();
 
-      VK_CHECK_RESULT(
-          vkAllocateDescriptorSets(m_device->getLogicalDevice(), &fragmentAllocInfo,
-                                   m_trees[l_tree].fragment_shader_descriptor_sets.data()),
-          "Failed to allocated descriptor set in Shrub");
+      m_device->allocateDescriptorSets(&fragmentAllocInfo,
+                                       m_trees[l_tree].fragment_shader_descriptor_sets.data());
     }
 
     total_shrub_vertices.insert(total_shrub_vertices.end(), tree.unpacked.vertices.begin(),
@@ -277,11 +273,9 @@ void ShrubVulkan::InitializeVertexDescriptions() {
 
 void ShrubVulkan::discard_tree_cache() {
   for (auto& tree : m_trees) {
-    vkFreeDescriptorSets(m_device->getLogicalDevice(),
-                         m_vulkan_info.descriptor_pool->getDescriptorPool(), 1,
-                         &tree.vertex_shader_descriptor_set);
-    vkFreeDescriptorSets(
-        m_device->getLogicalDevice(), m_vulkan_info.descriptor_pool->getDescriptorPool(),
+    m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(), 1,
+                                 &tree.vertex_shader_descriptor_set);
+    m_device->freeDescriptorSets(m_vulkan_info.descriptor_pool->getDescriptorPool(),
         tree.fragment_shader_descriptor_sets.size(), tree.fragment_shader_descriptor_sets.data());
   }
   m_trees.clear();

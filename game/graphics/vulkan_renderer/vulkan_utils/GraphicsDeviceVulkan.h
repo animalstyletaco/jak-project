@@ -36,9 +36,9 @@ struct SwapChainSupportDetails {
 };
 
 struct QueueFamilyIndices {
-  std::optional<uint32_t> graphicsFamily;
+  std::optional<uint32_t> graphicsAndComputeFamily;
   std::optional<uint32_t> presentFamily;
-  bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
+  bool isComplete() { return graphicsAndComputeFamily.has_value() && presentFamily.has_value(); }
 };
 
 class GraphicsDeviceVulkan {
@@ -154,6 +154,23 @@ class GraphicsDeviceVulkan {
                              unsigned levelCount = 1);
 
   VkFormatProperties getPhysicalDeviceFormatProperties(VkFormat format);
+
+  void submitGraphicsQueue(unsigned submitCount, const VkSubmitInfo* submitInfo, VkFence fence);
+  void submitPresentQueue(unsigned submitCount, const VkSubmitInfo* submitInfo, VkFence fence);
+  void queueSubmit(VkQueue queue,
+                   unsigned submitCount,
+                   const VkSubmitInfo* submitInfo,
+                   VkFence fence);
+
+  void createFences(const VkFenceCreateInfo*, const VkAllocationCallbacks* callbacks, VkFence*);
+  void waitForFences(unsigned fenceCount, VkFence* fences, VkBool32 waitForAllFences, unsigned long timeout);
+  void resetFences(unsigned fenceCount,
+                   VkFence* fences);
+  void destroyFence(VkFence fences, const VkAllocationCallbacks* callbacks);
+
+  void createSemaphore(const VkSemaphoreCreateInfo* createInfo, const VkAllocationCallbacks* callbacks, VkSemaphore*);
+  void destroySemaphore(VkSemaphore semaphore, const VkAllocationCallbacks*);
+
   void createRenderPass(const VkRenderPassCreateInfo*, const VkAllocationCallbacks*, VkRenderPass*);
   void destroyRenderPass(VkRenderPass&, const VkAllocationCallbacks*);
   void createFramebuffer(const VkFramebufferCreateInfo*, const VkAllocationCallbacks*, VkFramebuffer*);
@@ -178,6 +195,8 @@ class GraphicsDeviceVulkan {
 
   void createBuffer(const VkBufferCreateInfo*, const VkAllocationCallbacks*, VkBuffer*);
   void bindBufferMemory(VkBuffer image, VkDeviceMemory device_memory, unsigned flags = 0);
+
+  VkMemoryRequirements getBufferMemoryRequirements(VkBuffer);
   void destroyBuffer(VkBuffer&, const VkAllocationCallbacks*);
 
   void createBufferView(const VkBufferViewCreateInfo*, const VkAllocationCallbacks*, VkBufferView*);
@@ -185,6 +204,7 @@ class GraphicsDeviceVulkan {
 
   void createImage(const VkImageCreateInfo*,
                    const VkAllocationCallbacks*, VkImage*);
+  VkMemoryRequirements getImageMemoryRequirements(VkImage image);
   void bindImageMemory(VkImage image, VkDeviceMemory device_memory, unsigned flags = 0);
   void destroyImage(VkImage&, const VkAllocationCallbacks*);
 
@@ -196,6 +216,19 @@ class GraphicsDeviceVulkan {
 
   void createPipelineLayout(const VkPipelineLayoutCreateInfo*, const VkAllocationCallbacks*, VkPipelineLayout*);
   void destroyPipelineLayout(VkPipelineLayout&, const VkAllocationCallbacks*);
+
+  void allocateDescriptorSets(const VkDescriptorSetAllocateInfo* allocInfo, VkDescriptorSet*);
+  void updateDescriptorSets(unsigned descriptorWriteCount,
+                            const VkWriteDescriptorSet*,
+                            unsigned descriptorCopyCount,
+                            const VkCopyDescriptorSet*);
+  void freeDescriptorSets(VkDescriptorPool, unsigned, const VkDescriptorSet*);
+
+  void createDescriptorPool(const VkDescriptorPoolCreateInfo* descriptorPoolInfo,
+                            const VkAllocationCallbacks* callbacks,
+                            VkDescriptorPool*);
+  void resetDescriptorPool(VkDescriptorPool);
+  void destroyDescriptorPool(VkDescriptorPool, const VkAllocationCallbacks* callbacks);
 
   void createGraphicsPipelines(VkPipelineCache pipelineCache,
                                VkDeviceSize graphicsPipelineCreateCount,
@@ -234,6 +267,7 @@ class GraphicsDeviceVulkan {
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
   VkQueue m_graphics_queue = VK_NULL_HANDLE;
   VkQueue m_present_queue = VK_NULL_HANDLE;
+  VkQueue m_compute_queue = VK_NULL_HANDLE;
 
   SDL_Window* m_window = nullptr;
 

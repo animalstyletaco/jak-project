@@ -53,11 +53,6 @@ EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
           .build();
 
   create_pipeline_layout();
-
-  VkPipelineCacheCreateInfo createInfo{};
-  createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-
-  vkCreatePipelineCache(m_device->getLogicalDevice(), &createInfo, nullptr, &m_pipeline_cache);
 }
 
 void EyeVulkanRenderer::init_shaders() {
@@ -479,6 +474,5 @@ void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma,
 }
 
 EyeVulkanRenderer::~EyeVulkanRenderer() {
-  vkDestroyPipelineCache(m_device->getLogicalDevice(), m_pipeline_cache, nullptr);
   m_device->destroyPipelineLayout(m_pipeline_config_info.pipelineLayout, nullptr);
 }

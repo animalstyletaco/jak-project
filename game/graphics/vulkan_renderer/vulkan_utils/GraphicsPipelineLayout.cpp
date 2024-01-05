@@ -6,10 +6,16 @@
 #include <stdexcept>
 
 GraphicsPipelineLayout::GraphicsPipelineLayout(std::shared_ptr<GraphicsDeviceVulkan> device)
-    : _device{device} {}
+    : _device{device} {
+  VkPipelineCacheCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+
+  _device->createPipelineCache(&createInfo, nullptr, &_graphicsPipelineCache);
+}
 
 GraphicsPipelineLayout::~GraphicsPipelineLayout() {
   destroyPipeline();
+  _device->destroyPipelineCache(_graphicsPipelineCache, nullptr);
 }
 
 void GraphicsPipelineLayout::destroyPipeline() {

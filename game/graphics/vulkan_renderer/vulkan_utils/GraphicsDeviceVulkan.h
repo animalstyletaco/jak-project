@@ -36,9 +36,9 @@ struct SwapChainSupportDetails {
 };
 
 struct QueueFamilyIndices {
-  std::optional<uint32_t> graphicsAndComputeFamily;
+  std::optional<uint32_t> graphicsFamily;
   std::optional<uint32_t> presentFamily;
-  bool isComplete() { return graphicsAndComputeFamily.has_value() && presentFamily.has_value(); }
+  bool isComplete() { return graphicsFamily.has_value() && presentFamily.has_value(); }
 };
 
 class GraphicsDeviceVulkan {
@@ -155,6 +155,18 @@ class GraphicsDeviceVulkan {
 
   VkFormatProperties getPhysicalDeviceFormatProperties(VkFormat format);
 
+  void createSwapChain(const VkSwapchainCreateInfoKHR* createInfo,
+                       const VkAllocationCallbacks* callbacks,
+                       VkSwapchainKHR* swapChain);
+
+  void getSwapChainImageCount(VkSwapchainKHR swapchain,
+                              unsigned* imageCount);
+
+  void getSwapChainImages(VkSwapchainKHR swapchain,
+                          unsigned* imageCount,
+                          VkImage* swapChainImages);
+  void destroySwapChain(VkSwapchainKHR& swapchain, const VkAllocationCallbacks*);
+
   void submitGraphicsQueue(unsigned submitCount, const VkSubmitInfo* submitInfo, VkFence fence);
   void submitPresentQueue(unsigned submitCount, const VkSubmitInfo* submitInfo, VkFence fence);
   void queueSubmit(VkQueue queue,
@@ -217,12 +229,21 @@ class GraphicsDeviceVulkan {
   void createPipelineLayout(const VkPipelineLayoutCreateInfo*, const VkAllocationCallbacks*, VkPipelineLayout*);
   void destroyPipelineLayout(VkPipelineLayout&, const VkAllocationCallbacks*);
 
+  void createPipelineCache(const VkPipelineCacheCreateInfo*,
+                           const VkAllocationCallbacks*,
+                           VkPipelineCache*);
+  void destroyPipelineCache(VkPipelineCache&, const VkAllocationCallbacks*);
+
   void allocateDescriptorSets(const VkDescriptorSetAllocateInfo* allocInfo, VkDescriptorSet*);
   void updateDescriptorSets(unsigned descriptorWriteCount,
                             const VkWriteDescriptorSet*,
                             unsigned descriptorCopyCount,
                             const VkCopyDescriptorSet*);
   void freeDescriptorSets(VkDescriptorPool, unsigned, const VkDescriptorSet*);
+  void createDescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo* layouts,
+                            const VkAllocationCallbacks* callbacks,
+                            VkDescriptorSetLayout*);
+  void destroyDescriptorSetLayout(VkDescriptorSetLayout&, const VkAllocationCallbacks*);
 
   void createDescriptorPool(const VkDescriptorPoolCreateInfo* descriptorPoolInfo,
                             const VkAllocationCallbacks* callbacks,
@@ -235,6 +256,11 @@ class GraphicsDeviceVulkan {
                                const VkGraphicsPipelineCreateInfo* createInfo,
                                const VkAllocationCallbacks* callbacks,
                                VkPipeline* pipelines);
+  void createComputePipelines(VkPipelineCache pipelineCache,
+                              VkDeviceSize graphicsPipelineCreateCount,
+                              const VkComputePipelineCreateInfo* createInfo,
+                              const VkAllocationCallbacks* callbacks,
+                              VkPipeline* pipelines);
   void destroyPipeline(VkPipeline&, const VkAllocationCallbacks*);
 
  private:

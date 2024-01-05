@@ -90,11 +90,8 @@ class SwapChain {
   std::vector<VkImage> swapChainImages;
   std::vector<VkImageView> swapChainImageViews;
 
-  // Typically don't like using vector for VulkanTexture since std::vector calls
-  //  all elements copy constructors when appending/removing elements from the container
-  // This is ok since it will only be set once during initialization
-  std::vector<VulkanTexture> colorImages;
-  std::vector<VulkanTexture> depthImages;
+  std::unordered_map<unsigned, VulkanTexture> colorImages;
+  std::unordered_map<unsigned, VulkanTexture> depthImages;
 
   std::shared_ptr<GraphicsDeviceVulkan> device;
   VkExtent2D windowExtent;

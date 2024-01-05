@@ -30,15 +30,31 @@ void VulkanShader::initialize_shader(VkDevice device, const std::string& shader_
     m_device = device;
   }
 
-  auto vert_src = file_util::read_binary_file(
-      file_util::get_file_path({shader_folder, shader_name + ".vert.spv"}));
-  auto frag_src = file_util::read_binary_file(
-      file_util::get_file_path({shader_folder, shader_name + ".frag.spv"}));
+  auto vertex_shader_file =
+      file_util::get_jak_project_dir().string() + "/" + shader_folder + shader_name + ".vert.spv";
+  auto fragment_shader_file =
+      file_util::get_jak_project_dir().string() + "/" + shader_folder + shader_name + ".frag.spv";
+  auto compute_shader_file =
+      file_util::get_jak_project_dir().string() + "/" + shader_folder + shader_name + ".comp.spv";
 
-  m_vert_shader = PopulateShader(vert_src);
-  m_frag_shader = PopulateShader(frag_src);
+  if (file_util::file_exists(vertex_shader_file)) {
+    auto vert_src = file_util::read_binary_file(vertex_shader_file);
+    m_vert_shader = PopulateShader(vert_src);
+  }
 
-  m_is_okay = true;
+  if (file_util::file_exists(fragment_shader_file)) {
+    auto frag_src = file_util::read_binary_file(fragment_shader_file);
+    m_frag_shader = PopulateShader(frag_src);
+  }
+
+  if (file_util::file_exists(compute_shader_file)) {
+    auto compute_src = file_util::read_binary_file(compute_shader_file);
+    m_comp_shader = PopulateShader(compute_src);
+  }
+
+  if (m_comp_shader || (m_frag_shader && m_vert_shader)) {
+    m_is_okay = true;
+  }
 };
 
 VulkanShader::VulkanShader(const VulkanShader& shader) {

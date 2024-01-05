@@ -94,6 +94,8 @@ void ShadowVulkanRenderer::draw(BaseSharedRenderState* render_state, ScopedProfi
 
   u32 draw_idx = 0;
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
+
   vkCmdPushConstants(m_command_buffer, m_pipeline_config_info.pipelineLayout,
                      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(m_push_constant.scissor_adjust),
                      (void*)&m_push_constant.scissor_adjust);

@@ -49,6 +49,7 @@ void MercVulkan2BucketRendererJak1::render(DmaFollower& dma,
     return;
   }
 
+  m_merc2->set_command_buffer(command_buffer);
   m_merc2->render(dma, render_state, prof, &m_debug_stats);
 }
 

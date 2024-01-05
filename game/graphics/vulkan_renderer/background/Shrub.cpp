@@ -358,7 +358,7 @@ void ShrubVulkan::render_tree(int idx,
                      VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(m_vertex_shrub_push_constant),
                      sizeof(m_time_of_day_push_constant), (void*)&m_time_of_day_push_constant);
 
-  m_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(m_command_buffer);
 
   // Attach images here

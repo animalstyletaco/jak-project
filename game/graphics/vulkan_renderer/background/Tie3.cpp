@@ -466,7 +466,7 @@ void Tie3Vulkan::render_tree_wind(int idx,
     lg::error("Invalid Shader selected\n");
   }
 
-  selected_graphics_pipeline_layout->createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  selected_graphics_pipeline_layout->createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   selected_graphics_pipeline_layout->bind(m_command_buffer);
 
   for (size_t draw_idx = 0; draw_idx < tree.wind_draws->size(); draw_idx++) {
@@ -591,7 +591,7 @@ void Tie3Vulkan::draw_matching_draws_for_tree(int idx,
     lg::error("Invalid Shader selected\n");
   }
 
-  selected_graphics_pipeline_layout->createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  selected_graphics_pipeline_layout->createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   selected_graphics_pipeline_layout->bind(m_command_buffer);
 
   int last_texture = -1;
@@ -810,7 +810,7 @@ void Tie3Vulkan::envmap_second_pass_draw(TreeVulkan& tree,
     lg::error("Invalid Shader selected\n");
   }
 
-  selected_graphics_pipeline_layout->createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  selected_graphics_pipeline_layout->createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   selected_graphics_pipeline_layout->bind(m_command_buffer);
 
   int last_texture = -1;
@@ -1081,6 +1081,7 @@ void Tie3VulkanWithEnvmapJak1::render(DmaFollower& dma,
                                       ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
+  m_command_buffer = command_buffer;
   //TODO: Set commad buffer here
 
   setup_shader(ShaderId::TFRAG3);

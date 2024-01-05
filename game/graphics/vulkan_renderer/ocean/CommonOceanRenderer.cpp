@@ -304,6 +304,7 @@ void CommonOceanVulkanRenderer::setup_graphics_draw(BaseSharedRenderState* rende
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
   m_vulkan_info.swap_chain->setViewportScissor(m_command_buffer);
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                     m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(m_command_buffer);

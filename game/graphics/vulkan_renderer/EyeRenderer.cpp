@@ -53,6 +53,11 @@ EyeVulkanRenderer::EyeVulkanRenderer(const std::string& name,
           .build();
 
   create_pipeline_layout();
+
+  VkPipelineCacheCreateInfo createInfo{};
+  createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+
+  vkCreatePipelineCache(m_device->getLogicalDevice(), &createInfo, nullptr, &m_pipeline_cache);
 }
 
 void EyeVulkanRenderer::init_shaders() {
@@ -451,9 +456,10 @@ void EyeVulkanRenderer::ExecuteVulkanDraw(VkCommandBuffer commandBuffer,
 
   eye.descriptor_writer.overwrite(eye.descriptor_set);
 
-  m_graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
+  eye.graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
+  eye.graphics_pipeline_layout.updateGraphicsPipeline(m_command_buffer,
                                                     m_pipeline_config_info);
-  m_graphics_pipeline_layout.bind(commandBuffer);
+  eye.graphics_pipeline_layout.bind(commandBuffer);
 
   VkDeviceSize offsets[] = {0};
   VkBuffer vertex_buffer_vulkan = m_gpu_vertex_buffer->getBuffer();
@@ -472,4 +478,7 @@ void EyeVulkanRenderer::run_dma_draws_in_gpu(DmaFollower& dma,
   run_gpu(render_state);
 }
 
-EyeVulkanRenderer::~EyeVulkanRenderer() {}
+EyeVulkanRenderer::~EyeVulkanRenderer() {
+  vkDestroyPipelineCache(m_device->getLogicalDevice(), m_pipeline_cache, nullptr);
+  m_device->destroyPipelineLayout(m_pipeline_config_info.pipelineLayout, nullptr);
+}

@@ -112,25 +112,32 @@ void SpriteVulkan3::SetupShader(ShaderId shaderId) {
   }
 }
 
+void SpriteVulkan3::setup_render(VkCommandBuffer command_buffer) {
+  m_command_buffer = command_buffer;
+  m_direct_renderer_call_count = 0;
+  m_flush_sprite_call_count = 0;
+  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+  m_pipeline_config_info.multisampleInfo.rasterizationSamples =
+      m_device->getMsaaCount();
+}
+
 void SpriteVulkan3Jak1::render(DmaFollower& dma,
                                SharedVulkanRenderState* render_state,
                                ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
-  m_direct_renderer_call_count = 0;
-  m_flush_sprite_call_count = 0;
+  setup_render(command_buffer);
   m_direct.set_command_buffer(command_buffer);
   m_direct.set_current_index(m_direct_renderer_call_count++);
-  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+
   BaseSprite3Jak1::render(dma, render_state, prof);
 }
 
 void SpriteVulkan3Jak2::render(DmaFollower& dma,
                                SharedVulkanRenderState* render_state,
                                ScopedProfilerNode& prof, VkCommandBuffer command_buffer) {
-  m_direct_renderer_call_count = 0;
-  m_flush_sprite_call_count = 0;
+  setup_render(command_buffer);
   m_direct.set_command_buffer(command_buffer);
   m_direct.set_current_index(m_direct_renderer_call_count++);
-  m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
+
   BaseSprite3Jak2::render(dma, render_state, prof);
 }
 
@@ -244,6 +251,8 @@ void SpriteVulkan3::flush_sprites(BaseSharedRenderState* render_state,
   if (m_bucket_list.empty()) {
     return;
   }
+
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
 
   // TODO: see if there is an easier way to accomplish add/update existing sprite_graphics_settings
   // objects

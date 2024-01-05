@@ -32,7 +32,7 @@ class GraphicsPipelineLayout {
 
   void bind(VkCommandBuffer commandBuffer);
   void updateGraphicsPipeline(VkCommandBuffer, PipelineConfigInfo& configInfo);
-  void createGraphicsPipelineIfNotAvailable(PipelineConfigInfo& configInfo);
+  void createGraphicsPipelineIfNeeded(PipelineConfigInfo& configInfo);
 
   PipelineConfigInfo GetCurrentConfiguration() { return _currentPipelineConfig; };
   void destroyPipeline();
@@ -45,4 +45,24 @@ class GraphicsPipelineLayout {
   std::shared_ptr<GraphicsDeviceVulkan> _device;
   PipelineConfigInfo _currentPipelineConfig{};
   VkPipeline _graphicsPipeline = VK_NULL_HANDLE;
+  VkPipelineCache _graphicsPipelineCache = VK_NULL_HANDLE;
+};
+
+class ComputePipelineLayout {
+ public:
+  ComputePipelineLayout(std::shared_ptr<GraphicsDeviceVulkan> device);
+  ~ComputePipelineLayout();
+
+  VkComputePipelineCreateInfo GetCurrentConfiguration() { return _currentPipelineConfig; };
+  void destroyPipeline();
+
+  void bind(VkCommandBuffer commandBuffer);
+  void createComputePipeline(VkComputePipelineCreateInfo& configInfo);
+
+  static void defaultPipelineConfigInfo(VkComputePipelineCreateInfo& configInfo);
+
+ private:
+  std::shared_ptr<GraphicsDeviceVulkan> _device;
+  VkComputePipelineCreateInfo _currentPipelineConfig{};
+  VkPipeline _computePipeline = VK_NULL_HANDLE;
 };

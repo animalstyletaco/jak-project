@@ -37,7 +37,7 @@ void SwapChain::init(bool vsyncEnabled) {
 
 SwapChain::~SwapChain() {
   if (swapChain != nullptr) {
-    vkDestroySwapchainKHR(device->getLogicalDevice(), swapChain, nullptr);
+    device->destroySwapChain(swapChain, nullptr);
     swapChain = nullptr;
   }
 
@@ -142,9 +142,9 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
     lg::error("Failed to initialize physical device");
     return;
   }
-  uint32_t queueFamilyIndices[] = {indices.graphicsAndComputeFamily.value(), indices.presentFamily.value()};
+  uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
-  if (indices.graphicsAndComputeFamily.value() != indices.presentFamily.value()) {
+  if (indices.graphicsFamily.value() != indices.presentFamily.value()) {
     createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
     createInfo.queueFamilyIndexCount = 2;
     createInfo.pQueueFamilyIndices = queueFamilyIndices;
@@ -162,21 +162,15 @@ void SwapChain::createSwapChain(bool vsyncEnabled) {
 
   createInfo.oldSwapchain = oldSwapChain == nullptr ? VK_NULL_HANDLE : oldSwapChain->swapChain;
 
-  VK_CHECK_RESULT(
-      vkCreateSwapchainKHR(device->getLogicalDevice(), &createInfo, nullptr, &swapChain),
-      "failed to create swap chain");
+  device->createSwapChain(&createInfo, nullptr, &swapChain);
 
   // we only specified a minimum number of images in the swap chain, so the implementation is
   // allowed to create a swap chain with more. That's why we'll first query the final number of
   // images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
   // retrieve the handles.
-  VK_CHECK_RESULT(
-      vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain, &imageCount, nullptr),
-      "failed to get swapchin image count");
+  device->getSwapChainImageCount(swapChain, &imageCount);
   swapChainImages.resize(imageCount);
-  VK_CHECK_RESULT(vkGetSwapchainImagesKHR(device->getLogicalDevice(), swapChain,
-                                                      &imageCount, swapChainImages.data()),
-                              "failed to allocate swap chain images");
+  device->getSwapChainImages(swapChain, &imageCount, swapChainImages.data());
 
   swapChainImageFormat = surfaceFormat.format;
 }
@@ -334,11 +328,14 @@ void SwapChain::createFramebuffers(VkRenderPass selectedRenderPass) {
   swapChainFramebuffers.resize(imageCount());
   for (size_t i = 0; i < imageCount(); i++) {
     std::vector<VkImageView> attachments;
+    const auto& colorImage = colorImages.at(i);
+    const auto& depthImage = depthImages.at(i);
+
     if (sampleCount != VK_SAMPLE_COUNT_1_BIT) {
-      attachments = {colorImages[i].getImageView(), swapChainImageViews[i],
-                     depthImages[i].getImageView()};
+      attachments = {colorImage.getImageView(), swapChainImageViews[i],
+                     depthImage.getImageView()};
     } else {
-      attachments = {colorImages[i].getImageView(), depthImages[i].getImageView()};
+      attachments = {colorImage.getImageView(), depthImage.getImageView()};
     }
 
     VkExtent2D swapChainExtent = getSwapChainExtent();
@@ -360,8 +357,10 @@ void SwapChain::createColorResources() {
 
   VkExtent2D swapChainExtent = getSwapChainExtent();
 
-  colorImages.resize(imageCount(), device);
-  for (auto& colorImage : colorImages) {
+  for (unsigned i = 0; i < imageCount(); i++) {
+    colorImages.insert({i, VulkanTexture{device}});
+  }
+  for (auto& [id, colorImage] : colorImages) {
     colorImage.createImage(
         {
             swapChainExtent.width,
@@ -383,8 +382,11 @@ void SwapChain::createDepthResources() {
   swapChainDepthFormat = depthFormat;
   VkExtent2D swapChainExtent = getSwapChainExtent();
 
-  depthImages.resize(imageCount(), device);
-  for (auto& depthImage : depthImages) {
+  for (unsigned i = 0; i < imageCount(); i++) {
+    depthImages.insert({i, VulkanTexture{device}});
+  }
+
+  for (auto& [id, depthImage] : depthImages) {
     depthImage.createImage(
         {
             swapChainExtent.width,
@@ -400,9 +402,15 @@ void SwapChain::createDepthResources() {
 
 void SwapChain::createSyncObjects() {
   for (unsigned i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-    device->destroySemaphore(imageAvailableSemaphores[i], nullptr);
-    device->destroySemaphore(renderFinishedSemaphores[i], nullptr);
-    device->destroyFence(inFlightFences[i], nullptr);
+    if (i < imageAvailableSemaphores.size()) {
+      device->destroySemaphore(imageAvailableSemaphores[i], nullptr);
+    }
+    if (i < renderFinishedSemaphores.size()) {
+      device->destroySemaphore(renderFinishedSemaphores[i], nullptr);
+    }
+    if (i < inFlightFences.size()) {
+      device->destroyFence(inFlightFences[i], nullptr);
+    }
   }
 
   imageAvailableSemaphores.clear();

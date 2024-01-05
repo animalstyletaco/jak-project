@@ -143,6 +143,15 @@ void MercVulkan2::render(DmaFollower& dma,
   m_pipeline_config_info.renderPass = m_vulkan_info.swap_chain->getRenderPass();
   m_pipeline_config_info.multisampleInfo.rasterizationSamples = m_device->getMsaaCount();
 
+  m_pipeline_config_info.shaderStages = m_emerc_vertex_shader_stage_info;
+  m_pipeline_config_info.pipelineLayout = m_emerc_pipeline_layout;
+  m_emerc_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
+
+  m_pipeline_config_info.shaderStages = m_merc_vertex_shader_stage_info;
+  m_pipeline_config_info.pipelineLayout = m_merc_pipeline_layout;
+  m_merc_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
+
+
   m_fragment_push_constant.fog_color =
       math::Vector4f{
           render_state->fog_color[0],

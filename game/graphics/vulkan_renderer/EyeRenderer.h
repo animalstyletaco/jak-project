@@ -25,7 +25,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
     EyeVulkanGraphics(std::shared_ptr<GraphicsDeviceVulkan> device,
                       std::unique_ptr<DescriptorLayout>& setLayout,
                       VulkanInitializationInfo& vulkan_info)
-        : descriptor_writer(setLayout, vulkan_info.descriptor_pool) {
+        : descriptor_writer(setLayout, vulkan_info.descriptor_pool), graphics_pipeline_layout(device) {
       descriptor_writer.build(descriptor_set);
       descriptor_writer.writeImage(
           0, vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
@@ -34,6 +34,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
     VkDescriptorImageInfo descriptor_image_info;
     VkDescriptorSet descriptor_set;
     DescriptorWriter descriptor_writer;
+    GraphicsPipelineLayout graphics_pipeline_layout;
   };
 
   struct SingleEyeDrawsVulkan : SingleEyeDraws {
@@ -83,6 +84,7 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
 
   bool isFrameStarted = false;
   uint32_t eye_renderer_frame_count = 0;
+  VkPipelineCache m_pipeline_cache = VK_NULL_HANDLE;
 
   float m_gpu_vertex_buffer_data[1920];
 };

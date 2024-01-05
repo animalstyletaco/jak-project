@@ -41,14 +41,11 @@ DescriptorLayout::DescriptorLayout(
   descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
   descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
 
-  VK_CHECK_RESULT(
-      vkCreateDescriptorSetLayout(m_device->getLogicalDevice(), &descriptorSetLayoutInfo, nullptr,
-                                  &m_descriptor_set_layout),
-      "failed to create descriptor set layout!");
+  m_device->createDescriptorSetLayout(&descriptorSetLayoutInfo, nullptr, &m_descriptor_set_layout);
 }
 
 DescriptorLayout::~DescriptorLayout() {
-  vkDestroyDescriptorSetLayout(m_device->getLogicalDevice(), m_descriptor_set_layout, nullptr);
+  m_device->destroyDescriptorSetLayout(m_descriptor_set_layout, nullptr);
 }
 
 // *************** Descriptor Pool Builder *********************
@@ -86,12 +83,11 @@ DescriptorPool::DescriptorPool(std::shared_ptr<GraphicsDeviceVulkan> device,
   descriptorPoolInfo.maxSets = maxSets;
   descriptorPoolInfo.flags = poolFlags;
 
-  VK_CHECK_RESULT(vkCreateDescriptorPool(m_device->getLogicalDevice(), &descriptorPoolInfo, nullptr,
-                             &m_descriptor_pool), "failed to create descriptor pool!");
+  m_device->createDescriptorPool(&descriptorPoolInfo, nullptr, &m_descriptor_pool);
 }
 
 DescriptorPool::~DescriptorPool() {
-  vkDestroyDescriptorPool(m_device->getLogicalDevice(), m_descriptor_pool, nullptr);
+  m_device->destroyDescriptorPool(m_descriptor_pool, nullptr);
 }
 
 bool DescriptorPool::allocateDescriptor(const VkDescriptorSetLayout* descriptorSetLayout,
@@ -104,6 +100,7 @@ bool DescriptorPool::allocateDescriptor(const VkDescriptorSetLayout* descriptorS
   allocInfo.descriptorSetCount = descriptorSetCount;
 
   m_device->allocateDescriptorSets(&allocInfo, descriptors);
+  return true;
 }
 
 void DescriptorPool::freeDescriptors(std::vector<VkDescriptorSet>& descriptors) const {

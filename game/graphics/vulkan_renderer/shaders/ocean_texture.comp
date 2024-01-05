@@ -1,31 +1,31 @@
 #version 450
-
-layout(binding = 0) readonly buffer TextureInfo {
-   int row_size;
-   int col_size;
-}
-
-layout(std140, binding = 1) readonly buffer Position {
-   vec2 position[];
-};
-
-layout(std140, binding = 2) readonly buffer ImageSSBOIn {
-   vec4 pixels[];
-   vec2 coordinates[];
-};
-
-layout(std140, binding = 3) buffer ImageSSBOOut {
-   vec4 pixels[];
-};
+#extension GL_EXT_nonuniform_qualifier : enable
 
 layout (local_size_x = 16, local_size_y = 16) in;
+layout(std140, binding = 0) readonly buffer StaticPosition {
+   vec2 position;
+} StaticPositions[];
+
+layout(std140, binding = 1) readonly buffer DynamicPosition {
+   vec4 pixels;
+   vec2 coordinates;
+} DynamicPositions[];
+
+layout(binding = 2) readonly buffer TextureInfo {
+   uint row_size;
+   uint col_size;
+} textureInfo;
+
+layout(binding = 3, rgba8) uniform readonly image2D ImageIn;
+layout(binding = 4, rgba8) uniform image2D ImageOut;
+
 
 void main(){
-    uint index = gl_GlobalInvocationID.x;  
+    vec4 inputColor = imageLoad(ImageIn, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y));
+    inputColor = vec4(inputColor.rgb * 2, 1);
 
-    vec4 position = vec4((ImageSSBOIn.pixels[index].x - 1024) / 1024, (ImageSSBOIn.pixels[index].y - 1024) / 1024, 0.5, 1.0);
-    vec4 fragment_color = vec4(ImageSSBOIn[index].pixels.xyz * 2, 1);
-    int textureIndex = ImageSSBOIn.coordinates[index].x * ImageSSBOIn.coordinates[index].x;
+    uint bufferIndex = gl_GlobalInvocationID.x * textureInfo.row_size + gl_GlobalInvocationID.y;
+    ivec2 position = ivec2((StaticPositions[bufferIndex].position.x - 1024) / 1024, (StaticPositions[bufferIndex].position.y - 1024) / 1024);
 
-    ImageSSBOOut.pixels[index] = fragment_color * ImageSSBOIn.pixels[textureIndex];
+    imageStore(ImageOut, position, inputColor);
 }

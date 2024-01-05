@@ -68,6 +68,7 @@ class SpriteVulkan3 : public virtual BaseSprite3, public BucketVulkanRenderer {
 
   } m_vulkan_distort_instanced_ogl;
 
+  void setup_render(VkCommandBuffer command_buffer);
   void direct_renderer_reset_state() override;
   void direct_renderer_render_vif(u32 vif0,
                                   u32 vif1,

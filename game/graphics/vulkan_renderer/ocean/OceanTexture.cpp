@@ -177,8 +177,8 @@ void OceanVulkanTexture::flush(BaseSharedRenderState* render_state, ScopedProfil
 
   SetupShader(ShaderId::OCEAN_TEXTURE);
 
-  m_ocean_texture_graphics_pipeline_layout->updateGraphicsPipeline(
-      m_command_buffer, m_pipeline_info);
+  m_ocean_texture_graphics_pipeline_layout->createGraphicsPipelineIfNeeded(m_pipeline_info);
+  m_ocean_texture_graphics_pipeline_layout->updateGraphicsPipeline(m_command_buffer, m_pipeline_info);
   m_ocean_texture_graphics_pipeline_layout->bind(m_command_buffer);
 
   GsTex0 tex0(m_envmap_adgif.tex0_data);

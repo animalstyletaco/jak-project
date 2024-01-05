@@ -1,25 +1,19 @@
 #version 450
-
-layout (binding = 0) readonly buffer TextureInfo {
-   uint row_size;
-   uint col_size;
-}
-
-layout (binding = 1) readonly buffer Positions {
-   vec3 position[];
-};
-
-layout (binding = 2) buffer ImageSSBOOut {
-   vec4 pixels[];
-};
+#extension GL_EXT_nonuniform_qualifier : enable
 
 layout (local_size_x = 16, local_size_y = 16) in;
+layout (binding = 0) readonly buffer Vertex {
+   vec4 position;
+} VertexPositions[];
+
+layout (binding = 1, rgba8) uniform readonly image2D inputImage;
+layout (binding = 2, rgba8) uniform image2D outputImage;
 
 void main() {
-    uint index = gl_GlobalInvocationID.x; 
+    uint index = gl_GlobalInvocationID.x;
+    vec4 inputColor = imageLoad(inputImage, ivec2(gl_GlobalInvocationID.x, gl_GlobalInvocationID.y));
+    inputColor.w *= 2;
 
-    vec4 position = vec4(Positions.position[index].x * 2 -1, -Position.position[index].y * 2 - 1, 0.0, 1.0);
-    uint textureIndex = TextureInfo.row_size * position.x + position.y;
-
-    ImageSSBOOut.pixels[textureIndex] *= position.z;
+    ivec2 position = ivec2(VertexPositions[index].position.x * 2 -1, -VertexPositions[index].position.y * 2 - 1);
+    imageStore(outputImage, position, inputColor);
 }

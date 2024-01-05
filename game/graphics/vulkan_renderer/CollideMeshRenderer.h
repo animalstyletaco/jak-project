@@ -43,6 +43,7 @@ class CollideMeshVulkanRenderer {
   void init_pat_colors(GameVersion version);
   void InitializeInputVertexAttribute();
   void init_shaders();
+  virtual void populate_pattern_materials() = 0;
   void create_pipeline_layout();
 
   struct PushConstant {
@@ -81,4 +82,16 @@ class CollideMeshVulkanRendererJak1 : public CollideMeshVulkanRenderer {
     m_push_constant.scissor_adjust = -512.f / 448.f;
   };
   ~CollideMeshVulkanRendererJak1() = default;
+  void populate_pattern_materials() override;
+};
+
+
+class CollideMeshVulkanRendererJak2 : public CollideMeshVulkanRenderer {
+ public:
+  CollideMeshVulkanRendererJak2(std::shared_ptr<GraphicsDeviceVulkan> device,
+                                VulkanInitializationInfo& vulkan_info)
+      : CollideMeshVulkanRenderer(device, vulkan_info) {
+  };
+  ~CollideMeshVulkanRendererJak2() = default;
+  void populate_pattern_materials() override;
 };

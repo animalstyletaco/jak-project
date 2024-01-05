@@ -20,6 +20,7 @@ class VulkanShader {
 
   VkShaderModule GetVertexShader() { return m_vert_shader; };
   VkShaderModule GetFragmentShader() { return m_frag_shader; };
+  VkShaderModule GetComputeShader() { return m_comp_shader; };
 
   bool okay() const { return m_is_okay; }
   u64 id() const { return m_program; }
@@ -29,6 +30,7 @@ class VulkanShader {
 
   VkShaderModule m_frag_shader = VK_NULL_HANDLE;
   VkShaderModule m_vert_shader = VK_NULL_HANDLE;
+  VkShaderModule m_comp_shader = VK_NULL_HANDLE;
   VkDevice m_device = VK_NULL_HANDLE;
 
   u64 m_program = 0;

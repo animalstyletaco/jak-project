@@ -105,10 +105,14 @@ class VulkanRenderer {
   float m_last_pmode_alp = 1.;
   bool m_enable_fast_blackout_loads = true;
 
-  void createCommandBuffers();
+  void createPrimaryCommandBuffers();
+  void createSecondaryCommandBuffers();
   void updateSecondaryCommandBuffers();
   void freeCommandBuffers();
   void recreateSwapChain(bool vsyncEnabled);
+  void setupForSingleThreadProcessing(VkCommandBuffer);
+  void setupForParallelProcessing(VkCommandBuffer, DmaFollower& dma, SharedVulkanRenderState* render_state);
+  void submitParallelProcessedRenderers(VkCommandBuffer);
 
   std::shared_ptr<GraphicsDeviceVulkan> m_device;
   std::vector<VkCommandBuffer> primaryCommandBuffers;
@@ -139,6 +143,7 @@ class VulkanRendererJak1 : public VulkanRenderer {
       : VulkanRenderer(texture_pool, loader, device), m_render_state(device) {
     m_merc2 = std::make_shared<MercVulkan2Jak1>(device, m_vulkan_info);
     m_generic2 = std::make_shared<GenericVulkan2Jak1>(device, m_vulkan_info);
+    m_collide_renderer = std::make_unique<CollideMeshVulkanRendererJak1>(m_device, m_vulkan_info);
     init_bucket_renderers();
   };
   ~VulkanRendererJak1() = default;
@@ -164,6 +169,7 @@ class VulkanRendererJak2 : public VulkanRenderer {
       : VulkanRenderer(texture_pool, loader, device), m_render_state(device) {
     m_merc2 = std::make_shared<MercVulkan2>(device, m_vulkan_info);
     m_generic2 = std::make_shared<GenericVulkan2Jak2>(device, m_vulkan_info);
+    m_collide_renderer = std::make_unique<CollideMeshVulkanRendererJak2>(m_device, m_vulkan_info);
     init_bucket_renderers();
   };
   ~VulkanRendererJak2() = default;

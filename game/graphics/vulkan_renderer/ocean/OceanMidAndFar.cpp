@@ -27,6 +27,7 @@ void OceanVulkanMidAndFarJak1::render(DmaFollower& dma,
   m_direct_renderer_call_count = 0;
   m_direct.set_current_index(m_direct_renderer_call_count);
   m_direct.set_command_buffer(command_buffer);
+  m_texture_renderer.set_command_buffer(command_buffer);
   BaseOceanMidAndFarJak1::render(dma, render_state, prof);
 }
 
@@ -37,6 +38,7 @@ void OceanVulkanMidAndFarJak2::render(DmaFollower& dma,
   m_direct_renderer_call_count = 0;
   m_direct.set_current_index(m_direct_renderer_call_count);
   m_direct.set_command_buffer(command_buffer);
+  m_texture_renderer.set_command_buffer(command_buffer);
   BaseOceanMidAndFarJak2::render(dma, render_state, prof);
 }
 

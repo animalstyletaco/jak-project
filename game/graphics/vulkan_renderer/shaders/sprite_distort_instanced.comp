@@ -1,0 +1,69 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout (local_size_x = 16, local_size_y = 16) in;
+layout(binding = 0) readonly buffer UniformBufferObject {
+  uint row_size;
+	uvec4 u_color;
+  float height_scale;
+} ubo;
+
+struct Vertex {
+   vec3 xyz;
+   vec2 st;
+};
+
+layout (binding = 1) readonly buffer VertexBuffer {
+   Vertex vertex;
+} Vertices[];
+
+ // sprite position + texture S-coord
+layout (binding = 2) readonly buffer instance_xyz_s {
+   vec4 xyz_s;
+} Instance_XYZ_S[];
+
+ // sprite scale + texture T-coord
+layout (binding = 3) readonly buffer instance_scale_t {
+   vec4 scale_t;
+} Instance_Scale_T[];
+
+layout (binding = 4, rgba8) uniform readonly image2D ImageIn;
+layout (binding = 5, rgba8) uniform image2D ImageOut;
+
+void main() {
+    uint bufferIndex = gl_GlobalInvocationID.x * ubo.row_size + gl_GlobalInvocationID.y;
+
+        // Adjust position and texture coordinates the same way as in the VU program
+    //
+    // The VU program operated on each "slice" of the sprite separately, which in
+    // this case is every 5 vertices. To know the exact transformation to apply
+    // for each vertex, we need to know which one it is. The order is always 2
+    // vertices scaled by sizeX, 2 scaled by sizeY (sizeZ for tex coords), and
+    // finally the center vertex which isn't modified.
+    float slice_vert_id = mod(bufferIndex, 5);
+
+    vec2 texture_coord = vec2(Instance_XYZ_S[bufferIndex].xyz_s.w, Instance_Scale_T[bufferIndex].scale_t.w);
+    if (slice_vert_id < 2) {
+      texture_coord += Vertices[bufferIndex].vertex.st * Instance_Scale_T[bufferIndex].scale_t.x;
+    } else if (slice_vert_id < 4) {
+      texture_coord += Vertices[bufferIndex].vertex.st * Instance_Scale_T[bufferIndex].scale_t.z;
+    }
+
+    vec3 position = Instance_XYZ_S[bufferIndex].xyz_s.xyz;
+    if (slice_vert_id < 2) {
+      position += Vertices[bufferIndex].vertex.xyz * Instance_Scale_T[bufferIndex].scale_t.x;
+    } else if (slice_vert_id < 4) {
+      position += Vertices[bufferIndex].vertex.xyz * Instance_Scale_T[bufferIndex].scale_t.y;
+    }
+
+    texture_coord = Vertices[bufferIndex].vertex.st;
+    vec4 color = ubo.u_color * 2;
+    
+    // correct texture coordinates
+    ivec2 output_texture_coords = ivec2(texture_coord.x, (1.0f - texture_coord.y) - (1 - (ubo.height_scale/512.0)) / 2);
+    
+    // sample framebuffer texture
+    vec4 framebuffer_color = imageLoad(ImageOut, output_texture_coords);
+    vec4 out_color = color * framebuffer_color;
+    imageStore(ImageOut, output_texture_coords, out_color);
+}

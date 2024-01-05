@@ -26,8 +26,9 @@ VulkanTexture::VulkanTexture(const VulkanTexture& texture) : m_device(texture.m_
   m_current_image_layout = texture.m_image_create_info.initialLayout;
 
   m_image_view_create_info = texture.m_image_view_create_info;
-  m_device->createImageView(&m_image_view_create_info, nullptr, &m_image_view);
-
+  if (texture.m_image_view) {
+    m_device->createImageView(&m_image_view_create_info, nullptr, &m_image_view);
+  }
   m_device_size = texture.m_device_size;
 }
 

@@ -166,7 +166,7 @@ void DirectVulkanRenderer2::flush_pending(SharedVulkanRenderState* render_state,
   m_stats.upload_bytes +=
       (m_vertices.next_vertex * sizeof(Vertex)) + (m_vertices.next_index * sizeof(u32));
 
-  m_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(m_command_buffer);
 
   // draw call loop

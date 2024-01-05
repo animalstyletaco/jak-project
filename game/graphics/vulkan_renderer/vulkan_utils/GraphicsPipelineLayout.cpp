@@ -240,8 +240,10 @@ bool PipelineConfigInfo::operator==(const PipelineConfigInfo& rhs) {
   return status;
 }
 
-void GraphicsPipelineLayout::createGraphicsPipelineIfNotAvailable(PipelineConfigInfo& pipelineConfig) {
+void GraphicsPipelineLayout::createGraphicsPipelineIfNeeded(PipelineConfigInfo& pipelineConfig) {
   if (!_graphicsPipeline) {
+    createGraphicsPipeline(pipelineConfig);
+  } else if (pipelineConfig.renderPass != _currentPipelineConfig.renderPass) {
     createGraphicsPipeline(pipelineConfig);
   }
 }
@@ -382,7 +384,8 @@ void GraphicsPipelineLayout::createGraphicsPipeline(PipelineConfigInfo& configIn
   pipelineInfo.basePipelineIndex = -1;
   pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 
-  _device->createGraphicsPipelines(VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_graphicsPipeline);
+  _device->createGraphicsPipelines(_graphicsPipelineCache, 1, &pipelineInfo, nullptr,
+                                   &_graphicsPipeline);
   _currentPipelineConfig = configInfo;
 }
 
@@ -459,4 +462,34 @@ void GraphicsPipelineLayout::defaultPipelineConfigInfo(PipelineConfigInfo& confi
   configInfo.dynamicStateInfo.dynamicStateCount =
       static_cast<uint32_t>(configInfo.dynamicStateEnables.size());
   configInfo.dynamicStateInfo.flags = 0;
+}
+
+
+ComputePipelineLayout::ComputePipelineLayout(std::shared_ptr<GraphicsDeviceVulkan> device)
+    : _device(device) {
+}
+
+ComputePipelineLayout::~ComputePipelineLayout() {
+  destroyPipeline();
+}
+
+void ComputePipelineLayout::destroyPipeline() {
+  _device->destroyPipeline(_computePipeline, nullptr);
+}
+
+void ComputePipelineLayout::bind(VkCommandBuffer commandBuffer) {
+  vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, _computePipeline);
+}
+
+void ComputePipelineLayout::createComputePipeline(VkComputePipelineCreateInfo& configInfo) {
+  if (_computePipeline) {
+    return;
+  }
+  _device->createComputePipelines(VK_NULL_HANDLE, 1, &configInfo, nullptr, &_computePipeline);
+  _currentPipelineConfig = configInfo;
+}
+
+void ComputePipelineLayout::defaultPipelineConfigInfo(
+    VkComputePipelineCreateInfo& configInfo) {
+  configInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
 }

@@ -213,7 +213,7 @@ void GraphicsDeviceVulkan::createLogicalDevice() {
   QueueFamilyIndices indices = findQueueFamilies(m_physical_device);
 
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-  std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsAndComputeFamily.value(),
+  std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(),
                                             indices.presentFamily.value()};
 
   float queuePriority = 1.0f;
@@ -265,8 +265,7 @@ void GraphicsDeviceVulkan::createLogicalDevice() {
     vulkan_device::is_vulkan_loaded = true;
   }
 
-  vkGetDeviceQueue(m_device, indices.graphicsAndComputeFamily.value(), 0, &m_graphics_queue);
-  vkGetDeviceQueue(m_device, indices.graphicsAndComputeFamily.value(), 0, &m_compute_queue);
+  vkGetDeviceQueue(m_device, indices.graphicsFamily.value(), 0, &m_graphics_queue);
   vkGetDeviceQueue(m_device, indices.presentFamily.value(), 0, &m_present_queue);
 }
 
@@ -276,7 +275,7 @@ void GraphicsDeviceVulkan::createCommandPool() {
   VkCommandPoolCreateInfo poolInfo{};
   poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
   poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-  poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsAndComputeFamily.value();
+  poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
 
   if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_command_pool) != VK_SUCCESS) {
     lg::error("failed to create graphics command pool!");
@@ -654,8 +653,8 @@ QueueFamilyIndices GraphicsDeviceVulkan::findQueueFamilies(VkPhysicalDevice devi
 
   int i = 0;
   for (const auto& queueFamily : queueFamilies) {
-    if ((queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) && (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)) {
-      indices.graphicsAndComputeFamily = i;
+    if ((queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+      indices.graphicsFamily = i;
     }
 
     VkBool32 presentSupport = false;
@@ -814,10 +813,45 @@ VkFormatProperties GraphicsDeviceVulkan::getPhysicalDeviceFormatProperties(VkFor
   return formatProperties;
 }
 
+void GraphicsDeviceVulkan::createSwapChain(const VkSwapchainCreateInfoKHR* createInfo, const VkAllocationCallbacks* callbacks, VkSwapchainKHR* swapChain) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(
+      vkCreateSwapchainKHR(m_device, createInfo, callbacks, swapChain),
+      "failed to create swap chain");
+}
+
+// we only specified a minimum number of images in the swap chain, so the implementation is
+// allowed to create a swap chain with more. That's why we'll first query the final number of
+// images with vkGetSwapchainImagesKHR, then resize the container and finally call it again to
+// retrieve the handles.
+void GraphicsDeviceVulkan::getSwapChainImageCount(VkSwapchainKHR swapchain,
+                                                 unsigned* imageCount) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkGetSwapchainImagesKHR(m_device, swapchain, imageCount, nullptr),
+      "failed to get swapchain image count");
+}
+
+void GraphicsDeviceVulkan::getSwapChainImages(VkSwapchainKHR swapchain, unsigned* imageCount, VkImage* swapChainImages) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkGetSwapchainImagesKHR(m_device, swapchain, imageCount,
+                                          swapChainImages),
+                  "failed to get swap chain images");
+}
+
+void GraphicsDeviceVulkan::destroySwapChain(VkSwapchainKHR& swapchain,
+                                            const VkAllocationCallbacks* callbacks) {
+  if (!swapchain) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroySwapchainKHR(m_device, swapchain, callbacks);
+  swapchain = VK_NULL_HANDLE;
+}
+
 void GraphicsDeviceVulkan::createRenderPass(const VkRenderPassCreateInfo* createInfo,
                                             const VkAllocationCallbacks* callbacks,
                                             VkRenderPass* renderPass) {
-  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
   VK_CHECK_RESULT(vkCreateRenderPass(m_device, createInfo, callbacks, renderPass),
                   "Failed to create render pass");
 }
@@ -826,7 +860,7 @@ void GraphicsDeviceVulkan::destroyRenderPass(VkRenderPass& renderPass, const VkA
   if (!renderPass) {
     return;
   }
-  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
   vkDestroyRenderPass(m_device, renderPass, callbacks);
   renderPass = VK_NULL_HANDLE;
 }
@@ -834,7 +868,7 @@ void GraphicsDeviceVulkan::destroyRenderPass(VkRenderPass& renderPass, const VkA
 void GraphicsDeviceVulkan::createFramebuffer(const VkFramebufferCreateInfo* createInfo,
                                              const VkAllocationCallbacks* callbacks,
                                              VkFramebuffer* framebuffer) {
-  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
   VK_CHECK_RESULT(vkCreateFramebuffer(m_device, createInfo, callbacks, framebuffer),
                   "Failed to create framebuffers");
 }
@@ -843,7 +877,7 @@ void GraphicsDeviceVulkan::destroyFramebuffer(VkFramebuffer& framebuffer, const 
   if (!framebuffer) {
     return;
   }
-  std::lock_guard<std::mutex> lock_guard(vulkan_device::physical_device_mutex);
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
   vkDestroyFramebuffer(m_device, framebuffer, callbacks);
   framebuffer = VK_NULL_HANDLE;
 }
@@ -1101,6 +1135,22 @@ void GraphicsDeviceVulkan::destroyPipelineLayout(VkPipelineLayout& pipelineLayou
   pipelineLayout = VK_NULL_HANDLE;
 }
 
+void GraphicsDeviceVulkan::createPipelineCache(const VkPipelineCacheCreateInfo* createInfo,
+                                               const VkAllocationCallbacks* callbacks,
+                                               VkPipelineCache* pipelineCache) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkCreatePipelineCache(m_device, createInfo, callbacks, pipelineCache);
+}
+
+void GraphicsDeviceVulkan::destroyPipelineCache(VkPipelineCache& pipelineCache, const VkAllocationCallbacks* callbacks) {
+  if (!pipelineCache) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyPipelineCache(m_device, pipelineCache, callbacks);
+  pipelineCache = VK_NULL_HANDLE;
+}
+
 void GraphicsDeviceVulkan::allocateDescriptorSets(const VkDescriptorSetAllocateInfo* alloc_info,
                                                   VkDescriptorSet* descriptor_sets) {
   std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
@@ -1148,6 +1198,23 @@ void GraphicsDeviceVulkan::destroyDescriptorPool(VkDescriptorPool descriptor_poo
   vkDestroyDescriptorPool(m_device, descriptor_pool, callbacks);
   descriptor_pool = VK_NULL_HANDLE;
 }
+
+void GraphicsDeviceVulkan::createDescriptorSetLayout(const VkDescriptorSetLayoutCreateInfo* createInfo,
+                                                     const VkAllocationCallbacks* callbacks,
+                                                     VkDescriptorSetLayout* layouts) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateDescriptorSetLayout(m_device, createInfo, callbacks, layouts),
+                   "Failed to create descriptor set layout");
+}
+void GraphicsDeviceVulkan::destroyDescriptorSetLayout(VkDescriptorSetLayout& layout,
+                                                      const VkAllocationCallbacks* callbacks) {
+  if (!layout) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  vkDestroyDescriptorSetLayout(m_device, layout, callbacks);
+  layout = VK_NULL_HANDLE;
+}
      
 void GraphicsDeviceVulkan::createGraphicsPipelines(VkPipelineCache pipelineCache,
                                                    VkDeviceSize graphicsPipelineCreateCount,
@@ -1158,6 +1225,17 @@ void GraphicsDeviceVulkan::createGraphicsPipelines(VkPipelineCache pipelineCache
   VK_CHECK_RESULT(vkCreateGraphicsPipelines(m_device, pipelineCache, graphicsPipelineCreateCount,
                                             createInfo, callbacks, pipelines),
                   "Failed to create graphic pipelines");
+}
+
+void GraphicsDeviceVulkan::createComputePipelines(VkPipelineCache pipelineCache,
+                                                  VkDeviceSize graphicsPipelineCreateCount,
+                                                  const VkComputePipelineCreateInfo* createInfo,
+                                                  const VkAllocationCallbacks* callbacks,
+                                                  VkPipeline* pipelines) {
+  std::lock_guard<std::mutex> lock_guard(vulkan_device::device_mutex);
+  VK_CHECK_RESULT(vkCreateComputePipelines(m_device, pipelineCache, graphicsPipelineCreateCount,
+                                            createInfo, callbacks, pipelines),
+                  "Failed to create compute pipelines");
 }
 
 void GraphicsDeviceVulkan::destroyPipeline(VkPipeline& pipeline, const VkAllocationCallbacks* callbacks) {

@@ -106,7 +106,10 @@ void VulkanBuffer::map(VkDeviceSize size, VkDeviceSize offset) {
  * @note Does not return a result as vkUnmapMemory can't fail
  */
 void VulkanBuffer::unmap() {
-   m_device->unmapMemory(memory);
+  if (mapped) {
+    m_device->unmapMemory(memory);
+    mapped = nullptr;
+  }
 }
 
 /**

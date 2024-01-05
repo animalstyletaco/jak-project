@@ -1,0 +1,35 @@
+#version 450
+#extension GL_EXT_nonuniform_qualifier : enable
+
+layout (local_size_x = 16, local_size_y = 16) in;
+layout(binding = 0) readonly buffer UniformBufferObject {
+  uint row_size;
+	uvec4 u_color;
+  float height_scale;
+} ubo;
+
+struct Vertex {
+   vec3 xyz;
+   vec2 st;
+};
+
+layout (binding = 1) readonly buffer VertexBuffer {
+   Vertex vertex;
+} Vertices[];
+
+layout (binding = 2, rgba8) uniform image2D ImageOut;
+
+void main() {
+    uint bufferIndex = gl_GlobalInvocationID.x * ubo.row_size + gl_GlobalInvocationID.y;
+
+    vec2 tex_coord = Vertices[bufferIndex].vertex.st;
+    vec4 color = ubo.u_color * 2;
+    
+    // correct texture coordinates
+    ivec2 texture_coords = ivec2(tex_coord.x, (1.0f - tex_coord.y) - (1 - (ubo.height_scale/512.0)) / 2);
+    
+    // sample framebuffer texture
+    vec4 framebuffer_color = imageLoad(ImageOut, texture_coords);
+    vec4 out_color = color * framebuffer_color;
+    imageStore(ImageOut, texture_coords, out_color);
+}

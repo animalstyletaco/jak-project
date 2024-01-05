@@ -587,8 +587,8 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
 
   int draw_count = 0;
 
-  m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->updateGraphicsPipeline(
-      m_command_buffer, m_pipeline_config_info);
+  m_graphics_helper_map[currentImageIndex]
+      .graphics_pipeline_layout->createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   m_graphics_helper_map[currentImageIndex].graphics_pipeline_layout->bind(
       m_command_buffer);
 
@@ -616,7 +616,7 @@ void DirectVulkanRenderer::render_and_draw_buffers(BaseSharedRenderState* render
     m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_FALSE;
     m_pipeline_config_info.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 
-    m_debug_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+    m_debug_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
     m_debug_graphics_pipeline_layout.bind(m_command_buffer);
 
     vkCmdBindDescriptorSets(m_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,

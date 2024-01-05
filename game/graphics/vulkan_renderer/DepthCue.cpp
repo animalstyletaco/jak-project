@@ -381,7 +381,7 @@ void DepthCueVulkan::setup(BaseSharedRenderState* render_state, ScopedProfilerNo
 }
 
 void DepthCueVulkan::draw(BaseSharedRenderState* render_state, ScopedProfilerNode& prof) {
-  m_graphics_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_graphics_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   m_graphics_pipeline_layout.bind(m_command_buffer);
 
   m_pipeline_config_info.depthStencilInfo.depthTestEnable = VK_TRUE;

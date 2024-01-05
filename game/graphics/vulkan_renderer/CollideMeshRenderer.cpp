@@ -50,21 +50,7 @@ void CollideMeshVulkanRenderer::init_pat_colors(GameVersion version) {
     m_colors.pat_event_colors[i].z() = -1.f;
   }
 
-  switch (version) {
-    case GameVersion::Jak1:
-      for (int i = 0; i < 23 * 3; ++i) {
-        m_colors.pat_material_colors[i / 3].data()[i % 3] = collision::material_colors_jak1[i];
-      }
-      for (int i = 0; i < 7 * 3; ++i) {
-        m_colors.pat_event_colors[i / 3].data()[i % 3] = collision::event_colors_jak1[i];
-      }
-      for (int i = 0; i < 3 * 3; ++i) {
-        m_colors.pat_mode_colors[i / 3].data()[i % 3] = collision::mode_colors_jak1[i];
-      }
-      break;
-    case GameVersion::Jak2:
-      break;
-  }
+  populate_pattern_materials();
 }
 
 void CollideMeshVulkanRenderer::create_pipeline_layout() {
@@ -147,22 +133,25 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
   m_pipeline_config_info.colorBlendInfo.blendConstants[3] = 1.0f;
 
   m_vulkan_info.swap_chain->setViewportScissor(command_buffer);
-  m_pipeline_layout.createGraphicsPipelineIfNotAvailable(m_pipeline_config_info);
+  m_pipeline_layout.createGraphicsPipelineIfNeeded(m_pipeline_config_info);
   m_pipeline_layout.bind(command_buffer);
+
+  ::memcpy(m_push_constant.collision_mode_mask, Gfx::g_global_settings.collision_mode_mask.data(),
+           Gfx::g_global_settings.collision_mode_mask.size());
+  ::memcpy(m_push_constant.collision_event_mask, Gfx::g_global_settings.collision_event_mask.data(),
+           Gfx::g_global_settings.collision_event_mask.size());
+  ::memcpy(m_push_constant.collision_material_mask,
+           Gfx::g_global_settings.collision_material_mask.data(),
+           Gfx::g_global_settings.collision_material_mask.size());
+  m_push_constant.collision_skip_mask = Gfx::g_global_settings.collision_skip_mask;
+  m_push_constant.mode = Gfx::g_global_settings.collision_mode;
+
+  vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                        m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
+                        m_descriptor_sets.data(), 0, nullptr);
 
   for (LevelDataVulkan* level : levels) {
     m_push_constant.wireframe = 0;
-    ::memcpy(m_push_constant.collision_mode_mask, Gfx::g_global_settings.collision_mode_mask.data(),
-             Gfx::g_global_settings.collision_mode_mask.size());
-    ::memcpy(m_push_constant.collision_event_mask,
-             Gfx::g_global_settings.collision_event_mask.data(),
-             Gfx::g_global_settings.collision_event_mask.size());
-    ::memcpy(m_push_constant.collision_material_mask,
-             Gfx::g_global_settings.collision_material_mask.data(),
-             Gfx::g_global_settings.collision_material_mask.size());
-    m_push_constant.collision_skip_mask = Gfx::g_global_settings.collision_skip_mask;
-    m_push_constant.mode = Gfx::g_global_settings.collision_mode;
-
     vkCmdPushConstants(command_buffer, m_pipeline_config_info.pipelineLayout,
                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, sizeof(m_push_constant),
                        &m_push_constant);
@@ -172,12 +161,7 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
 
     VkDeviceSize offsets[] = {0};
     VkBuffer vertex_buffer_vulkan = level->collide_vertices->getBuffer();
-    vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer_vulkan,
-                           offsets);
-
-    vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            m_pipeline_config_info.pipelineLayout, 0, m_descriptor_sets.size(),
-                            m_descriptor_sets.data(), 0, nullptr);
+    vkCmdBindVertexBuffers(command_buffer, 0, 1, &vertex_buffer_vulkan, offsets);
 
     vkCmdDraw(command_buffer, level->collide_vertices->getBufferSize(), 0, 0, 0);
 
@@ -210,7 +194,7 @@ void CollideMeshVulkanRenderer::render(SharedVulkanRenderState* render_state,
       vkCmdDraw(command_buffer, level->collide_vertices->getBufferSize(), 0, 0, 0);
 
       m_pipeline_config_info.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-      colorBlendAttachment.blendEnable = VK_TRUE;
+      m_pipeline_config_info.colorBlendAttachment.blendEnable = VK_TRUE;
       // imageView.aspectView |= VK_IMAGE_ASPECT_DEPTH_BIT;
     }
 
@@ -280,4 +264,28 @@ CollisionMeshVertexPatternUniformBuffer::CollisionMeshVertexPatternUniformBuffer
       {"pat_material_colors", offsetof(PatColors, pat_material_colors)},
       {"pat_event_colors", offsetof(PatColors, pat_event_colors)},
   };
+}
+
+void CollideMeshVulkanRendererJak1::populate_pattern_materials() {
+  for (int i = 0; i < 23 * 3; ++i) {
+    m_colors.pat_material_colors[i / 3].data()[i % 3] = collision::material_colors_jak1[i];
+  }
+  for (int i = 0; i < 7 * 3; ++i) {
+    m_colors.pat_event_colors[i / 3].data()[i % 3] = collision::event_colors_jak1[i];
+  }
+  for (int i = 0; i < 3 * 3; ++i) {
+    m_colors.pat_mode_colors[i / 3].data()[i % 3] = collision::mode_colors_jak1[i];
+  }
+}
+
+void CollideMeshVulkanRendererJak2::populate_pattern_materials() {
+  for (int i = 0; i < 23 * 3; ++i) {
+    m_colors.pat_material_colors[i / 3].data()[i % 3] = collision::material_colors_jak2[i];
+  }
+  for (int i = 0; i < 7 * 3; ++i) {
+    m_colors.pat_event_colors[i / 3].data()[i % 3] = collision::event_colors_jak2[i];
+  }
+  for (int i = 0; i < 3 * 3; ++i) {
+    m_colors.pat_mode_colors[i / 3].data()[i % 3] = collision::mode_colors_jak2[i];
+  }
 }

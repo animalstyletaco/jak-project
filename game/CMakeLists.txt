@@ -244,6 +244,7 @@ if(WIN32)
   file(GLOB_RECURSE GLSL_SOURCE_FILES
       "${CMAKE_CURRENT_SOURCE_DIR}/graphics/vulkan_renderer/shaders/*.frag"
       "${CMAKE_CURRENT_SOURCE_DIR}/graphics/vulkan_renderer/shaders/*.vert"
+      "${CMAKE_CURRENT_SOURCE_DIR}/graphics/vulkan_renderer/shaders/*.comp"
       )
   
   foreach(GLSL ${GLSL_SOURCE_FILES})

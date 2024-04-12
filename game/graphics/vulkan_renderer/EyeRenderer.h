@@ -18,33 +18,17 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   void render(DmaFollower& dma,
               SharedVulkanRenderState* render_state,
               ScopedProfilerNode& prof, VkCommandBuffer) override;
+  void set_command_buffer(VkCommandBuffer command_buffer) { m_command_buffer = command_buffer; };
 
   VulkanTexture* lookup_eye_texture(u8 eye_id);
 
   struct EyeVulkanGraphics {
-    EyeVulkanGraphics(std::shared_ptr<GraphicsDeviceVulkan> device,
-                      std::unique_ptr<DescriptorLayout>& setLayout,
-                      VulkanInitializationInfo& vulkan_info)
-        : descriptor_writer(setLayout, vulkan_info.descriptor_pool), graphics_pipeline_layout(device) {
-      descriptor_writer.build(descriptor_set);
-      descriptor_writer.writeImage(
-          0, vulkan_info.texture_pool->get_placeholder_descriptor_image_info());
-    }
     VulkanGpuTextureMap* texture = VK_NULL_HANDLE;
     VkDescriptorImageInfo descriptor_image_info;
     VkDescriptorSet descriptor_set;
-    DescriptorWriter descriptor_writer;
-    GraphicsPipelineLayout graphics_pipeline_layout;
   };
 
   struct SingleEyeDrawsVulkan : SingleEyeDraws {
-    SingleEyeDrawsVulkan(std::shared_ptr<GraphicsDeviceVulkan> device,
-                         std::unique_ptr<DescriptorLayout>& layout,
-                         VulkanInitializationInfo& vulkan_info)
-        : iris_vulkan_graphics(device, layout, vulkan_info),
-          pupil_vulkan_graphics(device, layout, vulkan_info),
-          lid_vulkan_graphics(device, layout, vulkan_info) {}
-
     EyeVulkanGraphics iris_vulkan_graphics;
     EyeVulkanGraphics pupil_vulkan_graphics;
     EyeVulkanGraphics lid_vulkan_graphics;
@@ -59,11 +43,8 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
   struct GpuEyeTex {
     VulkanGpuTextureMap* gpu_texture;
     u32 tbp;
-    FramebufferVulkanHelper fb;
-
-    GpuEyeTex(std::shared_ptr<GraphicsDeviceVulkan> device);
   };
-  std::unique_ptr<GpuEyeTex> m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
+  GpuEyeTex m_gpu_eye_textures[NUM_EYE_PAIRS * 2];
 
   // xyst per vertex, 4 vertices per square, 3 draws per eye, 11 pairs of eyes, 2 eyes per pair.
   static constexpr int VTX_BUFFER_FLOATS = 4 * 4 * 3 * NUM_EYE_PAIRS * 2;
@@ -75,15 +56,17 @@ class EyeVulkanRenderer : public BaseEyeRenderer, public BucketVulkanRenderer {
                          uint32_t firstVertex,
                          uint32_t vertexCount);
 
-  std::unordered_map<uint32_t, SingleEyeDrawsVulkan> m_eye_draw_map;
+  std::vector<SingleEyeDrawsVulkan> m_single_eye_draws;
   std::unique_ptr<VertexBuffer> m_gpu_vertex_buffer;
   std::unique_ptr<SwapChain> m_swap_chain;
 
-  VkExtent2D m_eye_renderer_extents;
-  VkExtent2D m_original_swap_chain_extents;
+  std::vector<VulkanSamplerHelper> m_sampler_helpers;
+  std::vector<VulkanTexture> m_eye_textures;
 
-  bool isFrameStarted = false;
-  uint32_t eye_renderer_frame_count = 0;
+  std::unique_ptr<DescriptorWriter> m_fragment_descriptor_writer;
+  std::unique_ptr<FramebufferVulkanHelper> m_framebuffer_helper;
+
+  VkExtent2D m_eye_renderer_extents;
 
   float m_gpu_vertex_buffer_data[1920];
 };

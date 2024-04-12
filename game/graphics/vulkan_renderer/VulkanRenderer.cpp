@@ -949,6 +949,7 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
   setupForSingleThreadProcessing(primaryCommandBuffer);
 
   m_merc2->reset_draw_count();
+  m_render_state.eye_renderer->set_command_buffer(primaryCommandBuffer);
 
   // loop over the buckets!
   for (int bucket_id = 0; bucket_id < (int)BucketId::MAX_BUCKETS; bucket_id++) {
@@ -959,13 +960,6 @@ void VulkanRendererJak1::dispatch_buckets(DmaFollower dma,
     g_current_render = renderer->name_and_id();
     // lg::info("Render: %s start\n", g_current_render.c_str());
     graphics_renderer->render(dma, &m_render_state, bucket_prof, primaryCommandBuffer);
-    if (sync_after_buckets) {
-      auto pp = profiler::scoped_prof("finish");
-
-      VK_CHECK_RESULT(
-          vkQueueWaitIdle(m_device->graphicsQueue()),
-          "Graphics queue failed to wait");  
-    }
 
     // lg::info("Render: {} end", g_current_render);
     //  should have ended at the start of the next chain

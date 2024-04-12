@@ -61,8 +61,7 @@ class BucketVulkanRenderer {
   BucketVulkanRenderer(std::shared_ptr<GraphicsDeviceVulkan> device,
                        VulkanInitializationInfo& vulkan_info)
       : m_device(device), m_vulkan_info(vulkan_info) {
-    GraphicsPipelineLayout graphicsPipelineLayout{m_device};
-    graphicsPipelineLayout.defaultPipelineConfigInfo(m_pipeline_config_info);
+    GraphicsPipelineLayout::defaultPipelineConfigInfo(m_pipeline_config_info);
   }
 
   virtual void render(DmaFollower& dma,

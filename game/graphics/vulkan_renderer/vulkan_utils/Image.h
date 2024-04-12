@@ -45,6 +45,7 @@ class VulkanTexture {
   VkImage getImage() const { return m_image; };
   VkDeviceSize getMemorySize() const { return m_device_size; };
   VkImageView getImageView() const { return m_image_view; };
+  VkExtent3D getExtents() const { return m_image_create_info.extent; };
   uint32_t getWidth() const { return m_image_create_info.extent.width; };
   uint32_t getHeight() const { return m_image_create_info.extent.height; };
   uint32_t getDepth() const { return m_image_create_info.extent.depth; };

@@ -107,9 +107,9 @@ bool areVkPipelineRasterizationStateCreateInfosEqual(
   status &= lhs.cullMode == rhs.cullMode;
   status &= lhs.frontFace == rhs.frontFace;
   status &= lhs.depthBiasEnable == rhs.depthBiasEnable;
-  status &= std::abs(lhs.depthBiasConstantFactor) < delta;
+  status &= std::abs(lhs.depthBiasConstantFactor - rhs.depthBiasConstantFactor) < delta;
   status &= std::abs(lhs.depthBiasClamp - rhs.depthBiasClamp) < delta;
-  status &= std::abs(lhs.depthBiasSlopeFactor - rhs.depthBiasConstantFactor) < delta;
+  status &= std::abs(lhs.depthBiasSlopeFactor - rhs.depthBiasSlopeFactor) < delta;
   status &= std::abs(lhs.lineWidth - rhs.lineWidth) < delta;
 
   return status;
@@ -256,10 +256,6 @@ void GraphicsPipelineLayout::createGraphicsPipelineIfNeeded(PipelineConfigInfo& 
 
 void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffer,
                                                     PipelineConfigInfo& pipelineConfig) {
-  if (pipelineConfig == _currentPipelineConfig) {
-    return;
-  }
-
   const float floatEplision = std::numeric_limits<float>::epsilon();
 
   // TODO: Check to see if extensions are enabled or if Vulkan 1.3 is enabled
@@ -286,10 +282,18 @@ void GraphicsPipelineLayout::updateGraphicsPipeline(VkCommandBuffer commandBuffe
                pipelineConfig.depthStencilInfo.maxDepthBounds) < floatEplision;
   if (vk_settings::isDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_DEPTH_BOUNDS,
                                                 _currentPipelineConfig.dynamicStateEnables) &&
-      (areMinDepthBoundEqual && areMaxDepthBoundEqual)) {
+      (!areMaxDepthBoundEqual)) {
     vkCmdSetDepthBounds(commandBuffer, pipelineConfig.depthStencilInfo.minDepthBounds,
                         pipelineConfig.depthStencilInfo.maxDepthBounds);
   }
+
+  if (vk_settings::isDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_DEPTH_COMPARE_OP,
+                                                _currentPipelineConfig.dynamicStateEnables) &&
+      (_currentPipelineConfig.depthStencilInfo.depthCompareOp &&
+       pipelineConfig.depthStencilInfo.depthCompareOp)) {
+    vkCmdSetDepthCompareOpEXT(commandBuffer, pipelineConfig.depthStencilInfo.depthCompareOp);
+  }
+
 
   if (vk_settings::isDynamicStateFeatureEnabled(VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK,
                                                 _currentPipelineConfig.dynamicStateEnables)) {

@@ -21,7 +21,7 @@
 #include "decompiler/data/TextureDB.h"
 #include "decompiler/util/DecompilerTypeSystem.h"
 
-#include "third-party/fmt/core.h"
+#include "fmt/core.h"
 
 namespace decompiler {
 /*!
@@ -169,6 +169,7 @@ class ObjectFileDB {
                const std::vector<fs::path>& object_files,
                const std::vector<fs::path>& str_files,
                const std::vector<fs::path>& str_tex_files,
+               const std::vector<fs::path>& str_art_files,
                const Config& config);
   std::string generate_dgo_listing();
   std::string generate_obj_listing(const std::unordered_set<std::string>& merged_objs);
@@ -222,13 +223,14 @@ class ObjectFileDB {
   void ir2_setup_labels(const Config& config, ObjectFileData& data);
   void ir2_run_mips2c(const Config& config, ObjectFileData& data);
   struct PerObjectAllTypeInfo {
-    std::string object_name;
     std::unordered_set<std::string> already_seen_symbols;
 
     // type-name : { method id : state name }
     std::unordered_map<std::string, std::unordered_map<int, std::string>> state_methods;
     // symbol-name : type-name
     std::unordered_map<std::string, std::string> symbol_types;
+    // state-name : type-name
+    std::unordered_map<std::string, std::string> non_virtual_state_guesses;
 
     struct TypeInfo {
       bool from_inspect_method = false;  // does this come from an inspect method?
@@ -253,7 +255,10 @@ class ObjectFileDB {
                             const std::vector<std::string>& imports,
                             const std::unordered_set<std::string>& skip_functions);
 
-  std::string process_tpages(TextureDB& tex_db, const fs::path& output_path, const Config& cfg);
+  std::string process_tpages(TextureDB& tex_db,
+                             const fs::path& output_path,
+                             const Config& cfg,
+                             const fs::path& dump_out);
   std::string process_game_count_file();
   std::string process_game_text_files(const Config& cfg);
   std::string process_all_spool_subtitles(const Config& cfg, const fs::path& image_out);
@@ -396,4 +401,6 @@ class ObjectFileDB {
 
 std::string print_art_elt_for_dump(const std::string& group_name, const std::string& name, int idx);
 std::string print_jg_for_dump(const std::string& jg_name, const std::string& joint_name, int idx);
+std::string print_tpage_for_dump(const std::string& debug_name, u32 id);
+std::string print_tex_for_dump(const std::string& name, const std::string& page_name, u32 idx);
 }  // namespace decompiler

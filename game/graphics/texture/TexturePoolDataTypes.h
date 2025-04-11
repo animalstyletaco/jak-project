@@ -221,8 +221,8 @@ class VramTextureSlotSet {
   bool get_common_texture_status() { return is_common; }
   void set_common_texture_status(bool common_status) { is_placeholder = common_status; }
 
-  PcTextureId get_texture_id() { return tex_id; }
-  void set_texture_id(PcTextureId id) { id = tex_id; }
+  std::string get_debug_texture_name(PcTextureId id);
+  std::string get_debug_texture_name_from_tbp(u32 tbp);
 
   std::vector<u32> get_slots() { return slots; }
   std::vector<u32> get_mt4hh_slots() { return mt4hh_slots; }

@@ -44,11 +44,13 @@ class OpenGLRenderer {
   void dispatch_buckets(DmaFollower dma, ScopedProfilerNode& prof, bool sync_after_buckets);
   void dispatch_buckets_jak1(DmaFollower dma, ScopedProfilerNode& prof, bool sync_after_buckets);
   void dispatch_buckets_jak2(DmaFollower dma, ScopedProfilerNode& prof, bool sync_after_buckets);
+  void dispatch_buckets_jak3(DmaFollower dma, ScopedProfilerNode& prof, bool sync_after_buckets);
 
   void do_pcrtc_effects(float alp, SharedRenderState* render_state, ScopedProfilerNode& prof);
   void blit_display();
   void init_bucket_renderers_jak1();
   void init_bucket_renderers_jak2();
+  void init_bucket_renderers_jak3();
   void draw_renderer_selection_window();
   void finish_screenshot(const std::string& output_name,
                          int px,
@@ -102,5 +104,6 @@ class OpenGLRenderer {
   } m_fbo_state;
 
   std::unique_ptr<BucketRenderer> m_jak2_eye_renderer;
+  std::unique_ptr<BucketRenderer> m_jak3_eye_renderer;
   GameVersion m_version;
 };

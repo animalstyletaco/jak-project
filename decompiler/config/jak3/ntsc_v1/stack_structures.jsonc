@@ -1,1 +1,768 @@
-{}
+{
+  "quaternion-smooth-seek!": [[16, "quaternion"]],
+  "eul->matrix": [[16, "vector"]],
+  "segment-segment-find-intersection-xz": [[16, "vector"]],
+  "vector-line-xz-distance-point!": [[16, "matrix"]],
+  "vector-segment-xz-distance-point!": [[16, "matrix"]],
+  "nearest-dist2-between-moving-points": [[16, ["inline-array", "vector", 2]]],
+  "vector-circle-tangent-new": [
+    [32, "vector"],
+    [48, "vector"]
+  ],
+  "rotate-vector-to-vector": [[16, "quaternion"]],
+  "init-for-transform": [[192, "vector"]],
+  "show-mc-info": [[16, "mc-slot-info"]],
+  "joint-mod-blend-world-callback": [[16, "joint-mod-blend-world-work"]],
+  "(method 42 nav-mesh)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "(method 44 nav-mesh)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "string->sound-name": [[16, ["array", "sound-name", 1]]],
+  "sound-name->string": [[16, ["array", "uint8", 16]]],
+  "doppler-pitch-shift": [[16, ["inline-array", "vector", 2]]],
+  "(anon-function 1 gsound)": [
+    [16, ["array", "symbol", 4]],
+    [32, ["array", "symbol", 4]]
+  ],
+  "update-light-hash": [
+    [16, "bounding-box"],
+    [48, "vector"],
+    [64, "vector"]
+  ],
+  "(method 19 cloth-system)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "(method 35 cloth-on-skeleton)": [[16, "vector"]],
+  "(method 22 cloth-system)": [
+    [80, "vector"],
+    [144, "vector"]
+  ],
+  "(method 14 cloth-on-skeleton)": [[16, "matrix"]],
+  "(method 36 cloth-on-skeleton)": [[16, "matrix"]],
+  "(method 24 cloth-system)": [[48, "current-position-info"]],
+  "(method 28 cloth-system)": [
+    [64, "vector"],
+    [64, "vector"]
+  ],
+  "(method 23 cloth-system)": [
+    [16, "matrix"],
+    [128, "vector"],
+    [192, "vector"]
+  ],
+  "matrix<-parented-transformq!": [[16, "vector"]],
+  "joint-mod-ik-callback": [
+    [16, "matrix"],
+    [80, "matrix"],
+    [144, "vector"],
+    [160, "vector"],
+    [176, "vector"],
+    [192, "vector"],
+    [208, "vector"],
+    [224, "vector"],
+    [240, "matrix"],
+    [272, "vector"],
+    [256, "vector"],
+    [288, "vector"],
+    [304, "vector"],
+    [320, "quaternion"],
+    [336, "quaternion"],
+    [352, "vector"],
+    [384, "vector"],
+    [448, "vector"],
+    [464, "vector"],
+    [480, "vector"],
+    [496, "quaternion"],
+    [512, "matrix"],
+    [576, "vector"],
+    [592, "matrix"],
+    [608, "matrix"],
+    [656, "matrix"],
+    [720, "matrix"],
+    [752, "matrix"]
+  ],
+  "joint-mod-look-at-handler": [
+    [16, "matrix"],
+    [80, "quaternion"],
+    [96, "vector"],
+    [112, "vector"],
+    [128, "vector"]
+  ],
+  "joint-mod-joint-set-world-handler": [
+    [32, "vector"],
+    [48, "vector"]
+  ],
+  "(method 13 gui-control)": [[16, ["array", "sound-id", 4]]],
+  "(method 29 game-info)": [[16, ["array", "int8", 4]]],
+  "(method 9 joint-control)": [[16, "vector"]],
+  "(method 23 game-info)": [[16, ["array", "uint16", 512]]],
+  "(method 18 drawable-region-face)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "(method 11 sound-controller)": [[16, "sync-info-params"]],
+  "(code explode explosion)": [[16, "overlaps-others-params"]],
+  "(event explode explosion)": [
+    [16, "mystery-cquery-type0"],
+    [608, ["inline-array", "vector", 2]]
+  ],
+  "find-closest-solid-sphere-prim": [[16, "vector"]],
+  "explosion-init-by-other": [[16, "traffic-danger-info"]],
+  "(enter cam-launcher-longfall)": [[16, "vector"]],
+  "want-to-board?": [
+    [16, "collide-query"],
+    [560, ["inline-array", "sphere", 3]],
+    [608, "vector"]
+  ],
+  "(method 16 target)": [[16, "vector"]],
+  "can-exit-duck?": [[560, ["inline-array", "sphere", 2]]],
+  "target-no-stick-post": [[32, "collide-query"]],
+  "target-compute-edge-rider": [[96, "bone"]],
+  "target-compute-edge": [[96, "bone"]],
+  "bend-gravity": [[32, "vector"]],
+  "target-update-ik": [
+    [16, "collide-query"],
+    [624, "vector"],
+    [592, "vector"],
+    [640, "vector"],
+    [656, "vector"]
+  ],
+  "target-collision-reaction": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "matrix"]
+  ],
+  "poly-find-nearest-edge": [[16, "vector"]],
+  "(method 23 task-arrow)": [[16, "cquery-with-vec"]],
+  "projectile-update-velocity-space-wars": [[64, "vector"]],
+  "projectile-move-fill-line-sphere": [[16, "collide-query"]],
+  "(method 38 projectile)": [[16, "collide-query"]],
+  "(method 10 ragdoll)": [[16, "vector"]],
+  "(method 19 wings-ragdoll)": [[16, "vector"]],
+  "find-water-with-spheres": [[16, "water-info"]],
+  "(method 18 ragdoll)": [
+    [16, "collide-query"],
+    [560, "bounding-box"],
+    [624, ["inline-array", "water-sphere", 2]]
+  ],
+  "(method 17 ragdoll-edit-info)": [
+    [224, "vector"],
+    [384, "matrix"],
+    [448, "vector"],
+    [608, "matrix"],
+    [672, "vector"]
+  ],
+  "(method 16 ragdoll-edit-info)": [
+    [16, ["inline-array", "matrix", 60]],
+    [3984, "vector"],
+    [4016, "matrix"],
+    [4080, "matrix"],
+    [4144, "matrix"]
+  ],
+  "target-send-attack": [[112, "vector"]],
+  "target-stance-anim": [[64, ["array", "time-frame", 4]]],
+  "init-var-jump": [[96, "vector"]],
+  "(code target-running-attack)": [[112, "collide-query"]],
+  "(anon-function 12 target2)": [[16, "vector"]],
+  "lightning-start": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "(method 9 curve-color-fast)": [[16, "rgbaf"]],
+  "(method 9 curve2d-fast)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "evaluate-color-curve-fast": [[16, "vector"]],
+  "evaluate-curve-fast": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "lightning-trail-fractal-gen": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"],
+    [64, "vector"]
+  ],
+  "(post open lightjak-shield)": [[32, "vector"]],
+  "(method 24 freeze-screen)": [[32, "vector"]],
+  "(post target-launch-dir)": [[16, "collide-query"]],
+  "arrive-at-continue": [[16, "event-message-block"]],
+  "(code target-hit)": [[16, "vector"]],
+  "apply-pos-from-entity": [[208, "collide-query"]],
+  "target-death-main": [
+    [16, "event-message-block"],
+    [96, ["array", "level", 1]]
+  ],
+  "find-nearest-focusable": [[48, "vector"]],
+  "target-gun-joint-pre0": [
+    [640, ["inline-array", "sphere", 1]],
+    [656, "vector"]
+  ],
+  "target-gun-can-fire-yellow?": [[16, "gun-yellow-3-event-msg"]],
+  "draw-beam": [[16, ["inline-array", "vector", 2]]],
+  "(code die gun)": [[144, "vector"]],
+  "light-trail-tracker-init-by-other": [[16, "vector"]],
+  "(method 11 light-trail)": [[16, "light-trail-breadcrumb"]],
+  "(method 12 light-trail)": [
+    [16, ["array", "int32", 4]],
+    [160, "vector"],
+    [176, "vector"],
+    [32, "rgbaf"],
+    [48, "vector"],
+    [112, "vector"],
+    [208, ["inline-array", "vector", 5]],
+    [288, "rgbaf"]
+  ],
+  "target-board-ride-post": [[64, "vector"]],
+  "target-board-compute-edge": [
+    [32, "vector"],
+    [128, "vector"]
+  ],
+  "board-turn-around?": [[48, "vector"]],
+  "target-board-green-eco-attack": [
+    [16, "bounding-box"],
+    [32, ["array", "collide-shape", 384]]
+  ],
+  "(enter target-board-jump)": [[48, "vector"]],
+  "(code target-board-flip)": [[16, "vector"]],
+  "(code target-board-trickx)": [[16, "vector"]],
+  "(code target-board-tricky)": [[16, "vector"]],
+  "(code target-board-hold)": [[16, "vector"]],
+  "target-board-spin-check": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"]
+  ],
+  "target-board-ground-check": [[32, "vector"]],
+  "(method 9 plane-volume)": [
+    [64, "vector"],
+    [112, "vector"],
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"],
+    [80, "vector"],
+    [128, "vector"]
+  ],
+  "add-a-bunch": [[16, "vector"]],
+  "birth-pickup-at-point": [[16, "vector"]],
+  "(code pickup eco)": [[16, "event-message-block"]],
+  "(method 10 simple-sprite-system)": [[16, ["array", "texture-id", 128]]],
+  "make-debug-sphere-table": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"],
+    [64, "vector"],
+    [80, "vector"],
+    [96, "vector"],
+    [112, "vector"]
+  ],
+  "add-debug-sphere-from-table": [
+    [16, "vector"],
+    [48, "vector"],
+    [64, "vector"]
+  ],
+  "internal-draw-debug-line": [
+    [16, "vector4w-2"],
+    [48, "vector4w-2"],
+    [80, "vector"],
+    [96, "vector"]
+  ],
+  "add-debug-box-with-transform": [
+    [16, ["inline-array", "vector", 8]],
+    [144, ["inline-array", "vector", 2]],
+    [176, "vector"]
+  ],
+  "add-debug-line-sphere": [
+    [48, "matrix"],
+    [112, "matrix"],
+    [128, "vector"],
+    [144, "vector"],
+    [160, "vector"],
+    [176, "vector"],
+    [208, "vector"],
+    [192, "vector"]
+  ],
+  "add-debug-arc": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "add-debug-curve": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "add-debug-points": [[16, "vector"]],
+  "add-debug-cursor": [[16, "vector"]],
+  "(method 11 impact-control)": [[16, "touching-shapes-entry"]],
+  "(method 9 cubic-curve)": [[16, "trajectory"]],
+  "(method 10 cubic-curve)": [[16, "trajectory"]],
+  "(method 11 cubic-curve)": [[16, "trajectory"]],
+  "(method 12 cubic-curve)": [[16, "trajectory"]],
+  "(method 13 cubic-curve)": [[16, "trajectory"]],
+  "slave-set-rotation!": [
+    [96, "vector"],
+    [112, "matrix"],
+    [176, "vector"]
+  ],
+  "v-slrp2!": [
+    [32, "vector"],
+    [64, "matrix"]
+  ],
+  "v-slrp3!": [[32, "vector"]],
+  "(method 15 tracking-spline)": [
+    [16, "tracking-spline-sampler"],
+    [32, "vector"]
+  ],
+  "(method 16 tracking-spline)": [
+    [16, "tracking-spline-sampler"],
+    [32, "tracking-spline-sampler"]
+  ],
+  "(method 18 tracking-spline)": [[16, "tracking-spline-sampler"]],
+  "(code cam-eye)": [[112, "vector"]],
+  "(enter cam-circular)": [[32, "vector"]],
+  "cam-string-joystick": [
+    [32, "vector"],
+    [48, "vector"]
+  ],
+  "cam-string-line-of-sight": [[192, "vector"]],
+  "cam-los-collide": [
+    [592, "vector"],
+    [608, "vector"]
+  ],
+  "los-cw-ccw": [
+    [48, ["inline-array", "vector", 4]],
+    [16, "vector"],
+    [32, "vector"],
+    [112, "vector"]
+  ],
+  "master-track-target": [[16, "vector"]],
+  "(code cam-point-watch)": [[16, "vector"]],
+  "cam-helper-temp": [[16, ["inline-array", "vector", 3]]],
+  "update-view-planes": [
+    [208, "vector"],
+    [224, "vector"]
+  ],
+  "clmf-pos-rot": [[112, "matrix"]],
+  "cam-layout-entity-info": [[208, "vector"]],
+  "cam-layout-entity-volume-info-create": [
+    [80, "vector"],
+    [128, "vector"],
+    [32, "vector"],
+    [48, "vector"],
+    [64, "vector"],
+    [96, "vector"],
+    [144, "vector"],
+    [112, "vector"]
+  ],
+  "(method 23 tracking-spline)": [[32, "vector"]],
+  "(method 21 tracking-spline)": [[16, "tracking-spline-sampler"]],
+  "(method 18 light-trail)": [[16, "vector"]],
+  "ragdoll-joint-callback": [
+    [112, "vector"],
+    [128, "matrix"],
+    [192, "vector"],
+    [224, "vector"]
+  ],
+  "ragdoll-matrix-interp": [
+    [16, "matrix"],
+    [144, "matrix"]
+  ],
+  "(method 15 ragdoll)": [
+    [80, "matrix"],
+    [160, "vector"],
+    [304, "vector"],
+    [144, "vector"],
+    [176, "vector"],
+    [192, "vector"],
+    [208, "vector"],
+    [224, "vector"],
+    [240, "vector"]
+  ],
+  "(method 14 ragdoll)": [[144, "vector"]],
+  "(method 14 light-trail)": [[16, "light-trail-breadcrumb"]],
+  "check-water-level-drop": [[16, "vector"]],
+  "check-water-level-drop-motion": [[16, "vector"]],
+  "(method 17 water-control)": [[16, "light-trail-tracker-spawn-params"]],
+  "(method 10 water-control)": [[288, "vector"]],
+  "(method 11 flow-control)": [
+    [80, "vector"],
+    [128, "vector"]
+  ],
+  "(method 13 flow-control)": [
+    [64, "vector"],
+    [80, "vector"],
+    [96, "vector"],
+    [128, "vector"]
+  ],
+  "progress-post": [[176, "hud-box"]],
+  "(method 15 hud-gun)": [[16, "hud-sprite"]],
+  "play": [[96, ["array", "symbol", 10]]],
+  "update-sound-banks": [[16, ["array", "int8", 36]]],
+  "show-level": [[16, ["array", "symbol", 10]]],
+  "(method 20 load-state)": [
+    [16, ["inline-array", "level-buffer-state", 10]],
+    [176, ["inline-array", "level-buffer-state", 10]]
+  ],
+  "calc-vu1-lights": [[16, "light-group"]],
+  "teleport-camera-by-pos": [[16, "vector"]],
+  "water-anim-event-handler": [[16, "vector"]],
+  "blocking-plane-spawn": [[16, ["inline-array", "vector", 2]]],
+  "(method 11 blocking-plane)": [[16, ["inline-array", "vector", 2]]],
+  "(method 56 enemy)": [
+    [48, "vector"],
+    [32, "vector"]
+  ],
+  "(method 58 enemy)": [[80, "vector"]],
+  "(method 82 enemy)": [[96, "attack-info"]],
+  "(post knocked-recover enemy)": [
+    [1120, "vector"],
+    [1136, "vector"]
+  ],
+  "(post running elevator)": [[16, "vector"]],
+  "matrix-3x3-triple-transpose-product": [[16, ["inline-array", "matrix", 3]]],
+  "(method 63 collide-shape-moving)": [[16, "rigid-body-move-work"]],
+  "(method 18 rigid-body-control)": [[16, ["inline-array", "vector", 2]]],
+  "(method 22 rigid-body-control)": [[16, ["inline-array", "vector", 2]]],
+  "(method 23 rigid-body-control)": [[16, ["inline-array", "vector", 2]]],
+  "(method 24 rigid-body-control)": [[16, ["inline-array", "vector", 2]]],
+  "(method 28 rigid-body-control)": [[16, "rigid-body-impact"]],
+  "(method 50 rigid-body-object)": [[16, "rigid-body-impact"]],
+  "(method 51 rigid-body-object)": [[16, "rigid-body-impact"]],
+  "ptest": [[16, "vector"]],
+  "spawn-guard-projectile": [[16, "projectile-init-by-other-params"]],
+  "(method 25 guard-shot)": [[32, "vector"]],
+  "(method 25 metalhead-shot)": [[32, "vector"]],
+  "(event impact metalhead-grenade-shot)": [[16, "collide-query"]],
+  "(method 9 los-control)": [
+    [32, "collide-query"],
+    [16, "vector"]
+  ],
+  "(method 22 joint-exploder)": [[16, "collide-query"]],
+  "(method 25 joint-exploder)": [[16, "bounding-box"]],
+  "(method 15 debris-group)": [[64, "vector"]],
+  "debris-group-init-by-other": [[16, "vector"]],
+  "shield-sphere-init-by-other": [[16, "shield-sphere-distort-spawn-params"]],
+  "gun-yellow-shot-do-deflect": [
+    [144, ["array", "collide-shape", 384]],
+    [64, "vector"]
+  ],
+  "(method 31 gun-yellow-shot-2)": [[16, "light-trail-tracker-spawn-params"]],
+  "(method 25 gun-yellow-shot)": [[32, "vector"]],
+  "gun-fire-yellow-3": [[16, "gun-yellow-3-event-msg"]],
+  "(code impact-explode gun-yellow-3-saucer)": [[16, "explosion-init-params"]],
+  "saucer-land-move": [[16, "vector"]],
+  "(method 25 gun-yellow-shot-2)": [[32, "vector"]],
+  "(method 36 gun-yellow-shot-2)": [[96, "vector"]],
+  "(method 52 gun-yellow-3-saucer)": [
+    [48, ["inline-array", "target-quality-info-saucer", 66]],
+    [1104, ["array", "collide-shape", 384]],
+    [32, "vector"],
+    [3728, ["array", "int8", 100]],
+    [3824, "vector"]
+  ],
+  "(code impact gun-red-3-grenade)": [[16, "red-3-sphere-init-params"]],
+  "(post explode gun-red-2-shockwave)": [[16, "vector"]],
+  "(method 27 gun-red-2-shockwave)": [
+    [16, "vector"],
+    [32, "red-2-ring-init-params"]
+  ],
+  "(method 31 gun-red-3-grenade)": [
+    [16, "vector"],
+    [32, "light-trail-tracker-spawn-params"]
+  ],
+  "(method 45 gun-red-3-grenade)": [
+    [16, "vector"],
+    [112, ["array", "collide-shape", 384]]
+  ],
+  "(method 47 gun-red-3-grenade)": [
+    [16, "vector"],
+    [112, ["array", "collide-shape", 384]]
+  ],
+  "(method 17 gun-red-2-shockwave)": [
+    [48, ["array", "collide-shape", 384]],
+    [16, "vector"],
+    [1584, "collide-query"]
+  ],
+  "(method 19 gun-red-2-shockwave)": [
+    [16, "collide-query"],
+    [576, "vector"],
+    [624, "vector"],
+    [592, "vector"]
+  ],
+  "(method 23 gun-red-2-shockwave)": [[32, "vector"]],
+  "(method 24 gun-red-2-shockwave)": [[16, "vector"]],
+  "gun-fire-red-2": [[16, "gun-red-2-shockwave-init-params"]],
+  "gun-fire-red-3": [
+    [160, ["array", "collide-shape", 384]],
+    [112, "vector"],
+    [128, "vector"],
+    [1696, "vector"]
+  ],
+  "(method 26 gun-red-shot)": [[16, "bounding-box"]],
+  "gun-dark-reaction": [[112, "vector"]],
+  "gun-fire-red-1": [
+    [16, "vector"],
+    [32, "event-message-block"],
+    [112, "vector"]
+  ],
+  "(trans expand gun-gravity)": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"],
+    [80, "collide-query"],
+    [624, "matrix"]
+  ],
+  "gun-fire-dark-3": [[16, "projectile-init-by-other-params"]],
+  "(trans moving gun-dark-shot)": [[16, "vector"]],
+  "(enter impact gun-dark-shot)": [
+    [192, ["array", "collide-shape", 384]],
+    [96, "vector"]
+  ],
+  "gravity-spinner-init-by-other": [[32, "vector"]],
+  "(code zero-g gravity-spinner)": [[112, "vector"]],
+  "(method 25 gun-dark-3-nuke)": [[16, "matrix"]],
+  "(code impact-dud gun-dark-3-nuke)": [[16, "explosion-init-params"]],
+  "(method 54 gun-dark-3-nuke)": [
+    [32, ["array", "collide-shape", 384]],
+    [16, "vector"]
+  ],
+  "(trans impact gun-dark-3-nuke)": [
+    [96, "gun-dark-3-sphere-init-params"],
+    [128, "gun-dark-3-sphere-init-params"]
+  ],
+  "(method 19 gravity-spinner)": [
+    [176, ["array", "collide-shape", 384]],
+    [128, "vector"],
+    [112, "vector"],
+    [1712, "vector"],
+    [2288, "vector"]
+  ],
+  "(method 16 gravity-spinner)": [[32, "vector"]],
+  "(method 22 gun-gravity)": [
+    [112, ["array", "collide-shape", 384]],
+    [16, "vector"]
+  ],
+  "target-bomb1-fire-shot": [
+    [96, "vector"],
+    [112, "vector"]
+  ],
+  "(code target-darkjak-smack)": [[112, "projectile-init-by-other-params"]],
+  "(method 25 darkjak-ball)": [[32, "vector"]],
+  "sparticle-track-hadouken": [[16, "vector"]],
+  "sparticle-red-2-converge": [[16, "vector"]],
+  "(method 9 rope-constraint)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "(method 26 gun-blue-shot)": [[32, "vector"]],
+  "(method 24 gun-blue-shot)": [[96, "vector"]],
+  "gun-fire-blue-2": [[16, "gun-blue-lightning-command"]],
+  "gun-fire-blue-2-old": [
+    [16, "gun-blue-lightning-command"],
+    [752, "vector"],
+    [704, "vector"],
+    [736, "vector"],
+    [816, "vector"]
+  ],
+  "find-gun-blue-2-target-old": [
+    [48, ["array", "collide-shape", 384]],
+    [16, "vector"]
+  ],
+  "find-gun-blue-2-target": [
+    [48, ["array", "collide-shape", 384]],
+    [16, "vector"]
+  ],
+  "(method 31 gun-blue-shot-3)": [[16, "light-trail-tracker-spawn-params"]],
+  "gun-blue-shot-3-move": [[160, "dist-dot-val"]],
+  "gun-fire-blue-3": [
+    [16, "projectile-init-by-other-params"],
+    [160, "vector"],
+    [3968, "vector"],
+    [176, ["inline-array", "target-quality-info", 384]],
+    [1312, ["array", "collide-shape", 384]]
+  ],
+  "create-lightning-tracker-if-necessary": [
+    [16, "gun-blue-2-lightning-init-params"]
+  ],
+  "(method 25 gun-blue-2-lightning-tracker)": [
+    [32, "gun-blue-lightning-command"],
+    [704, "vector"],
+    [736, "collide-query"]
+  ],
+  "collide-list-fill-bg-using-line-sphere": [
+    [32, "matrix"],
+    [96, "collide-query"]
+  ],
+  "collide-list-fill-bg-using-box": [
+    [32, "matrix"],
+    [96, "collide-query"]
+  ],
+  "add-collide-debug-box": [[16, "bounding-box"]],
+  "(method 10 collide-mesh)": [[16, "oot-work"]],
+  "(method 9 touching-list)": [[16, "add-prims-touching-work"]],
+  "(method 9 collide-edge-edge)": [
+    [16, "matrix"],
+    [80, ["inline-array", "sphere", 6]],
+    [176, "collide-query"]
+  ],
+  "(method 13 collide-edge-work)": [[16, "faei-stack-vars"]],
+  "(method 50 collide-shape)": [[32, "vector"]],
+  "(method 45 collide-shape)": [[16, "do-push-aways-work"]],
+  "(method 18 collide-shape-prim-mesh)": [[16, "collide-tri-result"]],
+  "(method 15 collide-shape-prim-sphere)": [[16, "collide-tri-result"]],
+  "cshape-reaction-update-state": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "(method 37 control-info)": [[48, "vector"]],
+  "(method 23 grid-hash)": [
+    [16, "grid-hash-box"],
+    [32, "grid-hash-box"],
+    [48, "vector"],
+    [64, "vector"]
+  ],
+  "(method 11 grid-hash)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "draw-grid": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"]
+  ],
+  "(method 9 actor-hash-buckets)": [
+    [16, ["inline-array", "vector", 2]],
+    [48, ["inline-array", "vector", 2]]
+  ],
+  "(method 15 sphere-hash)": [[16, "vector"]],
+  "(method 33 spatial-hash)": [[16, ["inline-array", "vector", 2]]],
+  "(method 24 grid-hash)": [[16, "vector"]],
+  "(method 14 collide-cache)": [[16, "bounding-box"]],
+  "(method 16 collide-cache)": [[16, "collide-cache-tri"]],
+  "(method 20 collide-cache)": [[16, "matrix"]],
+  "col-rend-draw": [[16, "matrix"]],
+  "(method 11 collide-mesh)": [[16, "spat-work"]],
+  "(method 11 manipulator)": [[80, "vector"]],
+  "draw-axis": [
+    [32, "vector"],
+    [48, "vector"],
+    [64, "vector"],
+    [96, "vector"],
+    [112, "vector"]
+  ],
+  "(method 16 bug-report)": [
+    [160, ["array", "float", 9]],
+    [48, "vector"],
+    [64, "vector"]
+  ],
+  "particle-adgif-callback": [[16, ["inline-array", "vector", 4]]],
+  "sp-adjust-launch": [[16, "matrix"]],
+  "sp-launch-particles-death": [[16, "matrix"]],
+  "sp-relaunch-setup-fields": [[16, "matrix"]],
+  "sparticle-respawn-timer": [[16, "vector"]],
+  "sparticle-respawn-heights": [[16, "vector"]],
+  "sparticle-rotate-to-vel-3d": [[16, "vector"]],
+  "spt-func-turn-to-vel-radial": [[16, "vector"]],
+  "spt-func-relative-pos": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"],
+    [64, "matrix"],
+    [128, "matrix"],
+    [192, "matrix"]
+  ],
+  "sparticle-3d-rotate-xz-to-camera": [[16, "vector"]],
+  "sparticle-3d-rotate-xz-to-camera-eco-shaft": [[16, "vector"]],
+  "sparticle-2d-spline-align-instant": [[16, "vector"]],
+  "birth-func-converge": [[16, "vector"]],
+  "check-shell-level2": [[16, "vector"]],
+  "check-shell-level1": [[16, "vector"]],
+  "process-drawable-burn-effect": [[32, "rgbaf"]],
+  "birth-func-vector-orient": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"]
+  ],
+  "birth-func-target-orient": [[48, "vector"]],
+  "process-drawable-shock-skel-effect": [
+    [176, "matrix"],
+    [256, "vector"],
+    [272, "vector"],
+    [288, "vector"],
+    [304, "quaternion"],
+    [384, "vector"]
+  ],
+  "process-drawable-shock-effect": [
+    [80, "collide-query"],
+    [16, "matrix"]
+  ],
+  "process-drawable-shock-effect-replace": [
+    [80, "collide-query"],
+    [16, "matrix"]
+  ],
+  "(trans target-ladder-walk-up)": [[96, "vector"]],
+  "(trans target-ladder-walk-down)": [[96, "vector"]],
+  "(post target-ladder)": [[96, "matrix"]],
+  "(anon-function 0 script)": [[16, "prim-beam-tracker-params"]],
+  "(anon-function 47 script)": [[16, "vector"]],
+  "(anon-function 48 script)": [
+    [16, "vector"],
+    [32, "vector"]
+  ],
+  "(anon-function 49 script)": [
+    [128, "part-tracker-subsampler-init-params"],
+    [176, "part-tracker-init-params"]
+  ],
+  "(method 9 mood-control)": [[16, "mood-control-work"]],
+  "check-drop-level-rain": [[16, "vector"]],
+  "(method 28 path-control)": [
+    [16, "vector"],
+    [32, "vector"],
+    [48, "vector"],
+    [64, "vector"],
+    [80, "vector"]
+  ],
+  "(method 29 path-control)": [[32, "vector"]],
+  "print-default-collision": [
+    [144, "vector"],
+    [96, "vector"],
+    [112, "vector"],
+    [128, "vector"],
+    [160, "matrix"]
+  ],
+  "mech-spawn-thruster": [[32, "vector"]],
+  "mech-shield-init-by-other": [[16, "shield-sphere-distort-spawn-params"]],
+  "target-mech-get-off?": [[560, ["inline-array", "sphere", 1]]],
+  "mech-update-ik": [
+    [16, "collide-query"],
+    [592, "vector"],
+    [608, "vector"],
+    [624, "vector"],
+    [640, "vector"],
+    [656, "vector"],
+    [672, "vector"]
+  ],
+  "target-mech-init": [[96, "shield-sphere-spawn-params"]],
+  "target-mech-add-thrust": [[16, "vector"]],
+  "target-mech-collision": [[144, "vector"]],
+  "(code target-mech-carry-throw)": [[640, ["inline-array", "sphere", 1]]],
+  "(trans target-mech-carry-drag)": [[560, ["inline-array", "sphere", 1]]],
+  "(code target-mech-carry-drop)": [[672, ["inline-array", "sphere", 1]]],
+  "target-mech-carry-update": [[560, ["inline-array", "sphere", 1]]],
+  "flut-update-ik": [
+    [16, "collide-query"],
+    [624, "vector"],
+    [640, "vector"],
+    [656, "vector"],
+    [592, "vector"],
+    [608, "vector"]
+  ],
+  "(code target-flut-get-on)": [
+    [16, "vector"],
+    [32, "vector"]
+  ]
+}
